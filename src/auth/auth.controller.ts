@@ -1,8 +1,8 @@
 import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiOperation } from '@nestjs/swagger';
 import { IsString, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
 import { RegistrationType } from '../user/user.controller';
 
@@ -44,14 +44,21 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @ApiOperation({ summary: 'Login user' })
   async login(@Body() body: LoginDto) {
-    return this.authService.login(body);
+    const result = await this.authService.login(body);
+    return {
+      message: 'User logged in successfully',
+      user: result
+    };
   }
 
   @Get('profile')
   @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get authenticated user profile' })
   async getProfile(@Request() req: any) {
-    // Return user profile if authenticated
-    return { message: 'Protected profile endpoint', user: req.user };
+    const userId = req.user.sub; // JWT payload stores user id in 'sub' claim
+    return this.authService.getProfile(userId);
   }
 } 

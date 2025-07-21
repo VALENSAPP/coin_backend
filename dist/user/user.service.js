@@ -18,22 +18,29 @@ const AWS = require("aws-sdk");
 const uuid_1 = require("uuid");
 const path = require("path");
 const sgMail = require("@sendgrid/mail");
+const jwt_1 = require("@nestjs/jwt");
 let UserService = class UserService {
     prisma;
-    constructor(prisma) {
+    jwtService;
+    constructor(prisma, jwtService) {
         this.prisma = prisma;
+        this.jwtService = jwtService;
     }
     async register(data) {
-        if (data.email && await this.prisma.user.findUnique({ where: { email: data.email } })) {
+        if (data.email &&
+            await this.prisma.user.findFirst({ where: { email: data.email, deletedAt: null } })) {
             throw new common_1.BadRequestException('Email already registered');
         }
-        if (data.googleId && await this.prisma.user.findUnique({ where: { googleId: data.googleId } })) {
+        if (data.googleId &&
+            await this.prisma.user.findFirst({ where: { googleId: data.googleId, deletedAt: null } })) {
             throw new common_1.BadRequestException('Google account already registered');
         }
-        if (data.twitterId && await this.prisma.user.findUnique({ where: { twitterId: data.twitterId } })) {
+        if (data.twitterId &&
+            await this.prisma.user.findFirst({ where: { twitterId: data.twitterId, deletedAt: null } })) {
             throw new common_1.BadRequestException('Twitter account already registered');
         }
-        if (data.walletAddress && await this.prisma.user.findUnique({ where: { walletAddress: data.walletAddress } })) {
+        if (data.walletAddress &&
+            await this.prisma.user.findFirst({ where: { walletAddress: data.walletAddress, deletedAt: null } })) {
             throw new common_1.BadRequestException('Wallet address already registered');
         }
         let passwordHash = undefined;
@@ -52,7 +59,11 @@ let UserService = class UserService {
                 registrationType: data.registrationType,
             },
         });
-        return user;
+        const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
+        return {
+            access_token: this.jwtService.sign(payload),
+            user,
+        };
     }
     async validateUser(data) {
         let user = null;
@@ -225,6 +236,7 @@ let UserService = class UserService {
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        jwt_1.JwtService])
 ], UserService);
 //# sourceMappingURL=user.service.js.map

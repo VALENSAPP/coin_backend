@@ -18,9 +18,18 @@ export class AuthService {
     const user = await this.validateUser(loginDto);
     if (!user) throw new UnauthorizedException('Invalid credentials');
     const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
+    const access_token = this.jwtService.sign(payload);
     return {
-      access_token: this.jwtService.sign(payload),
-      user,
+      access_token,
+      ...user
+    };
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.userService.getUserById(userId);
+    return {
+      message: 'Profile fetched successfully',
+      user
     };
   }
 } 

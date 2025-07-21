@@ -12,30 +12,50 @@ export declare class AuthController {
     private readonly authService;
     constructor(authService: AuthService);
     login(body: LoginDto): Promise<{
-        access_token: string;
+        message: string;
         user: {
+            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
+            createdAt: Date;
+            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
-            otp: string | null;
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
+            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            access_token: string;
         };
     }>;
     getProfile(req: any): Promise<{
         message: string;
-        user: any;
+        user: {
+            id: string;
+            email: string | null;
+            password: string | null;
+            googleId: string | null;
+            twitterId: string | null;
+            walletAddress: string | null;
+            registrationType: import(".prisma/client").$Enums.RegistrationType;
+            createdAt: Date;
+            updatedAt: Date;
+            phoneNumber: string | null;
+            gender: import(".prisma/client").$Enums.Gender | null;
+            image: string | null;
+            age: number | null;
+            deletedAt: Date | null;
+            isDeleted: number;
+            otp: string | null;
+            otpExpiresAt: Date | null;
+            verifyEmail: number;
+        };
     }>;
 }
