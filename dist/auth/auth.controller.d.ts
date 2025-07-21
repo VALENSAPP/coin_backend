@@ -23,6 +23,15 @@ export declare class AuthController {
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
             updatedAt: Date;
+            phoneNumber: string | null;
+            gender: import(".prisma/client").$Enums.Gender | null;
+            image: string | null;
+            age: number | null;
+            deletedAt: Date | null;
+            isDeleted: number;
+            otp: string | null;
+            otpExpiresAt: Date | null;
+            verifyEmail: number;
         };
     }>;
     getProfile(req: any): Promise<{

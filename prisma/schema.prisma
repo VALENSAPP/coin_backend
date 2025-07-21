@@ -23,6 +23,19 @@ model User {
   registrationType RegistrationType
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  // Profile fields
+  phoneNumber    String?
+  gender         Gender?
+  image          String?
+  age            Int?
+  // Soft delete
+  deletedAt      DateTime?
+  isDeleted      Int      @default(0)
+  // OTP for password reset
+  otp            String?
+  otpExpiresAt   DateTime?
+  // Email verification
+  verifyEmail    Int      @default(0)
 }
 
 enum RegistrationType {
@@ -30,4 +43,10 @@ enum RegistrationType {
   GOOGLE
   TWITTER
   WALLET
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
 }
