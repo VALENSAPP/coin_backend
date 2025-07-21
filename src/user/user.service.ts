@@ -8,6 +8,7 @@ import * as AWS from 'aws-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as sgMail from '@sendgrid/mail';
+import { JwtService } from '@nestjs/jwt';
 // Add AWS and nodemailer stubs
 // import * as AWS from 'aws-sdk';
 // import * as nodemailer from 'nodemailer';
@@ -16,7 +17,10 @@ export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   async register(data: {
     email?: string;
@@ -26,17 +30,29 @@ export class UserService {
     walletAddress?: string;
     registrationType: RegistrationType;
   }) {
-    // Check for existing user by unique fields
-    if (data.email && await this.prisma.user.findUnique({ where: { email: data.email } })) {
+    // Check for existing user by unique fields (exclude soft-deleted)
+    if (
+      data.email &&
+      await this.prisma.user.findFirst({ where: { email: data.email, deletedAt: null } })
+    ) {
       throw new BadRequestException('Email already registered');
     }
-    if (data.googleId && await this.prisma.user.findUnique({ where: { googleId: data.googleId } })) {
+    if (
+      data.googleId &&
+      await this.prisma.user.findFirst({ where: { googleId: data.googleId, deletedAt: null } })
+    ) {
       throw new BadRequestException('Google account already registered');
     }
-    if (data.twitterId && await this.prisma.user.findUnique({ where: { twitterId: data.twitterId } })) {
+    if (
+      data.twitterId &&
+      await this.prisma.user.findFirst({ where: { twitterId: data.twitterId, deletedAt: null } })
+    ) {
       throw new BadRequestException('Twitter account already registered');
     }
-    if (data.walletAddress && await this.prisma.user.findUnique({ where: { walletAddress: data.walletAddress } })) {
+    if (
+      data.walletAddress &&
+      await this.prisma.user.findFirst({ where: { walletAddress: data.walletAddress, deletedAt: null } })
+    ) {
       throw new BadRequestException('Wallet address already registered');
     }
     let passwordHash = undefined;
@@ -54,7 +70,12 @@ export class UserService {
         registrationType: data.registrationType,
       },
     });
-    return user;
+
+    const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
+    return {
+      access_token: this.jwtService.sign(payload),
+      user,
+    };
   }
 
   async validateUser(data: {

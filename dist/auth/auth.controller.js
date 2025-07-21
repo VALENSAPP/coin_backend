@@ -71,15 +71,21 @@ let AuthController = class AuthController {
         this.authService = authService;
     }
     async login(body) {
-        return this.authService.login(body);
+        const result = await this.authService.login(body);
+        return {
+            message: 'User logged in successfully',
+            user: result
+        };
     }
     async getProfile(req) {
-        return { message: 'Protected profile endpoint', user: req.user };
+        const userId = req.user.sub;
+        return this.authService.getProfile(userId);
     }
 };
 exports.AuthController = AuthController;
 __decorate([
     (0, common_1.Post)('login'),
+    (0, swagger_2.ApiOperation)({ summary: 'Login user' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [LoginDto]),
@@ -88,6 +94,8 @@ __decorate([
 __decorate([
     (0, common_1.Get)('profile'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_2.ApiOperation)({ summary: 'Get authenticated user profile' }),
     __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),

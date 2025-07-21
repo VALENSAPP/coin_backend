@@ -20,6 +20,7 @@ const swagger_2 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_3 = require("@nestjs/swagger");
+const passport_1 = require("@nestjs/passport");
 var RegistrationType;
 (function (RegistrationType) {
     RegistrationType["NORMAL"] = "NORMAL";
@@ -228,15 +229,22 @@ let UserController = class UserController {
         this.userService = userService;
     }
     async register(dto) {
-        const user = await this.userService.register(dto);
-        return { message: 'User registered', user };
+        const result = await this.userService.register(dto);
+        return {
+            message: 'User registered',
+            user: {
+                access_token: result.access_token,
+                ...result.user
+            }
+        };
     }
-    async login(dto) {
-        const user = await this.userService.validateUser(dto);
-        return { message: 'User validated', user };
+    async getProfile(req) {
+        const userId = req.user.id;
+        const user = await this.userService.getUserById(userId);
+        return { user };
     }
     async editProfile(req, dto, image) {
-        const userId = req.user?.id || req.body.userId;
+        const userId = req.user.id;
         const user = await this.userService.editProfile(userId, dto, image);
         return { message: 'Profile updated', user };
     }
@@ -260,13 +268,13 @@ let UserController = class UserController {
         await this.userService.resetPassword(dto.email, dto.otp, dto.newPassword);
         return { message: 'Password reset successful' };
     }
-    async getUserById(id) {
-        const user = await this.userService.getUserById(id);
-        return { user };
-    }
     async getAllUsers() {
         const users = await this.userService.getAllUsers();
         return { users };
+    }
+    async getUserById(id) {
+        const user = await this.userService.getUserById(id);
+        return { user };
     }
     async softDeleteUser(id) {
         await this.userService.softDeleteUser(id);
@@ -282,14 +290,19 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "register", null);
 __decorate([
-    (0, common_1.Post)('login'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Get)('profile'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Get current user profile' }),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [LoginDto]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], UserController.prototype, "login", null);
+], UserController.prototype, "getProfile", null);
 __decorate([
     (0, common_1.Patch)('profile'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Edit user profile' }),
     (0, swagger_3.ApiConsumes)('multipart/form-data'),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image')),
@@ -341,7 +354,18 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "resetPassword", null);
 __decorate([
+    (0, common_1.Get)('all'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Get all users (excluding soft-deleted)' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getAllUsers", null);
+__decorate([
     (0, common_1.Get)(':id'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Get user by ID' }),
     (0, swagger_3.ApiParam)({ name: 'id', type: String }),
     __param(0, (0, common_1.Param)('id')),
@@ -350,14 +374,9 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getUserById", null);
 __decorate([
-    (0, common_1.Get)(),
-    (0, swagger_3.ApiOperation)({ summary: 'Get all users (excluding soft-deleted)' }),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], UserController.prototype, "getAllUsers", null);
-__decorate([
     (0, common_1.Delete)(':id'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Soft delete user by ID' }),
     (0, swagger_3.ApiParam)({ name: 'id', type: String }),
     __param(0, (0, common_1.Param)('id')),
