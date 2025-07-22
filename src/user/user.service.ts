@@ -30,6 +30,25 @@ export class UserService {
     walletAddress?: string;
     registrationType: RegistrationType;
   }) {
+    // Special case: If all of twitterId, walletAddress, and googleId are present
+    if (data.twitterId && data.walletAddress && data.googleId) {
+      const existingUser = await this.prisma.user.findFirst({
+        where: {
+          twitterId: data.twitterId,
+          walletAddress: data.walletAddress,
+          googleId: data.googleId,
+          deletedAt: null,
+        },
+      });
+      if (existingUser) {
+        const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
+        return {
+          access_token: this.jwtService.sign(payload),
+          user: existingUser,
+        };
+      }
+      // If not found, proceed to registration as usual
+    }
     // Check for existing user by unique fields (exclude soft-deleted)
     if (
       data.email &&
