@@ -179,7 +179,7 @@ export class UserController {
     return { user };
   }
 
-  @Patch('profile')
+  @Patch('editProfile')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Edit user profile' })
@@ -190,7 +190,7 @@ export class UserController {
     @Body() dto: ProfileEditDto,
     @UploadedFile() image: Express.Multer.File,
   ) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as any).userId;
     const user = await this.userService.editProfile(userId, dto, image);
     return { message: 'Profile updated', user };
   }

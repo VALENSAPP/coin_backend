@@ -27,7 +27,7 @@ let UserService = class UserService {
         this.jwtService = jwtService;
     }
     async register(data) {
-        if (data.twitterId && data.walletAddress && data.googleId) {
+        if (data.twitterId || data.walletAddress || data.googleId) {
             const existingUser = await this.prisma.user.findFirst({
                 where: {
                     twitterId: data.twitterId,
@@ -125,7 +125,6 @@ let UserService = class UserService {
             Key: key,
             Body: file.buffer,
             ContentType: file.mimetype,
-            ACL: 'public-read',
         };
         await s3.putObject(params).promise();
         return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
@@ -143,7 +142,7 @@ let UserService = class UserService {
         if (dto.gender !== undefined)
             data.gender = dto.gender;
         if (dto.age !== undefined)
-            data.age = dto.age;
+            data.age = Number(dto.age);
         if (imageUrl)
             data.image = imageUrl;
         const user = await this.prisma.user.update({

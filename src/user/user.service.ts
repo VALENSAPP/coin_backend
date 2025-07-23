@@ -31,7 +31,7 @@ export class UserService {
     registrationType: RegistrationType;
   }) {
     // Special case: If all of twitterId, walletAddress, and googleId are present
-    if (data.twitterId && data.walletAddress && data.googleId) {
+    if (data.twitterId || data.walletAddress || data.googleId) {
       const existingUser = await this.prisma.user.findFirst({
         where: {
           twitterId: data.twitterId,
@@ -141,7 +141,7 @@ export class UserService {
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
-      ACL: 'public-read',
+      // ACL: 'public-read', // Removed to support buckets with ACLs disabled
     };
     await s3.putObject(params).promise();
     return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
@@ -157,7 +157,7 @@ export class UserService {
     const data: any = {};
     if (dto.phoneNumber !== undefined) data.phoneNumber = dto.phoneNumber;
     if (dto.gender !== undefined) data.gender = dto.gender;
-    if (dto.age !== undefined) data.age = dto.age;
+    if (dto.age !== undefined) data.age = Number(dto.age);
     if (imageUrl) data.image = imageUrl;
     const user = await this.prisma.user.update({
       where: { id: userId },

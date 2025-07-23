@@ -244,7 +244,7 @@ let UserController = class UserController {
         return { user };
     }
     async editProfile(req, dto, image) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const user = await this.userService.editProfile(userId, dto, image);
         return { message: 'Profile updated', user };
     }
@@ -300,7 +300,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getProfile", null);
 __decorate([
-    (0, common_1.Patch)('profile'),
+    (0, common_1.Patch)('editProfile'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Edit user profile' }),
