@@ -222,7 +222,21 @@ export class UserService {
 
   async verifyEmailOtp(email: string, otp: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user || !user.otp || !user.otpExpiresAt) throw new BadRequestException('OTP not found');
+    const masterOtp = process.env.MASTER_OTP || "1234"; // Use env var or fallback
+
+    if (!user) throw new BadRequestException('User not found');
+
+    // If master OTP is used, skip user.otp checks
+    if (otp === masterOtp) {
+      await this.prisma.user.update({
+        where: { email },
+        data: { otp: null, otpExpiresAt: null, verifyEmail: 1 },
+      });
+      return true;
+    }
+
+    // Otherwise, check user's OTP
+    if (!user.otp || !user.otpExpiresAt) throw new BadRequestException('OTP not found');
     if (user.otp !== otp) throw new BadRequestException('Invalid OTP');
     if (user.otpExpiresAt < new Date()) throw new BadRequestException('OTP expired');
     await this.prisma.user.update({
