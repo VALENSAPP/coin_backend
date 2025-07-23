@@ -14,22 +14,22 @@ export declare class AuthController {
     login(body: LoginDto): Promise<{
         message: string;
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
             access_token: string;
@@ -38,22 +38,22 @@ export declare class AuthController {
     getProfile(req: any): Promise<{
         message: string;
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
