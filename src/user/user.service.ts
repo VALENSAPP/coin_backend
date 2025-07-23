@@ -222,7 +222,7 @@ export class UserService {
 
   async verifyEmailOtp(email: string, otp: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    const masterOtp = process.env.MASTER_OTP || "1234"; // Use env var or fallback
+    const masterOtp = process.env.MASTER_OTP || "123456"; // Use env var or fallback
 
     if (!user) throw new BadRequestException('User not found');
 

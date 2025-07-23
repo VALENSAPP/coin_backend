@@ -206,7 +206,7 @@ let UserService = class UserService {
     }
     async verifyEmailOtp(email, otp) {
         const user = await this.prisma.user.findUnique({ where: { email } });
-        const masterOtp = process.env.MASTER_OTP || "1234";
+        const masterOtp = process.env.MASTER_OTP || "123456";
         if (!user)
             throw new common_1.BadRequestException('User not found');
         if (otp === masterOtp) {
