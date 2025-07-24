@@ -3,8 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const core_1 = require("@nestjs/core");
 const app_module_1 = require("./app.module");
 const swagger_config_1 = require("./swagger/swagger.config");
+const response_interceptor_1 = require("./common/interceptors/response.interceptor");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    app.useGlobalInterceptors(new response_interceptor_1.ResponseInterceptor());
     (0, swagger_config_1.setupSwagger)(app);
     const port = process.env.PORT || 3002;
     const host = process.env.HOST || '0.0.0.0';

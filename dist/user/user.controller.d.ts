@@ -58,22 +58,22 @@ export declare class UserController {
     register(dto: RegisterDto): Promise<{
         message: string;
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
             access_token: string;
@@ -81,22 +81,22 @@ export declare class UserController {
     }>;
     getProfile(req: Request): Promise<{
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
@@ -104,22 +104,22 @@ export declare class UserController {
     editProfile(req: Request, dto: ProfileEditDto, image: Express.Multer.File): Promise<{
         message: string;
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
@@ -141,44 +141,44 @@ export declare class UserController {
     }>;
     getAllUsers(): Promise<{
         users: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         }[];
     }>;
     getUserById(id: string): Promise<{
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
