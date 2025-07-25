@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import * as sgMail from '@sendgrid/mail';
 import { JwtService } from '@nestjs/jwt';
+import { uploadImageToS3 } from '../common/s3.util';
 // Add AWS and nodemailer stubs
 // import * as AWS from 'aws-sdk';
 // import * as nodemailer from 'nodemailer';
@@ -127,32 +128,12 @@ export class UserService {
     return user;
   }
 
-  // S3 upload utility
-  private async uploadImageToS3(file: Express.Multer.File): Promise<string> {
-    const s3 = new AWS.S3({
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      region: process.env.AWS_REGION,
-    });
-    const fileExt = path.extname(file.originalname);
-    const key = `profile-images/${uuidv4()}${fileExt}`;
-    const params = {
-      Bucket: process.env.AWS_S3_BUCKET!,
-      Key: key,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-      // ACL: 'public-read', // Removed to support buckets with ACLs disabled
-    };
-    await s3.putObject(params).promise();
-    return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-  }
-
   // Profile edit
   async editProfile(userId: string, dto: any, image?: Express.Multer.File) {
     if (!userId) throw new BadRequestException('User ID required');
     let imageUrl = undefined;
     if (image) {
-      imageUrl = await this.uploadImageToS3(image);
+      imageUrl = await uploadImageToS3(image, 'profile-images');
     }
     const data: any = {};
     if (dto.phoneNumber !== undefined) data.phoneNumber = dto.phoneNumber;

@@ -62,7 +62,6 @@ export declare class UserService {
         otpExpiresAt: Date | null;
         verifyEmail: number;
     }>;
-    private uploadImageToS3;
     editProfile(userId: string, dto: any, image?: Express.Multer.File): Promise<{
         email: string | null;
         password: string | null;

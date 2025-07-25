@@ -36,6 +36,8 @@ model User {
   otpExpiresAt   DateTime?
   // Email verification
   verifyEmail    Int      @default(0)
+  // Add relation to posts
+  posts         Post[]
 }
 
 enum RegistrationType {
@@ -49,4 +51,15 @@ enum Gender {
   MALE
   FEMALE
   OTHER
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  text      String?
+  images    String[] // Array of image URLs
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  deletedAt DateTime?
 }
