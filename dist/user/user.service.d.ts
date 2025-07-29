@@ -129,19 +129,19 @@ export declare class UserService {
     }[]>;
     softDeleteUser(id: string): Promise<boolean>;
     followPerson(followerId: string, followingId: string): Promise<{
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     acceptFollowRequest(followerId: string, followingId: string): Promise<{
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     getFollowersList(userId: string): Promise<({
@@ -166,11 +166,11 @@ export declare class UserService {
             verifyEmail: number;
         };
     } & {
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getFollowingList(userId: string): Promise<({
@@ -195,19 +195,19 @@ export declare class UserService {
             verifyEmail: number;
         };
     } & {
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     unfollow(followerId: string, followingId: string): Promise<{
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     getPendingFollowRequests(userId: string): Promise<({
@@ -232,32 +232,32 @@ export declare class UserService {
             verifyEmail: number;
         };
     } & {
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     cancelFollowRequest(followerId: string, followingId: string): Promise<{
+        followerId: string;
+        followingId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     blockUser(blockerId: string, blockedId: string): Promise<{
-        id: string;
-        createdAt: Date;
         blockerId: string;
         blockedId: string;
+        id: string;
+        createdAt: Date;
     }>;
     unblockUser(blockerId: string, blockedId: string): Promise<{
-        id: string;
-        createdAt: Date;
         blockerId: string;
         blockedId: string;
+        id: string;
+        createdAt: Date;
     }>;
     getBlockedUsers(blockerId: string): Promise<({
         blocked: {
@@ -281,9 +281,9 @@ export declare class UserService {
             verifyEmail: number;
         };
     } & {
-        id: string;
-        createdAt: Date;
         blockerId: string;
         blockedId: string;
+        id: string;
+        createdAt: Date;
     })[]>;
 }

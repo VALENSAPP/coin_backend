@@ -7,11 +7,11 @@ export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -21,11 +21,11 @@ export declare class PostController {
         taggedPeople: string[];
     }>;
     getPostByUserId(query: GetPostByUserDto): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -35,11 +35,11 @@ export declare class PostController {
         taggedPeople: string[];
     }[]>;
     getAllPost(): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
