@@ -11,27 +11,42 @@ export declare class PostController {
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
-        userId: string;
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
     }>;
     getPostByUserId(query: GetPostByUserDto): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
-        userId: string;
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
     }[]>;
     getAllPost(): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
-        userId: string;
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
     }[]>;
     deletePost(req: Request, query: DeletePostDto): Promise<boolean>;
 }

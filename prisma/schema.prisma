@@ -38,6 +38,14 @@ model User {
   verifyEmail    Int      @default(0)
   // Add relation to posts
   posts         Post[]
+
+  // Follower/following relations
+  followers     FollowerAndFollowing[] @relation("Following")
+  followings    FollowerAndFollowing[] @relation("Follower")
+
+  // Blocked user relations
+  blockedUsers  BlockedUser[] @relation("Blocker")
+  blockedBy     BlockedUser[] @relation("Blocked")
 }
 
 enum RegistrationType {
@@ -57,9 +65,45 @@ model Post {
   id        String   @id @default(uuid())
   text      String?
   images    String[] // Array of image URLs
+  caption   String?
+  hashtag   String[]
+  location  String?
+  music     String?
+  taggedPeople String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   deletedAt DateTime?
+}
+
+model FollowerAndFollowing {
+  id            String   @id @default(uuid())
+  followerId    String
+  followingId   String
+  status        FollowStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  follower      User     @relation("Follower", fields: [followerId], references: [id])
+  following     User     @relation("Following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+}
+
+model BlockedUser {
+  id         String   @id @default(uuid())
+  blockerId  String
+  blockedId  String
+  createdAt  DateTime @default(now())
+
+  blocker    User     @relation("Blocker", fields: [blockerId], references: [id])
+  blocked    User     @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
 }

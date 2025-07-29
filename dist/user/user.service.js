@@ -239,6 +239,95 @@ let UserService = class UserService {
         await this.prisma.user.update({ where: { id }, data: { deletedAt: new Date() } });
         return true;
     }
+    async followPerson(followerId, followingId) {
+        if (followerId === followingId)
+            throw new common_1.BadRequestException('Cannot follow yourself');
+        const existing = await this.prisma.followerAndFollowing.findUnique({
+            where: { followerId_followingId: { followerId, followingId } },
+        });
+        if (existing)
+            throw new common_1.BadRequestException('Follow request already exists or already following');
+        return this.prisma.followerAndFollowing.create({
+            data: { followerId, followingId, status: 'PENDING' },
+        });
+    }
+    async acceptFollowRequest(followerId, followingId) {
+        const request = await this.prisma.followerAndFollowing.findUnique({
+            where: { followerId_followingId: { followerId, followingId } },
+        });
+        if (!request || request.status !== 'PENDING')
+            throw new common_1.BadRequestException('No pending follow request');
+        return this.prisma.followerAndFollowing.update({
+            where: { followerId_followingId: { followerId, followingId } },
+            data: { status: 'ACCEPTED' },
+        });
+    }
+    async getFollowersList(userId) {
+        return this.prisma.followerAndFollowing.findMany({
+            where: { followingId: userId, status: 'ACCEPTED' },
+            include: { follower: true },
+        });
+    }
+    async getFollowingList(userId) {
+        return this.prisma.followerAndFollowing.findMany({
+            where: { followerId: userId, status: 'ACCEPTED' },
+            include: { following: true },
+        });
+    }
+    async unfollow(followerId, followingId) {
+        const existing = await this.prisma.followerAndFollowing.findUnique({
+            where: { followerId_followingId: { followerId, followingId } },
+        });
+        if (!existing || existing.status !== 'ACCEPTED')
+            throw new common_1.BadRequestException('Not following this user');
+        return this.prisma.followerAndFollowing.delete({
+            where: { followerId_followingId: { followerId, followingId } },
+        });
+    }
+    async getPendingFollowRequests(userId) {
+        return this.prisma.followerAndFollowing.findMany({
+            where: { followingId: userId, status: 'PENDING' },
+            include: { follower: true },
+        });
+    }
+    async cancelFollowRequest(followerId, followingId) {
+        const request = await this.prisma.followerAndFollowing.findUnique({
+            where: { followerId_followingId: { followerId, followingId } },
+        });
+        if (!request || request.status !== 'PENDING')
+            throw new common_1.BadRequestException('No pending follow request to cancel');
+        return this.prisma.followerAndFollowing.delete({
+            where: { followerId_followingId: { followerId, followingId } },
+        });
+    }
+    async blockUser(blockerId, blockedId) {
+        if (blockerId === blockedId)
+            throw new common_1.BadRequestException('Cannot block yourself');
+        const existing = await this.prisma.blockedUser.findUnique({
+            where: { blockerId_blockedId: { blockerId, blockedId } },
+        });
+        if (existing)
+            throw new common_1.BadRequestException('User already blocked');
+        return this.prisma.blockedUser.create({
+            data: { blockerId, blockedId },
+        });
+    }
+    async unblockUser(blockerId, blockedId) {
+        const existing = await this.prisma.blockedUser.findUnique({
+            where: { blockerId_blockedId: { blockerId, blockedId } },
+        });
+        if (!existing)
+            throw new common_1.BadRequestException('User is not blocked');
+        return this.prisma.blockedUser.delete({
+            where: { blockerId_blockedId: { blockerId, blockedId } },
+        });
+    }
+    async getBlockedUsers(blockerId) {
+        return this.prisma.blockedUser.findMany({
+            where: { blockerId },
+            include: { blocked: true },
+        });
+    }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([

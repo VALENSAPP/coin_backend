@@ -6,7 +6,7 @@ import { uploadImageToS3 } from '../common/s3.util';
 export class PostService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[]) {
+  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, taggedPeople?: string[]) {
     if (!userId) throw new BadRequestException('User ID required');
     let imageUrls: string[] = images || [];
     // Upload files to S3 and collect URLs
@@ -19,6 +19,11 @@ export class PostService {
         userId,
         text,
         images: imageUrls,
+        caption,
+        hashtag,
+        location,
+        music,
+        taggedPeople,
       },
     });
   }

@@ -7,6 +7,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { FollowPersonDto, AcceptFollowRequestDto, GetFollowersOrFollowingDto, UnfollowDto, GetPendingRequestsDto, CancelFollowRequestDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 
 export enum RegistrationType {
   NORMAL = 'NORMAL',
@@ -228,6 +229,90 @@ export class UserController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.userService.resetPassword(dto.email, dto.otp, dto.newPassword);
     return { message: 'Password reset successful' };
+  }
+
+  @Post('follow')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiBody({ type: FollowPersonDto })
+  async followPerson(@Req() req: Request, @Body() dto: FollowPersonDto) {
+    const followerId = (req.user as any).id;
+    return this.userService.followPerson(followerId, dto.followingId);
+  }
+
+  @Post('accept-follow')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiBody({ type: AcceptFollowRequestDto })
+  async acceptFollowRequest(@Req() req: Request, @Body() dto: AcceptFollowRequestDto) {
+    const followingId = (req.user as any).id;
+    return this.userService.acceptFollowRequest(dto.followerId, followingId);
+  }
+
+  @Post('unfollow')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiBody({ type: UnfollowDto })
+  async unfollow(@Req() req: Request, @Body() dto: UnfollowDto) {
+    const followerId = (req.user as any).id;
+    return this.userService.unfollow(followerId, dto.followingId);
+  }
+
+  @Post('cancel-follow-request')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiBody({ type: CancelFollowRequestDto })
+  async cancelFollowRequest(@Req() req: Request, @Body() dto: CancelFollowRequestDto) {
+    const followerId = (req.user as any).id;
+    return this.userService.cancelFollowRequest(followerId, dto.followingId);
+  }
+
+  @Post('block-user')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiBody({ type: BlockUserDto })
+  async blockUser(@Req() req: Request, @Body() dto: BlockUserDto) {
+    const blockerId = (req.user as any).id;
+    return this.userService.blockUser(blockerId, dto.blockedId);
+  }
+
+  @Post('unblock-user')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiBody({ type: UnblockUserDto })
+  async unblockUser(@Req() req: Request, @Body() dto: UnblockUserDto) {
+    const blockerId = (req.user as any).id;
+    return this.userService.unblockUser(blockerId, dto.blockedId);
+  }
+
+  @Get('pending-requests')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async getPendingFollowRequests(@Req() req: Request) {
+    const userId = (req.user as any).id;
+    return this.userService.getPendingFollowRequests(userId);
+  }
+
+  @Get('followers/:userId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async getFollowersList(@Param('userId') userId: string) {
+    return this.userService.getFollowersList(userId);
+  }
+
+  @Get('following/:userId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async getFollowingList(@Param('userId') userId: string) {
+    return this.userService.getFollowingList(userId);
+  }
+
+  @Get('blocked-users')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async getBlockedUsers(@Req() req: Request) {
+    const blockerId = (req.user as any).id;
+    return this.userService.getBlockedUsers(blockerId);
   }
 
   @Get('all')

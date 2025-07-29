@@ -1,5 +1,6 @@
 import { UserService } from './user.service';
 import { Request } from 'express';
+import { FollowPersonDto, AcceptFollowRequestDto, UnfollowDto, CancelFollowRequestDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 export declare enum RegistrationType {
     NORMAL = "NORMAL",
     GOOGLE = "GOOGLE",
@@ -139,6 +140,164 @@ export declare class UserController {
     resetPassword(dto: ResetPasswordDto): Promise<{
         message: string;
     }>;
+    followPerson(req: Request, dto: FollowPersonDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    }>;
+    acceptFollowRequest(req: Request, dto: AcceptFollowRequestDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    }>;
+    unfollow(req: Request, dto: UnfollowDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    }>;
+    cancelFollowRequest(req: Request, dto: CancelFollowRequestDto): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    }>;
+    blockUser(req: Request, dto: BlockUserDto): Promise<{
+        id: string;
+        createdAt: Date;
+        blockerId: string;
+        blockedId: string;
+    }>;
+    unblockUser(req: Request, dto: UnblockUserDto): Promise<{
+        id: string;
+        createdAt: Date;
+        blockerId: string;
+        blockedId: string;
+    }>;
+    getPendingFollowRequests(req: Request): Promise<({
+        follower: {
+            email: string | null;
+            password: string | null;
+            googleId: string | null;
+            twitterId: string | null;
+            walletAddress: string | null;
+            registrationType: import(".prisma/client").$Enums.RegistrationType;
+            phoneNumber: string | null;
+            gender: import(".prisma/client").$Enums.Gender | null;
+            image: string | null;
+            age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            isDeleted: number;
+            otpExpiresAt: Date | null;
+            verifyEmail: number;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    })[]>;
+    getFollowersList(userId: string): Promise<({
+        follower: {
+            email: string | null;
+            password: string | null;
+            googleId: string | null;
+            twitterId: string | null;
+            walletAddress: string | null;
+            registrationType: import(".prisma/client").$Enums.RegistrationType;
+            phoneNumber: string | null;
+            gender: import(".prisma/client").$Enums.Gender | null;
+            image: string | null;
+            age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            isDeleted: number;
+            otpExpiresAt: Date | null;
+            verifyEmail: number;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    })[]>;
+    getFollowingList(userId: string): Promise<({
+        following: {
+            email: string | null;
+            password: string | null;
+            googleId: string | null;
+            twitterId: string | null;
+            walletAddress: string | null;
+            registrationType: import(".prisma/client").$Enums.RegistrationType;
+            phoneNumber: string | null;
+            gender: import(".prisma/client").$Enums.Gender | null;
+            image: string | null;
+            age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            isDeleted: number;
+            otpExpiresAt: Date | null;
+            verifyEmail: number;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        followerId: string;
+        followingId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
+    })[]>;
+    getBlockedUsers(req: Request): Promise<({
+        blocked: {
+            email: string | null;
+            password: string | null;
+            googleId: string | null;
+            twitterId: string | null;
+            walletAddress: string | null;
+            registrationType: import(".prisma/client").$Enums.RegistrationType;
+            phoneNumber: string | null;
+            gender: import(".prisma/client").$Enums.Gender | null;
+            image: string | null;
+            age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            isDeleted: number;
+            otpExpiresAt: Date | null;
+            verifyEmail: number;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        blockerId: string;
+        blockedId: string;
+    })[]>;
     getAllUsers(): Promise<{
         users: {
             email: string | null;

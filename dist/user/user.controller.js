@@ -21,6 +21,7 @@ const class_validator_1 = require("class-validator");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_3 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
+const follow_dto_1 = require("./dto/follow.dto");
 var RegistrationType;
 (function (RegistrationType) {
     RegistrationType["NORMAL"] = "NORMAL";
@@ -268,6 +269,44 @@ let UserController = class UserController {
         await this.userService.resetPassword(dto.email, dto.otp, dto.newPassword);
         return { message: 'Password reset successful' };
     }
+    async followPerson(req, dto) {
+        const followerId = req.user.id;
+        return this.userService.followPerson(followerId, dto.followingId);
+    }
+    async acceptFollowRequest(req, dto) {
+        const followingId = req.user.id;
+        return this.userService.acceptFollowRequest(dto.followerId, followingId);
+    }
+    async unfollow(req, dto) {
+        const followerId = req.user.id;
+        return this.userService.unfollow(followerId, dto.followingId);
+    }
+    async cancelFollowRequest(req, dto) {
+        const followerId = req.user.id;
+        return this.userService.cancelFollowRequest(followerId, dto.followingId);
+    }
+    async blockUser(req, dto) {
+        const blockerId = req.user.id;
+        return this.userService.blockUser(blockerId, dto.blockedId);
+    }
+    async unblockUser(req, dto) {
+        const blockerId = req.user.id;
+        return this.userService.unblockUser(blockerId, dto.blockedId);
+    }
+    async getPendingFollowRequests(req) {
+        const userId = req.user.id;
+        return this.userService.getPendingFollowRequests(userId);
+    }
+    async getFollowersList(userId) {
+        return this.userService.getFollowersList(userId);
+    }
+    async getFollowingList(userId) {
+        return this.userService.getFollowingList(userId);
+    }
+    async getBlockedUsers(req) {
+        const blockerId = req.user.id;
+        return this.userService.getBlockedUsers(blockerId);
+    }
     async getAllUsers() {
         const users = await this.userService.getAllUsers();
         return { users };
@@ -353,6 +392,108 @@ __decorate([
     __metadata("design:paramtypes", [ResetPasswordDto]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "resetPassword", null);
+__decorate([
+    (0, common_1.Post)('follow'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiBody)({ type: follow_dto_1.FollowPersonDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, follow_dto_1.FollowPersonDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "followPerson", null);
+__decorate([
+    (0, common_1.Post)('accept-follow'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiBody)({ type: follow_dto_1.AcceptFollowRequestDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, follow_dto_1.AcceptFollowRequestDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "acceptFollowRequest", null);
+__decorate([
+    (0, common_1.Post)('unfollow'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiBody)({ type: follow_dto_1.UnfollowDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, follow_dto_1.UnfollowDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "unfollow", null);
+__decorate([
+    (0, common_1.Post)('cancel-follow-request'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiBody)({ type: follow_dto_1.CancelFollowRequestDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, follow_dto_1.CancelFollowRequestDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "cancelFollowRequest", null);
+__decorate([
+    (0, common_1.Post)('block-user'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiBody)({ type: follow_dto_1.BlockUserDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, follow_dto_1.BlockUserDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "blockUser", null);
+__decorate([
+    (0, common_1.Post)('unblock-user'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiBody)({ type: follow_dto_1.UnblockUserDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, follow_dto_1.UnblockUserDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "unblockUser", null);
+__decorate([
+    (0, common_1.Get)('pending-requests'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getPendingFollowRequests", null);
+__decorate([
+    (0, common_1.Get)('followers/:userId'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getFollowersList", null);
+__decorate([
+    (0, common_1.Get)('following/:userId'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getFollowingList", null);
+__decorate([
+    (0, common_1.Get)('blocked-users'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getBlockedUsers", null);
 __decorate([
     (0, common_1.Get)('all'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

@@ -28,7 +28,7 @@ let PostController = class PostController {
     }
     async createPost(req, body, files) {
         const userId = req.user.userId;
-        return this.postService.createPost(userId, body.text, undefined, files);
+        return this.postService.createPost(userId, body.text, undefined, files, body.caption, body.hashtag, body.location, body.music, body.taggedPeople);
     }
     async getPostByUserId(query) {
         return this.postService.getPostByUserId(query.userId);
@@ -53,6 +53,11 @@ __decorate([
             type: 'object',
             properties: {
                 text: { type: 'string', description: 'Text content of the post' },
+                caption: { type: 'string', description: 'Caption for the post' },
+                hashtag: { type: 'array', items: { type: 'string' }, description: 'Hashtags for the post' },
+                location: { type: 'string', description: 'Location for the post' },
+                music: { type: 'string', description: 'Music for the post' },
+                taggedPeople: { type: 'array', items: { type: 'string' }, description: 'Tagged people user IDs' },
                 images: {
                     type: 'array',
                     items: { type: 'string', format: 'binary' },

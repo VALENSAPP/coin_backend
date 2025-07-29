@@ -18,7 +18,7 @@ let PostService = class PostService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async createPost(userId, text, images, files) {
+    async createPost(userId, text, images, files, caption, hashtag, location, music, taggedPeople) {
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
         let imageUrls = images || [];
@@ -31,6 +31,11 @@ let PostService = class PostService {
                 userId,
                 text,
                 images: imageUrls,
+                caption,
+                hashtag,
+                location,
+                music,
+                taggedPeople,
             },
         });
     }
