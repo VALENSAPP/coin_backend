@@ -18,6 +18,7 @@ const post_service_1 = require("./post.service");
 const create_post_dto_1 = require("./dto/create-post.dto");
 const get_post_by_user_dto_1 = require("./dto/get-post-by-user.dto");
 const delete_post_dto_1 = require("./dto/delete-post.dto");
+const edit_post_dto_1 = require("./dto/edit-post.dto");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
@@ -29,6 +30,10 @@ let PostController = class PostController {
     async createPost(req, body, files) {
         const userId = req.user.userId;
         return this.postService.createPost(userId, body.text, undefined, files, body.caption, body.hashtag, body.location, body.music, body.taggedPeople);
+    }
+    async editPost(req, postId, body, files) {
+        const userId = req.user.userId;
+        return this.postService.editPost(postId, userId, body, files);
     }
     async getPostByUserId(query) {
         return this.postService.getPostByUserId(query.userId);
@@ -73,6 +78,38 @@ __decorate([
     __metadata("design:paramtypes", [Object, create_post_dto_1.CreatePostDto, Array]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "createPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('edit/:postId'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FilesInterceptor)('images')),
+    (0, swagger_1.ApiConsumes)('multipart/form-data'),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                text: { type: 'string', description: 'Text content of the post' },
+                caption: { type: 'string', description: 'Caption for the post' },
+                hashtag: { type: 'array', items: { type: 'string' }, description: 'Hashtags for the post' },
+                location: { type: 'string', description: 'Location for the post' },
+                music: { type: 'string', description: 'Music for the post' },
+                taggedPeople: { type: 'array', items: { type: 'string' }, description: 'Tagged people user IDs' },
+                images: {
+                    type: 'array',
+                    items: { type: 'string', format: 'binary' },
+                    description: 'Array of image files',
+                },
+            },
+        },
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('postId')),
+    __param(2, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __param(3, (0, common_1.UploadedFiles)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, edit_post_dto_1.EditPostDto, Array]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "editPost", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),

@@ -1,53 +1,58 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString, IsArray } from 'class-validator';
 
 export class FollowPersonDto {
-  @ApiProperty()
-  followerId: string; // The user who wants to follow
-  @ApiProperty()
-  followingId: string; // The user to be followed
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  followingId?: string; // The user to be followed
 }
 
 export class AcceptFollowRequestDto {
-  @ApiProperty()
-  followerId: string; // The user who sent the follow request
-  @ApiProperty()
-  followingId: string; // The user accepting the request
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  followerId?: string; // The user who sent the follow request
 }
 
 export class GetFollowersOrFollowingDto {
-  @ApiProperty()
-  userId: string; // The user whose followers/following are being queried
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  userId?: string; // The user whose followers/following are being queried
 }
 
 export class UnfollowDto {
-  @ApiProperty()
-  followerId: string; // The user who wants to unfollow
-  @ApiProperty()
-  followingId: string; // The user to be unfollowed
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  followingId?: string; // The user to be unfollowed
 }
 
 export class GetPendingRequestsDto {
-  @ApiProperty()
-  userId: string; // The user whose pending requests are being queried
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  userId?: string; // The user whose pending requests are being queried
 }
 
 export class CancelFollowRequestDto {
-  @ApiProperty()
-  followerId: string; // The user who sent the follow request
-  @ApiProperty()
-  followingId: string; // The user to whom the request was sent
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  followingId?: string; // The user to whom the request was sent
 }
 
 export class BlockUserDto {
-  @ApiProperty()
-  blockerId: string; // The user who is blocking
-  @ApiProperty()
-  blockedId: string; // The user to be blocked
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  blockedId?: string; // The user to be blocked
 }
 
 export class UnblockUserDto {
-  @ApiProperty()
-  blockerId: string; // The user who is unblocking
-  @ApiProperty()
-  blockedId: string; // The user to be unblocked
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  blockedId?: string; // The user to be unblocked
 }

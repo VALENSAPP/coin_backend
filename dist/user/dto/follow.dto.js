@@ -11,51 +11,45 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UnblockUserDto = exports.BlockUserDto = exports.CancelFollowRequestDto = exports.GetPendingRequestsDto = exports.UnfollowDto = exports.GetFollowersOrFollowingDto = exports.AcceptFollowRequestDto = exports.FollowPersonDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
+const class_validator_1 = require("class-validator");
 class FollowPersonDto {
-    followerId;
     followingId;
 }
 exports.FollowPersonDto = FollowPersonDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
-    __metadata("design:type", String)
-], FollowPersonDto.prototype, "followerId", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], FollowPersonDto.prototype, "followingId", void 0);
 class AcceptFollowRequestDto {
     followerId;
-    followingId;
 }
 exports.AcceptFollowRequestDto = AcceptFollowRequestDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], AcceptFollowRequestDto.prototype, "followerId", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)(),
-    __metadata("design:type", String)
-], AcceptFollowRequestDto.prototype, "followingId", void 0);
 class GetFollowersOrFollowingDto {
     userId;
 }
 exports.GetFollowersOrFollowingDto = GetFollowersOrFollowingDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], GetFollowersOrFollowingDto.prototype, "userId", void 0);
 class UnfollowDto {
-    followerId;
     followingId;
 }
 exports.UnfollowDto = UnfollowDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
-    __metadata("design:type", String)
-], UnfollowDto.prototype, "followerId", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UnfollowDto.prototype, "followingId", void 0);
 class GetPendingRequestsDto {
@@ -63,46 +57,39 @@ class GetPendingRequestsDto {
 }
 exports.GetPendingRequestsDto = GetPendingRequestsDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], GetPendingRequestsDto.prototype, "userId", void 0);
 class CancelFollowRequestDto {
-    followerId;
     followingId;
 }
 exports.CancelFollowRequestDto = CancelFollowRequestDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
-    __metadata("design:type", String)
-], CancelFollowRequestDto.prototype, "followerId", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CancelFollowRequestDto.prototype, "followingId", void 0);
 class BlockUserDto {
-    blockerId;
     blockedId;
 }
 exports.BlockUserDto = BlockUserDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
-    __metadata("design:type", String)
-], BlockUserDto.prototype, "blockerId", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], BlockUserDto.prototype, "blockedId", void 0);
 class UnblockUserDto {
-    blockerId;
     blockedId;
 }
 exports.UnblockUserDto = UnblockUserDto;
 __decorate([
-    (0, swagger_1.ApiProperty)(),
-    __metadata("design:type", String)
-], UnblockUserDto.prototype, "blockerId", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)(),
+    (0, swagger_1.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UnblockUserDto.prototype, "blockedId", void 0);
 //# sourceMappingURL=follow.dto.js.map

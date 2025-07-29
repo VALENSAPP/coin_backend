@@ -260,7 +260,8 @@ export class UserService {
     return true;
   }
 
-  async followPerson(followerId: string, followingId: string) {
+  async followPerson(followerId: string, followingId?: string) {
+    if (!followingId) throw new BadRequestException('Following ID is required');
     if (followerId === followingId) throw new BadRequestException('Cannot follow yourself');
     // Check if already following or request exists
     const existing = await this.prisma.followerAndFollowing.findUnique({
@@ -272,7 +273,9 @@ export class UserService {
     });
   }
 
-  async acceptFollowRequest(followerId: string, followingId: string) {
+  async acceptFollowRequest(followerId?: string, followingId?: string) {
+    if (!followerId) throw new BadRequestException('Follower ID is required');
+    if (!followingId) throw new BadRequestException('Following ID is required');
     const request = await this.prisma.followerAndFollowing.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
     });
@@ -297,7 +300,8 @@ export class UserService {
     });
   }
 
-  async unfollow(followerId: string, followingId: string) {
+  async unfollow(followerId: string, followingId?: string) {
+    if (!followingId) throw new BadRequestException('Following ID is required');
     const existing = await this.prisma.followerAndFollowing.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
     });
@@ -314,7 +318,8 @@ export class UserService {
     });
   }
 
-  async cancelFollowRequest(followerId: string, followingId: string) {
+  async cancelFollowRequest(followerId: string, followingId?: string) {
+    if (!followingId) throw new BadRequestException('Following ID is required');
     const request = await this.prisma.followerAndFollowing.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
     });
@@ -324,7 +329,8 @@ export class UserService {
     });
   }
 
-  async blockUser(blockerId: string, blockedId: string) {
+  async blockUser(blockerId: string, blockedId?: string) {
+    if (!blockedId) throw new BadRequestException('Blocked ID is required');
     if (blockerId === blockedId) throw new BadRequestException('Cannot block yourself');
     // Check if already blocked
     const existing = await this.prisma.blockedUser.findUnique({
@@ -336,7 +342,8 @@ export class UserService {
     });
   }
 
-  async unblockUser(blockerId: string, blockedId: string) {
+  async unblockUser(blockerId: string, blockedId?: string) {
+    if (!blockedId) throw new BadRequestException('Blocked ID is required');
     const existing = await this.prisma.blockedUser.findUnique({
       where: { blockerId_blockedId: { blockerId, blockedId } },
     });

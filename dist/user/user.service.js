@@ -240,6 +240,8 @@ let UserService = class UserService {
         return true;
     }
     async followPerson(followerId, followingId) {
+        if (!followingId)
+            throw new common_1.BadRequestException('Following ID is required');
         if (followerId === followingId)
             throw new common_1.BadRequestException('Cannot follow yourself');
         const existing = await this.prisma.followerAndFollowing.findUnique({
@@ -252,6 +254,10 @@ let UserService = class UserService {
         });
     }
     async acceptFollowRequest(followerId, followingId) {
+        if (!followerId)
+            throw new common_1.BadRequestException('Follower ID is required');
+        if (!followingId)
+            throw new common_1.BadRequestException('Following ID is required');
         const request = await this.prisma.followerAndFollowing.findUnique({
             where: { followerId_followingId: { followerId, followingId } },
         });
@@ -275,6 +281,8 @@ let UserService = class UserService {
         });
     }
     async unfollow(followerId, followingId) {
+        if (!followingId)
+            throw new common_1.BadRequestException('Following ID is required');
         const existing = await this.prisma.followerAndFollowing.findUnique({
             where: { followerId_followingId: { followerId, followingId } },
         });
@@ -291,6 +299,8 @@ let UserService = class UserService {
         });
     }
     async cancelFollowRequest(followerId, followingId) {
+        if (!followingId)
+            throw new common_1.BadRequestException('Following ID is required');
         const request = await this.prisma.followerAndFollowing.findUnique({
             where: { followerId_followingId: { followerId, followingId } },
         });
@@ -301,6 +311,8 @@ let UserService = class UserService {
         });
     }
     async blockUser(blockerId, blockedId) {
+        if (!blockedId)
+            throw new common_1.BadRequestException('Blocked ID is required');
         if (blockerId === blockedId)
             throw new common_1.BadRequestException('Cannot block yourself');
         const existing = await this.prisma.blockedUser.findUnique({
@@ -313,6 +325,8 @@ let UserService = class UserService {
         });
     }
     async unblockUser(blockerId, blockedId) {
+        if (!blockedId)
+            throw new common_1.BadRequestException('Blocked ID is required');
         const existing = await this.prisma.blockedUser.findUnique({
             where: { blockerId_blockedId: { blockerId, blockedId } },
         });

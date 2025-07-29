@@ -3,11 +3,7 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, taggedPeople?: string[]): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -15,13 +11,13 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }>;
     getPostByUserId(userId: string): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -29,13 +25,13 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }[]>;
     getAllPost(): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -43,6 +39,24 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
+    editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
+        id: string;
+        text: string | null;
+        images: string[];
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
+    }>;
 }

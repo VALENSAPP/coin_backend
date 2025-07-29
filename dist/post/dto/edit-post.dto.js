@@ -9,11 +9,10 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreatePostDto = void 0;
+exports.EditPostDto = void 0;
 const class_validator_1 = require("class-validator");
-const class_transformer_1 = require("class-transformer");
 const swagger_1 = require("@nestjs/swagger");
-class CreatePostDto {
+class EditPostDto {
     text;
     caption;
     hashtag;
@@ -22,54 +21,48 @@ class CreatePostDto {
     taggedPeople;
     images;
 }
-exports.CreatePostDto = CreatePostDto;
+exports.EditPostDto = EditPostDto;
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Text content of the post', required: false }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_transformer_1.Transform)(({ value }) => value && value.trim() !== '' ? value : null),
     __metadata("design:type", String)
-], CreatePostDto.prototype, "text", void 0);
+], EditPostDto.prototype, "text", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Caption for the post', required: false }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_transformer_1.Transform)(({ value }) => value && value.trim() !== '' ? value : null),
     __metadata("design:type", String)
-], CreatePostDto.prototype, "caption", void 0);
+], EditPostDto.prototype, "caption", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Hashtags for the post', required: false, isArray: true, type: String }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
-    (0, class_transformer_1.Transform)(({ value }) => Array.isArray(value) && value.length > 0 ? value : []),
     __metadata("design:type", Array)
-], CreatePostDto.prototype, "hashtag", void 0);
+], EditPostDto.prototype, "hashtag", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Location for the post', required: false }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_transformer_1.Transform)(({ value }) => value && value.trim() !== '' ? value : null),
     __metadata("design:type", String)
-], CreatePostDto.prototype, "location", void 0);
+], EditPostDto.prototype, "location", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Music for the post', required: false }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, class_transformer_1.Transform)(({ value }) => value && value.trim() !== '' ? value : null),
     __metadata("design:type", String)
-], CreatePostDto.prototype, "music", void 0);
+], EditPostDto.prototype, "music", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Tagged people user IDs', required: false, isArray: true, type: String }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
-    (0, class_transformer_1.Transform)(({ value }) => Array.isArray(value) && value.length > 0 ? value : []),
     __metadata("design:type", Array)
-], CreatePostDto.prototype, "taggedPeople", void 0);
+], EditPostDto.prototype, "taggedPeople", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true }),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMaxSize)(10),
     __metadata("design:type", Array)
-], CreatePostDto.prototype, "images", void 0);
-//# sourceMappingURL=create-post.dto.js.map
+], EditPostDto.prototype, "images", void 0);
+//# sourceMappingURL=edit-post.dto.js.map
