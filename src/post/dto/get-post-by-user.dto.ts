@@ -1,8 +1,9 @@
-import { IsUUID } from 'class-validator';
+import { IsUUID, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class GetPostByUserDto {
-  @ApiProperty({ description: 'User ID (UUID)', required: true })
+  @ApiProperty({ description: 'User ID (UUID)', required: false })
+  @IsOptional()
   @IsUUID()
-  userId: string;
+  userId?: string;
 } 

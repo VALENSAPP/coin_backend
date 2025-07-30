@@ -40,11 +40,29 @@ export class PostService {
   }
 
   async getPostByUserId(userId: string) {
+    console.log('Service received userId:', userId);
     if (!userId) throw new BadRequestException('User ID required');
     return this.prisma.post.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async getPostById(postId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    
+    const post = await this.prisma.post.findUnique({
+      where: { 
+        id: postId,
+        deletedAt: null 
+      },
+    });
+    
+    if (!post) {
+      throw new BadRequestException('Post not found');
+    }
+    
+    return post;
   }
 
   async getAllPost() {
@@ -68,6 +86,8 @@ export class PostService {
   async editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]) {
     // Check if post exists and belongs to user
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    console.log('Service received post:', post?.userId,userId);
+    
     if (!post || post.deletedAt) throw new BadRequestException('Post not found');
     if (post.userId !== userId) throw new BadRequestException('Unauthorized to edit this post');
 

@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EditPostDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
+const class_transformer_1 = require("class-transformer");
 class EditPostDto {
     text;
     caption;
@@ -37,7 +38,15 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Hashtags for the post', required: false, isArray: true, type: String }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsArray)(),
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (value === '' || value === null || value === undefined)
+            return [];
+        if (Array.isArray(value))
+            return value;
+        if (typeof value === 'string')
+            return value.split(',').filter(item => item.trim() !== '');
+        return [value];
+    }),
     __metadata("design:type", Array)
 ], EditPostDto.prototype, "hashtag", void 0);
 __decorate([
@@ -55,14 +64,27 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Tagged people user IDs', required: false, isArray: true, type: String }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsArray)(),
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (value === '' || value === null || value === undefined)
+            return [];
+        if (Array.isArray(value))
+            return value;
+        if (typeof value === 'string')
+            return value.split(',').filter(item => item.trim() !== '');
+        return [value];
+    }),
     __metadata("design:type", Array)
 ], EditPostDto.prototype, "taggedPeople", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ArrayMaxSize)(10),
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (value === '' || value === null || value === undefined)
+            return [];
+        if (Array.isArray(value))
+            return value;
+        return [value];
+    }),
     __metadata("design:type", Array)
 ], EditPostDto.prototype, "images", void 0);
 //# sourceMappingURL=edit-post.dto.js.map

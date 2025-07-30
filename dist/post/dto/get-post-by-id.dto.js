@@ -9,17 +9,16 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GetPostByUserDto = void 0;
+exports.GetPostByIdDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
-class GetPostByUserDto {
-    userId;
+class GetPostByIdDto {
+    postId;
 }
-exports.GetPostByUserDto = GetPostByUserDto;
+exports.GetPostByIdDto = GetPostByIdDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ description: 'User ID (UUID)', required: false }),
-    (0, class_validator_1.IsOptional)(),
+    (0, swagger_1.ApiProperty)({ description: 'Post ID (UUID)', required: true }),
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
-], GetPostByUserDto.prototype, "userId", void 0);
-//# sourceMappingURL=get-post-by-user.dto.js.map
+], GetPostByIdDto.prototype, "postId", void 0);
+//# sourceMappingURL=get-post-by-id.dto.js.map

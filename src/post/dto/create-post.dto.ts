@@ -41,7 +41,10 @@ export class CreatePostDto {
 
   @ApiProperty({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true })
   @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(10)
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return [];
+    if (Array.isArray(value)) return value;
+    return [value];
+  })
   images?: any[];
 } 

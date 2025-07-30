@@ -46,12 +46,27 @@ let PostService = class PostService {
         });
     }
     async getPostByUserId(userId) {
+        console.log('Service received userId:', userId);
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
         return this.prisma.post.findMany({
             where: { userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
         });
+    }
+    async getPostById(postId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        const post = await this.prisma.post.findUnique({
+            where: {
+                id: postId,
+                deletedAt: null
+            },
+        });
+        if (!post) {
+            throw new common_1.BadRequestException('Post not found');
+        }
+        return post;
     }
     async getAllPost() {
         return this.prisma.post.findMany({
@@ -73,6 +88,7 @@ let PostService = class PostService {
     }
     async editPost(postId, userId, updateData, files) {
         const post = await this.prisma.post.findUnique({ where: { id: postId } });
+        console.log('Service received post:', post?.userId, userId);
         if (!post || post.deletedAt)
             throw new common_1.BadRequestException('Post not found');
         if (post.userId !== userId)

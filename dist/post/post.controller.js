@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const post_service_1 = require("./post.service");
 const create_post_dto_1 = require("./dto/create-post.dto");
 const get_post_by_user_dto_1 = require("./dto/get-post-by-user.dto");
+const get_post_by_id_dto_1 = require("./dto/get-post-by-id.dto");
 const delete_post_dto_1 = require("./dto/delete-post.dto");
 const edit_post_dto_1 = require("./dto/edit-post.dto");
 const platform_express_1 = require("@nestjs/platform-express");
@@ -32,14 +33,23 @@ let PostController = class PostController {
         return this.postService.createPost(userId, body.text, undefined, files, body.caption, body.hashtag, body.location, body.music, body.taggedPeople);
     }
     async editPost(req, postId, body, files) {
+        console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
         const userId = req.user.userId;
+        console.log(">>>>>>>>>>>>>>>>>>>>>", userId);
         return this.postService.editPost(postId, userId, body, files);
     }
-    async getPostByUserId(query) {
-        return this.postService.getPostByUserId(query.userId);
+    async getPostByUserId(req, query) {
+        console.log('Query received:', query);
+        console.log('User from JWT:', req.user);
+        const targetUserId = query.userId || req.user?.userId;
+        console.log('Target user ID:', targetUserId);
+        return this.postService.getPostByUserId(targetUserId);
     }
     async getAllPost() {
         return this.postService.getAllPost();
+    }
+    async getPostById(params) {
+        return this.postService.getPostById(params.postId);
     }
     async deletePost(req, query) {
         const userId = req.user.userId;
@@ -104,7 +114,7 @@ __decorate([
     }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Param)('postId')),
-    __param(2, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __param(2, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }))),
     __param(3, (0, common_1.UploadedFiles)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, edit_post_dto_1.EditPostDto, Array]),
@@ -114,9 +124,10 @@ __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Get)('by-user'),
-    __param(0, (0, common_1.Query)(new common_1.ValidationPipe({ whitelist: true }))),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)(new common_1.ValidationPipe({ whitelist: true, transform: true }))),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [get_post_by_user_dto_1.GetPostByUserDto]),
+    __metadata("design:paramtypes", [Object, get_post_by_user_dto_1.GetPostByUserDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getPostByUserId", null);
 __decorate([
@@ -127,6 +138,17 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getAllPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)(':postId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get a post by ID' }),
+    (0, swagger_1.ApiParam)({ name: 'postId', type: 'string', description: 'Post ID' }),
+    __param(0, (0, common_1.Param)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [get_post_by_id_dto_1.GetPostByIdDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getPostById", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),

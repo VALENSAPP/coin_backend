@@ -1,3 +1,3 @@
 export declare class GetPostByUserDto {
-    userId: string;
+    userId?: string;
 }

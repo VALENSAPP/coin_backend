@@ -68,8 +68,13 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ArrayMaxSize)(10),
+    (0, class_transformer_1.Transform)(({ value }) => {
+        if (value === '' || value === null || value === undefined)
+            return [];
+        if (Array.isArray(value))
+            return value;
+        return [value];
+    }),
     __metadata("design:type", Array)
 ], CreatePostDto.prototype, "images", void 0);
 //# sourceMappingURL=create-post.dto.js.map
