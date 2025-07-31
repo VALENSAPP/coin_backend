@@ -260,29 +260,16 @@ export class UserService {
     return true;
   }
 
-  async followPerson(followerId: string, followingId?: string) {
+  async followPerson(followerId: string, followingId: string) {
     if (!followingId) throw new BadRequestException('Following ID is required');
     if (followerId === followingId) throw new BadRequestException('Cannot follow yourself');
-    // Check if already following or request exists
+    // Check if already following
     const existing = await this.prisma.followerAndFollowing.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
     });
-    if (existing) throw new BadRequestException('Follow request already exists or already following');
+    if (existing) throw new BadRequestException('Already following this user');
     return this.prisma.followerAndFollowing.create({
-      data: { followerId, followingId, status: 'PENDING' },
-    });
-  }
-
-  async acceptFollowRequest(followerId?: string, followingId?: string) {
-    if (!followerId) throw new BadRequestException('Follower ID is required');
-    if (!followingId) throw new BadRequestException('Following ID is required');
-    const request = await this.prisma.followerAndFollowing.findUnique({
-      where: { followerId_followingId: { followerId, followingId } },
-    });
-    if (!request || request.status !== 'PENDING') throw new BadRequestException('No pending follow request');
-    return this.prisma.followerAndFollowing.update({
-      where: { followerId_followingId: { followerId, followingId } },
-      data: { status: 'ACCEPTED' },
+      data: { followerId, followingId, status: 'ACCEPTED' },
     });
   }
 
@@ -300,7 +287,7 @@ export class UserService {
     });
   }
 
-  async unfollow(followerId: string, followingId?: string) {
+  async unfollow(followerId: string, followingId: string) {
     if (!followingId) throw new BadRequestException('Following ID is required');
     const existing = await this.prisma.followerAndFollowing.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
@@ -312,24 +299,11 @@ export class UserService {
   }
 
   async getPendingFollowRequests(userId: string) {
-    return this.prisma.followerAndFollowing.findMany({
-      where: { followingId: userId, status: 'PENDING' },
-      include: { follower: true },
-    });
+    // Since we removed the request concept, return empty array
+    return [];
   }
 
-  async cancelFollowRequest(followerId: string, followingId?: string) {
-    if (!followingId) throw new BadRequestException('Following ID is required');
-    const request = await this.prisma.followerAndFollowing.findUnique({
-      where: { followerId_followingId: { followerId, followingId } },
-    });
-    if (!request || request.status !== 'PENDING') throw new BadRequestException('No pending follow request to cancel');
-    return this.prisma.followerAndFollowing.delete({
-      where: { followerId_followingId: { followerId, followingId } },
-    });
-  }
-
-  async blockUser(blockerId: string, blockedId?: string) {
+  async blockUser(blockerId: string, blockedId: string) {
     if (!blockedId) throw new BadRequestException('Blocked ID is required');
     if (blockerId === blockedId) throw new BadRequestException('Cannot block yourself');
     // Check if already blocked
@@ -342,7 +316,7 @@ export class UserService {
     });
   }
 
-  async unblockUser(blockerId: string, blockedId?: string) {
+  async unblockUser(blockerId: string, blockedId: string) {
     if (!blockedId) throw new BadRequestException('Blocked ID is required');
     const existing = await this.prisma.blockedUser.findUnique({
       where: { blockerId_blockedId: { blockerId, blockedId } },

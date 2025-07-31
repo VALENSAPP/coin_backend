@@ -7,7 +7,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
-import { FollowPersonDto, AcceptFollowRequestDto, GetFollowersOrFollowingDto, UnfollowDto, GetPendingRequestsDto, CancelFollowRequestDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
+import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 
 export enum RegistrationType {
   NORMAL = 'NORMAL',
@@ -175,7 +175,7 @@ export class UserController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@Req() req: Request) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as any).userId; // Use 'userId' instead of 'id'
     const user = await this.userService.getUserById(userId);
     return { user };
   }
@@ -235,44 +235,38 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: FollowPersonDto })
+  @ApiOperation({ 
+    summary: 'Follow a user',
+    description: 'Follow a user directly (followerId is automatically extracted from JWT token)'
+  })
   async followPerson(@Req() req: Request, @Body() dto: FollowPersonDto) {
-    const followerId = (req.user as any).id;
+    const followerId = (req.user as any).userId; // Use 'userId' instead of 'id'
     return this.userService.followPerson(followerId, dto.followingId);
-  }
-
-  @Post('accept-follow')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiBody({ type: AcceptFollowRequestDto })
-  async acceptFollowRequest(@Req() req: Request, @Body() dto: AcceptFollowRequestDto) {
-    const followingId = (req.user as any).id;
-    return this.userService.acceptFollowRequest(dto.followerId, followingId);
   }
 
   @Post('unfollow')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: UnfollowDto })
+  @ApiOperation({ 
+    summary: 'Unfollow a user',
+    description: 'Unfollow a user (followerId is automatically extracted from JWT token)'
+  })
   async unfollow(@Req() req: Request, @Body() dto: UnfollowDto) {
-    const followerId = (req.user as any).id;
+    const followerId = (req.user as any).userId; // Use 'userId' instead of 'id'
     return this.userService.unfollow(followerId, dto.followingId);
-  }
-
-  @Post('cancel-follow-request')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiBody({ type: CancelFollowRequestDto })
-  async cancelFollowRequest(@Req() req: Request, @Body() dto: CancelFollowRequestDto) {
-    const followerId = (req.user as any).id;
-    return this.userService.cancelFollowRequest(followerId, dto.followingId);
   }
 
   @Post('block-user')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: BlockUserDto })
+  @ApiOperation({ 
+    summary: 'Block a user',
+    description: 'Block a user (blockerId is automatically extracted from JWT token)'
+  })
   async blockUser(@Req() req: Request, @Body() dto: BlockUserDto) {
-    const blockerId = (req.user as any).id;
+    const blockerId = (req.user as any).userId; // Use 'userId' instead of 'id'
     return this.userService.blockUser(blockerId, dto.blockedId);
   }
 
@@ -280,16 +274,24 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: UnblockUserDto })
+  @ApiOperation({ 
+    summary: 'Unblock a user',
+    description: 'Unblock a user (blockerId is automatically extracted from JWT token)'
+  })
   async unblockUser(@Req() req: Request, @Body() dto: UnblockUserDto) {
-    const blockerId = (req.user as any).id;
+    const blockerId = (req.user as any).userId; // Use 'userId' instead of 'id'
     return this.userService.unblockUser(blockerId, dto.blockedId);
   }
 
   @Get('pending-requests')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Get pending follow requests',
+    description: 'Returns empty array since follow requests are now direct (userId is automatically extracted from JWT token)'
+  })
   async getPendingFollowRequests(@Req() req: Request) {
-    const userId = (req.user as any).id;
+    const userId = (req.user as any).userId; // Use 'userId' instead of 'id'
     return this.userService.getPendingFollowRequests(userId);
   }
 
@@ -310,8 +312,12 @@ export class UserController {
   @Get('blocked-users')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Get blocked users for the authenticated user',
+    description: 'Returns list of users blocked by the authenticated user (blockerId is automatically extracted from JWT token)'
+  })
   async getBlockedUsers(@Req() req: Request) {
-    const blockerId = (req.user as any).id;
+    const blockerId = (req.user as any).userId; // Use 'userId' instead of 'id'
     return this.userService.getBlockedUsers(blockerId);
   }
 

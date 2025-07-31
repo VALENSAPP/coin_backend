@@ -2,10 +2,12 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString, IsArray } from 'class-validator';
 
 export class FollowPersonDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty({ 
+    description: 'The user ID to be followed (followerId is automatically extracted from JWT token)', 
+    required: true 
+  })
   @IsString()
-  followingId?: string; // The user to be followed
+  followingId: string; // The user to be followed
 }
 
 export class AcceptFollowRequestDto {
@@ -23,10 +25,12 @@ export class GetFollowersOrFollowingDto {
 }
 
 export class UnfollowDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty({ 
+    description: 'The user ID to be unfollowed (followerId is automatically extracted from JWT token)', 
+    required: true 
+  })
   @IsString()
-  followingId?: string; // The user to be unfollowed
+  followingId: string; // The user to be unfollowed
 }
 
 export class GetPendingRequestsDto {
@@ -44,15 +48,19 @@ export class CancelFollowRequestDto {
 }
 
 export class BlockUserDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty({ 
+    description: 'The user ID to be blocked (blockerId is automatically extracted from JWT token)', 
+    required: true 
+  })
   @IsString()
-  blockedId?: string; // The user to be blocked
+  blockedId: string; // The user to be blocked
 }
 
 export class UnblockUserDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty({ 
+    description: 'The user ID to be unblocked (blockerId is automatically extracted from JWT token)', 
+    required: true 
+  })
   @IsString()
-  blockedId?: string; // The user to be unblocked
+  blockedId: string; // The user to be unblocked
 }

@@ -248,24 +248,9 @@ let UserService = class UserService {
             where: { followerId_followingId: { followerId, followingId } },
         });
         if (existing)
-            throw new common_1.BadRequestException('Follow request already exists or already following');
+            throw new common_1.BadRequestException('Already following this user');
         return this.prisma.followerAndFollowing.create({
-            data: { followerId, followingId, status: 'PENDING' },
-        });
-    }
-    async acceptFollowRequest(followerId, followingId) {
-        if (!followerId)
-            throw new common_1.BadRequestException('Follower ID is required');
-        if (!followingId)
-            throw new common_1.BadRequestException('Following ID is required');
-        const request = await this.prisma.followerAndFollowing.findUnique({
-            where: { followerId_followingId: { followerId, followingId } },
-        });
-        if (!request || request.status !== 'PENDING')
-            throw new common_1.BadRequestException('No pending follow request');
-        return this.prisma.followerAndFollowing.update({
-            where: { followerId_followingId: { followerId, followingId } },
-            data: { status: 'ACCEPTED' },
+            data: { followerId, followingId, status: 'ACCEPTED' },
         });
     }
     async getFollowersList(userId) {
@@ -293,22 +278,7 @@ let UserService = class UserService {
         });
     }
     async getPendingFollowRequests(userId) {
-        return this.prisma.followerAndFollowing.findMany({
-            where: { followingId: userId, status: 'PENDING' },
-            include: { follower: true },
-        });
-    }
-    async cancelFollowRequest(followerId, followingId) {
-        if (!followingId)
-            throw new common_1.BadRequestException('Following ID is required');
-        const request = await this.prisma.followerAndFollowing.findUnique({
-            where: { followerId_followingId: { followerId, followingId } },
-        });
-        if (!request || request.status !== 'PENDING')
-            throw new common_1.BadRequestException('No pending follow request to cancel');
-        return this.prisma.followerAndFollowing.delete({
-            where: { followerId_followingId: { followerId, followingId } },
-        });
+        return [];
     }
     async blockUser(blockerId, blockedId) {
         if (!blockedId)

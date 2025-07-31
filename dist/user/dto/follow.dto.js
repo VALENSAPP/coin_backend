@@ -17,8 +17,10 @@ class FollowPersonDto {
 }
 exports.FollowPersonDto = FollowPersonDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ required: false }),
-    (0, class_validator_1.IsOptional)(),
+    (0, swagger_1.ApiProperty)({
+        description: 'The user ID to be followed (followerId is automatically extracted from JWT token)',
+        required: true
+    }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], FollowPersonDto.prototype, "followingId", void 0);
@@ -47,8 +49,10 @@ class UnfollowDto {
 }
 exports.UnfollowDto = UnfollowDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ required: false }),
-    (0, class_validator_1.IsOptional)(),
+    (0, swagger_1.ApiProperty)({
+        description: 'The user ID to be unfollowed (followerId is automatically extracted from JWT token)',
+        required: true
+    }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UnfollowDto.prototype, "followingId", void 0);
@@ -77,8 +81,10 @@ class BlockUserDto {
 }
 exports.BlockUserDto = BlockUserDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ required: false }),
-    (0, class_validator_1.IsOptional)(),
+    (0, swagger_1.ApiProperty)({
+        description: 'The user ID to be blocked (blockerId is automatically extracted from JWT token)',
+        required: true
+    }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], BlockUserDto.prototype, "blockedId", void 0);
@@ -87,8 +93,10 @@ class UnblockUserDto {
 }
 exports.UnblockUserDto = UnblockUserDto;
 __decorate([
-    (0, swagger_1.ApiProperty)({ required: false }),
-    (0, class_validator_1.IsOptional)(),
+    (0, swagger_1.ApiProperty)({
+        description: 'The user ID to be unblocked (blockerId is automatically extracted from JWT token)',
+        required: true
+    }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UnblockUserDto.prototype, "blockedId", void 0);

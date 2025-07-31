@@ -240,7 +240,7 @@ let UserController = class UserController {
         };
     }
     async getProfile(req) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const user = await this.userService.getUserById(userId);
         return { user };
     }
@@ -270,31 +270,23 @@ let UserController = class UserController {
         return { message: 'Password reset successful' };
     }
     async followPerson(req, dto) {
-        const followerId = req.user.id;
+        const followerId = req.user.userId;
         return this.userService.followPerson(followerId, dto.followingId);
     }
-    async acceptFollowRequest(req, dto) {
-        const followingId = req.user.id;
-        return this.userService.acceptFollowRequest(dto.followerId, followingId);
-    }
     async unfollow(req, dto) {
-        const followerId = req.user.id;
+        const followerId = req.user.userId;
         return this.userService.unfollow(followerId, dto.followingId);
     }
-    async cancelFollowRequest(req, dto) {
-        const followerId = req.user.id;
-        return this.userService.cancelFollowRequest(followerId, dto.followingId);
-    }
     async blockUser(req, dto) {
-        const blockerId = req.user.id;
+        const blockerId = req.user.userId;
         return this.userService.blockUser(blockerId, dto.blockedId);
     }
     async unblockUser(req, dto) {
-        const blockerId = req.user.id;
+        const blockerId = req.user.userId;
         return this.userService.unblockUser(blockerId, dto.blockedId);
     }
     async getPendingFollowRequests(req) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         return this.userService.getPendingFollowRequests(userId);
     }
     async getFollowersList(userId) {
@@ -304,7 +296,7 @@ let UserController = class UserController {
         return this.userService.getFollowingList(userId);
     }
     async getBlockedUsers(req) {
-        const blockerId = req.user.id;
+        const blockerId = req.user.userId;
         return this.userService.getBlockedUsers(blockerId);
     }
     async getAllUsers() {
@@ -397,6 +389,10 @@ __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiBody)({ type: follow_dto_1.FollowPersonDto }),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Follow a user',
+        description: 'Follow a user directly (followerId is automatically extracted from JWT token)'
+    }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -404,21 +400,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "followPerson", null);
 __decorate([
-    (0, common_1.Post)('accept-follow'),
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_3.ApiBody)({ type: follow_dto_1.AcceptFollowRequestDto }),
-    __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, follow_dto_1.AcceptFollowRequestDto]),
-    __metadata("design:returntype", Promise)
-], UserController.prototype, "acceptFollowRequest", null);
-__decorate([
     (0, common_1.Post)('unfollow'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiBody)({ type: follow_dto_1.UnfollowDto }),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Unfollow a user',
+        description: 'Unfollow a user (followerId is automatically extracted from JWT token)'
+    }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -426,21 +415,14 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "unfollow", null);
 __decorate([
-    (0, common_1.Post)('cancel-follow-request'),
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_3.ApiBody)({ type: follow_dto_1.CancelFollowRequestDto }),
-    __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, follow_dto_1.CancelFollowRequestDto]),
-    __metadata("design:returntype", Promise)
-], UserController.prototype, "cancelFollowRequest", null);
-__decorate([
     (0, common_1.Post)('block-user'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiBody)({ type: follow_dto_1.BlockUserDto }),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Block a user',
+        description: 'Block a user (blockerId is automatically extracted from JWT token)'
+    }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -452,6 +434,10 @@ __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiBody)({ type: follow_dto_1.UnblockUserDto }),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Unblock a user',
+        description: 'Unblock a user (blockerId is automatically extracted from JWT token)'
+    }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -462,6 +448,10 @@ __decorate([
     (0, common_1.Get)('pending-requests'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Get pending follow requests',
+        description: 'Returns empty array since follow requests are now direct (userId is automatically extracted from JWT token)'
+    }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
@@ -489,6 +479,10 @@ __decorate([
     (0, common_1.Get)('blocked-users'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Get blocked users for the authenticated user',
+        description: 'Returns list of users blocked by the authenticated user (blockerId is automatically extracted from JWT token)'
+    }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
