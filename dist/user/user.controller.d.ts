@@ -57,6 +57,9 @@ export declare class ResetPasswordDto {
     otp: string;
     newPassword: string;
 }
+export declare class CheckDisplayNameDto {
+    displayName: string;
+}
 export declare class UserController {
     private readonly userService;
     constructor(userService: UserService);
@@ -308,6 +311,17 @@ export declare class UserController {
             displayName: string | null;
             id: string;
         }[];
+    }>;
+    checkDisplayName(dto: CheckDisplayNameDto): Promise<{
+        status: string;
+        message: string;
+        displayName: string;
+        suggestions?: undefined;
+    } | {
+        status: string;
+        message: string;
+        displayName: string;
+        suggestions: string[];
     }>;
     getUserById(id: string): Promise<{
         user: {

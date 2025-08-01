@@ -362,6 +362,81 @@ let UserService = class UserService {
         });
         return users;
     }
+    async checkDisplayNameAvailability(displayName) {
+        if (!displayName || displayName.trim() === '') {
+            throw new common_1.BadRequestException('Display name is required');
+        }
+        const trimmedDisplayName = displayName.trim();
+        const existingUser = await this.prisma.user.findFirst({
+            where: {
+                displayName: trimmedDisplayName,
+                deletedAt: null
+            },
+        });
+        if (!existingUser) {
+            return {
+                status: 'approved',
+                message: 'Display name is available',
+                displayName: trimmedDisplayName
+            };
+        }
+        const suggestions = await this.generateDisplayNameSuggestions(trimmedDisplayName);
+        return {
+            status: 'taken',
+            message: 'Display name is already taken',
+            displayName: trimmedDisplayName,
+            suggestions: suggestions
+        };
+    }
+    async generateDisplayNameSuggestions(baseName) {
+        const suggestions = [];
+        const baseNameLower = baseName.toLowerCase();
+        const existingDisplayNames = await this.prisma.user.findMany({
+            where: { deletedAt: null },
+            select: { displayName: true },
+        });
+        const existingNames = new Set(existingDisplayNames.map(u => u.displayName?.toLowerCase()));
+        for (let i = 1; i <= 999; i++) {
+            const suggestion = `${baseName}${i}`;
+            if (!existingNames.has(suggestion.toLowerCase())) {
+                suggestions.push(suggestion);
+                if (suggestions.length >= 4)
+                    break;
+            }
+        }
+        if (suggestions.length < 4) {
+            for (let i = 1; i <= 999; i++) {
+                const suggestion = `${baseName}_${i}`;
+                if (!existingNames.has(suggestion.toLowerCase())) {
+                    suggestions.push(suggestion);
+                    if (suggestions.length >= 4)
+                        break;
+                }
+            }
+        }
+        if (suggestions.length < 4) {
+            for (let i = 1; i <= 999; i++) {
+                const suggestion = `${baseName}.${i}`;
+                if (!existingNames.has(suggestion.toLowerCase())) {
+                    suggestions.push(suggestion);
+                    if (suggestions.length >= 4)
+                        break;
+                }
+            }
+        }
+        if (suggestions.length < 4) {
+            const suffixes = ['x', 'pro', 'official', 'real', 'new', 'live', 'now', 'here'];
+            for (const suffix of suffixes) {
+                const suggestion = `${baseName}${suffix}`;
+                if (!existingNames.has(suggestion.toLowerCase())) {
+                    suggestions.push(suggestion);
+                    if (suggestions.length >= 4)
+                        break;
+                }
+            }
+        }
+        return suggestions.slice(0, 4);
+    }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([

@@ -403,4 +403,97 @@ export class UserService {
     });
     return users;
   }
+
+  // Check display name availability and provide suggestions
+  async checkDisplayNameAvailability(displayName: string) {
+    if (!displayName || displayName.trim() === '') {
+      throw new BadRequestException('Display name is required');
+    }
+
+    const trimmedDisplayName = displayName.trim();
+    
+    // Check if display name already exists
+    const existingUser = await this.prisma.user.findFirst({
+      where: { 
+        displayName: trimmedDisplayName,
+        deletedAt: null 
+      },
+    });
+
+    if (!existingUser) {
+      return {
+        status: 'approved',
+        message: 'Display name is available',
+        displayName: trimmedDisplayName
+      };
+    }
+
+    // If display name exists, generate suggestions
+    const suggestions = await this.generateDisplayNameSuggestions(trimmedDisplayName);
+    
+    return {
+      status: 'taken',
+      message: 'Display name is already taken',
+      displayName: trimmedDisplayName,
+      suggestions: suggestions
+    };
+  }
+
+  // Generate display name suggestions
+  private async generateDisplayNameSuggestions(baseName: string): Promise<string[]> {
+    const suggestions: string[] = [];
+    const baseNameLower = baseName.toLowerCase();
+    
+    // Get all existing display names to avoid duplicates
+    const existingDisplayNames = await this.prisma.user.findMany({
+      where: { deletedAt: null },
+      select: { displayName: true },
+    });
+    const existingNames = new Set(existingDisplayNames.map(u => u.displayName?.toLowerCase()));
+
+    // Generate suggestions with numbers
+    for (let i = 1; i <= 999; i++) {
+      const suggestion = `${baseName}${i}`;
+      if (!existingNames.has(suggestion.toLowerCase())) {
+        suggestions.push(suggestion);
+        if (suggestions.length >= 4) break;
+      }
+    }
+
+    // If we don't have 4 suggestions yet, try with underscores
+    if (suggestions.length < 4) {
+      for (let i = 1; i <= 999; i++) {
+        const suggestion = `${baseName}_${i}`;
+        if (!existingNames.has(suggestion.toLowerCase())) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 4) break;
+        }
+      }
+    }
+
+    // If we still don't have 4 suggestions, try with dots
+    if (suggestions.length < 4) {
+      for (let i = 1; i <= 999; i++) {
+        const suggestion = `${baseName}.${i}`;
+        if (!existingNames.has(suggestion.toLowerCase())) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 4) break;
+        }
+      }
+    }
+
+    // If we still don't have 4 suggestions, try with random suffixes
+    if (suggestions.length < 4) {
+      const suffixes = ['x', 'pro', 'official', 'real', 'new', 'live', 'now', 'here'];
+      for (const suffix of suffixes) {
+        const suggestion = `${baseName}${suffix}`;
+        if (!existingNames.has(suggestion.toLowerCase())) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 4) break;
+        }
+      }
+    }
+
+    return suggestions.slice(0, 4);
+  }
 } 

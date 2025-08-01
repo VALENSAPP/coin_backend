@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserController = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
+exports.UserController = exports.CheckDisplayNameDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const user_service_1 = require("./user.service");
@@ -256,6 +256,19 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ResetPasswordDto.prototype, "newPassword", void 0);
+class CheckDisplayNameDto {
+    displayName;
+}
+exports.CheckDisplayNameDto = CheckDisplayNameDto;
+__decorate([
+    (0, swagger_2.ApiProperty)({
+        description: 'Display name to check for availability',
+        example: 'john_doe'
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], CheckDisplayNameDto.prototype, "displayName", void 0);
 let UserController = class UserController {
     userService;
     constructor(userService) {
@@ -338,6 +351,10 @@ let UserController = class UserController {
     async getDisplayNames() {
         const users = await this.userService.getDisplayNames();
         return { users };
+    }
+    async checkDisplayName(dto) {
+        const result = await this.userService.checkDisplayNameAvailability(dto.displayName);
+        return result;
     }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
@@ -548,6 +565,35 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getDisplayNames", null);
+__decorate([
+    (0, common_1.Post)('check-display-name'),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Check display name availability',
+        description: 'Check if a display name is available. If taken, returns 4 similar suggestions.'
+    }),
+    (0, swagger_3.ApiBody)({ type: CheckDisplayNameDto }),
+    (0, swagger_3.ApiResponse)({
+        status: 200,
+        description: 'Display name check result',
+        schema: {
+            type: 'object',
+            properties: {
+                status: { type: 'string', enum: ['approved', 'taken'] },
+                message: { type: 'string' },
+                displayName: { type: 'string' },
+                suggestions: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Array of 4 suggested display names (only if status is "taken")'
+                }
+            }
+        }
+    }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [CheckDisplayNameDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "checkDisplayName", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
