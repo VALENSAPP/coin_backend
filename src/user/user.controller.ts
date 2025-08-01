@@ -177,6 +177,16 @@ export class ResetPasswordDto {
   newPassword: string;
 }
 
+export class CheckDisplayNameDto {
+  @ApiProperty({
+    description: 'Display name to check for availability',
+    example: 'john_doe'
+  })
+  @IsString()
+  @IsNotEmpty()
+  displayName: string;
+}
+
 @ApiTags('user')
 @Controller('user')
 export class UserController {
@@ -367,6 +377,34 @@ export class UserController {
   async getDisplayNames() {
     const users = await this.userService.getDisplayNames();
     return { users };
+  }
+
+  @Post('check-display-name')
+  @ApiOperation({ 
+    summary: 'Check display name availability',
+    description: 'Check if a display name is available. If taken, returns 4 similar suggestions.'
+  })
+  @ApiBody({ type: CheckDisplayNameDto })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Display name check result',
+    schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['approved', 'taken'] },
+        message: { type: 'string' },
+        displayName: { type: 'string' },
+        suggestions: { 
+          type: 'array', 
+          items: { type: 'string' },
+          description: 'Array of 4 suggested display names (only if status is "taken")'
+        }
+      }
+    }
+  })
+  async checkDisplayName(@Body() dto: CheckDisplayNameDto) {
+    const result = await this.userService.checkDisplayNameAvailability(dto.displayName);
+    return result;
   }
 
   @Get(':id')

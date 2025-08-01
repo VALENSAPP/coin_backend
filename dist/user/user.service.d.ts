@@ -272,4 +272,16 @@ export declare class UserService {
         userName: string | null;
         displayName: string | null;
     }[]>;
+    checkDisplayNameAvailability(displayName: string): Promise<{
+        status: string;
+        message: string;
+        displayName: string;
+        suggestions?: undefined;
+    } | {
+        status: string;
+        message: string;
+        displayName: string;
+        suggestions: string[];
+    }>;
+    private generateDisplayNameSuggestions;
 }
