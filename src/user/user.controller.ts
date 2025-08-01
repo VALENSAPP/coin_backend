@@ -90,11 +90,35 @@ export class ProfileEditDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  userName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  walletAddress?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   phoneNumber?: string;
 
-  @ApiProperty({ enum: Gender, required: false })
+  @ApiProperty({ 
+    enum: Gender, 
+    required: false,
+    description: 'Must be MALE, FEMALE, or OTHER'
+  })
   @IsOptional()
-  @IsEnum(Gender)
+  @IsEnum(Gender, { message: 'Gender must be MALE, FEMALE, or OTHER' })
   gender?: Gender;
 
   @ApiProperty({ required: false, type: 'string', format: 'binary' })
@@ -183,7 +207,10 @@ export class UserController {
   @Patch('editProfile')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Edit user profile' })
+  @ApiOperation({ 
+    summary: 'Edit user profile',
+    description: 'Update user profile fields. All fields are optional. If wallet address already exists, it cannot be updated (contact admin).'
+  })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('image'))
   async editProfile(

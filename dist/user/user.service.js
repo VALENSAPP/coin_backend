@@ -113,17 +113,55 @@ let UserService = class UserService {
     async editProfile(userId, dto, image) {
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
+        console.log('EditProfile DTO received:', dto);
+        const currentUser = await this.prisma.user.findUnique({
+            where: { id: userId }
+        });
+        if (!currentUser)
+            throw new common_1.BadRequestException('User not found');
+        console.log('Current user wallet address:', currentUser.walletAddress);
+        console.log('Wallet validation:', {
+            dtoWalletAddress: dto.walletAddress,
+            currentUserWalletAddress: currentUser.walletAddress,
+            hasWalletAddress: dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null,
+            hasExistingWallet: !!currentUser.walletAddress
+        });
+        if (dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null && currentUser.walletAddress) {
+            console.log('Throwing wallet address error');
+            throw new common_1.BadRequestException('Wallet address already exists. Please contact admin for wallet address changes.');
+        }
         let imageUrl = undefined;
         if (image) {
             imageUrl = await (0, s3_util_1.uploadImageToS3)(image, 'profile-images');
         }
         const data = {};
-        if (dto.phoneNumber !== undefined)
+        if (dto.userName !== undefined && dto.userName !== '' && dto.userName !== null) {
+            data.userName = dto.userName;
+        }
+        if (dto.displayName !== undefined && dto.displayName !== '' && dto.displayName !== null) {
+            data.displayName = dto.displayName;
+        }
+        if (dto.bio !== undefined && dto.bio !== '' && dto.bio !== null) {
+            data.bio = dto.bio;
+        }
+        if (dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null) {
+            data.walletAddress = dto.walletAddress;
+        }
+        if (dto.phoneNumber !== undefined && dto.phoneNumber !== '' && dto.phoneNumber !== null) {
             data.phoneNumber = dto.phoneNumber;
-        if (dto.gender !== undefined)
-            data.gender = dto.gender;
-        if (dto.age !== undefined)
+        }
+        if (dto.gender !== undefined && dto.gender !== '' && dto.gender !== null) {
+            const validGenders = ['MALE', 'FEMALE', 'OTHER'];
+            if (validGenders.includes(dto.gender)) {
+                data.gender = dto.gender;
+            }
+            else {
+                throw new common_1.BadRequestException('Invalid gender value. Must be MALE, FEMALE, or OTHER');
+            }
+        }
+        if (dto.age !== undefined && dto.age !== '' && dto.age !== null) {
             data.age = Number(dto.age);
+        }
         if (imageUrl)
             data.image = imageUrl;
         const user = await this.prisma.user.update({

@@ -126,6 +126,10 @@ __decorate([
     __metadata("design:type", String)
 ], LoginDto.prototype, "registrationType", void 0);
 class ProfileEditDto {
+    userName;
+    displayName;
+    bio;
+    walletAddress;
     phoneNumber;
     gender;
     image;
@@ -137,11 +141,39 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
+], ProfileEditDto.prototype, "userName", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ProfileEditDto.prototype, "displayName", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ProfileEditDto.prototype, "bio", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ProfileEditDto.prototype, "walletAddress", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
 ], ProfileEditDto.prototype, "phoneNumber", void 0);
 __decorate([
-    (0, swagger_2.ApiProperty)({ enum: Gender, required: false }),
+    (0, swagger_2.ApiProperty)({
+        enum: Gender,
+        required: false,
+        description: 'Must be MALE, FEMALE, or OTHER'
+    }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(Gender),
+    (0, class_validator_1.IsEnum)(Gender, { message: 'Gender must be MALE, FEMALE, or OTHER' }),
     __metadata("design:type", String)
 ], ProfileEditDto.prototype, "gender", void 0);
 __decorate([
@@ -334,7 +366,10 @@ __decorate([
     (0, common_1.Patch)('editProfile'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_3.ApiOperation)({ summary: 'Edit user profile' }),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Edit user profile',
+        description: 'Update user profile fields. All fields are optional. If wallet address already exists, it cannot be updated (contact admin).'
+    }),
     (0, swagger_3.ApiConsumes)('multipart/form-data'),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image')),
     __param(0, (0, common_1.Req)()),

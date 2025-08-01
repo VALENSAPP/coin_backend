@@ -131,15 +131,71 @@ export class UserService {
   // Profile edit
   async editProfile(userId: string, dto: any, image?: Express.Multer.File) {
     if (!userId) throw new BadRequestException('User ID required');
+    
+    console.log('EditProfile DTO received:', dto);
+    
+    // Get current user to check existing wallet address
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: userId }
+    });
+    
+    if (!currentUser) throw new BadRequestException('User not found');
+    
+    console.log('Current user wallet address:', currentUser.walletAddress);
+    
+    // Check if user is trying to update wallet address when one already exists
+    // This check should happen BEFORE any image upload to avoid delays
+    console.log('Wallet validation:', {
+      dtoWalletAddress: dto.walletAddress,
+      currentUserWalletAddress: currentUser.walletAddress,
+      hasWalletAddress: dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null,
+      hasExistingWallet: !!currentUser.walletAddress
+    });
+    
+    if (dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null && currentUser.walletAddress) {
+      console.log('Throwing wallet address error');
+      throw new BadRequestException('Wallet address already exists. Please contact admin for wallet address changes.');
+    }
+    
     let imageUrl = undefined;
     if (image) {
       imageUrl = await uploadImageToS3(image, 'profile-images');
     }
+    
     const data: any = {};
-    if (dto.phoneNumber !== undefined) data.phoneNumber = dto.phoneNumber;
-    if (dto.gender !== undefined) data.gender = dto.gender;
-    if (dto.age !== undefined) data.age = Number(dto.age);
+    
+    // Handle new fields with empty string validation
+    if (dto.userName !== undefined && dto.userName !== '' && dto.userName !== null) {
+      data.userName = dto.userName;
+    }
+    if (dto.displayName !== undefined && dto.displayName !== '' && dto.displayName !== null) {
+      data.displayName = dto.displayName;
+    }
+    if (dto.bio !== undefined && dto.bio !== '' && dto.bio !== null) {
+      data.bio = dto.bio;
+    }
+    if (dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null) {
+      data.walletAddress = dto.walletAddress;
+    }
+    
+    // Handle existing fields with proper validation
+    if (dto.phoneNumber !== undefined && dto.phoneNumber !== '' && dto.phoneNumber !== null) {
+      data.phoneNumber = dto.phoneNumber;
+    }
+    if (dto.gender !== undefined && dto.gender !== '' && dto.gender !== null) {
+      // Validate gender enum value
+      const validGenders = ['MALE', 'FEMALE', 'OTHER'];
+      if (validGenders.includes(dto.gender)) {
+        data.gender = dto.gender;
+      } else {
+        throw new BadRequestException('Invalid gender value. Must be MALE, FEMALE, or OTHER');
+      }
+    }
+    if (dto.age !== undefined && dto.age !== '' && dto.age !== null) {
+      data.age = Number(dto.age);
+    }
     if (imageUrl) data.image = imageUrl;
+    
     const user = await this.prisma.user.update({
       where: { id: userId },
       data,
