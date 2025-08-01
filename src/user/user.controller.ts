@@ -357,6 +357,18 @@ export class UserController {
     return { users };
   }
 
+  @Get('display-names')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Get all display names of all users',
+    description: 'Retrieves display names, user names, emails, and IDs of all users (excluding soft-deleted users)'
+  })
+  async getDisplayNames() {
+    const users = await this.userService.getDisplayNames();
+    return { users };
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

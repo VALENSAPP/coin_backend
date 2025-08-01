@@ -266,4 +266,10 @@ export declare class UserService {
         createdAt: Date;
         blockerId: string;
     })[]>;
+    getDisplayNames(): Promise<{
+        email: string | null;
+        userName: string | null;
+        displayName: string | null;
+        id: string;
+    }[]>;
 }

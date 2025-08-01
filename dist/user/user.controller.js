@@ -335,6 +335,10 @@ let UserController = class UserController {
         const users = await this.userService.getAllUsers();
         return { users };
     }
+    async getDisplayNames() {
+        const users = await this.userService.getDisplayNames();
+        return { users };
+    }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
         return { user };
@@ -532,6 +536,18 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getAllUsers", null);
+__decorate([
+    (0, common_1.Get)('display-names'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({
+        summary: 'Get all display names of all users',
+        description: 'Retrieves display names, user names, emails, and IDs of all users (excluding soft-deleted users)'
+    }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getDisplayNames", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

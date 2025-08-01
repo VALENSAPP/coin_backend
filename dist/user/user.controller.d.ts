@@ -301,6 +301,14 @@ export declare class UserController {
             verifyEmail: number;
         }[];
     }>;
+    getDisplayNames(): Promise<{
+        users: {
+            email: string | null;
+            userName: string | null;
+            displayName: string | null;
+            id: string;
+        }[];
+    }>;
     getUserById(id: string): Promise<{
         user: {
             email: string | null;

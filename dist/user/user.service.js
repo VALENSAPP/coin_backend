@@ -350,6 +350,18 @@ let UserService = class UserService {
             include: { blocked: true },
         });
     }
+    async getDisplayNames() {
+        const users = await this.prisma.user.findMany({
+            where: { deletedAt: null },
+            select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                email: true,
+            },
+        });
+        return users;
+    }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([

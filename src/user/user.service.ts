@@ -389,4 +389,18 @@ export class UserService {
       include: { blocked: true },
     });
   }
+
+  // Get all display names of all users (exclude soft-deleted)
+  async getDisplayNames() {
+    const users = await this.prisma.user.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        displayName: true,
+        userName: true,
+        email: true,
+      },
+    });
+    return users;
+  }
 } 
