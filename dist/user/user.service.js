@@ -383,7 +383,7 @@ let UserService = class UserService {
         const suggestions = await this.generateDisplayNameSuggestions(trimmedDisplayName);
         return {
             status: 'taken',
-            message: 'Display name is already taken by user',
+            message: 'Display name is already taken by users',
             displayName: trimmedDisplayName,
             suggestions: suggestions
         };

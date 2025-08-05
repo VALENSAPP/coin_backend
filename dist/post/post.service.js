@@ -69,10 +69,24 @@ let PostService = class PostService {
         return post;
     }
     async getAllPost() {
-        return this.prisma.post.findMany({
+        const posts = await this.prisma.post.findMany({
             where: { deletedAt: null },
             orderBy: { createdAt: 'desc' },
+            include: {
+                user: {
+                    select: {
+                        displayName: true,
+                        image: true,
+                    },
+                },
+            },
         });
+        return posts.map(post => ({
+            ...post,
+            userName: post.user?.displayName || null,
+            userImage: post.user?.image || null,
+            user: undefined,
+        }));
     }
     async deletePost(postId, userId) {
         const post = await this.prisma.post.findUnique({ where: { id: postId } });

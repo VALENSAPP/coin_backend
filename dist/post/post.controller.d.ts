@@ -51,6 +51,9 @@ export declare class PostController {
         taggedPeople: string[];
     }[]>;
     getAllPost(): Promise<{
+        userName: string | null;
+        userImage: string | null;
+        user: undefined;
         userId: string;
         id: string;
         createdAt: Date;
