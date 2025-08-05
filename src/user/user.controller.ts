@@ -1,10 +1,10 @@
-import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEnum, IsOptional, IsNotEmpty, IsEmail, IsInt } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNotEmpty, IsEmail, IsInt, IsUUID } from 'class-validator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
@@ -187,6 +187,17 @@ export class CheckDisplayNameDto {
   displayName: string;
 }
 
+export class GetProfileDto {
+  @ApiProperty({ 
+    description: 'User ID to get profile for', 
+    required: true,
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  userId: string;
+}
+
 @ApiTags('user')
 @Controller('user')
 export class UserController {
@@ -207,10 +218,10 @@ export class UserController {
   @Get('profile')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile' })
-  async getProfile(@Req() req: Request) {
-    const userId = (req.user as any).userId; // Use 'userId' instead of 'id'
-    const user = await this.userService.getUserById(userId);
+  @ApiOperation({ summary: 'Get user profile by userId' })
+  @ApiQuery({ name: 'userId', type: 'string', description: 'User ID to get profile for' })
+  async getProfile(@Query() query: GetProfileDto) {
+    const user = await this.userService.getUserById(query.userId);
     return { user };
   }
 
