@@ -9,11 +9,11 @@ export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -23,11 +23,11 @@ export declare class PostController {
         taggedPeople: string[];
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -37,11 +37,11 @@ export declare class PostController {
         taggedPeople: string[];
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -51,11 +51,11 @@ export declare class PostController {
         taggedPeople: string[];
     }[]>;
     getAllPost(): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -65,11 +65,11 @@ export declare class PostController {
         taggedPeople: string[];
     }[]>;
     getPostById(params: GetPostByIdDto): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;

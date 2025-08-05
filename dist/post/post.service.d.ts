@@ -3,11 +3,11 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, taggedPeople?: string[]): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -17,11 +17,11 @@ export declare class PostService {
         taggedPeople: string[];
     }>;
     getPostByUserId(userId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -31,11 +31,11 @@ export declare class PostService {
         taggedPeople: string[];
     }[]>;
     getPostById(postId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -45,11 +45,11 @@ export declare class PostService {
         taggedPeople: string[];
     }>;
     getAllPost(): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -60,11 +60,11 @@ export declare class PostService {
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
