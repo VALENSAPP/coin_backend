@@ -60,6 +60,9 @@ export declare class ResetPasswordDto {
 export declare class CheckDisplayNameDto {
     displayName: string;
 }
+export declare class GetProfileDto {
+    userId: string;
+}
 export declare class UserController {
     private readonly userService;
     constructor(userService: UserService);
@@ -90,7 +93,7 @@ export declare class UserController {
             access_token: string;
         };
     }>;
-    getProfile(req: Request): Promise<{
+    getProfile(query: GetProfileDto): Promise<{
         user: {
             id: string;
             email: string | null;

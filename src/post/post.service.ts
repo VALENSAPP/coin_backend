@@ -66,10 +66,25 @@ export class PostService {
   }
 
   async getAllPost() {
-    return this.prisma.post.findMany({
+    const posts = await this.prisma.post.findMany({
       where: { deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+          },
+        },
+      },
     });
+    // Map posts to add userName and userImage fields
+    return posts.map(post => ({
+      ...post,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      user: undefined, // Remove the nested user object
+    }));
   }
 
   async deletePost(postId: string, userId: string) {

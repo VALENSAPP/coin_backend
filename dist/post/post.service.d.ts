@@ -45,6 +45,10 @@ export declare class PostService {
         taggedPeople: string[];
     }>;
     getAllPost(): Promise<{
+        userName: string | null;
+        userImage: string | null;
+        user: undefined;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
