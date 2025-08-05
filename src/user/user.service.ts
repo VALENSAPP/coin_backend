@@ -433,7 +433,7 @@ export class UserService {
     
     return {
       status: 'taken',
-      message: 'Display name is already taken by users',
+      message: 'Display name is already taken',
       displayName: trimmedDisplayName,
       suggestions: suggestions
     };
