@@ -284,4 +284,9 @@ export declare class UserService {
         suggestions: string[];
     }>;
     private generateDisplayNameSuggestions;
+    getUserDashboard(userId: string): Promise<{
+        totalPosts: number;
+        totalFollowing: number;
+        totalFollowers: number;
+    }>;
 }

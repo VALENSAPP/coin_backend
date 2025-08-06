@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserController = exports.GetProfileDto = exports.CheckDisplayNameDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
+exports.UserController = exports.GetUserDashboardDto = exports.GetProfileDto = exports.CheckDisplayNameDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const user_service_1 = require("./user.service");
@@ -283,6 +283,20 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], GetProfileDto.prototype, "userId", void 0);
+class GetUserDashboardDto {
+    userId;
+}
+exports.GetUserDashboardDto = GetUserDashboardDto;
+__decorate([
+    (0, swagger_2.ApiProperty)({
+        description: 'User ID to get dashboard data for',
+        required: true,
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    }),
+    (0, class_validator_1.IsUUID)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], GetUserDashboardDto.prototype, "userId", void 0);
 let UserController = class UserController {
     userService;
     constructor(userService) {
@@ -368,6 +382,10 @@ let UserController = class UserController {
     async checkDisplayName(dto) {
         const result = await this.userService.checkDisplayNameAvailability(dto.displayName);
         return result;
+    }
+    async getUserDashboard(query) {
+        const dashboardData = await this.userService.getUserDashboard(query.userId);
+        return { dashboardData };
     }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
@@ -608,6 +626,34 @@ __decorate([
     __metadata("design:paramtypes", [CheckDisplayNameDto]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "checkDisplayName", null);
+__decorate([
+    (0, common_1.Get)('dashboard'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Get user dashboard data' }),
+    (0, swagger_3.ApiQuery)({ name: 'userId', type: 'string', description: 'User ID to get dashboard data for' }),
+    (0, swagger_3.ApiResponse)({
+        status: 200,
+        description: 'User dashboard data retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                dashboardData: {
+                    type: 'object',
+                    properties: {
+                        totalPosts: { type: 'number', description: 'Total number of posts by the user' },
+                        totalFollowing: { type: 'number', description: 'Total number of users the user is following' },
+                        totalFollowers: { type: 'number', description: 'Total number of users following the user' }
+                    }
+                }
+            }
+        }
+    }),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [GetUserDashboardDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getUserDashboard", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

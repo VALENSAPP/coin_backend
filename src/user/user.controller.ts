@@ -198,6 +198,17 @@ export class GetProfileDto {
   userId: string;
 }
 
+export class GetUserDashboardDto {
+  @ApiProperty({ 
+    description: 'User ID to get dashboard data for', 
+    required: true,
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  userId: string;
+}
+
 @ApiTags('user')
 @Controller('user')
 export class UserController {
@@ -416,6 +427,33 @@ export class UserController {
   async checkDisplayName(@Body() dto: CheckDisplayNameDto) {
     const result = await this.userService.checkDisplayNameAvailability(dto.displayName);
     return result;
+  }
+
+  @Get('dashboard')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user dashboard data' })
+  @ApiQuery({ name: 'userId', type: 'string', description: 'User ID to get dashboard data for' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User dashboard data retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        dashboardData: {
+          type: 'object',
+          properties: {
+            totalPosts: { type: 'number', description: 'Total number of posts by the user' },
+            totalFollowing: { type: 'number', description: 'Total number of users the user is following' },
+            totalFollowers: { type: 'number', description: 'Total number of users following the user' }
+          }
+        }
+      }
+    }
+  })
+  async getUserDashboard(@Query() query: GetUserDashboardDto) {
+    const dashboardData = await this.userService.getUserDashboard(query.userId);
+    return { dashboardData };
   }
 
   @Get(':id')

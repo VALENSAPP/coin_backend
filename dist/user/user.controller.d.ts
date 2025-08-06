@@ -63,6 +63,9 @@ export declare class CheckDisplayNameDto {
 export declare class GetProfileDto {
     userId: string;
 }
+export declare class GetUserDashboardDto {
+    userId: string;
+}
 export declare class UserController {
     private readonly userService;
     constructor(userService: UserService);
@@ -325,6 +328,13 @@ export declare class UserController {
         message: string;
         displayName: string;
         suggestions: string[];
+    }>;
+    getUserDashboard(query: GetUserDashboardDto): Promise<{
+        dashboardData: {
+            totalPosts: number;
+            totalFollowing: number;
+            totalFollowers: number;
+        };
     }>;
     getUserById(id: string): Promise<{
         user: {

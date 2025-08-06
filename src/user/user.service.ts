@@ -496,4 +496,36 @@ export class UserService {
 
     return suggestions.slice(0, 4);
   }
+
+  async getUserDashboard(userId: string) {
+    // Get total posts count
+    const totalPosts = await this.prisma.post.count({
+      where: {
+        userId: userId,
+        deletedAt: null,
+      },
+    });
+
+    // Get total following count (users this user is following)
+    const totalFollowing = await this.prisma.followerAndFollowing.count({
+      where: {
+        followerId: userId,
+        status: 'ACCEPTED',
+      },
+    });
+
+    // Get total followers count (users following this user)
+    const totalFollowers = await this.prisma.followerAndFollowing.count({
+      where: {
+        followingId: userId,
+        status: 'ACCEPTED',
+      },
+    });
+
+    return {
+      totalPosts,
+      totalFollowing,
+      totalFollowers,
+    };
+  }
 } 
