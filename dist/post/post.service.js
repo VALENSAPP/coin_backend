@@ -49,10 +49,24 @@ let PostService = class PostService {
         console.log('Service received userId:', userId);
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
-        return this.prisma.post.findMany({
+        const posts = await this.prisma.post.findMany({
             where: { userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
+            include: {
+                user: {
+                    select: {
+                        displayName: true,
+                        image: true,
+                    },
+                },
+            },
         });
+        return posts.map(post => ({
+            ...post,
+            userName: post.user?.displayName || null,
+            userImage: post.user?.image || null,
+            user: undefined,
+        }));
     }
     async getPostById(postId) {
         if (!postId)

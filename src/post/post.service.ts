@@ -42,10 +42,24 @@ export class PostService {
   async getPostByUserId(userId: string) {
     console.log('Service received userId:', userId);
     if (!userId) throw new BadRequestException('User ID required');
-    return this.prisma.post.findMany({
+    const posts = await this.prisma.post.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+          },
+        },
+      },
     });
+    return posts.map(post => ({
+      ...post,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      user: undefined, // Remove the nested user object
+    }));
   }
 
   async getPostById(postId: string) {
@@ -67,7 +81,7 @@ export class PostService {
 
   async getAllPost() {
     const posts = await this.prisma.post.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null }, 
       orderBy: { createdAt: 'desc' },
       include: {
         user: {
