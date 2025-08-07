@@ -41,14 +41,13 @@ model User {
   verifyEmail    Int      @default(0)
   // Add relation to posts
   posts         Post[]
-
   // Post like relations
   postLikes     PostLike[]
-
+  // Post comment relations
+  postComments  PostComment[]
   // Follower/following relations
   followers     FollowerAndFollowing[] @relation("Following")
   followings    FollowerAndFollowing[] @relation("Follower")
-
   // Blocked user relations
   blockedUsers  BlockedUser[] @relation("Blocker")
   blockedBy     BlockedUser[] @relation("Blocked")
@@ -81,9 +80,10 @@ model Post {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   deletedAt DateTime?
-  
   // Post like relations
   likes     PostLike[]
+  // Post comment relations
+  comments  PostComment[]
 }
 
 model PostLike {
@@ -96,6 +96,20 @@ model PostLike {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
 }
 
 model FollowerAndFollowing {

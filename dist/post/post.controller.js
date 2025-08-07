@@ -24,6 +24,7 @@ const post_like_dto_1 = require("./dto/post-like.dto");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
+const post_comment_dto_1 = require("./dto/post-comment.dto");
 let PostController = class PostController {
     postService;
     constructor(postService) {
@@ -62,6 +63,17 @@ let PostController = class PostController {
     }
     async postLikeList(query) {
         return this.postService.postLikeList(query.postId);
+    }
+    async commentOnPost(req, dto) {
+        const userId = req.user.userId;
+        return this.postService.commentOnPost(dto.postId, userId, dto.comment);
+    }
+    async getCommentListOnPost(dto) {
+        return this.postService.getCommentListOnPost(dto.postId);
+    }
+    async deleteComment(req, dto) {
+        const userId = req.user.userId;
+        return this.postService.commentDelete(dto.postId, dto.commentId, userId);
     }
 };
 exports.PostController = PostController;
@@ -189,6 +201,39 @@ __decorate([
     __metadata("design:paramtypes", [post_like_dto_1.PostLikeListDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "postLikeList", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('comment'),
+    (0, swagger_1.ApiBody)({ type: post_comment_dto_1.CommentOnPostDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, post_comment_dto_1.CommentOnPostDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "commentOnPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('comment/list'),
+    (0, swagger_1.ApiQuery)({ name: 'postId', type: String, required: true }),
+    __param(0, (0, common_1.Query)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [post_comment_dto_1.GetCommentListOnPostDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getCommentListOnPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Delete)('deleteComment'),
+    (0, swagger_1.ApiQuery)({ name: 'postId', type: String, required: true }),
+    (0, swagger_1.ApiQuery)({ name: 'commentId', type: String, required: true }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, post_comment_dto_1.CommentDeleteDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "deleteComment", null);
 exports.PostController = PostController = __decorate([
     (0, common_1.Controller)('post'),
     __metadata("design:paramtypes", [post_service_1.PostService])

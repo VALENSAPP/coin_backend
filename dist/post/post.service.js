@@ -248,6 +248,63 @@ let PostService = class PostService {
             totalLikes,
         };
     }
+    async commentOnPost(postId, userId, comment) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        if (!comment || comment.trim() === '')
+            throw new common_1.BadRequestException('Comment required');
+        const post = await this.prisma.post.findUnique({
+            where: { id: postId, deletedAt: null },
+        });
+        if (!post)
+            throw new common_1.BadRequestException('Post not found');
+        return this.prisma.postComment.create({
+            data: { postId, userId, comment },
+        });
+    }
+    async getCommentListOnPost(postId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        const post = await this.prisma.post.findUnique({
+            where: { id: postId, deletedAt: null },
+        });
+        if (!post)
+            throw new common_1.BadRequestException('Post not found');
+        const comments = await this.prisma.postComment.findMany({
+            where: { postId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                user: { select: { displayName: true, image: true, id: true } },
+            },
+        });
+        const commentCount = await this.prisma.postComment.count({ where: { postId } });
+        return {
+            comments: comments.map((c) => ({
+                id: c.id,
+                comment: c.comment,
+                createdAt: c.createdAt,
+                userId: c.userId,
+                displayName: c.user.displayName,
+                image: c.user.image,
+            })),
+            commentCount,
+        };
+    }
+    async commentDelete(postId, commentId, userId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        if (!commentId)
+            throw new common_1.BadRequestException('Comment ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
+        if (!comment || comment.userId !== userId || comment.postId !== postId)
+            throw new common_1.BadRequestException('Not allowed');
+        await this.prisma.postComment.delete({ where: { id: commentId } });
+        return { message: 'Comment deleted' };
+    }
 };
 exports.PostService = PostService;
 exports.PostService = PostService = __decorate([

@@ -8,8 +8,9 @@ import { EditPostDto } from './dto/edit-post.dto';
 import { PostLikeByUserDto, PostLikeListDto } from './dto/post-like.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
-import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
 
 @Controller('post')
 export class PostController {
@@ -156,5 +157,32 @@ export class PostController {
     @Query(new ValidationPipe({ whitelist: true })) query: PostLikeListDto
   ) {
     return this.postService.postLikeList(query.postId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('comment')
+  @ApiBody({ type: CommentOnPostDto })
+  async commentOnPost(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: CommentOnPostDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.commentOnPost(dto.postId, userId, dto.comment);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('comment/list')
+  @ApiQuery({ name: 'postId', type: String, required: true })
+  async getCommentListOnPost(@Query(new ValidationPipe({ whitelist: true })) dto: GetCommentListOnPostDto) {
+    return this.postService.getCommentListOnPost(dto.postId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Delete('deleteComment')
+  @ApiQuery({ name: 'postId', type: String, required: true })
+  @ApiQuery({ name: 'commentId', type: String, required: true })
+  async deleteComment(@Req() req: Request, @Query(new ValidationPipe({ whitelist: true })) dto: CommentDeleteDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.commentDelete(dto.postId, dto.commentId, userId);
   }
 } 

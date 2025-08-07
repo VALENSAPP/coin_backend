@@ -6,15 +6,12 @@ import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
 import { PostLikeByUserDto, PostLikeListDto } from './dto/post-like.dto';
 import { Request } from 'express';
+import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
 export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -22,13 +19,13 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -36,17 +33,16 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -54,16 +50,16 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }[]>;
     getAllPost(): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -71,13 +67,13 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }[]>;
     getPostById(params: GetPostByIdDto): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -85,6 +81,10 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }>;
     deletePost(req: Request, query: DeletePostDto): Promise<boolean>;
     postLikeByUser(req: Request, body: PostLikeByUserDto): Promise<{
@@ -100,5 +100,26 @@ export declare class PostController {
             createdAt: any;
         }[];
         totalLikes: number;
+    }>;
+    commentOnPost(req: Request, dto: CommentOnPostDto): Promise<{
+        id: string;
+        createdAt: Date;
+        userId: string;
+        postId: string;
+        comment: string;
+    }>;
+    getCommentListOnPost(dto: GetCommentListOnPostDto): Promise<{
+        comments: {
+            id: any;
+            comment: any;
+            createdAt: any;
+            userId: any;
+            displayName: any;
+            image: any;
+        }[];
+        commentCount: number;
+    }>;
+    deleteComment(req: Request, dto: CommentDeleteDto): Promise<{
+        message: string;
     }>;
 }
