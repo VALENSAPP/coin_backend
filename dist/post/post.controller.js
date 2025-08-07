@@ -20,6 +20,7 @@ const get_post_by_user_dto_1 = require("./dto/get-post-by-user.dto");
 const get_post_by_id_dto_1 = require("./dto/get-post-by-id.dto");
 const delete_post_dto_1 = require("./dto/delete-post.dto");
 const edit_post_dto_1 = require("./dto/edit-post.dto");
+const post_like_dto_1 = require("./dto/post-like.dto");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
@@ -54,6 +55,13 @@ let PostController = class PostController {
     async deletePost(req, query) {
         const userId = req.user.userId;
         return this.postService.deletePost(query.postId, userId);
+    }
+    async postLikeByUser(req, body) {
+        const userId = req.user.userId;
+        return this.postService.postLikeByUser(body.postId, userId);
+    }
+    async postLikeList(query) {
+        return this.postService.postLikeList(query.postId);
     }
 };
 exports.PostController = PostController;
@@ -159,6 +167,28 @@ __decorate([
     __metadata("design:paramtypes", [Object, delete_post_dto_1.DeletePostDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "deletePost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('like'),
+    (0, swagger_1.ApiOperation)({ summary: 'Like or unlike a post' }),
+    (0, swagger_1.ApiBody)({ type: post_like_dto_1.PostLikeByUserDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, post_like_dto_1.PostLikeByUserDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "postLikeByUser", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('like/list'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get list of users who liked a post' }),
+    __param(0, (0, common_1.Query)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [post_like_dto_1.PostLikeListDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "postLikeList", null);
 exports.PostController = PostController = __decorate([
     (0, common_1.Controller)('post'),
     __metadata("design:paramtypes", [post_service_1.PostService])

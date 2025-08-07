@@ -20,9 +20,6 @@ export declare class AuthController {
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -30,9 +27,12 @@ export declare class AuthController {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
             access_token: string;
@@ -47,9 +47,6 @@ export declare class AuthController {
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -57,9 +54,12 @@ export declare class AuthController {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };

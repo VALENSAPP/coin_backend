@@ -437,6 +437,31 @@ let UserService = class UserService {
         }
         return suggestions.slice(0, 4);
     }
+    async getUserDashboard(userId) {
+        const totalPosts = await this.prisma.post.count({
+            where: {
+                userId: userId,
+                deletedAt: null,
+            },
+        });
+        const totalFollowing = await this.prisma.followerAndFollowing.count({
+            where: {
+                followerId: userId,
+                status: 'ACCEPTED',
+            },
+        });
+        const totalFollowers = await this.prisma.followerAndFollowing.count({
+            where: {
+                followingId: userId,
+                status: 'ACCEPTED',
+            },
+        });
+        return {
+            totalPosts,
+            totalFollowing,
+            totalFollowers,
+        };
+    }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([

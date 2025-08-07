@@ -17,6 +17,10 @@ export declare class PostService {
         taggedPeople: string[];
     }>;
     getPostByUserId(userId: string): Promise<{
+        userName: string | null;
+        userImage: string | null;
+        user: undefined;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -75,5 +79,19 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+    }>;
+    postLikeByUser(postId: string, userId: string): Promise<{
+        message: string;
+        liked: boolean;
+    }>;
+    postLikeList(postId: string): Promise<{
+        likes: {
+            id: any;
+            userId: any;
+            displayName: any;
+            image: any;
+            createdAt: any;
+        }[];
+        totalLikes: number;
     }>;
 }

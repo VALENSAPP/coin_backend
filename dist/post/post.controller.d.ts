@@ -4,6 +4,7 @@ import { GetPostByUserDto } from './dto/get-post-by-user.dto';
 import { GetPostByIdDto } from './dto/get-post-by-id.dto';
 import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
+import { PostLikeByUserDto, PostLikeListDto } from './dto/post-like.dto';
 import { Request } from 'express';
 export declare class PostController {
     private readonly postService;
@@ -37,6 +38,10 @@ export declare class PostController {
         taggedPeople: string[];
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
+        userName: string | null;
+        userImage: string | null;
+        user: undefined;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
@@ -82,4 +87,18 @@ export declare class PostController {
         taggedPeople: string[];
     }>;
     deletePost(req: Request, query: DeletePostDto): Promise<boolean>;
+    postLikeByUser(req: Request, body: PostLikeByUserDto): Promise<{
+        message: string;
+        liked: boolean;
+    }>;
+    postLikeList(query: PostLikeListDto): Promise<{
+        likes: {
+            id: any;
+            userId: any;
+            displayName: any;
+            image: any;
+            createdAt: any;
+        }[];
+        totalLikes: number;
+    }>;
 }

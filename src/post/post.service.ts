@@ -42,10 +42,24 @@ export class PostService {
   async getPostByUserId(userId: string) {
     console.log('Service received userId:', userId);
     if (!userId) throw new BadRequestException('User ID required');
-    return this.prisma.post.findMany({
+    const posts = await this.prisma.post.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+          },
+        },
+      },
     });
+    return posts.map(post => ({
+      ...post,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      user: undefined, // Remove the nested user object
+    }));
   }
 
   async getPostById(postId: string) {
@@ -67,7 +81,7 @@ export class PostService {
 
   async getAllPost() {
     const posts = await this.prisma.post.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null }, 
       orderBy: { createdAt: 'desc' },
       include: {
         user: {
@@ -167,5 +181,104 @@ export class PostService {
       where: { id: postId },
       data: updateFields,
     });
+  }
+
+  async postLikeByUser(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Check if post exists
+    const post = await this.prisma.post.findUnique({
+      where: { 
+        id: postId,
+        deletedAt: null 
+      },
+    });
+    
+    if (!post) {
+      throw new BadRequestException('Post not found');
+    }
+
+    // Check if user already liked the post
+    const existingLike = await this.prisma.postLike.findUnique({
+      where: {
+        postId_userId: {
+          postId,
+          userId,
+        },
+      },
+    });
+
+    if (existingLike) {
+      // Unlike the post
+      await this.prisma.postLike.delete({
+        where: {
+          postId_userId: {
+            postId,
+            userId,
+          },
+        },
+      });
+      return { message: 'Post unliked successfully', liked: false };
+    } else {
+      // Like the post
+      await this.prisma.postLike.create({
+        data: {
+          postId,
+          userId,
+        },
+      });
+      return { message: 'Post liked successfully', liked: true };
+    }
+  }
+
+  async postLikeList(postId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+
+    // Check if post exists
+    const post = await this.prisma.post.findUnique({
+      where: { 
+        id: postId,
+        deletedAt: null 
+      },
+    });
+    
+    if (!post) {
+      throw new BadRequestException('Post not found');
+    }
+
+    // Get likes with user information
+    const likes = await this.prisma.postLike.findMany({
+      where: { postId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get total like count
+    const totalLikes = await this.prisma.postLike.count({
+      where: { postId },
+    });
+
+    // Format the response
+    const formattedLikes = likes.map((like: any) => ({
+      id: like.id,
+      userId: like.user.id,
+      displayName: like.user.displayName,
+      image: like.user.image,
+      createdAt: like.createdAt,
+    }));
+
+    return {
+      likes: formattedLikes,
+      totalLikes,
+    };
   }
 } 
