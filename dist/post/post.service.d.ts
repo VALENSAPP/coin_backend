@@ -3,7 +3,11 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, taggedPeople?: string[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -11,16 +15,16 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     getPostByUserId(userId: string): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -28,13 +32,13 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }[]>;
     getPostById(postId: string): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -42,16 +46,16 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     getAllPost(): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -59,14 +63,14 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -74,9 +78,19 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
+    }>;
+    postLikeByUser(postId: string, userId: string): Promise<{
+        message: string;
+        liked: boolean;
+    }>;
+    postLikeList(postId: string): Promise<{
+        likes: {
+            id: any;
+            userId: any;
+            displayName: any;
+            image: any;
+            createdAt: any;
+        }[];
+        totalLikes: number;
     }>;
 }

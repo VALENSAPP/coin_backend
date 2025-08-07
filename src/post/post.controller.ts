@@ -5,6 +5,7 @@ import { GetPostByUserDto } from './dto/get-post-by-user.dto';
 import { GetPostByIdDto } from './dto/get-post-by-id.dto';
 import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
+import { PostLikeByUserDto, PostLikeListDto } from './dto/post-like.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam } from '@nestjs/swagger';
@@ -132,5 +133,28 @@ export class PostController {
   async deletePost(@Req() req: Request, @Query(new ValidationPipe({ whitelist: true })) query: DeletePostDto) {
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
     return this.postService.deletePost(query.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('like')
+  @ApiOperation({ summary: 'Like or unlike a post' })
+  @ApiBody({ type: PostLikeByUserDto })
+  async postLikeByUser(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) body: PostLikeByUserDto
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.postLikeByUser(body.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('like/list')
+  @ApiOperation({ summary: 'Get list of users who liked a post' })
+  async postLikeList(
+    @Query(new ValidationPipe({ whitelist: true })) query: PostLikeListDto
+  ) {
+    return this.postService.postLikeList(query.postId);
   }
 } 

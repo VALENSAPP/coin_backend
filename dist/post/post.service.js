@@ -165,6 +165,89 @@ let PostService = class PostService {
             data: updateFields,
         });
     }
+    async postLikeByUser(postId, userId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const post = await this.prisma.post.findUnique({
+            where: {
+                id: postId,
+                deletedAt: null
+            },
+        });
+        if (!post) {
+            throw new common_1.BadRequestException('Post not found');
+        }
+        const existingLike = await this.prisma.postLike.findUnique({
+            where: {
+                postId_userId: {
+                    postId,
+                    userId,
+                },
+            },
+        });
+        if (existingLike) {
+            await this.prisma.postLike.delete({
+                where: {
+                    postId_userId: {
+                        postId,
+                        userId,
+                    },
+                },
+            });
+            return { message: 'Post unliked successfully', liked: false };
+        }
+        else {
+            await this.prisma.postLike.create({
+                data: {
+                    postId,
+                    userId,
+                },
+            });
+            return { message: 'Post liked successfully', liked: true };
+        }
+    }
+    async postLikeList(postId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        const post = await this.prisma.post.findUnique({
+            where: {
+                id: postId,
+                deletedAt: null
+            },
+        });
+        if (!post) {
+            throw new common_1.BadRequestException('Post not found');
+        }
+        const likes = await this.prisma.postLike.findMany({
+            where: { postId },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        displayName: true,
+                        image: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        const totalLikes = await this.prisma.postLike.count({
+            where: { postId },
+        });
+        const formattedLikes = likes.map((like) => ({
+            id: like.id,
+            userId: like.user.id,
+            displayName: like.user.displayName,
+            image: like.user.image,
+            createdAt: like.createdAt,
+        }));
+        return {
+            likes: formattedLikes,
+            totalLikes,
+        };
+    }
 };
 exports.PostService = PostService;
 exports.PostService = PostService = __decorate([

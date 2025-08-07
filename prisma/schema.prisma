@@ -42,6 +42,9 @@ model User {
   // Add relation to posts
   posts         Post[]
 
+  // Post like relations
+  postLikes     PostLike[]
+
   // Follower/following relations
   followers     FollowerAndFollowing[] @relation("Following")
   followings    FollowerAndFollowing[] @relation("Follower")
@@ -78,6 +81,21 @@ model Post {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   deletedAt DateTime?
+  
+  // Post like relations
+  likes     PostLike[]
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([postId, userId])
 }
 
 model FollowerAndFollowing {
