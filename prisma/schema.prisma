@@ -45,6 +45,8 @@ model User {
   postLikes     PostLike[]
   // Post comment relations
   postComments  PostComment[]
+  // Post save relations
+  savedPosts   SavePost[]
   // Follower/following relations
   followers     FollowerAndFollowing[] @relation("Following")
   followings    FollowerAndFollowing[] @relation("Follower")
@@ -84,6 +86,8 @@ model Post {
   likes     PostLike[]
   // Post comment relations
   comments  PostComment[]
+  // Post save relations
+  saves     SavePost[]
 }
 
 model PostLike {
@@ -112,6 +116,20 @@ model PostComment {
   @@index([userId])
 }
 
+model SavePost {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@index([postId])
+}
 model FollowerAndFollowing {
   id            String   @id @default(uuid())
   followerId    String

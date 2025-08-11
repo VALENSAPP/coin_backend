@@ -5,7 +5,7 @@ import { GetPostByUserDto } from './dto/get-post-by-user.dto';
 import { GetPostByIdDto } from './dto/get-post-by-id.dto';
 import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
-import { PostLikeByUserDto, PostLikeListDto } from './dto/post-like.dto';
+import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
@@ -109,24 +109,19 @@ export class PostController {
     const targetUserId = query.userId || (req.user as any)?.userId; // Use 'sub' instead of 'userId'
     console.log('Target user ID:', targetUserId);
     
-    return this.postService.getPostByUserId(targetUserId);
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.getPostByUserId(targetUserId, viewerUserId);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('all')
-  async getAllPost() {
-    return this.postService.getAllPost();
+  async getAllPost(@Req() req: Request) {
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.getAllPost(viewerUserId);
   }
 
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @Get(':postId')
-  @ApiOperation({ summary: 'Get a post by ID' })
-  @ApiParam({ name: 'postId', type: 'string', description: 'Post ID' })
-  async getPostById(@Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto) {
-    return this.postService.getPostById(params.postId);
-  }
+  
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -184,5 +179,44 @@ export class PostController {
   async deleteComment(@Req() req: Request, @Query(new ValidationPipe({ whitelist: true })) dto: CommentDeleteDto) {
     const userId = (req.user as any).userId;
     return this.postService.commentDelete(dto.postId, dto.commentId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('save')
+  @ApiOperation({ summary: 'Save a post for the authenticated user' })
+  async savePost(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: SavePostDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.savePost(dto.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('unsave')
+  @ApiOperation({ summary: 'Unsave a post for the authenticated user' })
+  async unsavePost(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: UnsavePostDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.unsavePost(dto.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('getSavedPost')
+  @ApiOperation({ summary: 'Get saved posts for the authenticated user' })
+  async getSavedPosts(@Req() req: Request) {
+    console.log(">>>>>>>>>>>>>>>>>>>>>",req.user);
+    
+    const u: any = req.user as any;
+    const userId = u?.userId ?? u?.sub;
+    return this.postService.getSavedPostsByUser(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('by-id/:postId')
+  @ApiOperation({ summary: 'Get a post by ID' })
+  @ApiParam({ name: 'postId', type: 'string', description: 'Post ID' })
+  async getPostById(@Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto) {
+    return this.postService.getPostById(params.postId);
   }
 } 

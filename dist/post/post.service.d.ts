@@ -16,10 +16,17 @@ export declare class PostService {
         music: string | null;
         taggedPeople: string[];
     }>;
-    getPostByUserId(userId: string): Promise<{
+    savePost(postId: string, userId: string): Promise<{
+        message: string;
+    }>;
+    unsavePost(postId: string, userId: string): Promise<{
+        message: string;
+    }>;
+    getPostByUserId(userId: string, viewerUserId?: string): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
+        isSaved: boolean;
         userId: string;
         id: string;
         createdAt: Date;
@@ -47,10 +54,11 @@ export declare class PostService {
         music: string | null;
         taggedPeople: string[];
     }>;
-    getAllPost(): Promise<{
+    getAllPost(viewerUserId?: string): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
+        isSaved: boolean;
         userId: string;
         id: string;
         createdAt: Date;
@@ -114,4 +122,23 @@ export declare class PostService {
     commentDelete(postId: string, commentId: string, userId: string): Promise<{
         message: string;
     }>;
+    getSavedPostsByUser(userId: string): Promise<{
+        userName: string | null;
+        userImage: string | null;
+        user: undefined;
+        isSaved: boolean;
+        savedAt: Date;
+        userId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        text: string | null;
+        images: string[];
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
+    }[]>;
 }

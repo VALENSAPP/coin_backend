@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PostLikeListDto = exports.PostLikeByUserDto = void 0;
+exports.UnsavePostDto = exports.SavePostDto = exports.PostLikeListDto = exports.PostLikeByUserDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class PostLikeByUserDto {
@@ -38,4 +38,24 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], PostLikeListDto.prototype, "postId", void 0);
+class SavePostDto {
+    postId;
+}
+exports.SavePostDto = SavePostDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Post ID to save', example: '123e4567-e89b-12d3-a456-426614174000' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], SavePostDto.prototype, "postId", void 0);
+class UnsavePostDto {
+    postId;
+}
+exports.UnsavePostDto = UnsavePostDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Post ID to unsave', example: '123e4567-e89b-12d3-a456-426614174000' }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], UnsavePostDto.prototype, "postId", void 0);
 //# sourceMappingURL=post-like.dto.js.map

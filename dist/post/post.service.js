@@ -45,7 +45,35 @@ let PostService = class PostService {
             },
         });
     }
-    async getPostByUserId(userId) {
+    async savePost(postId, userId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const post = await this.prisma.post.findUnique({ where: { id: postId, deletedAt: null } });
+        if (!post)
+            throw new common_1.BadRequestException('Post not found');
+        try {
+            await this.prisma.savePost.create({ data: { postId, userId } });
+        }
+        catch (error) {
+            const isUniqueViolation = error?.code === 'P2002';
+            if (!isUniqueViolation)
+                throw error;
+        }
+        return { message: 'Post saved successfully' };
+    }
+    async unsavePost(postId, userId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        await this.prisma.savePost.delete({
+            where: { postId_userId: { postId, userId } },
+        }).catch(() => undefined);
+        return { message: 'Post unsaved successfully' };
+    }
+    async getPostByUserId(userId, viewerUserId) {
         console.log('Service received userId:', userId);
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
@@ -61,11 +89,20 @@ let PostService = class PostService {
                 },
             },
         });
+        let savedSet = new Set();
+        if (viewerUserId) {
+            const saved = await this.prisma.savePost.findMany({
+                where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+                select: { postId: true },
+            });
+            savedSet = new Set(saved.map(s => s.postId));
+        }
         return posts.map(post => ({
             ...post,
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
             user: undefined,
+            isSaved: savedSet.has(post.id),
         }));
     }
     async getPostById(postId) {
@@ -82,7 +119,7 @@ let PostService = class PostService {
         }
         return post;
     }
-    async getAllPost() {
+    async getAllPost(viewerUserId) {
         const posts = await this.prisma.post.findMany({
             where: { deletedAt: null },
             orderBy: { createdAt: 'desc' },
@@ -95,11 +132,20 @@ let PostService = class PostService {
                 },
             },
         });
+        let savedSet = new Set();
+        if (viewerUserId) {
+            const saved = await this.prisma.savePost.findMany({
+                where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+                select: { postId: true },
+            });
+            savedSet = new Set(saved.map(s => s.postId));
+        }
         return posts.map(post => ({
             ...post,
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
             user: undefined,
+            isSaved: savedSet.has(post.id),
         }));
     }
     async deletePost(postId, userId) {
@@ -304,6 +350,29 @@ let PostService = class PostService {
             throw new common_1.BadRequestException('Not allowed');
         await this.prisma.postComment.delete({ where: { id: commentId } });
         return { message: 'Comment deleted' };
+    }
+    async getSavedPostsByUser(userId) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const saved = await this.prisma.savePost.findMany({
+            where: { userId, post: { deletedAt: null } },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                post: {
+                    include: {
+                        user: { select: { displayName: true, image: true } },
+                    },
+                },
+            },
+        });
+        return saved.map(s => ({
+            ...s.post,
+            userName: s.post.user?.displayName || null,
+            userImage: s.post.user?.image || null,
+            user: undefined,
+            isSaved: true,
+            savedAt: s.createdAt,
+        }));
     }
 };
 exports.PostService = PostService;

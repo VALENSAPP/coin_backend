@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { uploadImageToS3 } from '../common/s3.util';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class PostService {
@@ -39,7 +40,37 @@ export class PostService {
     });
   }
 
-  async getPostByUserId(userId: string) {
+  async savePost(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const post = await this.prisma.post.findUnique({ where: { id: postId, deletedAt: null } });
+    if (!post) throw new BadRequestException('Post not found');
+
+    // Upsert-like behavior: if already saved, do nothing; else create
+    try {
+      await this.prisma.savePost.create({ data: { postId, userId } });
+    } catch (error) {
+      // If unique constraint violation, treat as already saved
+      const isUniqueViolation = (error as Prisma.PrismaClientKnownRequestError)?.code === 'P2002';
+      if (!isUniqueViolation) throw error;
+    }
+    return { message: 'Post saved successfully' };
+  }
+
+  async unsavePost(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Delete if exists; if not, return idempotent success
+    await this.prisma.savePost.delete({
+      where: { postId_userId: { postId, userId } },
+    }).catch(() => undefined);
+
+    return { message: 'Post unsaved successfully' };
+  }
+
+  async getPostByUserId(userId: string, viewerUserId?: string) {
     console.log('Service received userId:', userId);
     if (!userId) throw new BadRequestException('User ID required');
     const posts = await this.prisma.post.findMany({
@@ -54,11 +85,22 @@ export class PostService {
         },
       },
     });
+    // Fetch saved flags for the viewer
+    let savedSet: Set<string> = new Set();
+    if (viewerUserId) {
+      const saved = await this.prisma.savePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      savedSet = new Set(saved.map(s => s.postId));
+    }
+
     return posts.map(post => ({
       ...post,
       userName: post.user?.displayName || null,
       userImage: post.user?.image || null,
       user: undefined, // Remove the nested user object
+      isSaved: savedSet.has(post.id),
     }));
   }
 
@@ -79,7 +121,7 @@ export class PostService {
     return post;
   }
 
-  async getAllPost() {
+  async getAllPost(viewerUserId?: string) {
     const posts = await this.prisma.post.findMany({
       where: { deletedAt: null }, 
       orderBy: { createdAt: 'desc' },
@@ -92,12 +134,23 @@ export class PostService {
         },
       },
     });
-    // Map posts to add userName and userImage fields
+    // Fetch saved flags for the viewer
+    let savedSet: Set<string> = new Set();
+    if (viewerUserId) {
+      const saved = await this.prisma.savePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      savedSet = new Set(saved.map(s => s.postId));
+    }
+
+    // Map posts to add userName, userImage, and isSaved fields
     return posts.map(post => ({
       ...post,
       userName: post.user?.displayName || null,
       userImage: post.user?.image || null,
       user: undefined, // Remove the nested user object
+      isSaved: savedSet.has(post.id),
     }));
   }
 
@@ -335,5 +388,30 @@ export class PostService {
     if (!comment || comment.userId !== userId || comment.postId !== postId) throw new BadRequestException('Not allowed');
     await this.prisma.postComment.delete({ where: { id: commentId } });
     return { message: 'Comment deleted' };
+  }
+
+  async getSavedPostsByUser(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const saved = await this.prisma.savePost.findMany({
+      where: { userId, post: { deletedAt: null } },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        post: {
+          include: {
+            user: { select: { displayName: true, image: true } },
+          },
+        },
+      },
+    });
+
+    return saved.map(s => ({
+      ...s.post,
+      userName: s.post.user?.displayName || null,
+      userImage: s.post.user?.image || null,
+      user: undefined,
+      isSaved: true,
+      savedAt: s.createdAt,
+    }));
   }
 } 

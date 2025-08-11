@@ -45,13 +45,12 @@ let PostController = class PostController {
         console.log('User from JWT:', req.user);
         const targetUserId = query.userId || req.user?.userId;
         console.log('Target user ID:', targetUserId);
-        return this.postService.getPostByUserId(targetUserId);
+        const viewerUserId = req.user?.userId;
+        return this.postService.getPostByUserId(targetUserId, viewerUserId);
     }
-    async getAllPost() {
-        return this.postService.getAllPost();
-    }
-    async getPostById(params) {
-        return this.postService.getPostById(params.postId);
+    async getAllPost(req) {
+        const viewerUserId = req.user?.userId;
+        return this.postService.getAllPost(viewerUserId);
     }
     async deletePost(req, query) {
         const userId = req.user.userId;
@@ -74,6 +73,23 @@ let PostController = class PostController {
     async deleteComment(req, dto) {
         const userId = req.user.userId;
         return this.postService.commentDelete(dto.postId, dto.commentId, userId);
+    }
+    async savePost(req, dto) {
+        const userId = req.user.userId;
+        return this.postService.savePost(dto.postId, userId);
+    }
+    async unsavePost(req, dto) {
+        const userId = req.user.userId;
+        return this.postService.unsavePost(dto.postId, userId);
+    }
+    async getSavedPosts(req) {
+        console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
+        const u = req.user;
+        const userId = u?.userId ?? u?.sub;
+        return this.postService.getSavedPostsByUser(userId);
+    }
+    async getPostById(params) {
+        return this.postService.getPostById(params.postId);
     }
 };
 exports.PostController = PostController;
@@ -154,21 +170,11 @@ __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Get)('all'),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getAllPost", null);
-__decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, swagger_1.ApiBearerAuth)(),
-    (0, common_1.Get)(':postId'),
-    (0, swagger_1.ApiOperation)({ summary: 'Get a post by ID' }),
-    (0, swagger_1.ApiParam)({ name: 'postId', type: 'string', description: 'Post ID' }),
-    __param(0, (0, common_1.Param)(new common_1.ValidationPipe({ whitelist: true }))),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [get_post_by_id_dto_1.GetPostByIdDto]),
-    __metadata("design:returntype", Promise)
-], PostController.prototype, "getPostById", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
@@ -234,6 +240,49 @@ __decorate([
     __metadata("design:paramtypes", [Object, post_comment_dto_1.CommentDeleteDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "deleteComment", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('save'),
+    (0, swagger_1.ApiOperation)({ summary: 'Save a post for the authenticated user' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, post_like_dto_1.SavePostDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "savePost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('unsave'),
+    (0, swagger_1.ApiOperation)({ summary: 'Unsave a post for the authenticated user' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, post_like_dto_1.UnsavePostDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "unsavePost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('getSavedPost'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get saved posts for the authenticated user' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getSavedPosts", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('by-id/:postId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get a post by ID' }),
+    (0, swagger_1.ApiParam)({ name: 'postId', type: 'string', description: 'Post ID' }),
+    __param(0, (0, common_1.Param)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [get_post_by_id_dto_1.GetPostByIdDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getPostById", null);
 exports.PostController = PostController = __decorate([
     (0, common_1.Controller)('post'),
     __metadata("design:paramtypes", [post_service_1.PostService])

@@ -4,14 +4,18 @@ import { GetPostByUserDto } from './dto/get-post-by-user.dto';
 import { GetPostByIdDto } from './dto/get-post-by-id.dto';
 import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
-import { PostLikeByUserDto, PostLikeListDto } from './dto/post-like.dto';
+import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
 import { Request } from 'express';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
 export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -19,13 +23,13 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -33,16 +37,17 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
+        isSaved: boolean;
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -50,16 +55,17 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }[]>;
-    getAllPost(): Promise<{
+    getAllPost(req: Request): Promise<{
         userName: string | null;
         userImage: string | null;
         user: undefined;
+        isSaved: boolean;
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -67,25 +73,7 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }[]>;
-    getPostById(params: GetPostByIdDto): Promise<{
-        id: string;
-        text: string | null;
-        images: string[];
-        caption: string | null;
-        hashtag: string[];
-        location: string | null;
-        music: string | null;
-        taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
-    }>;
     deletePost(req: Request, query: DeletePostDto): Promise<boolean>;
     postLikeByUser(req: Request, body: PostLikeByUserDto): Promise<{
         message: string;
@@ -102,9 +90,9 @@ export declare class PostController {
         totalLikes: number;
     }>;
     commentOnPost(req: Request, dto: CommentOnPostDto): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -121,5 +109,44 @@ export declare class PostController {
     }>;
     deleteComment(req: Request, dto: CommentDeleteDto): Promise<{
         message: string;
+    }>;
+    savePost(req: Request, dto: SavePostDto): Promise<{
+        message: string;
+    }>;
+    unsavePost(req: Request, dto: UnsavePostDto): Promise<{
+        message: string;
+    }>;
+    getSavedPosts(req: Request): Promise<{
+        userName: string | null;
+        userImage: string | null;
+        user: undefined;
+        isSaved: boolean;
+        savedAt: Date;
+        userId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        text: string | null;
+        images: string[];
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
+    }[]>;
+    getPostById(params: GetPostByIdDto): Promise<{
+        userId: string;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        text: string | null;
+        images: string[];
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
     }>;
 }

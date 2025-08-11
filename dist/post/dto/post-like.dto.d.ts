@@ -4,3 +4,9 @@ export declare class PostLikeByUserDto {
 export declare class PostLikeListDto {
     postId: string;
 }
+export declare class SavePostDto {
+    postId: string;
+}
+export declare class UnsavePostDto {
+    postId: string;
+}
