@@ -11,7 +11,11 @@ export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -19,13 +23,13 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -33,16 +37,8 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
-        userName: string | null;
-        userImage: string | null;
-        user: undefined;
-        isSaved: boolean;
         id: string;
         text: string | null;
         images: string[];
@@ -53,8 +49,14 @@ export declare class PostController {
         taggedPeople: string[];
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
         deletedAt: Date | null;
+        userId: string;
+        userName: string | null;
+        userImage: string | null;
+        likeCount: number;
+        commentCount: number;
+        isSaved: boolean;
+        isLike: boolean;
     }[]>;
     getAllPost(req: Request): Promise<{
         id: string;
@@ -92,9 +94,9 @@ export declare class PostController {
         totalLikes: number;
     }>;
     commentOnPost(req: Request, dto: CommentOnPostDto): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -124,7 +126,11 @@ export declare class PostController {
         user: undefined;
         isSaved: boolean;
         savedAt: Date;
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -132,12 +138,8 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }[]>;
-    getPostById(params: GetPostByIdDto): Promise<{
+    getPostById(req: Request, params: GetPostByIdDto): Promise<{
         id: string;
         text: string | null;
         images: string[];
@@ -148,7 +150,13 @@ export declare class PostController {
         taggedPeople: string[];
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
         deletedAt: Date | null;
+        userId: string;
+        userName: string | null;
+        userImage: string | null;
+        likeCount: number;
+        commentCount: number;
+        isSaved: boolean;
+        isLike: boolean;
     }>;
 }

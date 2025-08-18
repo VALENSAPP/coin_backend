@@ -87,9 +87,16 @@ let PostService = class PostService {
                         image: true,
                     },
                 },
-            },
+                _count: {
+                    select: {
+                        likes: true,
+                        comments: true,
+                    },
+                },
+            }
         });
         let savedSet = new Set();
+        let likedSet = new Set();
         if (viewerUserId) {
             const saved = await this.prisma.savePost.findMany({
                 where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
@@ -97,27 +104,91 @@ let PostService = class PostService {
             });
             savedSet = new Set(saved.map(s => s.postId));
         }
+        if (viewerUserId) {
+            const saved = await this.prisma.savePost.findMany({
+                where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+                select: { postId: true },
+            });
+            savedSet = new Set(saved.map(s => s.postId));
+            const liked = await this.prisma.postLike.findMany({
+                where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+                select: { postId: true },
+            });
+            likedSet = new Set(liked.map(l => l.postId));
+        }
         return posts.map(post => ({
-            ...post,
+            id: post.id,
+            text: post.text,
+            images: post.images,
+            caption: post.caption,
+            hashtag: post.hashtag,
+            location: post.location,
+            music: post.music,
+            taggedPeople: post.taggedPeople,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt,
+            deletedAt: post.deletedAt,
+            userId: post.userId,
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
-            user: undefined,
+            likeCount: post._count.likes,
+            commentCount: post._count.comments,
             isSaved: savedSet.has(post.id),
+            isLike: likedSet.has(post.id),
         }));
     }
-    async getPostById(postId) {
+    async getPostById(postId, viewerId) {
         if (!postId)
             throw new common_1.BadRequestException('Post ID required');
         const post = await this.prisma.post.findUnique({
             where: {
                 id: postId,
-                deletedAt: null
+                deletedAt: null,
+            },
+            include: {
+                user: {
+                    select: {
+                        displayName: true,
+                        image: true,
+                    },
+                },
+                _count: {
+                    select: {
+                        likes: true,
+                        comments: true,
+                    },
+                },
             },
         });
         if (!post) {
             throw new common_1.BadRequestException('Post not found');
         }
-        return post;
+        const saved = await this.prisma.savePost.findFirst({
+            where: { userId: viewerId, postId },
+        });
+        const liked = await this.prisma.postLike.findFirst({
+            where: { userId: viewerId, postId },
+        });
+        return {
+            id: post.id,
+            text: post.text,
+            images: post.images,
+            caption: post.caption,
+            hashtag: post.hashtag,
+            location: post.location,
+            music: post.music,
+            taggedPeople: post.taggedPeople,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt,
+            deletedAt: post.deletedAt,
+            userId: post.userId,
+            userName: post.user?.displayName || null,
+            userImage: post.user?.image || null,
+            likeCount: post._count.likes,
+            commentCount: post._count.comments,
+            isSaved: !!saved,
+            isLike: !!liked,
+        };
     }
     async getAllPost(viewerUserId) {
         const posts = await this.prisma.post.findMany({

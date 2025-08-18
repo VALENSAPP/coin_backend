@@ -216,7 +216,8 @@ export class PostController {
   @Get('by-id/:postId')
   @ApiOperation({ summary: 'Get a post by ID' })
   @ApiParam({ name: 'postId', type: 'string', description: 'Post ID' })
-  async getPostById(@Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto) {
-    return this.postService.getPostById(params.postId);
+  async getPostById(@Req() req: Request,@Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto) {
+    const viewerId = (req.user as any)?.userId;
+    return this.postService.getPostById(params.postId, viewerId);
   }
 } 

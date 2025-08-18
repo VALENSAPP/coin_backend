@@ -82,11 +82,19 @@ export class PostService {
             displayName: true,
             image: true,
           },
+      },
+      _count: {
+        select: {
+          likes: true,      // from Post model
+          comments: true,   // from Post model
         },
       },
-    });
+    }
+  });
     // Fetch saved flags for the viewer
     let savedSet: Set<string> = new Set();
+  let likedSet: Set<string> = new Set();
+  
     if (viewerUserId) {
       const saved = await this.prisma.savePost.findMany({
         where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
@@ -95,31 +103,106 @@ export class PostService {
       savedSet = new Set(saved.map(s => s.postId));
     }
 
-    return posts.map(post => ({
-      ...post,
-      userName: post.user?.displayName || null,
-      userImage: post.user?.image || null,
-      user: undefined, // Remove the nested user object
-      isSaved: savedSet.has(post.id),
-    }));
+   if (viewerUserId) {
+    // Fetch saved posts for viewer
+    const saved = await this.prisma.savePost.findMany({
+      where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+      select: { postId: true },
+    });
+    savedSet = new Set(saved.map(s => s.postId));
+
+    // Fetch liked posts for viewer
+    const liked = await this.prisma.postLike.findMany({
+      where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+      select: { postId: true },
+    });
+    likedSet = new Set(liked.map(l => l.postId));
   }
 
-  async getPostById(postId: string) {
-    if (!postId) throw new BadRequestException('Post ID required');
-    
-    const post = await this.prisma.post.findUnique({
-      where: { 
-        id: postId,
-        deletedAt: null 
-      },
-    });
-    
-    if (!post) {
-      throw new BadRequestException('Post not found');
-    }
-    
-    return post;
+  return posts.map(post => ({
+    id: post.id,
+    text: post.text,
+    images: post.images,
+    caption: post.caption,
+    hashtag: post.hashtag,
+    location: post.location,
+    music: post.music,
+    taggedPeople: post.taggedPeople,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    deletedAt: post.deletedAt,
+    userId: post.userId,
+    userName: post.user?.displayName || null,
+    userImage: post.user?.image || null,
+    likeCount: post._count.likes,
+    commentCount: post._count.comments,
+    isSaved: savedSet.has(post.id),
+    isLike: likedSet.has(post.id), // ✅ true if viewer liked
+  }));
   }
+
+  async getPostById(postId: string, viewerId: string) {
+  if (!postId) throw new BadRequestException('Post ID required');
+
+  // ✅ Find single post
+  const post = await this.prisma.post.findUnique({
+    where: { 
+      id: postId,
+      deletedAt: null,
+    },
+    include: {
+      user: {
+        select: {
+          displayName: true,
+          image: true,
+        },
+      },
+      _count: {
+        select: {
+          likes: true,
+          comments: true,
+        },
+      },
+    },
+  });
+
+  if (!post) {
+    throw new BadRequestException('Post not found');
+  }
+
+  // ✅ Fetch saved state for this viewer
+  const saved = await this.prisma.savePost.findFirst({
+    where: { userId: viewerId, postId },
+  });
+
+  // ✅ Fetch like state for this viewer
+  const liked = await this.prisma.postLike.findFirst({
+    where: { userId: viewerId, postId },
+  });
+
+  // ✅ Return single structured response
+  return {
+    id: post.id,
+    text: post.text,
+    images: post.images,
+    caption: post.caption,
+    hashtag: post.hashtag,
+    location: post.location,
+    music: post.music,
+    taggedPeople: post.taggedPeople,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    deletedAt: post.deletedAt,
+    userId: post.userId,
+    userName: post.user?.displayName || null,
+    userImage: post.user?.image || null,
+    likeCount: post._count.likes,
+    commentCount: post._count.comments,
+    isSaved: !!saved,   // ✅ true if viewer saved
+    isLike: !!liked,    // ✅ true if viewer liked
+  };
+}
+
 
 async getAllPost(viewerUserId?: string) {
   const posts = await this.prisma.post.findMany({

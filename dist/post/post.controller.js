@@ -88,8 +88,9 @@ let PostController = class PostController {
         const userId = u?.userId ?? u?.sub;
         return this.postService.getSavedPostsByUser(userId);
     }
-    async getPostById(params) {
-        return this.postService.getPostById(params.postId);
+    async getPostById(req, params) {
+        const viewerId = req.user?.userId;
+        return this.postService.getPostById(params.postId, viewerId);
     }
 };
 exports.PostController = PostController;
@@ -278,9 +279,10 @@ __decorate([
     (0, common_1.Get)('by-id/:postId'),
     (0, swagger_1.ApiOperation)({ summary: 'Get a post by ID' }),
     (0, swagger_1.ApiParam)({ name: 'postId', type: 'string', description: 'Post ID' }),
-    __param(0, (0, common_1.Param)(new common_1.ValidationPipe({ whitelist: true }))),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)(new common_1.ValidationPipe({ whitelist: true }))),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [get_post_by_id_dto_1.GetPostByIdDto]),
+    __metadata("design:paramtypes", [Object, get_post_by_id_dto_1.GetPostByIdDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getPostById", null);
 exports.PostController = PostController = __decorate([
