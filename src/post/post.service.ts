@@ -94,7 +94,7 @@ export class PostService {
     // Fetch saved flags for the viewer
     let savedSet: Set<string> = new Set();
   let likedSet: Set<string> = new Set();
-  
+
     if (viewerUserId) {
       const saved = await this.prisma.savePost.findMany({
         where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
@@ -502,28 +502,77 @@ async getAllPost(viewerUserId?: string) {
     return { message: 'Comment deleted' };
   }
 
-  async getSavedPostsByUser(userId: string) {
-    if (!userId) throw new BadRequestException('User ID required');
+async getSavedPostsByUser(userId: string, viewerUserId: string) {
+  if (!userId) throw new BadRequestException('User ID required');
 
-    const saved = await this.prisma.savePost.findMany({
-      where: { userId, post: { deletedAt: null } },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        post: {
-          include: {
-            user: { select: { displayName: true, image: true } },
+  // ✅ Get saved posts with full post + user + counts
+  const savedPosts = await this.prisma.savePost.findMany({
+    where: { userId, post: { deletedAt: null } },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      post: {
+        include: {
+          user: {
+            select: {
+              displayName: true,
+              image: true,
+            },
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+            },
           },
         },
       },
-    });
+    },
+  });
 
-    return saved.map(s => ({
-      ...s.post,
-      userName: s.post.user?.displayName || null,
-      userImage: s.post.user?.image || null,
-      user: undefined,
-      isSaved: true,
-      savedAt: s.createdAt,
-    }));
+  let savedSet: Set<string> = new Set();
+  let likedSet: Set<string> = new Set();
+
+  if (viewerUserId) {
+    const postIds = savedPosts.map(sp => sp.postId);
+
+    // ✅ Fetch saved posts for viewer
+    const saved = await this.prisma.savePost.findMany({
+      where: { userId: viewerUserId, postId: { in: postIds } },
+      select: { postId: true },
+    });
+    savedSet = new Set(saved.map(s => s.postId));
+
+    // ✅ Fetch liked posts for viewer
+    const liked = await this.prisma.postLike.findMany({
+      where: { userId: viewerUserId, postId: { in: postIds } },
+      select: { postId: true },
+    });
+    likedSet = new Set(liked.map(l => l.postId));
   }
-} 
+
+  // ✅ Map savedPosts to return actual post info
+  return savedPosts.map(sp => {
+    const post = sp.post;
+    return {
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      isSaved: savedSet.has(post.id),
+      isLike: likedSet.has(post.id),
+    };
+  });
+}
+}

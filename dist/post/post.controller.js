@@ -86,7 +86,7 @@ let PostController = class PostController {
         console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
         const u = req.user;
         const userId = u?.userId ?? u?.sub;
-        return this.postService.getSavedPostsByUser(userId);
+        return this.postService.getSavedPostsByUser(userId, userId);
     }
     async getPostById(req, params) {
         const viewerId = req.user?.userId;

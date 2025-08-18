@@ -208,7 +208,7 @@ export class PostController {
     
     const u: any = req.user as any;
     const userId = u?.userId ?? u?.sub;
-    return this.postService.getSavedPostsByUser(userId);
+    return this.postService.getSavedPostsByUser(userId,userId);
   }
 
   @UseGuards(AuthGuard('jwt'))

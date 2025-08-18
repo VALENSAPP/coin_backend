@@ -3,11 +3,7 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, taggedPeople?: string[]): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -15,6 +11,10 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }>;
     savePost(postId: string, userId: string): Promise<{
         message: string;
@@ -84,11 +84,7 @@ export declare class PostService {
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -96,6 +92,10 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
     }>;
     postLikeByUser(postId: string, userId: string): Promise<{
         message: string;
@@ -112,9 +112,9 @@ export declare class PostService {
         totalLikes: number;
     }>;
     commentOnPost(postId: string, userId: string, comment: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -132,17 +132,8 @@ export declare class PostService {
     commentDelete(postId: string, commentId: string, userId: string): Promise<{
         message: string;
     }>;
-    getSavedPostsByUser(userId: string): Promise<{
-        userName: string | null;
-        userImage: string | null;
-        user: undefined;
-        isSaved: boolean;
-        savedAt: Date;
-        userId: string;
+    getSavedPostsByUser(userId: string, viewerUserId: string): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -150,5 +141,15 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        userId: string;
+        userName: string | null;
+        userImage: string | null;
+        likeCount: number;
+        commentCount: number;
+        isSaved: boolean;
+        isLike: boolean;
     }[]>;
 }
