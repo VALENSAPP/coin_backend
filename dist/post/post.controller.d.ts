@@ -4,6 +4,7 @@ import { GetPostByUserDto } from './dto/get-post-by-user.dto';
 import { GetPostByIdDto } from './dto/get-post-by-id.dto';
 import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
+import { SharePostDto, DeleteSharedPostDto } from './dto/share-post.dto';
 import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
 import { Request } from 'express';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
@@ -100,6 +101,16 @@ export declare class PostController {
         postId: string;
         comment: string;
     }>;
+    editComment(req: Request, dto: {
+        commentId: string;
+        comment: string;
+    }): Promise<{
+        id: string;
+        createdAt: Date;
+        userId: string;
+        postId: string;
+        comment: string;
+    }>;
     getCommentListOnPost(dto: GetCommentListOnPostDto): Promise<{
         comments: {
             id: any;
@@ -159,5 +170,45 @@ export declare class PostController {
         commentCount: number;
         isSaved: boolean;
         isLike: boolean;
+    }>;
+    sharePostToUser(body: SharePostDto): Promise<{
+        message: string;
+        shareId: string;
+    }>;
+    getSharedPostList(req: Request): Promise<{
+        id: string;
+        sharedAt: Date;
+        post: {
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+            hashtag: string[];
+            location: string | null;
+            music: string | null;
+            taggedPeople: string[];
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            userId: string;
+            userName: string | null;
+            userImage: string | null;
+            likeCount: number;
+            commentCount: number;
+        };
+        sharedBy: {
+            id: string;
+            displayName: string | null;
+            image: string | null;
+        };
+        receivedBy: {
+            id: string;
+            displayName: string | null;
+            image: string | null;
+        };
+    }[]>;
+    deleteSharedPost(req: Request, dto: DeleteSharedPostDto): Promise<{
+        message: string;
+        deletedIds: string[];
     }>;
 }

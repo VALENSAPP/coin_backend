@@ -118,6 +118,13 @@ export declare class PostService {
         postId: string;
         comment: string;
     }>;
+    editComment(commentId: string, userId: string, newComment: string): Promise<{
+        id: string;
+        createdAt: Date;
+        userId: string;
+        postId: string;
+        comment: string;
+    }>;
     getCommentListOnPost(postId: string): Promise<{
         comments: {
             id: any;
@@ -152,4 +159,44 @@ export declare class PostService {
         isSaved: boolean;
         isLike: boolean;
     }[]>;
+    sharePostToUser(postId: string, sharedUserId: string, receiverUserId: string): Promise<{
+        message: string;
+        shareId: string;
+    }>;
+    getSharedPostList(userId: string): Promise<{
+        id: string;
+        sharedAt: Date;
+        post: {
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+            hashtag: string[];
+            location: string | null;
+            music: string | null;
+            taggedPeople: string[];
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            userId: string;
+            userName: string | null;
+            userImage: string | null;
+            likeCount: number;
+            commentCount: number;
+        };
+        sharedBy: {
+            id: string;
+            displayName: string | null;
+            image: string | null;
+        };
+        receivedBy: {
+            id: string;
+            displayName: string | null;
+            image: string | null;
+        };
+    }[]>;
+    deleteSharedPosts(shareIds: string[], userId: string): Promise<{
+        message: string;
+        deletedIds: string[];
+    }>;
 }

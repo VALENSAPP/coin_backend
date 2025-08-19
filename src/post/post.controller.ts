@@ -5,6 +5,7 @@ import { GetPostByUserDto } from './dto/get-post-by-user.dto';
 import { GetPostByIdDto } from './dto/get-post-by-id.dto';
 import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
+import { SharePostDto, DeleteSharedPostDto } from './dto/share-post.dto';
 import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
@@ -164,6 +165,28 @@ export class PostController {
   }
 
   @UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('editComment')
+@ApiBody({ 
+  schema: {
+    type: 'object',
+    properties: {
+      commentId: { type: 'string', description: 'ID of the comment to edit' },
+      comment: { type: 'string', description: 'New comment text' },
+    },
+    required: ['commentId', 'comment'],
+  }
+})
+async editComment(
+  @Req() req: Request,
+  @Body(new ValidationPipe({ whitelist: true })) dto: { commentId: string; comment: string }
+) {
+  const userId = (req.user as any).userId;
+  return this.postService.editComment(dto.commentId, userId, dto.comment);
+}
+
+
+  @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('comment/list')
   @ApiQuery({ name: 'postId', type: String, required: true })
@@ -220,4 +243,39 @@ export class PostController {
     const viewerId = (req.user as any)?.userId;
     return this.postService.getPostById(params.postId, viewerId);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('sharePost')
+  @ApiOperation({ summary: 'Share post to user' })
+   @ApiBody({ type: SharePostDto })
+  async sharePostToUser(@Body() body: SharePostDto) {
+    return this.postService.sharePostToUser(
+      body.postId,
+      body.sharedUserId,
+      body.receiverUserId,
+    );
+  }
+
+    @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('getShareList')
+  @ApiOperation({ summary: 'Get a sharedPostList by ID' })
+  async getSharedPostList(@Req() req: Request) {
+    const userId = (req.user as any)?.userId;
+    return this.postService.getSharedPostList( userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Delete('deleteSharedPost')
+@ApiOperation({ summary: 'Delete multiple shared posts by IDs' })
+@ApiBody({ type: DeleteSharedPostDto })
+async deleteSharedPost(
+  @Req() req: Request,
+  @Body(new ValidationPipe({ whitelist: true })) dto: DeleteSharedPostDto
+) {
+  const userId = (req.user as any).userId;
+  return this.postService.deleteSharedPosts(dto.shareIds, userId);
+}
 } 

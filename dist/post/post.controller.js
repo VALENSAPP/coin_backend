@@ -20,6 +20,7 @@ const get_post_by_user_dto_1 = require("./dto/get-post-by-user.dto");
 const get_post_by_id_dto_1 = require("./dto/get-post-by-id.dto");
 const delete_post_dto_1 = require("./dto/delete-post.dto");
 const edit_post_dto_1 = require("./dto/edit-post.dto");
+const share_post_dto_1 = require("./dto/share-post.dto");
 const post_like_dto_1 = require("./dto/post-like.dto");
 const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
@@ -67,6 +68,10 @@ let PostController = class PostController {
         const userId = req.user.userId;
         return this.postService.commentOnPost(dto.postId, userId, dto.comment);
     }
+    async editComment(req, dto) {
+        const userId = req.user.userId;
+        return this.postService.editComment(dto.commentId, userId, dto.comment);
+    }
     async getCommentListOnPost(dto) {
         return this.postService.getCommentListOnPost(dto.postId);
     }
@@ -91,6 +96,17 @@ let PostController = class PostController {
     async getPostById(req, params) {
         const viewerId = req.user?.userId;
         return this.postService.getPostById(params.postId, viewerId);
+    }
+    async sharePostToUser(body) {
+        return this.postService.sharePostToUser(body.postId, body.sharedUserId, body.receiverUserId);
+    }
+    async getSharedPostList(req) {
+        const userId = req.user?.userId;
+        return this.postService.getSharedPostList(userId);
+    }
+    async deleteSharedPost(req, dto) {
+        const userId = req.user.userId;
+        return this.postService.deleteSharedPosts(dto.shareIds, userId);
     }
 };
 exports.PostController = PostController;
@@ -222,6 +238,26 @@ __decorate([
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('editComment'),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                commentId: { type: 'string', description: 'ID of the comment to edit' },
+                comment: { type: 'string', description: 'New comment text' },
+            },
+            required: ['commentId', 'comment'],
+        }
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "editComment", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.Get)('comment/list'),
     (0, swagger_1.ApiQuery)({ name: 'postId', type: String, required: true }),
     __param(0, (0, common_1.Query)(new common_1.ValidationPipe({ whitelist: true }))),
@@ -285,6 +321,39 @@ __decorate([
     __metadata("design:paramtypes", [Object, get_post_by_id_dto_1.GetPostByIdDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getPostById", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('sharePost'),
+    (0, swagger_1.ApiOperation)({ summary: 'Share post to user' }),
+    (0, swagger_1.ApiBody)({ type: share_post_dto_1.SharePostDto }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [share_post_dto_1.SharePostDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "sharePostToUser", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('getShareList'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get a sharedPostList by ID' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getSharedPostList", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Delete)('deleteSharedPost'),
+    (0, swagger_1.ApiOperation)({ summary: 'Delete multiple shared posts by IDs' }),
+    (0, swagger_1.ApiBody)({ type: share_post_dto_1.DeleteSharedPostDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, share_post_dto_1.DeleteSharedPostDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "deleteSharedPost", null);
 exports.PostController = PostController = __decorate([
     (0, common_1.Controller)('post'),
     __metadata("design:paramtypes", [post_service_1.PostService])

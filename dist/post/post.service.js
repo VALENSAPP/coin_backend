@@ -406,6 +406,23 @@ let PostService = class PostService {
             data: { postId, userId, comment },
         });
     }
+    async editComment(commentId, userId, newComment) {
+        if (!commentId)
+            throw new common_1.BadRequestException('Comment ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        if (!newComment || newComment.trim() === '')
+            throw new common_1.BadRequestException('New comment text required');
+        const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
+        if (!comment)
+            throw new common_1.BadRequestException('Comment not found');
+        if (comment.userId !== userId)
+            throw new common_1.BadRequestException('Not allowed to edit this comment');
+        return this.prisma.postComment.update({
+            where: { id: commentId },
+            data: { comment: newComment },
+        });
+    }
     async getCommentListOnPost(postId) {
         if (!postId)
             throw new common_1.BadRequestException('Post ID required');
@@ -510,6 +527,113 @@ let PostService = class PostService {
                 isLike: likedSet.has(post.id),
             };
         });
+    }
+    async sharePostToUser(postId, sharedUserId, receiverUserId) {
+        if (!postId)
+            throw new common_1.BadRequestException('Post ID required');
+        if (!sharedUserId)
+            throw new common_1.BadRequestException('Sender user ID required');
+        if (!receiverUserId)
+            throw new common_1.BadRequestException('Receiver user ID required');
+        const post = await this.prisma.post.findUnique({
+            where: { id: postId, deletedAt: null },
+        });
+        if (!post)
+            throw new common_1.BadRequestException('Post not found');
+        if (sharedUserId === receiverUserId) {
+            throw new common_1.BadRequestException('Cannot share post to yourself');
+        }
+        let shareRecord = await this.prisma.postShare.findFirst({
+            where: {
+                sharedUserId,
+                receiverUserId,
+                postId,
+            },
+        });
+        if (shareRecord) {
+            return { message: 'Post already shared between these users', shareId: shareRecord.id };
+        }
+        shareRecord = await this.prisma.postShare.create({
+            data: {
+                postId,
+                sharedUserId,
+                receiverUserId,
+            },
+        });
+        return { message: 'Post shared successfully', shareId: shareRecord.id };
+    }
+    async getSharedPostList(userId) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const sharedPosts = await this.prisma.postShare.findMany({
+            where: {
+                OR: [
+                    { sharedUserId: userId },
+                    { receiverUserId: userId },
+                ],
+            },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                post: {
+                    include: {
+                        user: { select: { displayName: true, image: true } },
+                        _count: { select: { likes: true, comments: true } },
+                    },
+                },
+                sharedBy: { select: { id: true, displayName: true, image: true } },
+                receivedBy: { select: { id: true, displayName: true, image: true } },
+            },
+        });
+        return sharedPosts.map(sp => ({
+            id: sp.id,
+            sharedAt: sp.createdAt,
+            post: sp.post && {
+                id: sp.post.id,
+                text: sp.post.text,
+                images: sp.post.images,
+                caption: sp.post.caption,
+                hashtag: sp.post.hashtag,
+                location: sp.post.location,
+                music: sp.post.music,
+                taggedPeople: sp.post.taggedPeople,
+                createdAt: sp.post.createdAt,
+                updatedAt: sp.post.updatedAt,
+                deletedAt: sp.post.deletedAt,
+                userId: sp.post.userId,
+                userName: sp.post.user?.displayName || null,
+                userImage: sp.post.user?.image || null,
+                likeCount: sp.post._count.likes,
+                commentCount: sp.post._count.comments,
+            },
+            sharedBy: sp.sharedBy && {
+                id: sp.sharedBy.id,
+                displayName: sp.sharedBy.displayName,
+                image: sp.sharedBy.image,
+            },
+            receivedBy: sp.receivedBy && {
+                id: sp.receivedBy.id,
+                displayName: sp.receivedBy.displayName,
+                image: sp.receivedBy.image,
+            },
+        }));
+    }
+    async deleteSharedPosts(shareIds, userId) {
+        if (!Array.isArray(shareIds) || shareIds.length === 0)
+            throw new common_1.BadRequestException('Share IDs required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const shareRecords = await this.prisma.postShare.findMany({
+            where: { id: { in: shareIds } },
+        });
+        const deletableIds = shareRecords
+            .filter(sr => sr.sharedUserId === userId || sr.receiverUserId === userId)
+            .map(sr => sr.id);
+        if (deletableIds.length === 0)
+            throw new common_1.BadRequestException('No authorized shared posts to delete');
+        await this.prisma.postShare.deleteMany({
+            where: { id: { in: deletableIds } },
+        });
+        return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
     }
 };
 exports.PostService = PostService;
