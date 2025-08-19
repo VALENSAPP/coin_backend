@@ -91,6 +91,7 @@ let PostService = class PostService {
                     select: {
                         likes: true,
                         comments: true,
+                        shares: true,
                     },
                 },
             }
@@ -135,6 +136,7 @@ let PostService = class PostService {
             commentCount: post._count.comments,
             isSaved: savedSet.has(post.id),
             isLike: likedSet.has(post.id),
+            shareCount: post._count.shares,
         }));
     }
     async getPostById(postId, viewerId) {
@@ -156,6 +158,7 @@ let PostService = class PostService {
                     select: {
                         likes: true,
                         comments: true,
+                        shares: true,
                     },
                 },
             },
@@ -186,6 +189,7 @@ let PostService = class PostService {
             userImage: post.user?.image || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
+            shareCount: post._count.shares,
             isSaved: !!saved,
             isLike: !!liked,
         };
@@ -205,6 +209,7 @@ let PostService = class PostService {
                     select: {
                         likes: true,
                         comments: true,
+                        shares: true,
                     },
                 },
             },
@@ -240,6 +245,7 @@ let PostService = class PostService {
             userImage: post.user?.image || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
+            shareCount: post._count.shares,
             isSaved: savedSet.has(post.id),
             isLike: likedSet.has(post.id),
         }));
@@ -483,6 +489,7 @@ let PostService = class PostService {
                             select: {
                                 likes: true,
                                 comments: true,
+                                shares: true,
                             },
                         },
                     },
@@ -523,6 +530,7 @@ let PostService = class PostService {
                 userImage: post.user?.image || null,
                 likeCount: post._count.likes,
                 commentCount: post._count.comments,
+                shareCount: post._count.shares,
                 isSaved: savedSet.has(post.id),
                 isLike: likedSet.has(post.id),
             };
@@ -577,7 +585,7 @@ let PostService = class PostService {
                 post: {
                     include: {
                         user: { select: { displayName: true, image: true } },
-                        _count: { select: { likes: true, comments: true } },
+                        _count: { select: { likes: true, comments: true, shares: true, } },
                     },
                 },
                 sharedBy: { select: { id: true, displayName: true, image: true } },
@@ -604,6 +612,7 @@ let PostService = class PostService {
                 userImage: sp.post.user?.image || null,
                 likeCount: sp.post._count.likes,
                 commentCount: sp.post._count.comments,
+                shareCount: sp.post._count.shares,
             },
             sharedBy: sp.sharedBy && {
                 id: sp.sharedBy.id,

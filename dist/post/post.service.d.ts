@@ -41,6 +41,7 @@ export declare class PostService {
         commentCount: number;
         isSaved: boolean;
         isLike: boolean;
+        shareCount: number;
     }[]>;
     getPostById(postId: string, viewerId: string): Promise<{
         id: string;
@@ -59,6 +60,7 @@ export declare class PostService {
         userImage: string | null;
         likeCount: number;
         commentCount: number;
+        shareCount: number;
         isSaved: boolean;
         isLike: boolean;
     }>;
@@ -79,6 +81,7 @@ export declare class PostService {
         userImage: string | null;
         likeCount: number;
         commentCount: number;
+        shareCount: number;
         isSaved: boolean;
         isLike: boolean;
     }[]>;
@@ -156,6 +159,7 @@ export declare class PostService {
         userImage: string | null;
         likeCount: number;
         commentCount: number;
+        shareCount: number;
         isSaved: boolean;
         isLike: boolean;
     }[]>;
@@ -183,6 +187,7 @@ export declare class PostService {
             userImage: string | null;
             likeCount: number;
             commentCount: number;
+            shareCount: number;
         };
         sharedBy: {
             id: string;

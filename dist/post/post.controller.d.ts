@@ -58,6 +58,7 @@ export declare class PostController {
         commentCount: number;
         isSaved: boolean;
         isLike: boolean;
+        shareCount: number;
     }[]>;
     getAllPost(req: Request): Promise<{
         id: string;
@@ -76,6 +77,7 @@ export declare class PostController {
         userImage: string | null;
         likeCount: number;
         commentCount: number;
+        shareCount: number;
         isSaved: boolean;
         isLike: boolean;
     }[]>;
@@ -148,6 +150,7 @@ export declare class PostController {
         userImage: string | null;
         likeCount: number;
         commentCount: number;
+        shareCount: number;
         isSaved: boolean;
         isLike: boolean;
     }[]>;
@@ -168,6 +171,7 @@ export declare class PostController {
         userImage: string | null;
         likeCount: number;
         commentCount: number;
+        shareCount: number;
         isSaved: boolean;
         isLike: boolean;
     }>;
@@ -195,6 +199,7 @@ export declare class PostController {
             userImage: string | null;
             likeCount: number;
             commentCount: number;
+            shareCount: number;
         };
         sharedBy: {
             id: string;

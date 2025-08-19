@@ -87,6 +87,7 @@ export class PostService {
         select: {
           likes: true,      // from Post model
           comments: true,   // from Post model
+          shares: true,
         },
       },
     }
@@ -138,6 +139,7 @@ export class PostService {
     commentCount: post._count.comments,
     isSaved: savedSet.has(post.id),
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
+    shareCount: post._count.shares,
   }));
   }
 
@@ -161,6 +163,7 @@ export class PostService {
         select: {
           likes: true,
           comments: true,
+          shares: true,
         },
       },
     },
@@ -198,6 +201,7 @@ export class PostService {
     userImage: post.user?.image || null,
     likeCount: post._count.likes,
     commentCount: post._count.comments,
+    shareCount: post._count.shares,
     isSaved: !!saved,   // ✅ true if viewer saved
     isLike: !!liked,    // ✅ true if viewer liked
   };
@@ -219,6 +223,7 @@ async getAllPost(viewerUserId?: string) {
         select: {
           likes: true,      // from Post model
           comments: true,   // from Post model
+          shares: true,     
         },
       },
     },
@@ -260,6 +265,7 @@ async getAllPost(viewerUserId?: string) {
     userImage: post.user?.image || null,
     likeCount: post._count.likes,
     commentCount: post._count.comments,
+    shareCount: post._count.shares, 
     isSaved: savedSet.has(post.id),
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
   }));
@@ -539,6 +545,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
             select: {
               likes: true,
               comments: true,
+              shares: true,
             },
           },
         },
@@ -587,6 +594,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       userImage: post.user?.image || null,
       likeCount: post._count.likes,
       commentCount: post._count.comments,
+      shareCount: post._count.shares,
       isSaved: savedSet.has(post.id),
       isLike: likedSet.has(post.id),
     };
@@ -650,7 +658,7 @@ async getSharedPostList(userId: string) {
       post: {
         include: {
           user: { select: { displayName: true, image: true } },
-          _count: { select: { likes: true, comments: true } },
+          _count: { select: { likes: true, comments: true,  shares: true, } },
         },
       },
       sharedBy: { select: { id: true, displayName: true, image: true } },
@@ -678,6 +686,7 @@ async getSharedPostList(userId: string) {
       userImage: sp.post.user?.image || null,
       likeCount: sp.post._count.likes,
       commentCount: sp.post._count.comments,
+      shareCount: sp.post._count.shares,
     },
     sharedBy: sp.sharedBy && {
       id: sp.sharedBy.id,
