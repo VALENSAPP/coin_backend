@@ -56,6 +56,8 @@ model User {
   // Shared posts relations
   sharedPosts    PostShare[] @relation("SharedBy")
   receivedPosts  PostShare[] @relation("ReceivedBy")
+  // Hidden posts relations
+  hidePosts     HidePost[]
 }
 
 enum RegistrationType {
@@ -93,6 +95,8 @@ model Post {
   saves     SavePost[]
   // Post share relations
   shares    PostShare[]
+  // Post hide relations
+  hides     HidePost[]
 }
 
 model PostLike {
@@ -179,4 +183,16 @@ model PostShare {
 
   @@unique([postId, sharedUserId, receiverUserId])
 
+}
+
+model HidePost {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
 }

@@ -278,4 +278,34 @@ async deleteSharedPost(
   const userId = (req.user as any).userId;
   return this.postService.deleteSharedPosts(dto.shareIds, userId);
 }
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('hide')
+@ApiOperation({ summary: 'Hide a post for the authenticated user' })
+@ApiBody({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to hide' } }, required: ['postId'] } })
+async hidePost(@Req() req: Request, @Body('postId') postId: string) {
+  const userId = (req.user as any).userId;
+  return this.postService.hidePost(postId, userId);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('unhide')
+@ApiOperation({ summary: 'Unhide a post for the authenticated user' })
+@ApiBody({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to unhide' } }, required: ['postId'] } })
+async unhidePost(@Req() req: Request, @Body('postId') postId: string) {
+  const userId = (req.user as any).userId;
+  return this.postService.unhidePost(postId, userId);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Get('getHidePost')
+@ApiOperation({ summary: 'Get all hidden posts for the authenticated user' })
+async getHidePost(@Req() req: Request) {
+  const userId = (req.user as any).userId;
+  return this.postService.getHidePost(userId);
+}
+
 } 

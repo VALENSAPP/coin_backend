@@ -462,6 +462,27 @@ let UserService = class UserService {
             totalFollowers,
         };
     }
+    async searchUser(query) {
+        if (!query)
+            throw new common_1.BadRequestException('Search query required');
+        const users = await this.prisma.user.findMany({
+            where: {
+                OR: [
+                    { displayName: { contains: query, mode: 'insensitive' } },
+                    { userName: { contains: query, mode: 'insensitive' } },
+                    { email: { contains: query, mode: 'insensitive' } },
+                ],
+            },
+            select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+                email: true,
+            },
+        });
+        return users;
+    }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([

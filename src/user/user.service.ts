@@ -528,4 +528,27 @@ export class UserService {
       totalFollowers,
     };
   }
+
+ async searchUser(query: string) {
+  if (!query) throw new BadRequestException('Search query required');
+  const users = await this.prisma.user.findMany({
+    where: {
+      OR: [
+        { displayName: { contains: query, mode: 'insensitive' } },
+        { userName: { contains: query, mode: 'insensitive' } },
+        { email: { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    select: {
+      id: true,
+      displayName: true,
+      userName: true,
+      image: true,
+      email: true,
+    },
+  });
+  // Do NOT throw if users.length === 0
+  return users; // Always return array (possibly empty)
+}
+
 } 

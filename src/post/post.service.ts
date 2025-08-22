@@ -724,4 +724,28 @@ async deleteSharedPosts(shareIds: string[], userId: string) {
 
   return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
 }
+
+async hidePost(postId: string, userId: string) {
+  if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
+  return this.prisma.hidePost.upsert({
+    where: { postId_userId: { postId, userId } },
+    update: {},
+    create: { postId, userId },
+  });
+}
+
+async unhidePost(postId: string, userId: string) {
+  if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
+  await this.prisma.hidePost.deleteMany({ where: { postId, userId } });
+  return { message: 'Post unhidden successfully' };
+}
+
+async getHidePost(userId: string) {
+  if (!userId) throw new BadRequestException('User ID required');
+  const hidden = await this.prisma.hidePost.findMany({
+    where: { userId },
+    include: { post: true },
+  });
+  return hidden.map(h => h.post);
+}
 }

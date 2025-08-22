@@ -395,6 +395,10 @@ let UserController = class UserController {
         await this.userService.softDeleteUser(id);
         return { message: 'User soft deleted' };
     }
+    async searchUser(query) {
+        const users = await this.userService.searchUser(query);
+        return { users };
+    }
 };
 exports.UserController = UserController;
 __decorate([
@@ -676,6 +680,17 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "softDeleteUser", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('search'),
+    (0, swagger_3.ApiOperation)({ summary: 'Search users by display name, user name, or email' }),
+    (0, swagger_3.ApiQuery)({ name: 'query', type: String, description: 'Search term', required: true }),
+    __param(0, (0, common_1.Query)('query')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "searchUser", null);
 exports.UserController = UserController = __decorate([
     (0, swagger_1.ApiTags)('user'),
     (0, common_1.Controller)('user'),

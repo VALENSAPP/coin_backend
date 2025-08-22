@@ -108,6 +108,18 @@ let PostController = class PostController {
         const userId = req.user.userId;
         return this.postService.deleteSharedPosts(dto.shareIds, userId);
     }
+    async hidePost(req, postId) {
+        const userId = req.user.userId;
+        return this.postService.hidePost(postId, userId);
+    }
+    async unhidePost(req, postId) {
+        const userId = req.user.userId;
+        return this.postService.unhidePost(postId, userId);
+    }
+    async getHidePost(req) {
+        const userId = req.user.userId;
+        return this.postService.getHidePost(userId);
+    }
 };
 exports.PostController = PostController;
 __decorate([
@@ -354,6 +366,40 @@ __decorate([
     __metadata("design:paramtypes", [Object, share_post_dto_1.DeleteSharedPostDto]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "deleteSharedPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('hide'),
+    (0, swagger_1.ApiOperation)({ summary: 'Hide a post for the authenticated user' }),
+    (0, swagger_1.ApiBody)({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to hide' } }, required: ['postId'] } }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)('postId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "hidePost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('unhide'),
+    (0, swagger_1.ApiOperation)({ summary: 'Unhide a post for the authenticated user' }),
+    (0, swagger_1.ApiBody)({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to unhide' } }, required: ['postId'] } }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)('postId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "unhidePost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('getHidePost'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get all hidden posts for the authenticated user' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getHidePost", null);
 exports.PostController = PostController = __decorate([
     (0, common_1.Controller)('post'),
     __metadata("design:paramtypes", [post_service_1.PostService])

@@ -475,4 +475,15 @@ export class UserController {
     await this.userService.softDeleteUser(id);
     return { message: 'User soft deleted' };
   }
-} 
+
+  @UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Get('search')
+@ApiOperation({ summary: 'Search users by display name, user name, or email' })
+@ApiQuery({ name: 'query', type: String, description: 'Search term', required: true })
+async searchUser(@Query('query') query: string) {
+  const users = await this.userService.searchUser(query);
+  return { users };
+}
+
+}
