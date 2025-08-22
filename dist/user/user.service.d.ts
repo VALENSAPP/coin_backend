@@ -15,15 +15,12 @@ export declare class UserService {
     }): Promise<{
         access_token: string;
         user: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -31,9 +28,14 @@ export declare class UserService {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            walletPrivateKey: string | null;
+            walletMnemonic: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
@@ -46,15 +48,12 @@ export declare class UserService {
         walletAddress?: string;
         registrationType: RegistrationType;
     }): Promise<{
-        id: string;
         email: string | null;
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
-        createdAt: Date;
-        updatedAt: Date;
         userName: string | null;
         displayName: string | null;
         bio: string | null;
@@ -62,22 +61,24 @@ export declare class UserService {
         gender: import(".prisma/client").$Enums.Gender | null;
         image: string | null;
         age: number | null;
+        otp: string | null;
+        id: string;
+        walletPrivateKey: string | null;
+        walletMnemonic: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         deletedAt: Date | null;
         isDeleted: number;
-        otp: string | null;
         otpExpiresAt: Date | null;
         verifyEmail: number;
     }>;
     editProfile(userId: string, dto: any, image?: Express.Multer.File): Promise<{
-        id: string;
         email: string | null;
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
-        createdAt: Date;
-        updatedAt: Date;
         userName: string | null;
         displayName: string | null;
         bio: string | null;
@@ -85,9 +86,14 @@ export declare class UserService {
         gender: import(".prisma/client").$Enums.Gender | null;
         image: string | null;
         age: number | null;
+        otp: string | null;
+        id: string;
+        walletPrivateKey: string | null;
+        walletMnemonic: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         deletedAt: Date | null;
         isDeleted: number;
-        otp: string | null;
         otpExpiresAt: Date | null;
         verifyEmail: number;
     }>;
@@ -97,15 +103,12 @@ export declare class UserService {
     verifyEmailOtp(email: string, otp: string): Promise<boolean>;
     resetPassword(email: string, otp: string, newPassword: string): Promise<boolean>;
     getUserById(id: string): Promise<{
-        id: string;
         email: string | null;
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
-        createdAt: Date;
-        updatedAt: Date;
         userName: string | null;
         displayName: string | null;
         bio: string | null;
@@ -113,22 +116,24 @@ export declare class UserService {
         gender: import(".prisma/client").$Enums.Gender | null;
         image: string | null;
         age: number | null;
+        otp: string | null;
+        id: string;
+        walletPrivateKey: string | null;
+        walletMnemonic: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         deletedAt: Date | null;
         isDeleted: number;
-        otp: string | null;
         otpExpiresAt: Date | null;
         verifyEmail: number;
     }>;
     getAllUsers(): Promise<{
-        id: string;
         email: string | null;
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
-        createdAt: Date;
-        updatedAt: Date;
         userName: string | null;
         displayName: string | null;
         bio: string | null;
@@ -136,32 +141,34 @@ export declare class UserService {
         gender: import(".prisma/client").$Enums.Gender | null;
         image: string | null;
         age: number | null;
+        otp: string | null;
+        id: string;
+        walletPrivateKey: string | null;
+        walletMnemonic: string | null;
+        createdAt: Date;
+        updatedAt: Date;
         deletedAt: Date | null;
         isDeleted: number;
-        otp: string | null;
         otpExpiresAt: Date | null;
         verifyEmail: number;
     }[]>;
     softDeleteUser(id: string): Promise<boolean>;
     followPerson(followerId: string, followingId: string): Promise<{
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     getFollowersList(userId: string): Promise<({
         follower: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -169,31 +176,33 @@ export declare class UserService {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            walletPrivateKey: string | null;
+            walletMnemonic: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
     } & {
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getFollowingList(userId: string): Promise<({
         following: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -201,52 +210,54 @@ export declare class UserService {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            walletPrivateKey: string | null;
+            walletMnemonic: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
     } & {
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     unfollow(followerId: string, followingId: string): Promise<{
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     getPendingFollowRequests(userId: string): Promise<never[]>;
     blockUser(blockerId: string, blockedId: string): Promise<{
+        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
-        blockedId: string;
     }>;
     unblockUser(blockerId: string, blockedId: string): Promise<{
+        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
-        blockedId: string;
     }>;
     getBlockedUsers(blockerId: string): Promise<({
         blocked: {
-            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            createdAt: Date;
-            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -254,23 +265,28 @@ export declare class UserService {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
+            otp: string | null;
+            id: string;
+            walletPrivateKey: string | null;
+            walletMnemonic: string | null;
+            createdAt: Date;
+            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
-            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
         };
     } & {
+        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
-        blockedId: string;
     })[]>;
     getDisplayNames(): Promise<{
-        id: string;
         email: string | null;
         userName: string | null;
         displayName: string | null;
+        id: string;
     }[]>;
     checkDisplayNameAvailability(displayName: string): Promise<{
         status: string;
@@ -290,10 +306,10 @@ export declare class UserService {
         totalFollowers: number;
     }>;
     searchUser(query: string): Promise<{
-        id: string;
         email: string | null;
         userName: string | null;
         displayName: string | null;
         image: string | null;
+        id: string;
     }[]>;
 }

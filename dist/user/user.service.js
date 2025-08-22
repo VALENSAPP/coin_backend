@@ -17,6 +17,8 @@ const crypto_1 = require("crypto");
 const sgMail = require("@sendgrid/mail");
 const jwt_1 = require("@nestjs/jwt");
 const s3_util_1 = require("../common/s3.util");
+const wallet_util_1 = require("../common/wallet.util");
+const crypto_util_1 = require("../common/crypto.util");
 let UserService = class UserService {
     prisma;
     jwtService;
@@ -64,13 +66,19 @@ let UserService = class UserService {
                 throw new common_1.BadRequestException('Email and password required');
             passwordHash = await bcrypt.hash(data.password, 10);
         }
+        const wallet = (0, wallet_util_1.generateWallet)();
+        const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+        const encryptedPrivateKey = (0, crypto_util_1.encryptSecret)(wallet.privateKey, encryptionKey);
+        const encryptedMnemonic = (0, crypto_util_1.encryptSecret)(wallet.mnemonic, encryptionKey);
         const user = await this.prisma.user.create({
             data: {
                 email: data.email,
                 password: passwordHash,
                 googleId: data.googleId,
                 twitterId: data.twitterId,
-                walletAddress: data.walletAddress,
+                walletAddress: wallet.address,
+                walletPrivateKey: encryptedPrivateKey,
+                walletMnemonic: encryptedMnemonic,
                 registrationType: data.registrationType,
             },
         });

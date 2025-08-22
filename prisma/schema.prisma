@@ -20,6 +20,8 @@ model User {
   googleId       String?  @unique
   twitterId      String?  @unique
   walletAddress  String?  @unique
+  walletPrivateKey String?
+  walletMnemonic   String?
   registrationType RegistrationType
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

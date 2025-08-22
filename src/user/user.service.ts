@@ -10,6 +10,8 @@ import * as path from 'path';
 import * as sgMail from '@sendgrid/mail';
 import { JwtService } from '@nestjs/jwt';
 import { uploadImageToS3 } from '../common/s3.util';
+import { generateWallet } from '../common/wallet.util';
+import { encryptSecret } from '../common/crypto.util';
 // Add AWS and nodemailer stubs
 // import * as AWS from 'aws-sdk';
 // import * as nodemailer from 'nodemailer';
@@ -80,13 +82,21 @@ export class UserService {
       if (!data.email || !data.password) throw new BadRequestException('Email and password required');
       passwordHash = await bcrypt.hash(data.password, 10);
     }
+    // Auto-create wallet for every user on signup
+    const wallet = generateWallet();
+    const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+    const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+    const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+
     const user = await this.prisma.user.create({
       data: {
         email: data.email,
         password: passwordHash,
         googleId: data.googleId,
         twitterId: data.twitterId,
-        walletAddress: data.walletAddress,
+        walletAddress: wallet.address,
+        walletPrivateKey: encryptedPrivateKey,
+        walletMnemonic: encryptedMnemonic,
         registrationType: data.registrationType,
       },
     });
