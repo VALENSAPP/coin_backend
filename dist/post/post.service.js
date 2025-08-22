@@ -117,6 +117,17 @@ let PostService = class PostService {
             });
             likedSet = new Set(liked.map(l => l.postId));
         }
+        let followMap = {};
+        if (viewerUserId) {
+            const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+            if (authorIds.length > 0) {
+                const follows = await this.prisma.followerAndFollowing.findMany({
+                    where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+                    select: { followingId: true },
+                });
+                followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
+            }
+        }
         return posts.map(post => ({
             id: post.id,
             text: post.text,
@@ -137,6 +148,7 @@ let PostService = class PostService {
             isSaved: savedSet.has(post.id),
             isLike: likedSet.has(post.id),
             shareCount: post._count.shares,
+            isFollow: !!followMap[post.userId],
         }));
     }
     async getPostById(postId, viewerId) {
@@ -172,6 +184,14 @@ let PostService = class PostService {
         const liked = await this.prisma.postLike.findFirst({
             where: { userId: viewerId, postId },
         });
+        let isFollow = false;
+        if (viewerId) {
+            const follow = await this.prisma.followerAndFollowing.findFirst({
+                where: { followerId: viewerId, followingId: post.userId, status: 'ACCEPTED' },
+                select: { id: true },
+            });
+            isFollow = !!follow;
+        }
         return {
             id: post.id,
             text: post.text,
@@ -192,6 +212,7 @@ let PostService = class PostService {
             shareCount: post._count.shares,
             isSaved: !!saved,
             isLike: !!liked,
+            isFollow,
         };
     }
     async getAllPost(viewerUserId) {
@@ -216,6 +237,7 @@ let PostService = class PostService {
         });
         let savedSet = new Set();
         let likedSet = new Set();
+        let followMap = {};
         if (viewerUserId) {
             const saved = await this.prisma.savePost.findMany({
                 where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
@@ -227,6 +249,14 @@ let PostService = class PostService {
                 select: { postId: true },
             });
             likedSet = new Set(liked.map(l => l.postId));
+            const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+            if (authorIds.length > 0) {
+                const follows = await this.prisma.followerAndFollowing.findMany({
+                    where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+                    select: { followingId: true },
+                });
+                followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
+            }
         }
         return posts.map(post => ({
             id: post.id,
@@ -248,6 +278,7 @@ let PostService = class PostService {
             shareCount: post._count.shares,
             isSaved: savedSet.has(post.id),
             isLike: likedSet.has(post.id),
+            isFollow: !!followMap[post.userId],
         }));
     }
     async deletePost(postId, userId) {
@@ -510,6 +541,12 @@ let PostService = class PostService {
                 select: { postId: true },
             });
             likedSet = new Set(liked.map(l => l.postId));
+            const authorIds = Array.from(new Set(savedPosts.map(sp => sp.post.userId)));
+            const follows = await this.prisma.followerAndFollowing.findMany({
+                where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+                select: { followingId: true },
+            });
+            var followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
         }
         return savedPosts.map(sp => {
             const post = sp.post;
@@ -533,6 +570,7 @@ let PostService = class PostService {
                 shareCount: post._count.shares,
                 isSaved: savedSet.has(post.id),
                 isLike: likedSet.has(post.id),
+                isFollow: !!(typeof followMap !== 'undefined' && followMap[post.userId]),
             };
         });
     }

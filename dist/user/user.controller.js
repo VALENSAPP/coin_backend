@@ -387,6 +387,10 @@ let UserController = class UserController {
         const dashboardData = await this.userService.getUserDashboard(query.userId);
         return { dashboardData };
     }
+    async searchUser(query) {
+        const users = await this.userService.searchUser(query);
+        return { users };
+    }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
         return { user };
@@ -394,10 +398,6 @@ let UserController = class UserController {
     async softDeleteUser(id) {
         await this.userService.softDeleteUser(id);
         return { message: 'User soft deleted' };
-    }
-    async searchUser(query) {
-        const users = await this.userService.searchUser(query);
-        return { users };
     }
 };
 exports.UserController = UserController;
@@ -659,12 +659,23 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getUserDashboard", null);
 __decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('search'),
+    (0, swagger_3.ApiOperation)({ summary: 'Search users by display name, user name, or email' }),
+    (0, swagger_3.ApiQuery)({ name: 'query', type: String, description: 'Search term', required: true }),
+    __param(0, (0, common_1.Query)('query')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "searchUser", null);
+__decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Get user by ID' }),
     (0, swagger_3.ApiParam)({ name: 'id', type: String }),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Param)('id', new common_1.ParseUUIDPipe())),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
@@ -680,17 +691,6 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "softDeleteUser", null);
-__decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
-    (0, swagger_1.ApiBearerAuth)(),
-    (0, common_1.Get)('search'),
-    (0, swagger_3.ApiOperation)({ summary: 'Search users by display name, user name, or email' }),
-    (0, swagger_3.ApiQuery)({ name: 'query', type: String, description: 'Search term', required: true }),
-    __param(0, (0, common_1.Query)('query')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", Promise)
-], UserController.prototype, "searchUser", null);
 exports.UserController = UserController = __decorate([
     (0, swagger_1.ApiTags)('user'),
     (0, common_1.Controller)('user'),

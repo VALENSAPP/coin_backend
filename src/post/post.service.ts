@@ -120,6 +120,19 @@ export class PostService {
     likedSet = new Set(liked.map(l => l.postId));
   }
 
+  // Build follow map for viewer vs authors
+  let followMap: Record<string, boolean> = {};
+  if (viewerUserId) {
+    const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+    if (authorIds.length > 0) {
+      const follows = await this.prisma.followerAndFollowing.findMany({
+        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+        select: { followingId: true },
+      });
+      followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+    }
+  }
+
   return posts.map(post => ({
     id: post.id,
     text: post.text,
@@ -140,6 +153,7 @@ export class PostService {
     isSaved: savedSet.has(post.id),
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
     shareCount: post._count.shares,
+    isFollow: !!followMap[post.userId],
   }));
   }
 
@@ -183,6 +197,16 @@ export class PostService {
     where: { userId: viewerId, postId },
   });
 
+  // ✅ Follow status (does viewer follow the post's author?)
+  let isFollow = false;
+  if (viewerId) {
+    const follow = await this.prisma.followerAndFollowing.findFirst({
+      where: { followerId: viewerId, followingId: post.userId, status: 'ACCEPTED' },
+      select: { id: true },
+    });
+    isFollow = !!follow;
+  }
+
   // ✅ Return single structured response
   return {
     id: post.id,
@@ -204,6 +228,7 @@ export class PostService {
     shareCount: post._count.shares,
     isSaved: !!saved,   // ✅ true if viewer saved
     isLike: !!liked,    // ✅ true if viewer liked
+    isFollow,
   };
 }
 
@@ -231,6 +256,7 @@ async getAllPost(viewerUserId?: string) {
 
   let savedSet: Set<string> = new Set();
   let likedSet: Set<string> = new Set();
+  let followMap: Record<string, boolean> = {};
 
   if (viewerUserId) {
     // Fetch saved posts for viewer
@@ -246,6 +272,16 @@ async getAllPost(viewerUserId?: string) {
       select: { postId: true },
     });
     likedSet = new Set(liked.map(l => l.postId));
+
+    // ✅ Fetch follow status for each post's author
+    const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+    if (authorIds.length > 0) {
+      const follows = await this.prisma.followerAndFollowing.findMany({
+        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+        select: { followingId: true },
+      });
+      followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+    }
   }
 
   return posts.map(post => ({
@@ -268,6 +304,7 @@ async getAllPost(viewerUserId?: string) {
     shareCount: post._count.shares, 
     isSaved: savedSet.has(post.id),
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
+    isFollow: !!followMap[post.userId],
   }));
 }
 
@@ -572,6 +609,14 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       select: { postId: true },
     });
     likedSet = new Set(liked.map(l => l.postId));
+
+    // ✅ Fetch follow status for each post's author
+    const authorIds = Array.from(new Set(savedPosts.map(sp => sp.post.userId)));
+    const follows = await this.prisma.followerAndFollowing.findMany({
+      where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+      select: { followingId: true },
+    });
+    var followMap: Record<string, boolean> = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
   }
 
   // ✅ Map savedPosts to return actual post info
@@ -597,6 +642,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       shareCount: post._count.shares,
       isSaved: savedSet.has(post.id),
       isLike: likedSet.has(post.id),
+      isFollow: !!(typeof followMap !== 'undefined' && followMap[post.userId]),
     };
   });
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query } from '@nestjs/common';
+import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { ApiProperty } from '@nestjs/swagger';
@@ -456,12 +456,23 @@ export class UserController {
     return { dashboardData };
   }
 
+  // Place static route before dynamic ":id" to avoid conflicts
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('search')
+  @ApiOperation({ summary: 'Search users by display name, user name, or email' })
+  @ApiQuery({ name: 'query', type: String, description: 'Search term', required: true })
+  async searchUser(@Query('query') query: string) {
+    const users = await this.userService.searchUser(query);
+    return { users };
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiParam({ name: 'id', type: String })
-  async getUserById(@Param('id') id: string) {
+  async getUserById(@Param('id', new ParseUUIDPipe()) id: string) {
     const user = await this.userService.getUserById(id);
     return { user };
   }
@@ -476,14 +487,6 @@ export class UserController {
     return { message: 'User soft deleted' };
   }
 
-  @UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Get('search')
-@ApiOperation({ summary: 'Search users by display name, user name, or email' })
-@ApiQuery({ name: 'query', type: String, description: 'Search term', required: true })
-async searchUser(@Query('query') query: string) {
-  const users = await this.userService.searchUser(query);
-  return { users };
-}
+// duplicate removed; search route is defined above
 
 }
