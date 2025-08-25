@@ -12,7 +12,11 @@ export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -20,13 +24,13 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -34,10 +38,6 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
         id: string;
@@ -99,9 +99,9 @@ export declare class PostController {
         totalLikes: number;
     }>;
     commentOnPost(req: Request, dto: CommentOnPostDto): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -109,9 +109,9 @@ export declare class PostController {
         commentId: string;
         comment: string;
     }): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -221,16 +221,20 @@ export declare class PostController {
         deletedIds: string[];
     }>;
     hidePost(req: Request, postId: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
     }>;
     unhidePost(req: Request, postId: string): Promise<{
         message: string;
     }>;
     getHidePost(req: Request): Promise<{
+        userId: string;
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
         text: string | null;
         images: string[];
         caption: string | null;
@@ -238,9 +242,5 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
-        createdAt: Date;
-        updatedAt: Date;
-        userId: string;
-        deletedAt: Date | null;
     }[]>;
 }

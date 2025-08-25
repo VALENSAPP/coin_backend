@@ -60,6 +60,8 @@ model User {
   receivedPosts  PostShare[] @relation("ReceivedBy")
   // Hidden posts relations
   hidePosts     HidePost[]
+  // Story relations
+  stories      Story[]
 }
 
 enum RegistrationType {
@@ -197,4 +199,17 @@ model HidePost {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([postId, userId])
+}
+
+model Story {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  media      String[]
+  caption    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  @@index([userId])
 }

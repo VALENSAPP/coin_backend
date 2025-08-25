@@ -19,6 +19,7 @@ exports.PostModule = PostModule = __decorate([
         imports: [prisma_module_1.PrismaModule],
         providers: [post_service_1.PostService],
         controllers: [post_controller_1.PostController],
+        exports: [prisma_module_1.PrismaModule],
     })
 ], PostModule);
 //# sourceMappingURL=post.module.js.map

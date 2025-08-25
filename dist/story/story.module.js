@@ -6,19 +6,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AppModule = void 0;
+exports.StoryModule = void 0;
 const common_1 = require("@nestjs/common");
-const user_module_1 = require("./user/user.module");
-const auth_module_1 = require("./auth/auth.module");
-const post_module_1 = require("./post/post.module");
-const story_module_1 = require("./story/story.module");
-const schedule_1 = require("@nestjs/schedule");
-let AppModule = class AppModule {
+const prisma_module_1 = require("../prisma/prisma.module");
+const story_service_1 = require("./story.service");
+const story_controller_1 = require("./story.controller");
+const story_cleanup_1 = require("./story.cleanup");
+let StoryModule = class StoryModule {
 };
-exports.AppModule = AppModule;
-exports.AppModule = AppModule = __decorate([
+exports.StoryModule = StoryModule;
+exports.StoryModule = StoryModule = __decorate([
     (0, common_1.Module)({
-        imports: [schedule_1.ScheduleModule.forRoot(), post_module_1.PostModule, user_module_1.UserModule, auth_module_1.AuthModule, story_module_1.StoryModule],
+        imports: [prisma_module_1.PrismaModule],
+        controllers: [story_controller_1.StoryController],
+        providers: [story_service_1.StoryService, story_cleanup_1.StoryCleanupService],
     })
-], AppModule);
-//# sourceMappingURL=app.module.js.map
+], StoryModule);
+//# sourceMappingURL=story.module.js.map
