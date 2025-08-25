@@ -197,6 +197,11 @@ export class PostService {
     where: { userId: viewerId, postId },
   });
 
+  // ✅ Fetch hide state for this viewer
+  const hidden = viewerId
+    ? await this.prisma.hidePost.findFirst({ where: { userId: viewerId, postId } })
+    : null;
+
   // ✅ Follow status (does viewer follow the post's author?)
   let isFollow = false;
   if (viewerId) {
@@ -229,6 +234,7 @@ export class PostService {
     isSaved: !!saved,   // ✅ true if viewer saved
     isLike: !!liked,    // ✅ true if viewer liked
     isFollow,
+    isHide: !!hidden,
   };
 }
 
@@ -257,6 +263,7 @@ async getAllPost(viewerUserId?: string) {
   let savedSet: Set<string> = new Set();
   let likedSet: Set<string> = new Set();
   let followMap: Record<string, boolean> = {};
+  let hiddenSet: Set<string> = new Set();
 
   if (viewerUserId) {
     // Fetch saved posts for viewer
@@ -282,6 +289,15 @@ async getAllPost(viewerUserId?: string) {
       });
       followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
     }
+
+    // ✅ Fetch hidden posts for viewer
+    if (posts.length > 0) {
+      const hidden = await this.prisma.hidePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      hiddenSet = new Set(hidden.map(h => h.postId));
+    }
   }
 
   return posts.map(post => ({
@@ -305,6 +321,7 @@ async getAllPost(viewerUserId?: string) {
     isSaved: savedSet.has(post.id),
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
     isFollow: !!followMap[post.userId],
+    isHide: hiddenSet.has(post.id),
   }));
 }
 
