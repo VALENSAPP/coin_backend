@@ -65,6 +65,7 @@ export declare class PostService {
         isSaved: boolean;
         isLike: boolean;
         isFollow: boolean;
+        isHide: boolean;
     }>;
     getAllPost(viewerUserId?: string): Promise<{
         id: string;
@@ -87,6 +88,7 @@ export declare class PostService {
         isSaved: boolean;
         isLike: boolean;
         isFollow: boolean;
+        isHide: boolean;
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{

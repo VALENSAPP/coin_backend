@@ -82,6 +82,7 @@ export declare class PostController {
         isSaved: boolean;
         isLike: boolean;
         isFollow: boolean;
+        isHide: boolean;
     }[]>;
     deletePost(req: Request, query: DeletePostDto): Promise<boolean>;
     postLikeByUser(req: Request, body: PostLikeByUserDto): Promise<{
@@ -178,6 +179,7 @@ export declare class PostController {
         isSaved: boolean;
         isLike: boolean;
         isFollow: boolean;
+        isHide: boolean;
     }>;
     sharePostToUser(body: SharePostDto): Promise<{
         message: string;

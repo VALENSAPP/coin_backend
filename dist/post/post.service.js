@@ -184,6 +184,9 @@ let PostService = class PostService {
         const liked = await this.prisma.postLike.findFirst({
             where: { userId: viewerId, postId },
         });
+        const hidden = viewerId
+            ? await this.prisma.hidePost.findFirst({ where: { userId: viewerId, postId } })
+            : null;
         let isFollow = false;
         if (viewerId) {
             const follow = await this.prisma.followerAndFollowing.findFirst({
@@ -213,6 +216,7 @@ let PostService = class PostService {
             isSaved: !!saved,
             isLike: !!liked,
             isFollow,
+            isHide: !!hidden,
         };
     }
     async getAllPost(viewerUserId) {
@@ -238,6 +242,7 @@ let PostService = class PostService {
         let savedSet = new Set();
         let likedSet = new Set();
         let followMap = {};
+        let hiddenSet = new Set();
         if (viewerUserId) {
             const saved = await this.prisma.savePost.findMany({
                 where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
@@ -256,6 +261,13 @@ let PostService = class PostService {
                     select: { followingId: true },
                 });
                 followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
+            }
+            if (posts.length > 0) {
+                const hidden = await this.prisma.hidePost.findMany({
+                    where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+                    select: { postId: true },
+                });
+                hiddenSet = new Set(hidden.map(h => h.postId));
             }
         }
         return posts.map(post => ({
@@ -279,6 +291,7 @@ let PostService = class PostService {
             isSaved: savedSet.has(post.id),
             isLike: likedSet.has(post.id),
             isFollow: !!followMap[post.userId],
+            isHide: hiddenSet.has(post.id),
         }));
     }
     async deletePost(postId, userId) {
