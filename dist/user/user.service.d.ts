@@ -38,6 +38,12 @@ export declare class UserService {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     }>;
     validateUser(data: {
@@ -71,6 +77,12 @@ export declare class UserService {
         isDeleted: number;
         otpExpiresAt: Date | null;
         verifyEmail: number;
+        subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        subscriptionStart: Date | null;
+        subscriptionEnd: Date | null;
+        currentPeriodEnd: Date | null;
     }>;
     editProfile(userId: string, dto: any, image?: Express.Multer.File): Promise<{
         email: string | null;
@@ -96,6 +108,12 @@ export declare class UserService {
         isDeleted: number;
         otpExpiresAt: Date | null;
         verifyEmail: number;
+        subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        subscriptionStart: Date | null;
+        subscriptionEnd: Date | null;
+        currentPeriodEnd: Date | null;
     }>;
     forgotPassword(email: string): Promise<boolean>;
     verifyOtp(email: string, otp: string): Promise<boolean>;
@@ -126,6 +144,12 @@ export declare class UserService {
         isDeleted: number;
         otpExpiresAt: Date | null;
         verifyEmail: number;
+        subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        subscriptionStart: Date | null;
+        subscriptionEnd: Date | null;
+        currentPeriodEnd: Date | null;
     }>;
     getAllUsers(): Promise<{
         email: string | null;
@@ -151,6 +175,12 @@ export declare class UserService {
         isDeleted: number;
         otpExpiresAt: Date | null;
         verifyEmail: number;
+        subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        subscriptionStart: Date | null;
+        subscriptionEnd: Date | null;
+        currentPeriodEnd: Date | null;
     }[]>;
     softDeleteUser(id: string): Promise<boolean>;
     followPerson(followerId: string, followingId: string): Promise<{
@@ -186,6 +216,12 @@ export declare class UserService {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     } & {
         followingId: string;
@@ -220,6 +256,12 @@ export declare class UserService {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     } & {
         followingId: string;
@@ -275,6 +317,12 @@ export declare class UserService {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     } & {
         blockedId: string;

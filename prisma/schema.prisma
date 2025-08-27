@@ -62,6 +62,14 @@ model User {
   hidePosts     HidePost[]
   // Story relations
   stories      Story[]
+  // Billing relations and fields
+  payments     Payment[]
+  subscriptionStatus SubscriptionStatus @default(INACTIVE)
+  stripeCustomerId   String?
+  stripeSubscriptionId String?
+  subscriptionStart  DateTime?
+  subscriptionEnd    DateTime?
+  currentPeriodEnd   DateTime?
 }
 
 enum RegistrationType {
@@ -75,6 +83,13 @@ enum Gender {
   MALE
   FEMALE
   OTHER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELED
+  PAST_DUE
 }
 
 model Post {
@@ -210,6 +225,22 @@ model Story {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   deletedAt  DateTime?
+
+  @@index([userId])
+}
+
+model Payment {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Int      // amount in smallest currency unit (e.g., cents)
+  currency        String
+  status          String   // succeeded, failed, pending
+  stripeInvoiceId String?
+  stripePaymentIntentId String?
+  createdAt       DateTime @default(now())
+  periodStart     DateTime?
+  periodEnd       DateTime?
 
   @@index([userId])
 }

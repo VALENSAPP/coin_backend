@@ -37,6 +37,12 @@ export declare class AuthController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
             access_token: string;
         };
     }>;
@@ -66,6 +72,12 @@ export declare class AuthController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     }>;
 }

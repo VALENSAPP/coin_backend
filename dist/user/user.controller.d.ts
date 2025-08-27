@@ -95,6 +95,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
             access_token: string;
         };
     }>;
@@ -123,6 +129,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     }>;
     editProfile(req: Request, dto: ProfileEditDto, image: Express.Multer.File): Promise<{
@@ -151,6 +163,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     }>;
     forgotPassword(dto: ForgotPasswordDto): Promise<{
@@ -222,6 +240,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     } & {
         followingId: string;
@@ -256,6 +280,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     } & {
         followingId: string;
@@ -290,6 +320,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     } & {
         blockedId: string;
@@ -322,6 +358,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         }[];
     }>;
     getDisplayNames(): Promise<{
@@ -384,6 +426,12 @@ export declare class UserController {
             isDeleted: number;
             otpExpiresAt: Date | null;
             verifyEmail: number;
+            subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            stripeCustomerId: string | null;
+            stripeSubscriptionId: string | null;
+            subscriptionStart: Date | null;
+            subscriptionEnd: Date | null;
+            currentPeriodEnd: Date | null;
         };
     }>;
     softDeleteUser(id: string): Promise<{

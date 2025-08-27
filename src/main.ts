@@ -3,9 +3,12 @@ import { AppModule } from './app.module';
 import { setupSwagger } from './swagger/swagger.config';
 import { PrismaClient } from '@prisma/client';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import * as bodyParser from 'body-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // Stripe webhook needs raw body
+  app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
   app.useGlobalInterceptors(new ResponseInterceptor());
   setupSwagger(app);
   const port = process.env.PORT || 3002;
