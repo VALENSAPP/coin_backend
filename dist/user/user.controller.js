@@ -312,9 +312,11 @@ let UserController = class UserController {
             }
         };
     }
-    async getProfile(query) {
+    async getProfile(req, query) {
+        const viewerId = req.user.userId;
         const user = await this.userService.getUserById(query.userId);
-        return { user };
+        const isFollow = await this.userService.isFollowing(viewerId, query.userId);
+        return { ...user, isFollow };
     }
     async editProfile(req, dto, image) {
         const userId = req.user.userId;
@@ -414,9 +416,10 @@ __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Get user profile by userId' }),
     (0, swagger_3.ApiQuery)({ name: 'userId', type: 'string', description: 'User ID to get profile for' }),
-    __param(0, (0, common_1.Query)()),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [GetProfileDto]),
+    __metadata("design:paramtypes", [Object, GetProfileDto]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getProfile", null);
 __decorate([

@@ -313,6 +313,15 @@ export class UserService {
     return user;
   }
 
+  async isFollowing(followerId: string, followingId: string): Promise<boolean> {
+    if (!followerId || !followingId) return false;
+    if (followerId === followingId) return false;
+    const record = await this.prisma.followerAndFollowing.findUnique({
+      where: { followerId_followingId: { followerId, followingId } },
+    });
+    return !!record && record.status === 'ACCEPTED';
+  }
+
   // Get all users (exclude soft-deleted)
   async getAllUsers() {
     return this.prisma.user.findMany({ where: { deletedAt: null } });

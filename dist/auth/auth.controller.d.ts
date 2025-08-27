@@ -14,12 +14,17 @@ export declare class AuthController {
     login(body: LoginDto): Promise<{
         message: string;
         user: {
+            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
+            walletPrivateKey: string | null;
+            walletMnemonic: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
+            createdAt: Date;
+            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -27,14 +32,9 @@ export declare class AuthController {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
-            otp: string | null;
-            id: string;
-            walletPrivateKey: string | null;
-            walletMnemonic: string | null;
-            createdAt: Date;
-            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
+            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
@@ -49,12 +49,17 @@ export declare class AuthController {
     getProfile(req: any): Promise<{
         message: string;
         user: {
+            id: string;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
+            walletPrivateKey: string | null;
+            walletMnemonic: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
+            createdAt: Date;
+            updatedAt: Date;
             userName: string | null;
             displayName: string | null;
             bio: string | null;
@@ -62,14 +67,9 @@ export declare class AuthController {
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
             age: number | null;
-            otp: string | null;
-            id: string;
-            walletPrivateKey: string | null;
-            walletMnemonic: string | null;
-            createdAt: Date;
-            updatedAt: Date;
             deletedAt: Date | null;
             isDeleted: number;
+            otp: string | null;
             otpExpiresAt: Date | null;
             verifyEmail: number;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;

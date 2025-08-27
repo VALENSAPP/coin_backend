@@ -231,9 +231,11 @@ export class UserController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user profile by userId' })
   @ApiQuery({ name: 'userId', type: 'string', description: 'User ID to get profile for' })
-  async getProfile(@Query() query: GetProfileDto) {
+  async getProfile(@Req() req: Request, @Query() query: GetProfileDto) {
+    const viewerId = (req.user as any).userId;
     const user = await this.userService.getUserById(query.userId);
-    return { user };
+    const isFollow = await this.userService.isFollowing(viewerId, query.userId);
+    return { ...user, isFollow };
   }
 
   @Patch('editProfile')

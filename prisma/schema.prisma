@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,62 +8,184 @@ datasource db {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  email          String?  @unique
-  password       String?
-  googleId       String?  @unique
-  twitterId      String?  @unique
-  walletAddress  String?  @unique
-  walletPrivateKey String?
-  walletMnemonic   String?
-  registrationType RegistrationType
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  // Profile fields
-  userName       String?
-  displayName    String?  @unique
-  bio            String?
-  phoneNumber    String?
-  gender         Gender?
-  image          String?
-  age            Int?
-  // Soft delete
-  deletedAt      DateTime?
-  isDeleted      Int      @default(0)
-  // OTP for password reset
-  otp            String?
-  otpExpiresAt   DateTime?
-  // Email verification
-  verifyEmail    Int      @default(0)
-  // Add relation to posts
-  posts         Post[]
-  // Post like relations
-  postLikes     PostLike[]
-  // Post comment relations
-  postComments  PostComment[]
-  // Post save relations
-  savedPosts   SavePost[]
-  // Follower/following relations
-  followers     FollowerAndFollowing[] @relation("Following")
-  followings    FollowerAndFollowing[] @relation("Follower")
-  // Blocked user relations
-  blockedUsers  BlockedUser[] @relation("Blocker")
-  blockedBy     BlockedUser[] @relation("Blocked")
-  // Shared posts relations
-  sharedPosts    PostShare[] @relation("SharedBy")
-  receivedPosts  PostShare[] @relation("ReceivedBy")
-  // Hidden posts relations
-  hidePosts     HidePost[]
-  // Story relations
-  stories      Story[]
-  // Billing relations and fields
-  payments     Payment[]
-  subscriptionStatus SubscriptionStatus @default(INACTIVE)
-  stripeCustomerId   String?
+  id                   String                 @id @default(uuid())
+  email                String?                @unique
+  password             String?
+  googleId             String?                @unique
+  twitterId            String?                @unique
+  walletAddress        String?                @unique
+  registrationType     RegistrationType
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  age                  Int?
+  deletedAt            DateTime?
+  gender               Gender?
+  image                String?
+  otp                  String?
+  otpExpiresAt         DateTime?
+  phoneNumber          String?
+  isDeleted            Int                    @default(0)
+  verifyEmail          Int                    @default(0)
+  bio                  String?
+  displayName          String?                @unique
+  userName             String?
+  walletMnemonic       String?
+  walletPrivateKey     String?
+  currentPeriodEnd     DateTime?
+  stripeCustomerId     String?
   stripeSubscriptionId String?
-  subscriptionStart  DateTime?
-  subscriptionEnd    DateTime?
-  currentPeriodEnd   DateTime?
+  subscriptionEnd      DateTime?
+  subscriptionStart    DateTime?
+  subscriptionStatus   SubscriptionStatus     @default(INACTIVE)
+  blockedBy            BlockedUser[]          @relation("Blocked")
+  blockedUsers         BlockedUser[]          @relation("Blocker")
+  followings           FollowerAndFollowing[] @relation("Follower")
+  followers            FollowerAndFollowing[] @relation("Following")
+  hidePosts            HidePost[]
+  payments             Payment[]
+  posts                Post[]
+  postComments         PostComment[]
+  postLikes            PostLike[]
+  receivedPosts        PostShare[]            @relation("ReceivedBy")
+  sharedPosts          PostShare[]            @relation("SharedBy")
+  savedPosts           SavePost[]
+  stories              Story[]
+}
+
+model Post {
+  id           String        @id @default(uuid())
+  text         String?
+  images       String[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  userId       String
+  deletedAt    DateTime?
+  caption      String?
+  hashtag      String[]
+  location     String?
+  music        String?
+  taggedPeople String[]
+  hides        HidePost[]
+  user         User          @relation(fields: [userId], references: [id])
+  comments     PostComment[]
+  likes        PostLike[]
+  shares       PostShare[]
+  saves        SavePost[]
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model SavePost {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@index([postId])
+}
+
+model FollowerAndFollowing {
+  id          String       @id @default(uuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  follower    User         @relation("Follower", fields: [followerId], references: [id])
+  following   User         @relation("Following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id])
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+model PostShare {
+  id             String   @id @default(uuid())
+  postId         String
+  sharedUserId   String
+  receiverUserId String
+  createdAt      DateTime @default(now())
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  receivedBy     User     @relation("ReceivedBy", fields: [receiverUserId], references: [id], onDelete: Cascade)
+  sharedBy       User     @relation("SharedBy", fields: [sharedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, sharedUserId, receiverUserId])
+}
+
+model HidePost {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Story {
+  id        String    @id @default(uuid())
+  userId    String
+  media     String[]
+  caption   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model Payment {
+  id                    String    @id @default(uuid())
+  userId                String
+  amount                Int
+  currency              String
+  status                String
+  stripeInvoiceId       String?
+  stripePaymentIntentId String?
+  createdAt             DateTime  @default(now())
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum RegistrationType {
@@ -92,155 +208,7 @@ enum SubscriptionStatus {
   PAST_DUE
 }
 
-model Post {
-  id        String   @id @default(uuid())
-  text      String?
-  images    String[] // Array of image URLs
-  caption   String?
-  hashtag   String[]
-  location  String?
-  music     String?
-  taggedPeople String[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  deletedAt DateTime?
-  // Post like relations
-  likes     PostLike[]
-  // Post comment relations
-  comments  PostComment[]
-  // Post save relations
-  saves     SavePost[]
-  // Post share relations
-  shares    PostShare[]
-  // Post hide relations
-  hides     HidePost[]
-}
-
-model PostLike {
-  id        String   @id @default(uuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-  
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@unique([postId, userId])
-}
-
-model PostComment {
-  id        String   @id @default(uuid())
-  postId    String
-  userId    String
-  comment   String
-  createdAt DateTime @default(now())
-
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([postId])
-  @@index([userId])
-}
-
-model SavePost {
-  id        String   @id @default(uuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, userId])
-  @@index([userId])
-  @@index([postId])
-}
-model FollowerAndFollowing {
-  id            String   @id @default(uuid())
-  followerId    String
-  followingId   String
-  status        FollowStatus @default(PENDING)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  follower      User     @relation("Follower", fields: [followerId], references: [id])
-  following     User     @relation("Following", fields: [followingId], references: [id])
-
-  @@unique([followerId, followingId])
-}
-
 enum FollowStatus {
   PENDING
   ACCEPTED
-}
-
-model BlockedUser {
-  id         String   @id @default(uuid())
-  blockerId  String
-  blockedId  String
-  createdAt  DateTime @default(now())
-
-  blocker    User     @relation("Blocker", fields: [blockerId], references: [id])
-  blocked    User     @relation("Blocked", fields: [blockedId], references: [id])
-
-  @@unique([blockerId, blockedId])
-}
-
-model PostShare {
-  id             String   @id @default(uuid())
-  postId         String
-  sharedUserId   String
-  receiverUserId String
-  createdAt      DateTime @default(now())
-
-  post     Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  sharedBy User @relation("SharedBy", fields: [sharedUserId], references: [id], onDelete: Cascade)
-  receivedBy User @relation("ReceivedBy", fields: [receiverUserId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, sharedUserId, receiverUserId])
-
-}
-
-model HidePost {
-  id        String   @id @default(uuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, userId])
-}
-
-model Story {
-  id         String   @id @default(uuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  media      String[]
-  caption    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  deletedAt  DateTime?
-
-  @@index([userId])
-}
-
-model Payment {
-  id              String   @id @default(uuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount          Int      // amount in smallest currency unit (e.g., cents)
-  currency        String
-  status          String   // succeeded, failed, pending
-  stripeInvoiceId String?
-  stripePaymentIntentId String?
-  createdAt       DateTime @default(now())
-  periodStart     DateTime?
-  periodEnd       DateTime?
-
-  @@index([userId])
 }
