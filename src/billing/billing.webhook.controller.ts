@@ -29,6 +29,9 @@ export class BillingWebhookController {
     }
 
     switch (event.type) {
+      case 'checkout.session.completed':
+        await this.billingService.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
       case 'invoice.paid':
         await this.billingService.handleInvoicePaid(event.data.object as Stripe.Invoice);
         break;

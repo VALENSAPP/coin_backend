@@ -35,17 +35,23 @@ let BillingService = class BillingService {
         await this.prisma.user.update({ where: { id: userId }, data: { stripeCustomerId: customer.id } });
         return customer.id;
     }
-    async createCheckoutSession(userId, dto) {
+    async createCheckoutSession(userId) {
         const customerId = await this.ensureStripeCustomer(userId);
+        const priceId = process.env.STRIPE_PRICE_ID;
+        const successUrl = process.env.STRIPE_SUCCESS_URL;
+        const cancelUrl = process.env.STRIPE_CANCEL_URL;
+        if (!priceId || !successUrl || !cancelUrl) {
+            throw new common_1.BadRequestException('Missing STRIPE_PRICE_ID/STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+        }
         const session = await this.stripe.checkout.sessions.create({
             mode: 'subscription',
             customer: customerId,
-            success_url: dto.successUrl,
-            cancel_url: dto.cancelUrl,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
             line_items: [
                 {
-                    price: dto.priceId,
-                    quantity: dto.quantity ?? 1,
+                    price: priceId,
+                    quantity: 1,
                 },
             ],
             metadata: { userId },
@@ -54,9 +60,20 @@ let BillingService = class BillingService {
     }
     async cancelSubscriptionAtPeriodEnd(userId) {
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
-        if (!user || !user.stripeSubscriptionId)
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        let subscriptionId = user.stripeSubscriptionId || null;
+        if (!subscriptionId && user.stripeCustomerId) {
+            const list = await this.stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'active', limit: 1 });
+            const activeSub = list.data[0];
+            if (activeSub) {
+                subscriptionId = activeSub.id;
+                await this.prisma.user.update({ where: { id: userId }, data: { stripeSubscriptionId: subscriptionId } });
+            }
+        }
+        if (!subscriptionId)
             throw new common_1.BadRequestException('No active subscription');
-        const sub = await this.stripe.subscriptions.update(user.stripeSubscriptionId, {
+        const sub = await this.stripe.subscriptions.update(subscriptionId, {
             cancel_at_period_end: true,
         });
         await this.prisma.user.update({ where: { id: userId }, data: { subscriptionStatus: 'CANCELED' } });
@@ -148,6 +165,19 @@ let BillingService = class BillingService {
                 currentPeriodEnd: currentPeriodEnd,
                 stripeSubscriptionId: null,
             },
+        });
+    }
+    async handleCheckoutSessionCompleted(session) {
+        const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
+        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+        if (!customerId || !subscriptionId)
+            return;
+        const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
+        if (!user)
+            return;
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { stripeSubscriptionId: subscriptionId },
         });
     }
 };

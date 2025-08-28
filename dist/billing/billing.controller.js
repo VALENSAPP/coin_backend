@@ -17,47 +17,14 @@ const common_1 = require("@nestjs/common");
 const billing_service_1 = require("./billing.service");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
-const class_validator_1 = require("class-validator");
-const swagger_2 = require("@nestjs/swagger");
-class CreateSubscriptionDto {
-    priceId;
-    successUrl;
-    cancelUrl;
-    quantity;
-}
-__decorate([
-    (0, swagger_2.ApiProperty)({ description: 'Stripe Price ID for the plan' }),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", String)
-], CreateSubscriptionDto.prototype, "priceId", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)({ description: 'Success URL for Stripe checkout' }),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", String)
-], CreateSubscriptionDto.prototype, "successUrl", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)({ description: 'Cancel URL for Stripe checkout' }),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", String)
-], CreateSubscriptionDto.prototype, "cancelUrl", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)({ required: false, description: 'Quantity (defaults to 1)' }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.Min)(1),
-    __metadata("design:type", Number)
-], CreateSubscriptionDto.prototype, "quantity", void 0);
 let BillingController = class BillingController {
     billingService;
     constructor(billingService) {
         this.billingService = billingService;
     }
-    async createSubscription(req, dto) {
+    async createSubscription(req) {
         const userId = req.user.userId;
-        const session = await this.billingService.createCheckoutSession(userId, dto);
+        const session = await this.billingService.createCheckoutSession(userId);
         return { url: session.url };
     }
     async cancelSubscription(req) {
@@ -76,11 +43,10 @@ __decorate([
     (0, common_1.Post)('subscribe'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe Checkout Session for subscription' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe Checkout Session for subscription (uses env vars)' }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, CreateSubscriptionDto]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "createSubscription", null);
 __decorate([

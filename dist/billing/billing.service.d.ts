@@ -5,12 +5,7 @@ export declare class BillingService {
     private stripe;
     constructor(prisma: PrismaService);
     ensureStripeCustomer(userId: string): Promise<string>;
-    createCheckoutSession(userId: string, dto: {
-        priceId: string;
-        successUrl: string;
-        cancelUrl: string;
-        quantity?: number;
-    }): Promise<Stripe.Response<Stripe.Checkout.Session>>;
+    createCheckoutSession(userId: string): Promise<Stripe.Response<Stripe.Checkout.Session>>;
     cancelSubscriptionAtPeriodEnd(userId: string): Promise<Stripe.Response<Stripe.Subscription>>;
     getSubscriptionDetails(userId: string): Promise<{
         status: import(".prisma/client").$Enums.SubscriptionStatus;
@@ -21,4 +16,5 @@ export declare class BillingService {
     handleInvoicePaid(invoice: Stripe.Invoice): Promise<void>;
     handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void>;
     handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void>;
+    handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void>;
 }

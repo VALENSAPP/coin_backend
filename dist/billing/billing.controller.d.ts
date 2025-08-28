@@ -1,15 +1,9 @@
 import { BillingService } from './billing.service';
 import { Request } from 'express';
-declare class CreateSubscriptionDto {
-    priceId: string;
-    successUrl: string;
-    cancelUrl: string;
-    quantity?: number;
-}
 export declare class BillingController {
     private readonly billingService;
     constructor(billingService: BillingService);
-    createSubscription(req: Request, dto: CreateSubscriptionDto): Promise<{
+    createSubscription(req: Request): Promise<{
         url: string | null;
     }>;
     cancelSubscription(req: Request): Promise<{
@@ -25,4 +19,3 @@ export declare class BillingController {
         };
     }>;
 }
-export {};

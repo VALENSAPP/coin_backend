@@ -37,6 +37,9 @@ let BillingWebhookController = class BillingWebhookController {
             return { received: true };
         }
         switch (event.type) {
+            case 'checkout.session.completed':
+                await this.billingService.handleCheckoutSessionCompleted(event.data.object);
+                break;
             case 'invoice.paid':
                 await this.billingService.handleInvoicePaid(event.data.object);
                 break;
