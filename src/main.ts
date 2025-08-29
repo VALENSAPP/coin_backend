@@ -4,11 +4,15 @@ import { setupSwagger } from './swagger/swagger.config';
 import { PrismaClient } from '@prisma/client';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import * as bodyParser from 'body-parser';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Stripe webhook needs raw body
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
+  // Serve static files from the public directory
+  app.useStaticAssets(join(__dirname, '..', 'public'));
   app.useGlobalInterceptors(new ResponseInterceptor());
   setupSwagger(app);
   const port = process.env.PORT || 3002;
