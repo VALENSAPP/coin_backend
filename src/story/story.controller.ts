@@ -56,6 +56,15 @@ export class StoryController {
     const userId = (req.user as any)?.userId;
     return this.storyService.deleteStory(storyId, userId);
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('get')
+  @ApiOperation({ summary: 'Get following story' })
+  async followingStory(@Req() req: Request) {
+    const userId = (req.user as any)?.userId;
+    return this.storyService.followingStory(userId);
+  }
 }
 
 

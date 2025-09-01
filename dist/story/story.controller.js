@@ -34,6 +34,10 @@ let StoryController = class StoryController {
         const userId = req.user?.userId;
         return this.storyService.deleteStory(storyId, userId);
     }
+    async followingStory(req) {
+        const userId = req.user?.userId;
+        return this.storyService.followingStory(userId);
+    }
 };
 exports.StoryController = StoryController;
 __decorate([
@@ -86,6 +90,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], StoryController.prototype, "deleteStory", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('get'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get following story' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], StoryController.prototype, "followingStory", null);
 exports.StoryController = StoryController = __decorate([
     (0, swagger_1.ApiTags)('story'),
     (0, common_1.Controller)('story'),

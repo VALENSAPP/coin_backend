@@ -41,6 +41,35 @@ export class StoryService {
     await this.prisma.story.update({ where: { id: storyId }, data: { deletedAt: new Date() } });
     return { message: 'Story deleted' };
   }
+
+  async followingStory(userId: string) {
+  if (!userId) throw new BadRequestException('User ID required');
+
+  // Find who this user is following
+  const followings = await this.prisma.followerAndFollowing.findMany({
+    where: { followerId: userId },
+    select: { followingId: true }, // select only what you need
+  });
+
+  const followingUserIds = followings.map(f => f.followingId);
+
+  if (followingUserIds.length === 0) {
+    return []; // user isn't following anyone
+  }
+
+  // Fetch stories from those users
+  return this.prisma.story.findMany({
+    where: {
+      userId: { in: followingUserIds },
+      deletedAt: null,
+    },
+    include: {
+      user: true, // optional: to return story owner details
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 }
 
 

@@ -5,9 +5,11 @@ const app_module_1 = require("./app.module");
 const swagger_config_1 = require("./swagger/swagger.config");
 const response_interceptor_1 = require("./common/interceptors/response.interceptor");
 const bodyParser = require("body-parser");
+const path_1 = require("path");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
+    app.useStaticAssets((0, path_1.join)(__dirname, '..', 'public'));
     app.useGlobalInterceptors(new response_interceptor_1.ResponseInterceptor());
     (0, swagger_config_1.setupSwagger)(app);
     const port = process.env.PORT || 3002;
