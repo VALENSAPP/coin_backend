@@ -65,6 +65,45 @@ export class StoryController {
     const userId = (req.user as any)?.userId;
     return this.storyService.followingStory(userId);
   }
+
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @Post('commentStory')
+    @ApiOperation({ summary: 'Commented on story' })
+    @ApiBody({
+      schema: {
+        type: 'object',
+        properties: {
+          comment: { type: 'string', description: 'Comment text' },
+          storyId: { type: 'string', description: 'ID of the story to comment on' },
+        },
+        required: ['comment', 'storyId'],
+      },
+    })
+    async commentOnStory(@Req() req: Request,  @Body('comment') comment: string, @Body('storyId') storyId: string) {
+      const userId = (req.user as any).userId;
+      return this.storyService.commentOnStory(userId, comment, storyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Post('likeStory')
+      @ApiOperation({ summary: 'Like or unlike a story' })
+      @ApiBody({
+        schema: {
+          type: 'object',
+          properties: {
+            storyId: { type: 'string', description: 'ID of the story to like or unlike' },
+          },
+          required: ['storyId'],
+        },
+      })
+      async storyLikeByUser(
+        @Req() req: Request, @Body('storyId') storyId: string
+      ) {
+        const userId = (req.user as any).userId;
+        return this.storyService.storyLikeByUser(storyId, userId);
+      }
 }
 
 

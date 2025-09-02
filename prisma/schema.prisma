@@ -50,6 +50,8 @@ model User {
   sharedPosts          PostShare[]            @relation("SharedBy")
   savedPosts           SavePost[]
   stories              Story[]
+  StoryComment         StoryComment[]
+  storyLike            StoryLike[]
 }
 
 model Post {
@@ -168,6 +170,8 @@ model Story {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
   user      User      @relation(fields: [userId], references: [id])
+  comment   StoryComment[]
+  storyLike      StoryLike[]
 
   @@index([userId])
 }
@@ -186,6 +190,30 @@ model Payment {
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model StoryComment {
+  id        String    @id @default(uuid())
+  storyId   String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+  Story     Story    @relation(fields: [storyId],references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([userId])
+}
+
+model StoryLike {
+  id        String   @id @default(uuid())
+  storyId   String
+  userId    String
+  createdAt DateTime @default(now())
+  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
 }
 
 enum RegistrationType {

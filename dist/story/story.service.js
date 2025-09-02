@@ -76,6 +76,64 @@ let StoryService = class StoryService {
             orderBy: { createdAt: 'desc' },
         });
     }
+    async commentOnStory(userId, comment, storyId) {
+        if (!storyId)
+            throw new common_1.BadRequestException('Story ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        if (!comment || comment.trim() === '')
+            throw new common_1.BadRequestException('Comment required');
+        const story = await this.prisma.story.findUnique({
+            where: { id: storyId, deletedAt: null },
+        });
+        if (!story)
+            throw new common_1.BadRequestException('Story not found');
+        return this.prisma.storyComment.create({
+            data: { storyId, userId, comment },
+        });
+    }
+    async storyLikeByUser(storyId, userId) {
+        if (!storyId)
+            throw new common_1.BadRequestException('Story ID required');
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const story = await this.prisma.story.findUnique({
+            where: {
+                id: storyId
+            },
+        });
+        if (!story) {
+            throw new common_1.BadRequestException('Story not found');
+        }
+        const existingLike = await this.prisma.storyLike.findUnique({
+            where: {
+                storyId_userId: {
+                    storyId,
+                    userId,
+                },
+            },
+        });
+        if (existingLike) {
+            await this.prisma.storyLike.delete({
+                where: {
+                    storyId_userId: {
+                        storyId,
+                        userId,
+                    },
+                },
+            });
+            return { message: 'Story unliked successfully', liked: false };
+        }
+        else {
+            await this.prisma.storyLike.create({
+                data: {
+                    storyId,
+                    userId,
+                },
+            });
+            return { message: 'Story liked successfully', liked: true };
+        }
+    }
 };
 exports.StoryService = StoryService;
 exports.StoryService = StoryService = __decorate([

@@ -38,6 +38,14 @@ let StoryController = class StoryController {
         const userId = req.user?.userId;
         return this.storyService.followingStory(userId);
     }
+    async commentOnStory(req, comment, storyId) {
+        const userId = req.user.userId;
+        return this.storyService.commentOnStory(userId, comment, storyId);
+    }
+    async storyLikeByUser(req, storyId) {
+        const userId = req.user.userId;
+        return this.storyService.storyLikeByUser(storyId, userId);
+    }
 };
 exports.StoryController = StoryController;
 __decorate([
@@ -100,6 +108,48 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], StoryController.prototype, "followingStory", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('commentStory'),
+    (0, swagger_1.ApiOperation)({ summary: 'Commented on story' }),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                comment: { type: 'string', description: 'Comment text' },
+                storyId: { type: 'string', description: 'ID of the story to comment on' },
+            },
+            required: ['comment', 'storyId'],
+        },
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)('comment')),
+    __param(2, (0, common_1.Body)('storyId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], StoryController.prototype, "commentOnStory", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('likeStory'),
+    (0, swagger_1.ApiOperation)({ summary: 'Like or unlike a story' }),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                storyId: { type: 'string', description: 'ID of the story to like or unlike' },
+            },
+            required: ['storyId'],
+        },
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)('storyId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], StoryController.prototype, "storyLikeByUser", null);
 exports.StoryController = StoryController = __decorate([
     (0, swagger_1.ApiTags)('story'),
     (0, common_1.Controller)('story'),

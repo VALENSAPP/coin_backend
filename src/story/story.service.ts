@@ -70,6 +70,68 @@ export class StoryService {
   });
 }
 
+async commentOnStory(userId: string, comment?: string, storyId?: string) {
+   if (!storyId) throw new BadRequestException('Story ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!comment || comment.trim() === '') throw new BadRequestException('Comment required');
+    // Check if post exists
+    const story = await this.prisma.story.findUnique({
+      where: { id: storyId, deletedAt: null },
+    });
+    if (!story) throw new BadRequestException('Story not found');
+    return this.prisma.storyComment.create({
+      data: { storyId, userId, comment },
+    });
+  }
+
+  async storyLikeByUser(storyId: string, userId: string) {
+    if (!storyId) throw new BadRequestException('Story ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Check if post exists
+    const story = await this.prisma.story.findUnique({
+      where: { 
+        id: storyId
+      },
+    });
+    
+    if (!story) {
+      throw new BadRequestException('Story not found');
+    }
+
+    // Check if user already liked the post
+    const existingLike = await this.prisma.storyLike.findUnique({
+      where: {
+        storyId_userId: {
+          storyId,
+          userId,
+        },
+      },
+    });
+
+    if (existingLike) {
+      // Unlike the post
+      await this.prisma.storyLike.delete({
+        where: {
+          storyId_userId: {
+            storyId,
+            userId,
+          },
+        },
+      });
+      return { message: 'Story unliked successfully', liked: false };
+    } else {
+      // Like the post
+      await this.prisma.storyLike.create({
+        data: {
+          storyId,
+          userId,
+        },
+      });
+      return { message: 'Story liked successfully', liked: true };
+    }
+  }
+
 }
 
 
