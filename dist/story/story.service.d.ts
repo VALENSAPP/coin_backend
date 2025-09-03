@@ -3,49 +3,49 @@ export declare class StoryService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     uploadStory(userId: string, files?: Express.Multer.File[], caption?: string): Promise<{
-        id: string;
         userId: string;
-        media: string[];
-        caption: string | null;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        caption: string | null;
+        media: string[];
     }>;
     viewUserStory(targetUserId: string): Promise<{
-        id: string;
         userId: string;
-        media: string[];
-        caption: string | null;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        caption: string | null;
+        media: string[];
     }[]>;
     deleteStory(storyId: string, userId: string): Promise<{
         message: string;
     }>;
     followingStory(userId: string): Promise<({
         user: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            deletedAt: Date | null;
             email: string | null;
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
-            age: number | null;
+            userName: string | null;
+            displayName: string | null;
+            bio: string | null;
+            phoneNumber: string | null;
             gender: import(".prisma/client").$Enums.Gender | null;
             image: string | null;
+            age: number | null;
             otp: string | null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
             otpExpiresAt: Date | null;
-            phoneNumber: string | null;
             isDeleted: number;
             verifyEmail: number;
-            bio: string | null;
-            displayName: string | null;
-            userName: string | null;
             walletMnemonic: string | null;
             walletPrivateKey: string | null;
             currentPeriodEnd: Date | null;
@@ -56,20 +56,24 @@ export declare class StoryService {
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
         };
     } & {
-        id: string;
         userId: string;
-        media: string[];
-        caption: string | null;
+        id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        caption: string | null;
+        media: string[];
     })[]>;
     commentOnStory(userId: string, comment?: string, storyId?: string): Promise<{
+        type: import(".prisma/client").$Enums.ConversationType;
         id: string;
-        userId: string;
         createdAt: Date;
-        comment: string;
-        storyId: string;
+        updatedAt: Date;
+        content: string | null;
+        postId: string | null;
+        senderId: string;
+        receiverId: string;
+        storyId: string | null;
     }>;
     storyLikeByUser(storyId: string, userId: string): Promise<{
         message: string;

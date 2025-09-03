@@ -88,9 +88,16 @@ let StoryService = class StoryService {
         });
         if (!story)
             throw new common_1.BadRequestException('Story not found');
-        return this.prisma.storyComment.create({
-            data: { storyId, userId, comment },
+        const conversation = await this.prisma.conversation.create({
+            data: {
+                type: 'STORY_COMMENT',
+                senderId: userId,
+                receiverId: story.userId,
+                storyId,
+                content: comment,
+            },
         });
+        return conversation;
     }
     async storyLikeByUser(storyId, userId) {
         if (!storyId)

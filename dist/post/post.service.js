@@ -602,78 +602,81 @@ let PostService = class PostService {
         if (sharedUserId === receiverUserId) {
             throw new common_1.BadRequestException('Cannot share post to yourself');
         }
-        let shareRecord = await this.prisma.postShare.findFirst({
+        let conversation = await this.prisma.conversation.findFirst({
             where: {
-                sharedUserId,
-                receiverUserId,
+                senderId: sharedUserId,
+                receiverId: receiverUserId,
                 postId,
+                type: 'POST_SHARE',
             },
         });
-        if (shareRecord) {
-            return { message: 'Post already shared between these users', shareId: shareRecord.id };
+        if (conversation) {
+            return { message: 'Post already shared between these users', conversationId: conversation.id };
         }
-        shareRecord = await this.prisma.postShare.create({
+        conversation = await this.prisma.conversation.create({
             data: {
+                type: 'POST_SHARE',
+                senderId: sharedUserId,
+                receiverId: receiverUserId,
                 postId,
-                sharedUserId,
-                receiverUserId,
             },
         });
-        return { message: 'Post shared successfully', shareId: shareRecord.id };
+        return { message: 'Post shared successfully', conversationId: conversation.id };
     }
     async getSharedPostList(userId) {
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
-        const sharedPosts = await this.prisma.postShare.findMany({
+        const conversations = await this.prisma.conversation.findMany({
             where: {
                 OR: [
-                    { sharedUserId: userId },
-                    { receiverUserId: userId },
+                    { senderId: userId },
+                    { receiverId: userId },
                 ],
+                type: 'POST_SHARE',
             },
             orderBy: { createdAt: 'desc' },
             include: {
                 post: {
                     include: {
                         user: { select: { displayName: true, image: true } },
-                        _count: { select: { likes: true, comments: true, shares: true, } },
+                        _count: { select: { likes: true, comments: true, conversations: { where: { type: 'POST_SHARE' } } } },
                     },
                 },
-                sharedBy: { select: { id: true, displayName: true, image: true } },
-                receivedBy: { select: { id: true, displayName: true, image: true } },
+                sender: { select: { id: true, displayName: true, image: true } },
+                receiver: { select: { id: true, displayName: true, image: true } },
             },
         });
-        return sharedPosts.map(sp => ({
-            id: sp.id,
-            sharedAt: sp.createdAt,
-            post: sp.post && {
-                id: sp.post.id,
-                text: sp.post.text,
-                images: sp.post.images,
-                caption: sp.post.caption,
-                hashtag: sp.post.hashtag,
-                location: sp.post.location,
-                music: sp.post.music,
-                taggedPeople: sp.post.taggedPeople,
-                createdAt: sp.post.createdAt,
-                updatedAt: sp.post.updatedAt,
-                deletedAt: sp.post.deletedAt,
-                userId: sp.post.userId,
-                userName: sp.post.user?.displayName || null,
-                userImage: sp.post.user?.image || null,
-                likeCount: sp.post._count.likes,
-                commentCount: sp.post._count.comments,
-                shareCount: sp.post._count.shares,
+        return conversations.map(conv => ({
+            id: conv.id,
+            sharedAt: conv.createdAt,
+            post: conv.post && {
+                id: conv.post.id,
+                text: conv.post.text,
+                images: conv.post.images,
+                caption: conv.post.caption,
+                hashtag: conv.post.hashtag,
+                location: conv.post.location,
+                music: conv.post.music,
+                taggedPeople: conv.post.taggedPeople,
+                createdAt: conv.post.createdAt,
+                updatedAt: conv.post.updatedAt,
+                deletedAt: conv.post.deletedAt,
+                userId: conv.post.userId,
+                userName: conv.post.user?.displayName || null,
+                userImage: conv.post.user?.image || null,
+                likeCount: conv.post._count.likes,
+                commentCount: conv.post._count.comments,
+                shareCount: conv.post._count.conversations,
             },
-            sharedBy: sp.sharedBy && {
-                id: sp.sharedBy.id,
-                displayName: sp.sharedBy.displayName,
-                image: sp.sharedBy.image,
+            sharedBy: conv.sender && {
+                id: conv.sender.id,
+                displayName: conv.sender.displayName,
+                image: conv.sender.image,
             },
-            receivedBy: sp.receivedBy && {
-                id: sp.receivedBy.id,
-                displayName: sp.receivedBy.displayName,
-                image: sp.receivedBy.image,
+            receivedBy: conv.receiver && {
+                id: conv.receiver.id,
+                displayName: conv.receiver.displayName,
+                image: conv.receiver.image,
             },
         }));
     }
@@ -682,16 +685,16 @@ let PostService = class PostService {
             throw new common_1.BadRequestException('Share IDs required');
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
-        const shareRecords = await this.prisma.postShare.findMany({
-            where: { id: { in: shareIds } },
+        const conversations = await this.prisma.conversation.findMany({
+            where: { id: { in: shareIds }, type: 'POST_SHARE' },
         });
-        const deletableIds = shareRecords
-            .filter(sr => sr.sharedUserId === userId || sr.receiverUserId === userId)
-            .map(sr => sr.id);
+        const deletableIds = conversations
+            .filter(conv => conv.senderId === userId || conv.receiverId === userId)
+            .map(conv => conv.id);
         if (deletableIds.length === 0)
             throw new common_1.BadRequestException('No authorized shared posts to delete');
-        await this.prisma.postShare.deleteMany({
-            where: { id: { in: deletableIds } },
+        await this.prisma.conversation.deleteMany({
+            where: { id: { in: deletableIds }, type: 'POST_SHARE' },
         });
         return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
     }
@@ -718,6 +721,116 @@ let PostService = class PostService {
             include: { post: true },
         });
         return hidden.map(h => h.post);
+    }
+    async sendMessage(senderId, receiverId, message) {
+        if (!senderId)
+            throw new common_1.BadRequestException('Sender ID required');
+        if (!receiverId)
+            throw new common_1.BadRequestException('Receiver ID required');
+        if (!message || message.trim() === '')
+            throw new common_1.BadRequestException('Message required');
+        if (senderId === receiverId) {
+            throw new common_1.BadRequestException('Cannot send message to yourself');
+        }
+        const conversation = await this.prisma.conversation.create({
+            data: {
+                type: 'CHAT',
+                senderId,
+                receiverId,
+                content: message,
+            },
+        });
+        return conversation;
+    }
+    async getConversations(userId) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const conversations = await this.prisma.conversation.findMany({
+            where: {
+                OR: [
+                    { senderId: userId },
+                    { receiverId: userId },
+                ],
+            },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                sender: { select: { id: true, displayName: true, image: true } },
+                receiver: { select: { id: true, displayName: true, image: true } },
+                post: {
+                    select: {
+                        id: true,
+                        text: true,
+                        images: true,
+                        caption: true,
+                        user: { select: { displayName: true, image: true } }
+                    }
+                },
+                story: {
+                    select: {
+                        id: true,
+                        caption: true,
+                        media: true,
+                        user: { select: { displayName: true, image: true } }
+                    }
+                },
+            },
+        });
+        return conversations.map(conv => ({
+            id: conv.id,
+            type: conv.type,
+            content: conv.content,
+            createdAt: conv.createdAt,
+            sender: conv.sender,
+            receiver: conv.receiver,
+            post: conv.post,
+            story: conv.story,
+        }));
+    }
+    async getConversationWithUser(userId, otherUserId) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        if (!otherUserId)
+            throw new common_1.BadRequestException('Other user ID required');
+        const conversations = await this.prisma.conversation.findMany({
+            where: {
+                OR: [
+                    { senderId: userId, receiverId: otherUserId },
+                    { senderId: otherUserId, receiverId: userId },
+                ],
+            },
+            orderBy: { createdAt: 'asc' },
+            include: {
+                sender: { select: { id: true, displayName: true, image: true } },
+                receiver: { select: { id: true, displayName: true, image: true } },
+                post: {
+                    select: {
+                        id: true,
+                        text: true,
+                        images: true,
+                        caption: true,
+                        user: { select: { displayName: true, image: true } }
+                    }
+                },
+                story: {
+                    select: {
+                        id: true,
+                        caption: true,
+                        media: true,
+                        user: { select: { displayName: true, image: true } }
+                    }
+                },
+            },
+        });
+        return conversations.map(conv => ({
+            id: conv.id,
+            type: conv.type,
+            content: conv.content,
+            createdAt: conv.createdAt,
+            sender: conv.sender,
+            receiver: conv.receiver,
+            post: conv.post,
+            story: conv.story,
+        }));
     }
 };
 exports.PostService = PostService;

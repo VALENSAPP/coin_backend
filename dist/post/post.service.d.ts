@@ -171,7 +171,7 @@ export declare class PostService {
     }[]>;
     sharePostToUser(postId: string, sharedUserId: string, receiverUserId: string): Promise<{
         message: string;
-        shareId: string;
+        conversationId: string;
     }>;
     getSharedPostList(userId: string): Promise<{
         id: string;
@@ -194,7 +194,7 @@ export declare class PostService {
             likeCount: number;
             commentCount: number;
             shareCount: number;
-        };
+        } | null;
         sharedBy: {
             id: string;
             displayName: string | null;
@@ -232,5 +232,86 @@ export declare class PostService {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+    }[]>;
+    sendMessage(senderId: string, receiverId: string, message: string): Promise<{
+        type: import(".prisma/client").$Enums.ConversationType;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        content: string | null;
+        postId: string | null;
+        senderId: string;
+        receiverId: string;
+        storyId: string | null;
+    }>;
+    getConversations(userId: string): Promise<{
+        id: string;
+        type: import(".prisma/client").$Enums.ConversationType;
+        content: string | null;
+        createdAt: Date;
+        sender: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        receiver: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        post: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+        } | null;
+        story: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            caption: string | null;
+            media: string[];
+        } | null;
+    }[]>;
+    getConversationWithUser(userId: string, otherUserId: string): Promise<{
+        id: string;
+        type: import(".prisma/client").$Enums.ConversationType;
+        content: string | null;
+        createdAt: Date;
+        sender: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        receiver: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        post: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+        } | null;
+        story: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            caption: string | null;
+            media: string[];
+        } | null;
     }[]>;
 }

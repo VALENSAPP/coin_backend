@@ -26,6 +26,7 @@ const platform_express_1 = require("@nestjs/platform-express");
 const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
 const post_comment_dto_1 = require("./dto/post-comment.dto");
+const send_message_dto_1 = require("./dto/send-message.dto");
 let PostController = class PostController {
     postService;
     constructor(postService) {
@@ -119,6 +120,18 @@ let PostController = class PostController {
     async getHidePost(req) {
         const userId = req.user.userId;
         return this.postService.getHidePost(userId);
+    }
+    async sendMessage(req, dto) {
+        const senderId = req.user.userId;
+        return this.postService.sendMessage(senderId, dto.receiverId, dto.message);
+    }
+    async getConversations(req) {
+        const userId = req.user.userId;
+        return this.postService.getConversations(userId);
+    }
+    async getConversationWithUser(req, otherUserId) {
+        const userId = req.user.userId;
+        return this.postService.getConversationWithUser(userId, otherUserId);
     }
 };
 exports.PostController = PostController;
@@ -400,6 +413,40 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getHidePost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Post)('sendMessage'),
+    (0, swagger_1.ApiOperation)({ summary: 'Send a message to another user' }),
+    (0, swagger_1.ApiBody)({ type: send_message_dto_1.SendMessageDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true }))),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, send_message_dto_1.SendMessageDto]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "sendMessage", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('conversations'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get all conversations for the authenticated user' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getConversations", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('conversation/:otherUserId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get conversation with a specific user' }),
+    (0, swagger_1.ApiParam)({ name: 'otherUserId', type: 'string', description: 'ID of the other user' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Param)('otherUserId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getConversationWithUser", null);
 exports.PostController = PostController = __decorate([
     (0, common_1.Controller)('post'),
     __metadata("design:paramtypes", [post_service_1.PostService])

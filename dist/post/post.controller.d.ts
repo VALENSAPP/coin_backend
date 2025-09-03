@@ -8,6 +8,7 @@ import { SharePostDto, DeleteSharedPostDto } from './dto/share-post.dto';
 import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
 import { Request } from 'express';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
+import { SendMessageDto } from './dto/send-message.dto';
 export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
@@ -183,7 +184,7 @@ export declare class PostController {
     }>;
     sharePostToUser(body: SharePostDto): Promise<{
         message: string;
-        shareId: string;
+        conversationId: string;
     }>;
     getSharedPostList(req: Request): Promise<{
         id: string;
@@ -206,7 +207,7 @@ export declare class PostController {
             likeCount: number;
             commentCount: number;
             shareCount: number;
-        };
+        } | null;
         sharedBy: {
             id: string;
             displayName: string | null;
@@ -244,5 +245,86 @@ export declare class PostController {
         location: string | null;
         music: string | null;
         taggedPeople: string[];
+    }[]>;
+    sendMessage(req: Request, dto: SendMessageDto): Promise<{
+        type: import(".prisma/client").$Enums.ConversationType;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        content: string | null;
+        postId: string | null;
+        senderId: string;
+        receiverId: string;
+        storyId: string | null;
+    }>;
+    getConversations(req: Request): Promise<{
+        id: string;
+        type: import(".prisma/client").$Enums.ConversationType;
+        content: string | null;
+        createdAt: Date;
+        sender: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        receiver: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        post: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+        } | null;
+        story: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            caption: string | null;
+            media: string[];
+        } | null;
+    }[]>;
+    getConversationWithUser(req: Request, otherUserId: string): Promise<{
+        id: string;
+        type: import(".prisma/client").$Enums.ConversationType;
+        content: string | null;
+        createdAt: Date;
+        sender: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        receiver: {
+            displayName: string | null;
+            image: string | null;
+            id: string;
+        };
+        post: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+        } | null;
+        story: {
+            user: {
+                displayName: string | null;
+                image: string | null;
+            };
+            id: string;
+            caption: string | null;
+            media: string[];
+        } | null;
     }[]>;
 }

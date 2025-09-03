@@ -52,6 +52,8 @@ model User {
   stories              Story[]
   StoryComment         StoryComment[]
   storyLike            StoryLike[]
+  sentConversations    Conversation[]         @relation("ConversationSender")
+  receivedConversations Conversation[]        @relation("ConversationReceiver")
 }
 
 model Post {
@@ -73,6 +75,7 @@ model Post {
   likes        PostLike[]
   shares       PostShare[]
   saves        SavePost[]
+  conversations Conversation[]
 }
 
 model PostLike {
@@ -172,6 +175,7 @@ model Story {
   user      User      @relation(fields: [userId], references: [id])
   comment   StoryComment[]
   storyLike      StoryLike[]
+  conversations Conversation[]
 
   @@index([userId])
 }
@@ -216,6 +220,28 @@ model StoryLike {
   @@unique([storyId, userId])
 }
 
+model Conversation {
+  id          String            @id @default(uuid())
+  type        ConversationType
+  senderId    String
+  receiverId  String
+  content     String?
+  postId      String?
+  storyId     String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  sender      User              @relation("ConversationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User              @relation("ConversationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  post        Post?             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  story       Story?            @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([postId])
+  @@index([storyId])
+}
+
 enum RegistrationType {
   NORMAL
   GOOGLE
@@ -239,4 +265,10 @@ enum SubscriptionStatus {
 enum FollowStatus {
   PENDING
   ACCEPTED
+}
+
+enum ConversationType {
+  POST_SHARE
+  STORY_COMMENT
+  CHAT
 }

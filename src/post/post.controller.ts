@@ -12,6 +12,7 @@ import { Request } from 'express';
 import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
+import { SendMessageDto } from './dto/send-message.dto';
 
 @Controller('post')
 export class PostController {
@@ -308,4 +309,34 @@ async getHidePost(@Req() req: Request) {
   return this.postService.getHidePost(userId);
 }
 
-} 
+// Chat functionality endpoints
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('sendMessage')
+@ApiOperation({ summary: 'Send a message to another user' })
+@ApiBody({ type: SendMessageDto })
+async sendMessage(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: SendMessageDto) {
+  const senderId = (req.user as any).userId;
+  return this.postService.sendMessage(senderId, dto.receiverId, dto.message);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Get('conversations')
+@ApiOperation({ summary: 'Get all conversations for the authenticated user' })
+async getConversations(@Req() req: Request) {
+  const userId = (req.user as any).userId;
+  return this.postService.getConversations(userId);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Get('conversation/:otherUserId')
+@ApiOperation({ summary: 'Get conversation with a specific user' })
+@ApiParam({ name: 'otherUserId', type: 'string', description: 'ID of the other user' })
+async getConversationWithUser(@Req() req: Request, @Param('otherUserId') otherUserId: string) {
+  const userId = (req.user as any).userId;
+  return this.postService.getConversationWithUser(userId, otherUserId);
+}
+
+}

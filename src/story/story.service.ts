@@ -74,14 +74,25 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
    if (!storyId) throw new BadRequestException('Story ID required');
     if (!userId) throw new BadRequestException('User ID required');
     if (!comment || comment.trim() === '') throw new BadRequestException('Comment required');
-    // Check if post exists
+    // Check if story exists
     const story = await this.prisma.story.findUnique({
       where: { id: storyId, deletedAt: null },
     });
     if (!story) throw new BadRequestException('Story not found');
-    return this.prisma.storyComment.create({
-      data: { storyId, userId, comment },
+
+    // Create conversation record for story comment
+    // Note: For story comments, we might want to send to the story owner
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        type: 'STORY_COMMENT',
+        senderId: userId,
+        receiverId: story.userId, // Send to story owner
+        storyId,
+        content: comment,
+      },
     });
+
+    return conversation;
   }
 
   async storyLikeByUser(storyId: string, userId: string) {
