@@ -6,6 +6,8 @@ import { PostModule } from './post/post.module';
 import { StoryModule } from './story/story.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BillingModule } from './billing/billing.module';
+import { TokenModule } from './token/token.module';
+import { TokenPurchaseModule } from './token-purchase/token-purchase.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { BillingModule } from './billing/billing.module';
     AuthModule,
     StoryModule,
     BillingModule,
+    TokenModule,
+    TokenPurchaseModule,
   ],
 })
 export class AppModule {}

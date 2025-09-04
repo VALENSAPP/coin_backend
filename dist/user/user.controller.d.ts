@@ -101,6 +101,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
             access_token: string;
         };
     }>;
@@ -135,6 +136,7 @@ export declare class UserController {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
     }>;
     editProfile(req: Request, dto: ProfileEditDto, image: Express.Multer.File): Promise<{
         message: string;
@@ -168,6 +170,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     }>;
     forgotPassword(dto: ForgotPasswordDto): Promise<{
@@ -245,6 +248,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         followingId: string;
@@ -285,6 +289,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         followingId: string;
@@ -325,6 +330,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         blockedId: string;
@@ -363,6 +369,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         }[];
     }>;
     getDisplayNames(): Promise<{
@@ -431,6 +438,7 @@ export declare class UserController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     }>;
     softDeleteUser(id: string): Promise<{

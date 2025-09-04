@@ -1,0 +1,196 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var TokenPurchaseService_1;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TokenPurchaseService = void 0;
+const common_1 = require("@nestjs/common");
+const prisma_service_1 = require("../prisma/prisma.service");
+const stripe_1 = require("stripe");
+let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
+    prisma;
+    logger = new common_1.Logger(TokenPurchaseService_1.name);
+    stripe;
+    PLATFORM_FEE_PERCENT = 0.002;
+    VENDOR_FEE_PERCENT = 0.005;
+    TOKEN_RATE = 100;
+    constructor(prisma) {
+        this.prisma = prisma;
+        this.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
+            apiVersion: '2024-06-20',
+        });
+    }
+    calculateFees(amount) {
+        const platformFee = amount * this.PLATFORM_FEE_PERCENT;
+        const vendorFee = amount * this.VENDOR_FEE_PERCENT;
+        const totalFees = platformFee + vendorFee;
+        const restAmount = amount - totalFees;
+        const tokensReceived = restAmount * this.TOKEN_RATE;
+        return {
+            platformFee,
+            vendorFee,
+            restAmount,
+            tokensReceived,
+        };
+    }
+    async createTokenPurchase(userId, dto) {
+        try {
+            const user = await this.prisma.user.findUnique({
+                where: { id: userId },
+                select: { id: true, email: true },
+            });
+            if (!user) {
+                throw new common_1.BadRequestException('User not found');
+            }
+            if (dto.vendorId) {
+                const vendor = await this.prisma.user.findUnique({
+                    where: { id: dto.vendorId },
+                    select: { id: true },
+                });
+                if (!vendor) {
+                    throw new common_1.BadRequestException('Vendor not found');
+                }
+            }
+            const fees = this.calculateFees(dto.amount);
+            this.logger.log(`Creating token purchase for user ${userId}: $${dto.amount} -> ${fees.tokensReceived} tokens`);
+            const paymentIntent = await this.stripe.paymentIntents.create({
+                amount: Math.round(dto.amount * 100),
+                currency: 'usd',
+                metadata: {
+                    userId,
+                    vendorId: dto.vendorId || '',
+                    type: 'token_purchase',
+                },
+                description: `Token Purchase - ${fees.tokensReceived} tokens`,
+                receipt_email: user.email || undefined,
+            });
+            const tokenPurchase = await this.prisma.tokenPurchase.create({
+                data: {
+                    userId,
+                    vendorId: dto.vendorId,
+                    amount: dto.amount,
+                    platformFee: fees.platformFee,
+                    vendorFee: fees.vendorFee,
+                    restAmount: fees.restAmount,
+                    tokensReceived: fees.tokensReceived,
+                    stripePaymentIntentId: paymentIntent.id,
+                    status: 'pending',
+                },
+            });
+            return {
+                id: tokenPurchase.id,
+                amount: dto.amount,
+                platformFee: fees.platformFee,
+                vendorFee: fees.vendorFee,
+                restAmount: fees.restAmount,
+                tokensReceived: fees.tokensReceived,
+                status: tokenPurchase.status,
+                stripePaymentIntentId: paymentIntent.id,
+            };
+        }
+        catch (error) {
+            this.logger.error('Error creating token purchase:', error);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException('Failed to create token purchase');
+        }
+    }
+    async handlePaymentSuccess(paymentIntentId) {
+        try {
+            const tokenPurchase = await this.prisma.tokenPurchase.findFirst({
+                where: { stripePaymentIntentId: paymentIntentId },
+            });
+            if (!tokenPurchase) {
+                this.logger.warn(`Token purchase not found for payment intent: ${paymentIntentId}`);
+                return;
+            }
+            if (tokenPurchase.status === 'completed') {
+                this.logger.log(`Token purchase already completed: ${tokenPurchase.id}`);
+                return;
+            }
+            await this.prisma.tokenPurchase.update({
+                where: { id: tokenPurchase.id },
+                data: {
+                    status: 'completed',
+                    completedAt: new Date(),
+                },
+            });
+            await this.prisma.user.update({
+                where: { id: tokenPurchase.userId },
+                data: {
+                    tokenBalance: {
+                        increment: tokenPurchase.tokensReceived,
+                    },
+                },
+            });
+            this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens credited to user ${tokenPurchase.userId}`);
+        }
+        catch (error) {
+            this.logger.error('Error handling payment success:', error);
+            throw error;
+        }
+    }
+    async handlePaymentFailed(paymentIntentId) {
+        try {
+            const tokenPurchase = await this.prisma.tokenPurchase.findFirst({
+                where: { stripePaymentIntentId: paymentIntentId },
+            });
+            if (!tokenPurchase) {
+                this.logger.warn(`Token purchase not found for payment intent: ${paymentIntentId}`);
+                return;
+            }
+            await this.prisma.tokenPurchase.update({
+                where: { id: tokenPurchase.id },
+                data: {
+                    status: 'failed',
+                },
+            });
+            this.logger.log(`Token purchase failed: ${tokenPurchase.id}`);
+        }
+        catch (error) {
+            this.logger.error('Error handling payment failure:', error);
+            throw error;
+        }
+    }
+    async getUserTokenBalance(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { tokenBalance: true },
+        });
+        if (!user) {
+            throw new common_1.BadRequestException('User not found');
+        }
+        return user.tokenBalance;
+    }
+    async getUserTokenPurchases(userId) {
+        return this.prisma.tokenPurchase.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            select: {
+                id: true,
+                amount: true,
+                platformFee: true,
+                vendorFee: true,
+                restAmount: true,
+                tokensReceived: true,
+                status: true,
+                createdAt: true,
+                completedAt: true,
+            },
+        });
+    }
+};
+exports.TokenPurchaseService = TokenPurchaseService;
+exports.TokenPurchaseService = TokenPurchaseService = TokenPurchaseService_1 = __decorate([
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+], TokenPurchaseService);
+//# sourceMappingURL=token-purchase.service.js.map

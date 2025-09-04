@@ -17,11 +17,14 @@ const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const stripe_1 = require("stripe");
 const billing_service_1 = require("./billing.service");
+const token_purchase_service_1 = require("../token-purchase/token-purchase.service");
 let BillingWebhookController = class BillingWebhookController {
     billingService;
+    tokenPurchaseService;
     stripe;
-    constructor(billingService) {
+    constructor(billingService, tokenPurchaseService) {
         this.billingService = billingService;
+        this.tokenPurchaseService = tokenPurchaseService;
         this.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
             apiVersion: '2024-06-20',
         });
@@ -49,10 +52,36 @@ let BillingWebhookController = class BillingWebhookController {
             case 'customer.subscription.deleted':
                 await this.billingService.handleSubscriptionDeleted(event.data.object);
                 break;
+            case 'payment_intent.succeeded':
+                await this.handlePaymentIntentSucceeded(event.data.object);
+                break;
+            case 'payment_intent.payment_failed':
+                await this.handlePaymentIntentFailed(event.data.object);
+                break;
             default:
                 break;
         }
         return { received: true };
+    }
+    async handlePaymentIntentSucceeded(paymentIntent) {
+        try {
+            if (paymentIntent.metadata?.type === 'token_purchase') {
+                await this.tokenPurchaseService.handlePaymentSuccess(paymentIntent.id);
+            }
+        }
+        catch (error) {
+            console.error('Error handling payment intent success:', error);
+        }
+    }
+    async handlePaymentIntentFailed(paymentIntent) {
+        try {
+            if (paymentIntent.metadata?.type === 'token_purchase') {
+                await this.tokenPurchaseService.handlePaymentFailed(paymentIntent.id);
+            }
+        }
+        catch (error) {
+            console.error('Error handling payment intent failure:', error);
+        }
     }
 };
 exports.BillingWebhookController = BillingWebhookController;
@@ -68,6 +97,7 @@ __decorate([
 exports.BillingWebhookController = BillingWebhookController = __decorate([
     (0, swagger_1.ApiExcludeController)(),
     (0, common_1.Controller)('billing'),
-    __metadata("design:paramtypes", [billing_service_1.BillingService])
+    __metadata("design:paramtypes", [billing_service_1.BillingService,
+        token_purchase_service_1.TokenPurchaseService])
 ], BillingWebhookController);
 //# sourceMappingURL=billing.webhook.controller.js.map

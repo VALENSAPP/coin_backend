@@ -44,6 +44,7 @@ export declare class UserService {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     }>;
     validateUser(data: {
@@ -83,6 +84,7 @@ export declare class UserService {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
     }>;
     editProfile(userId: string, dto: any, image?: Express.Multer.File): Promise<{
         email: string | null;
@@ -114,6 +116,7 @@ export declare class UserService {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
     }>;
     forgotPassword(email: string): Promise<boolean>;
     verifyOtp(email: string, otp: string): Promise<boolean>;
@@ -150,6 +153,7 @@ export declare class UserService {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
     }>;
     isFollowing(followerId: string, followingId: string): Promise<boolean>;
     getAllUsers(): Promise<{
@@ -182,6 +186,7 @@ export declare class UserService {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
     }[]>;
     softDeleteUser(id: string): Promise<boolean>;
     followPerson(followerId: string, followingId: string): Promise<{
@@ -223,6 +228,7 @@ export declare class UserService {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         followingId: string;
@@ -263,6 +269,7 @@ export declare class UserService {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         followingId: string;
@@ -324,6 +331,7 @@ export declare class UserService {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         blockedId: string;

@@ -3,13 +3,17 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import { Request } from 'express';
 import Stripe from 'stripe';
 import { BillingService } from './billing.service';
+import { TokenPurchaseService } from '../token-purchase/token-purchase.service';
 
 @ApiExcludeController()
 @Controller('billing')
 export class BillingWebhookController {
   private stripe: Stripe;
 
-  constructor(private readonly billingService: BillingService) {
+  constructor(
+    private readonly billingService: BillingService,
+    private readonly tokenPurchaseService: TokenPurchaseService
+  ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
     });
@@ -41,11 +45,39 @@ export class BillingWebhookController {
       case 'customer.subscription.deleted':
         await this.billingService.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case 'payment_intent.succeeded':
+        await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+        break;
+      case 'payment_intent.payment_failed':
+        await this.handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+        break;
       default:
         break;
     }
 
     return { received: true };
+  }
+
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+    try {
+      // Check if this is a token purchase by looking at metadata
+      if (paymentIntent.metadata?.type === 'token_purchase') {
+        await this.tokenPurchaseService.handlePaymentSuccess(paymentIntent.id);
+      }
+    } catch (error) {
+      console.error('Error handling payment intent success:', error);
+    }
+  }
+
+  private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+    try {
+      // Check if this is a token purchase by looking at metadata
+      if (paymentIntent.metadata?.type === 'token_purchase') {
+        await this.tokenPurchaseService.handlePaymentFailed(paymentIntent.id);
+      }
+    } catch (error) {
+      console.error('Error handling payment intent failure:', error);
+    }
   }
 }
 

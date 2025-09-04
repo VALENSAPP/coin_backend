@@ -43,6 +43,7 @@ export declare class AuthController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
             access_token: string;
         };
     }>;
@@ -78,6 +79,7 @@ export declare class AuthController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     }>;
 }

@@ -55,6 +55,7 @@ export declare class StoryController {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     } & {
         userId: string;

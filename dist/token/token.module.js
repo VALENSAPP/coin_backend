@@ -6,21 +6,20 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BillingModule = void 0;
+exports.TokenModule = void 0;
 const common_1 = require("@nestjs/common");
-const billing_service_1 = require("./billing.service");
-const billing_controller_1 = require("./billing.controller");
+const token_service_1 = require("./token.service");
+const token_controller_1 = require("./token.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
-const billing_webhook_controller_1 = require("./billing.webhook.controller");
-const token_purchase_module_1 = require("../token-purchase/token-purchase.module");
-let BillingModule = class BillingModule {
+let TokenModule = class TokenModule {
 };
-exports.BillingModule = BillingModule;
-exports.BillingModule = BillingModule = __decorate([
+exports.TokenModule = TokenModule;
+exports.TokenModule = TokenModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, token_purchase_module_1.TokenPurchaseModule],
-        controllers: [billing_controller_1.BillingController, billing_webhook_controller_1.BillingWebhookController],
-        providers: [billing_service_1.BillingService],
+        imports: [prisma_module_1.PrismaModule],
+        controllers: [token_controller_1.TokenController],
+        providers: [token_service_1.TokenService],
+        exports: [token_service_1.TokenService],
     })
-], BillingModule);
-//# sourceMappingURL=billing.module.js.map
+], TokenModule);
+//# sourceMappingURL=token.module.js.map

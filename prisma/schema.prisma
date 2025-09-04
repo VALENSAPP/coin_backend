@@ -37,12 +37,14 @@ model User {
   subscriptionEnd      DateTime?
   subscriptionStart    DateTime?
   subscriptionStatus   SubscriptionStatus     @default(INACTIVE)
+  tokenBalance         Float                  @default(0)
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")
   followers            FollowerAndFollowing[] @relation("Following")
   hidePosts            HidePost[]
   payments             Payment[]
+  tokenPurchases       TokenPurchase[]
   posts                Post[]
   postComments         PostComment[]
   postLikes            PostLike[]
@@ -194,6 +196,28 @@ model Payment {
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model TokenPurchase {
+  id                    String    @id @default(uuid())
+  userId                String
+  vendorId              String?   // User whose token is being purchased
+  amount                Float     // Original payment amount in USD
+  currency              String    @default("USD")
+  platformFee           Float     // 0.2% platform fee
+  vendorFee             Float     // 0.5% vendor fee
+  restAmount            Float     // Amount after fees (93.3% of original)
+  tokensReceived        Float     // Tokens credited (restAmount * 100)
+  status                String    @default("pending") // pending, completed, failed
+  stripePaymentIntentId String?
+  stripeInvoiceId       String?
+  createdAt             DateTime  @default(now())
+  completedAt           DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([status])
 }
 
 model StoryComment {

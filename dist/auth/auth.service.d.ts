@@ -34,6 +34,7 @@ export declare class AuthService {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
     }>;
     login(loginDto: any): Promise<{
         email: string | null;
@@ -65,6 +66,7 @@ export declare class AuthService {
         subscriptionEnd: Date | null;
         subscriptionStart: Date | null;
         subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
         access_token: string;
     }>;
     getProfile(userId: string): Promise<{
@@ -99,6 +101,7 @@ export declare class AuthService {
             subscriptionEnd: Date | null;
             subscriptionStart: Date | null;
             subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+            tokenBalance: number;
         };
     }>;
 }

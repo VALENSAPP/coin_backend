@@ -15,6 +15,8 @@ const post_module_1 = require("./post/post.module");
 const story_module_1 = require("./story/story.module");
 const schedule_1 = require("@nestjs/schedule");
 const billing_module_1 = require("./billing/billing.module");
+const token_module_1 = require("./token/token.module");
+const token_purchase_module_1 = require("./token-purchase/token-purchase.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -28,6 +30,8 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             story_module_1.StoryModule,
             billing_module_1.BillingModule,
+            token_module_1.TokenModule,
+            token_purchase_module_1.TokenPurchaseModule,
         ],
     })
 ], AppModule);
