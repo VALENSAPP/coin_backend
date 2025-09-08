@@ -18,5 +18,66 @@ export declare class TokenService {
         initialPrice: string;
         scalingConstant: string;
         blockNumber: any;
+        userTokenId: string;
+    }>;
+    getUserToken(userId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        transactionHash: string;
+        tokenAddress: string | null;
+        tokenName: string;
+        tokenSymbol: string;
+        initialSupply: string;
+        initialPrice: string;
+        scalingConstant: string;
+        blockNumber: number;
+    }>;
+    getTokenInfo(tokenAddress: string): Promise<{
+        coinAddress: any;
+        initialPrice: any;
+        scalingConstant: any;
+        initialSupply: any;
+        totalSold: any;
+        followers: any;
+        poolBalance: any;
+    }>;
+    getUserTokenWithInfo(userId: string): Promise<{
+        tokenInfo: null;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        transactionHash: string;
+        tokenAddress: string | null;
+        tokenName: string;
+        tokenSymbol: string;
+        initialSupply: string;
+        initialPrice: string;
+        scalingConstant: string;
+        blockNumber: number;
+    } | {
+        tokenInfo: {
+            coinAddress: any;
+            initialPrice: any;
+            scalingConstant: any;
+            initialSupply: any;
+            totalSold: any;
+            followers: any;
+            poolBalance: any;
+        };
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        transactionHash: string;
+        tokenAddress: string | null;
+        tokenName: string;
+        tokenSymbol: string;
+        initialSupply: string;
+        initialPrice: string;
+        scalingConstant: string;
+        blockNumber: number;
     }>;
 }

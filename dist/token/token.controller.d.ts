@@ -14,6 +14,76 @@ export declare class TokenController {
         initialPrice: string;
         scalingConstant: string;
         blockNumber: any;
+        userTokenId: string;
         message: string;
+    }>;
+    getUserToken(userId: string): Promise<{
+        message: string;
+        data: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            userId: string;
+            transactionHash: string;
+            tokenAddress: string | null;
+            tokenName: string;
+            tokenSymbol: string;
+            initialSupply: string;
+            initialPrice: string;
+            scalingConstant: string;
+            blockNumber: number;
+        };
+    }>;
+    getTokenInfo(tokenAddress: string): Promise<{
+        message: string;
+        data: {
+            coinAddress: any;
+            initialPrice: any;
+            scalingConstant: any;
+            initialSupply: any;
+            totalSold: any;
+            followers: any;
+            poolBalance: any;
+        };
+    }>;
+    getUserTokenWithInfo(userId: string): Promise<{
+        message: string;
+        data: {
+            tokenInfo: null;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            userId: string;
+            transactionHash: string;
+            tokenAddress: string | null;
+            tokenName: string;
+            tokenSymbol: string;
+            initialSupply: string;
+            initialPrice: string;
+            scalingConstant: string;
+            blockNumber: number;
+        } | {
+            tokenInfo: {
+                coinAddress: any;
+                initialPrice: any;
+                scalingConstant: any;
+                initialSupply: any;
+                totalSold: any;
+                followers: any;
+                poolBalance: any;
+            };
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            userId: string;
+            transactionHash: string;
+            tokenAddress: string | null;
+            tokenName: string;
+            tokenSymbol: string;
+            initialSupply: string;
+            initialPrice: string;
+            scalingConstant: string;
+            blockNumber: number;
+        };
     }>;
 }

@@ -31,6 +31,27 @@ let TokenController = class TokenController {
             ...result
         };
     }
+    async getUserToken(userId) {
+        const result = await this.tokenService.getUserToken(userId);
+        return {
+            message: 'User token retrieved successfully',
+            data: result
+        };
+    }
+    async getTokenInfo(tokenAddress) {
+        const result = await this.tokenService.getTokenInfo(tokenAddress);
+        return {
+            message: 'Token info retrieved successfully',
+            data: result
+        };
+    }
+    async getUserTokenWithInfo(userId) {
+        const result = await this.tokenService.getUserTokenWithInfo(userId);
+        return {
+            message: 'User token with info retrieved successfully',
+            data: result
+        };
+    }
 };
 exports.TokenController = TokenController;
 __decorate([
@@ -73,6 +94,57 @@ __decorate([
     __metadata("design:paramtypes", [create_token_dto_1.CreateTokenDto, Object]),
     __metadata("design:returntype", Promise)
 ], TokenController.prototype, "createToken", null);
+__decorate([
+    (0, common_1.Get)('user/:userId'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get user token from database',
+        description: 'Retrieves the token information for a specific user from the database.'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'User token retrieved successfully'
+    }),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], TokenController.prototype, "getUserToken", null);
+__decorate([
+    (0, common_1.Get)('info/:tokenAddress'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get token info from blockchain',
+        description: 'Retrieves token information from the blockchain using the contract\'s tokens function.'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Token info retrieved successfully'
+    }),
+    __param(0, (0, common_1.Param)('tokenAddress')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], TokenController.prototype, "getTokenInfo", null);
+__decorate([
+    (0, common_1.Get)('user/:userId/info'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get user token with blockchain info',
+        description: 'Retrieves the user\'s token from database along with current blockchain information.'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'User token with info retrieved successfully'
+    }),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], TokenController.prototype, "getUserTokenWithInfo", null);
 exports.TokenController = TokenController = __decorate([
     (0, swagger_1.ApiTags)('token'),
     (0, common_1.Controller)('token'),

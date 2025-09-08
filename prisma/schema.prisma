@@ -56,6 +56,7 @@ model User {
   storyLike            StoryLike[]
   sentConversations    Conversation[]         @relation("ConversationSender")
   receivedConversations Conversation[]        @relation("ConversationReceiver")
+  userTokens           UserToken[]
 }
 
 model Post {
@@ -264,6 +265,25 @@ model Conversation {
   @@index([receiverId])
   @@index([postId])
   @@index([storyId])
+}
+
+model UserToken {
+  id              String   @id @default(uuid())
+  userId          String
+  transactionHash String   @unique
+  tokenAddress    String?  @unique
+  tokenName       String
+  tokenSymbol     String
+  initialSupply   String
+  initialPrice    String
+  scalingConstant String
+  blockNumber     Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenAddress])
 }
 
 enum RegistrationType {

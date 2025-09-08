@@ -489,6 +489,19 @@ let TokenService = TokenService_1 = class TokenService {
                     tokenAddress = parsedLog.args.coin;
                 }
             }
+            const userToken = await this.prisma.userToken.create({
+                data: {
+                    userId,
+                    transactionHash: tx.hash,
+                    tokenAddress,
+                    tokenName,
+                    tokenSymbol,
+                    initialSupply: initialSupply.toString(),
+                    initialPrice: initialPrice.toString(),
+                    scalingConstant: scalingConstant.toString(),
+                    blockNumber: receipt.blockNumber,
+                },
+            });
             return {
                 success: true,
                 transactionHash: tx.hash,
@@ -499,6 +512,7 @@ let TokenService = TokenService_1 = class TokenService {
                 initialPrice: initialPrice.toString(),
                 scalingConstant: scalingConstant.toString(),
                 blockNumber: receipt.blockNumber,
+                userTokenId: userToken.id,
             };
         }
         catch (error) {
@@ -507,6 +521,60 @@ let TokenService = TokenService_1 = class TokenService {
                 throw error;
             }
             throw new common_1.BadRequestException(`Failed to create token: ${error.message}`);
+        }
+    }
+    async getUserToken(userId) {
+        try {
+            const userToken = await this.prisma.userToken.findFirst({
+                where: { userId },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (!userToken) {
+                throw new common_1.BadRequestException('No token found for this user');
+            }
+            return userToken;
+        }
+        catch (error) {
+            this.logger.error('Error fetching user token:', error);
+            throw error;
+        }
+    }
+    async getTokenInfo(tokenAddress) {
+        try {
+            const tokenInfo = await this.contract.tokens(tokenAddress);
+            return {
+                coinAddress: tokenInfo.coinAddress,
+                initialPrice: tokenInfo.initialPrice.toString(),
+                scalingConstant: tokenInfo.scalingConstant.toString(),
+                initialSupply: tokenInfo.initialSupply.toString(),
+                totalSold: tokenInfo.totalSold.toString(),
+                followers: tokenInfo.followers.toString(),
+                poolBalance: tokenInfo.poolBalance.toString(),
+            };
+        }
+        catch (error) {
+            this.logger.error('Error fetching token info:', error);
+            throw new common_1.BadRequestException(`Failed to fetch token info: ${error.message}`);
+        }
+    }
+    async getUserTokenWithInfo(userId) {
+        try {
+            const userToken = await this.getUserToken(userId);
+            if (!userToken.tokenAddress) {
+                return {
+                    ...userToken,
+                    tokenInfo: null,
+                };
+            }
+            const tokenInfo = await this.getTokenInfo(userToken.tokenAddress);
+            return {
+                ...userToken,
+                tokenInfo,
+            };
+        }
+        catch (error) {
+            this.logger.error('Error fetching user token with info:', error);
+            throw error;
         }
     }
 };
