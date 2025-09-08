@@ -456,6 +456,7 @@ let TokenService = TokenService_1 = class TokenService {
                     walletAddress: true,
                 },
             });
+            console.log("oooooooooo", user);
             if (!user) {
                 throw new common_1.BadRequestException('User not found');
             }

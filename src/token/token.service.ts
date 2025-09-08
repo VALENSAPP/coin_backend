@@ -451,6 +451,7 @@ export class TokenService {
           walletAddress: true,
         },
       });
+console.log("oooooooooo",user);
 
       if (!user) {
         throw new BadRequestException('User not found');
