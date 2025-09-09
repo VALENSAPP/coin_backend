@@ -6,6 +6,7 @@ export declare class BillingService {
     constructor(prisma: PrismaService);
     ensureStripeCustomer(userId: string): Promise<string>;
     createCheckoutSession(userId: string): Promise<Stripe.Response<Stripe.Checkout.Session>>;
+    createOneTimePaymentCheckoutSession(userId: string, amount: number): Promise<Stripe.Response<Stripe.Checkout.Session>>;
     cancelSubscriptionAtPeriodEnd(userId: string): Promise<Stripe.Response<Stripe.Subscription>>;
     getSubscriptionDetails(userId: string): Promise<{
         status: import(".prisma/client").$Enums.SubscriptionStatus;
@@ -17,4 +18,5 @@ export declare class BillingService {
     handleInvoicePaymentFailed(invoice: Stripe.Invoice): Promise<void>;
     handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void>;
     handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void>;
+    handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
 }

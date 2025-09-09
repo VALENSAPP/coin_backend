@@ -32,6 +32,15 @@ let BillingController = class BillingController {
         const result = await this.billingService.cancelSubscriptionAtPeriodEnd(userId);
         return { message: 'Subscription will cancel at period end', result };
     }
+    async createOneTimePayment(req, body) {
+        const userId = req.user.userId;
+        const { amount } = body;
+        if (!amount || amount <= 0) {
+            throw new common_1.BadRequestException('Invalid amount');
+        }
+        const session = await this.billingService.createOneTimePaymentCheckoutSession(userId, amount);
+        return { url: session.url };
+    }
     async getMySubscription(req) {
         const userId = req.user.userId;
         const details = await this.billingService.getSubscriptionDetails(userId);
@@ -59,6 +68,30 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "cancelSubscription", null);
+__decorate([
+    (0, common_1.Post)('pay-following'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe Checkout Session for one-time following payment' }),
+    (0, swagger_1.ApiBody)({
+        schema: {
+            type: 'object',
+            properties: {
+                amount: {
+                    type: 'number',
+                    description: 'Payment amount in USD',
+                    example: 10.00,
+                },
+            },
+            required: ['amount'],
+        },
+    }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "createOneTimePayment", null);
 __decorate([
     (0, common_1.Get)('me'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

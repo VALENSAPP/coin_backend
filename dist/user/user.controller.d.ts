@@ -189,32 +189,32 @@ export declare class UserController {
         message: string;
     }>;
     followPerson(req: Request, dto: FollowPersonDto): Promise<{
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     unfollow(req: Request, dto: UnfollowDto): Promise<{
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     blockUser(req: Request, dto: BlockUserDto): Promise<{
+        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
-        blockedId: string;
     }>;
     unblockUser(req: Request, dto: UnblockUserDto): Promise<{
+        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
-        blockedId: string;
     }>;
     getPendingFollowRequests(req: Request): Promise<never[]>;
     getFollowersList(userId: string): Promise<({
@@ -251,11 +251,11 @@ export declare class UserController {
             tokenBalance: number;
         };
     } & {
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getFollowingList(userId: string): Promise<({
@@ -292,11 +292,11 @@ export declare class UserController {
             tokenBalance: number;
         };
     } & {
+        followingId: string;
+        followerId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getBlockedUsers(req: Request): Promise<({
@@ -333,10 +333,10 @@ export declare class UserController {
             tokenBalance: number;
         };
     } & {
+        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
-        blockedId: string;
     })[]>;
     getAllUsers(): Promise<{
         users: {

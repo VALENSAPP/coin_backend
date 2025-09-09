@@ -63,6 +63,8 @@ export class BillingWebhookController {
       // Check if this is a token purchase by looking at metadata
       if (paymentIntent.metadata?.type === 'token_purchase') {
         await this.tokenPurchaseService.handlePaymentSuccess(paymentIntent.id);
+      } else if (paymentIntent.metadata?.type === 'following') {
+        await this.billingService.handleOneTimePaymentSuccess(paymentIntent);
       }
     } catch (error) {
       console.error('Error handling payment intent success:', error);

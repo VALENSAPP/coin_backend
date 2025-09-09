@@ -189,6 +189,7 @@ model Payment {
   amount                Int
   currency              String
   status                String
+  forPayment            String    @default("subscription") // "subscription" or "following"
   stripeInvoiceId       String?
   stripePaymentIntentId String?
   createdAt             DateTime  @default(now())

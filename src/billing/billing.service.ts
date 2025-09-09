@@ -48,6 +48,35 @@ export class BillingService {
     return session;
   }
 
+  async createOneTimePaymentCheckoutSession(userId: string, amount: number) {
+    const customerId = await this.ensureStripeCustomer(userId);
+    const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+    const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+    if (!successUrl || !cancelUrl) {
+      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+    }
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Following Payment',
+            },
+            unit_amount: amount * 100, // amount in cents
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: { userId, type: 'following', amount: amount.toString() },
+    });
+    return session;
+  }
+
   async cancelSubscriptionAtPeriodEnd(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
@@ -99,6 +128,7 @@ export class BillingService {
         amount: amount,
         currency,
         status: 'succeeded',
+        forPayment: 'subscription',
         stripeInvoiceId: invoice.id,
         stripePaymentIntentId: typeof invoice.payment_intent === 'string' ? invoice.payment_intent : invoice.payment_intent?.id,
         periodStart,
@@ -129,6 +159,7 @@ export class BillingService {
         amount: invoice.amount_due ?? 0,
         currency,
         status: 'failed',
+        forPayment: 'subscription',
         stripeInvoiceId: invoice.id,
         stripePaymentIntentId: typeof invoice.payment_intent === 'string' ? invoice.payment_intent : invoice.payment_intent?.id,
         periodStart: undefined,
@@ -164,6 +195,25 @@ export class BillingService {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { stripeSubscriptionId: subscriptionId },
+    });
+  }
+
+  async handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
+    const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
+    if (!customerId) return;
+    const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
+    if (!user) return;
+    const amount = paymentIntent.amount ?? 0;
+    const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
+    await this.prisma.payment.create({
+      data: {
+        userId: user.id,
+        amount: amount,
+        currency,
+        status: 'succeeded',
+        forPayment: 'following',
+        stripePaymentIntentId: paymentIntent.id,
+      },
     });
   }
 }

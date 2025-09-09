@@ -10,6 +10,11 @@ export declare class BillingController {
         message: string;
         result: import("stripe").Stripe.Response<import("stripe").Stripe.Subscription>;
     }>;
+    createOneTimePayment(req: Request, body: {
+        amount: number;
+    }): Promise<{
+        url: string | null;
+    }>;
     getMySubscription(req: Request): Promise<{
         subscription: {
             status: import(".prisma/client").$Enums.SubscriptionStatus;

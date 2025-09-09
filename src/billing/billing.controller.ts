@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException } from '@nestjs/common';
 import { BillingService } from './billing.service';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 
@@ -27,6 +27,33 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const result = await this.billingService.cancelSubscriptionAtPeriodEnd(userId);
     return { message: 'Subscription will cancel at period end', result };
+  }
+
+  @Post('pay-following')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for one-time following payment' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        amount: {
+          type: 'number',
+          description: 'Payment amount in USD',
+          example: 10.00,
+        },
+      },
+      required: ['amount'],
+    },
+  })
+  async createOneTimePayment(@Req() req: Request, @Body() body: { amount: number }) {
+    const userId = (req.user as any).userId;
+    const { amount } = body;
+    if (!amount || amount <= 0) {
+      throw new BadRequestException('Invalid amount');
+    }
+    const session = await this.billingService.createOneTimePaymentCheckoutSession(userId, amount);
+    return { url: session.url };
   }
 
   @Get('me')

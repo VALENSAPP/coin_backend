@@ -463,6 +463,12 @@ let TokenService = TokenService_1 = class TokenService {
             if (!user.userName) {
                 throw new common_1.BadRequestException('User must have a username to create a token');
             }
+            const existingToken = await this.prisma.userToken.findFirst({
+                where: { userId },
+            });
+            if (existingToken) {
+                throw new common_1.BadRequestException('Token already created for this user');
+            }
             const tokenName = `${user.userName}Valens`;
             const tokenSymbol = tokenName;
             const initialSupply = ethers_1.ethers.parseEther('1000000000000000000000000');
