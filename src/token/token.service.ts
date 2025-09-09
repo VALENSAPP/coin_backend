@@ -461,6 +461,14 @@ console.log("oooooooooo",user);
         throw new BadRequestException('User must have a username to create a token');
       }
 
+      // Check if token already exists for this user
+      const existingToken = await this.prisma.userToken.findFirst({
+        where: { userId },
+      });
+      if (existingToken) {
+        throw new BadRequestException('Token already created for this user');
+      }
+
       // Construct token parameters
       const tokenName = `${user.userName}Valens`;
       const tokenSymbol = tokenName;
