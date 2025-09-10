@@ -21,17 +21,17 @@ export declare class TokenService {
         userTokenId: string;
     }>;
     getUserToken(userId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        initialSupply: string;
-        initialPrice: string;
-        scalingConstant: string;
+        userId: string;
         transactionHash: string;
         tokenAddress: string | null;
         tokenName: string;
         tokenSymbol: string;
+        initialSupply: string;
+        initialPrice: string;
+        scalingConstant: string;
         blockNumber: number;
     }>;
     getTokenInfo(tokenAddress: string): Promise<{
@@ -45,17 +45,17 @@ export declare class TokenService {
     }>;
     getUserTokenWithInfo(userId: string): Promise<{
         tokenInfo: null;
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        initialSupply: string;
-        initialPrice: string;
-        scalingConstant: string;
+        userId: string;
         transactionHash: string;
         tokenAddress: string | null;
         tokenName: string;
         tokenSymbol: string;
+        initialSupply: string;
+        initialPrice: string;
+        scalingConstant: string;
         blockNumber: number;
     } | {
         tokenInfo: {
@@ -67,17 +67,17 @@ export declare class TokenService {
             followers: any;
             poolBalance: any;
         };
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        initialSupply: string;
-        initialPrice: string;
-        scalingConstant: string;
+        userId: string;
         transactionHash: string;
         tokenAddress: string | null;
         tokenName: string;
         tokenSymbol: string;
+        initialSupply: string;
+        initialPrice: string;
+        scalingConstant: string;
         blockNumber: number;
     }>;
 }
