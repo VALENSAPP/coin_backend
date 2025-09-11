@@ -13,16 +13,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TokenPurchaseService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const token_service_1 = require("../token/token.service");
 const stripe_1 = require("stripe");
+const ethers_1 = require("ethers");
 let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
     prisma;
+    tokenService;
     logger = new common_1.Logger(TokenPurchaseService_1.name);
     stripe;
-    PLATFORM_FEE_PERCENT = 0.002;
-    VENDOR_FEE_PERCENT = 0.005;
+    PLATFORM_FEE_PERCENT = 0.003;
+    VENDOR_FEE_PERCENT = 0.007;
     TOKEN_RATE = 100;
-    constructor(prisma) {
+    constructor(prisma, tokenService) {
         this.prisma = prisma;
+        this.tokenService = tokenService;
         this.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
             apiVersion: '2024-06-20',
         });
@@ -187,10 +191,57 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
             },
         });
     }
+    async buyToken(buyerUserId, dto) {
+        try {
+            const buyer = await this.prisma.user.findUnique({
+                where: { id: buyerUserId },
+                select: { id: true, walletAddress: true },
+            });
+            if (!buyer) {
+                throw new common_1.BadRequestException('Buyer not found');
+            }
+            if (!buyer.walletAddress) {
+                throw new common_1.BadRequestException('Buyer wallet address not found');
+            }
+            const userToken = await this.prisma.userToken.findFirst({
+                where: { userId: dto.userId },
+                select: { tokenAddress: true, tokenName: true },
+            });
+            if (!userToken || !userToken.tokenAddress) {
+                throw new common_1.BadRequestException('Token not found for this user');
+            }
+            this.logger.log(`Buying token for user ${dto.userId}: ${userToken.tokenName} (${userToken.tokenAddress})`);
+            const usdPaid = ethers_1.ethers.parseEther(dto.userPaid.toString());
+            const contract = this.tokenService.getContract();
+            if (!contract) {
+                throw new common_1.BadRequestException('Smart contract not initialized');
+            }
+            const tx = await contract.buyFor(userToken.tokenAddress, buyer.walletAddress, usdPaid);
+            this.logger.log(`Transaction sent: ${tx.hash}`);
+            const receipt = await tx.wait();
+            this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
+            return {
+                success: true,
+                transactionHash: tx.hash,
+                tokenAddress: userToken.tokenAddress,
+                buyerAddress: buyer.walletAddress,
+                usdPaid: dto.userPaid,
+                blockNumber: receipt.blockNumber,
+            };
+        }
+        catch (error) {
+            this.logger.error('Error buying token:', error);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            throw new common_1.BadRequestException(`Failed to buy token: ${error.message}`);
+        }
+    }
 };
 exports.TokenPurchaseService = TokenPurchaseService;
 exports.TokenPurchaseService = TokenPurchaseService = TokenPurchaseService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        token_service_1.TokenService])
 ], TokenPurchaseService);
 //# sourceMappingURL=token-purchase.service.js.map

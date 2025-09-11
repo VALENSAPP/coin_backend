@@ -1,7 +1,9 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto } from './dto/purchase-tokens.dto';
+import { TokenService } from '../token/token.service';
 import Stripe from 'stripe';
+import { ethers } from 'ethers';
 
 @Injectable()
 export class TokenPurchaseService {
@@ -9,11 +11,14 @@ export class TokenPurchaseService {
   private stripe: Stripe;
 
   // Fee percentages
-  private readonly PLATFORM_FEE_PERCENT = 0.002; // 0.2%
-  private readonly VENDOR_FEE_PERCENT = 0.005;   // 0.5%
+  private readonly PLATFORM_FEE_PERCENT = 0.003; // 0.2%
+  private readonly VENDOR_FEE_PERCENT = 0.007;   // 0.5%
   private readonly TOKEN_RATE = 100; // 1 USD = 100 tokens
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tokenService: TokenService
+  ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
     });
@@ -229,5 +234,77 @@ export class TokenPurchaseService {
         completedAt: true,
       },
     });
+  }
+
+  /**
+   * Buy tokens using blockchain smart contract
+   */
+  async buyToken(buyerUserId: string, dto: BuyTokenDto) {
+    try {
+      // Get buyer user details
+      const buyer = await this.prisma.user.findUnique({
+        where: { id: buyerUserId },
+        select: { id: true, walletAddress: true },
+      });
+
+      if (!buyer) {
+        throw new BadRequestException('Buyer not found');
+      }
+
+      if (!buyer.walletAddress) {
+        throw new BadRequestException('Buyer wallet address not found');
+      }
+
+      // Get token address from userToken table
+      const userToken = await this.prisma.userToken.findFirst({
+        where: { userId: dto.userId },
+        select: { tokenAddress: true, tokenName: true },
+      });
+
+      if (!userToken || !userToken.tokenAddress) {
+        throw new BadRequestException('Token not found for this user');
+      }
+
+      this.logger.log(`Buying token for user ${dto.userId}: ${userToken.tokenName} (${userToken.tokenAddress})`);
+
+      // Convert USD amount to wei (assuming 1 USD = 1e18 wei for simplicity)
+      const usdPaid = ethers.parseEther(dto.userPaid.toString());
+
+      // Call the buyFor method on the smart contract
+      const contract = this.tokenService.getContract();
+
+      if (!contract) {
+        throw new BadRequestException('Smart contract not initialized');
+      }
+
+      const tx = await contract.buyFor(
+        userToken.tokenAddress,
+        buyer.walletAddress,
+        usdPaid
+      );
+
+      this.logger.log(`Transaction sent: ${tx.hash}`);
+
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+
+      this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
+
+      return {
+        success: true,
+        transactionHash: tx.hash,
+        tokenAddress: userToken.tokenAddress,
+        buyerAddress: buyer.walletAddress,
+        usdPaid: dto.userPaid,
+        blockNumber: receipt.blockNumber,
+      };
+
+    } catch (error) {
+      this.logger.error('Error buying token:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to buy token: ${error.message}`);
+    }
   }
 }

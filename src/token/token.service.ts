@@ -69,9 +69,9 @@ console.log("oooooooooo",user);
       // Construct token parameters
       const tokenName = `${user.userName}Valens`;
       const tokenSymbol = tokenName;
-      const initialSupply = ethers.parseEther('1000000000000000000000000000'); // 1e24
-      const initialPriceUSD = ethers.parseEther('1000000000000000'); // 1e14
-      const scalingConstantUSD = ethers.parseEther('100000000000000000'); // 1e14
+      const initialSupply = ethers.parseEther('0.001'); // 0.001 * 1e18 = 1000000000000000
+      const initialPriceUSD = ethers.parseEther('0.001'); // 0.001 * 1e18 = 1000000000000000
+      const scalingConstantUSD = ethers.parseEther('0.01'); // 0.01 * 1e18 = 10000000000000000
 
       this.logger.log(`Creating token for user ${userId}: ${tokenName}`);
 
@@ -205,6 +205,40 @@ console.log("oooooooooo",user);
     } catch (error) {
       this.logger.error('Error fetching user token with info:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Get the smart contract instance
+   */
+  getContract() {
+    return this.contract;
+  }
+
+  /**
+   * Get token price in USD
+   */
+  async getPricePerTokenUsd(tokenAddress: string) {
+    try {
+      this.logger.log(`Getting price for token: ${tokenAddress}`);
+
+      // Call the smart contract method
+      const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
+
+      // Convert from wei to USD by dividing by 1e18
+      const priceInUsd = Number(priceInWei) / 1e18;
+
+      this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
+
+      return {
+        tokenAddress,
+        priceInUsd,
+        priceInWei: priceInWei.toString(),
+      };
+
+    } catch (error) {
+      this.logger.error('Error getting token price:', error);
+      throw new BadRequestException(`Failed to get token price: ${error.message}`);
     }
   }
 }

@@ -68,9 +68,9 @@ let TokenService = TokenService_1 = class TokenService {
             }
             const tokenName = `${user.userName}Valens`;
             const tokenSymbol = tokenName;
-            const initialSupply = ethers_1.ethers.parseEther('1000000000000000000000000000');
-            const initialPriceUSD = ethers_1.ethers.parseEther('1000000000000000');
-            const scalingConstantUSD = ethers_1.ethers.parseEther('100000000000000000');
+            const initialSupply = ethers_1.ethers.parseEther('0.001');
+            const initialPriceUSD = ethers_1.ethers.parseEther('0.001');
+            const scalingConstantUSD = ethers_1.ethers.parseEther('0.01');
             this.logger.log(`Creating token for user ${userId}: ${tokenName}`);
             const tx = await this.contract.createToken(tokenName, tokenSymbol, initialSupply, initialPriceUSD, scalingConstantUSD);
             this.logger.log(`Transaction sent: ${tx.hash}`);
@@ -178,6 +178,26 @@ let TokenService = TokenService_1 = class TokenService {
         catch (error) {
             this.logger.error('Error fetching user token with info:', error);
             throw error;
+        }
+    }
+    getContract() {
+        return this.contract;
+    }
+    async getPricePerTokenUsd(tokenAddress) {
+        try {
+            this.logger.log(`Getting price for token: ${tokenAddress}`);
+            const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
+            const priceInUsd = Number(priceInWei) / 1e18;
+            this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
+            return {
+                tokenAddress,
+                priceInUsd,
+                priceInWei: priceInWei.toString(),
+            };
+        }
+        catch (error) {
+            this.logger.error('Error getting token price:', error);
+            throw new common_1.BadRequestException(`Failed to get token price: ${error.message}`);
         }
     }
 };

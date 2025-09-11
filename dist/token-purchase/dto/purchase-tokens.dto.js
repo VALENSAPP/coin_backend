@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TokenPurchaseResponseDto = exports.PurchaseTokensDto = void 0;
+exports.TokenPurchaseResponseDto = exports.GetTokenPriceDto = exports.BuyTokenDto = exports.PurchaseTokensDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class PurchaseTokensDto {
@@ -37,6 +37,42 @@ __decorate([
     (0, class_validator_1.IsUUID)(),
     __metadata("design:type", String)
 ], PurchaseTokensDto.prototype, "vendorId", void 0);
+class BuyTokenDto {
+    userId;
+    userPaid;
+}
+exports.BuyTokenDto = BuyTokenDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'User ID whose token is being purchased',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    }),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], BuyTokenDto.prototype, "userId", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Amount of tokens to purchase (in USD)',
+        example: 10.00,
+        minimum: 0.01
+    }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
+    (0, class_validator_1.Min)(0.01),
+    __metadata("design:type", Number)
+], BuyTokenDto.prototype, "userPaid", void 0);
+class GetTokenPriceDto {
+    tokenAddress;
+}
+exports.GetTokenPriceDto = GetTokenPriceDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Token contract address to get price for',
+        example: '0x1234567890123456789012345678901234567890'
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], GetTokenPriceDto.prototype, "tokenAddress", void 0);
 class TokenPurchaseResponseDto {
     id;
     amount;

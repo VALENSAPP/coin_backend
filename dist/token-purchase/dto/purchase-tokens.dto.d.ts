@@ -2,6 +2,13 @@ export declare class PurchaseTokensDto {
     amount: number;
     vendorId?: string;
 }
+export declare class BuyTokenDto {
+    userId: string;
+    userPaid: number;
+}
+export declare class GetTokenPriceDto {
+    tokenAddress: string;
+}
 export declare class TokenPurchaseResponseDto {
     id: string;
     amount: number;

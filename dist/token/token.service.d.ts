@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { PrismaService } from '../prisma/prisma.service';
 export declare class TokenService {
     private readonly prisma;
@@ -21,15 +22,15 @@ export declare class TokenService {
         userTokenId: string;
     }>;
     getUserToken(userId: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        transactionHash: string;
         tokenAddress: string | null;
+        initialSupply: string;
+        transactionHash: string;
         tokenName: string;
         tokenSymbol: string;
-        initialSupply: string;
         initialPrice: string;
         scalingConstant: string;
         blockNumber: number;
@@ -45,15 +46,15 @@ export declare class TokenService {
     }>;
     getUserTokenWithInfo(userId: string): Promise<{
         tokenInfo: null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        transactionHash: string;
         tokenAddress: string | null;
+        initialSupply: string;
+        transactionHash: string;
         tokenName: string;
         tokenSymbol: string;
-        initialSupply: string;
         initialPrice: string;
         scalingConstant: string;
         blockNumber: number;
@@ -67,17 +68,23 @@ export declare class TokenService {
             followers: any;
             poolBalance: any;
         };
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        transactionHash: string;
         tokenAddress: string | null;
+        initialSupply: string;
+        transactionHash: string;
         tokenName: string;
         tokenSymbol: string;
-        initialSupply: string;
         initialPrice: string;
         scalingConstant: string;
         blockNumber: number;
+    }>;
+    getContract(): ethers.Contract;
+    getPricePerTokenUsd(tokenAddress: string): Promise<{
+        tokenAddress: string;
+        priceInUsd: number;
+        priceInWei: any;
     }>;
 }

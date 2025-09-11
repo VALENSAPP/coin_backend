@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID, Min, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class PurchaseTokensDto {
@@ -19,6 +19,34 @@ export class PurchaseTokensDto {
   @IsOptional()
   @IsUUID()
   vendorId?: string;
+}
+
+export class BuyTokenDto {
+  @ApiProperty({
+    description: 'User ID whose token is being purchased',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @IsUUID()
+  userId: string;
+
+  @ApiProperty({
+    description: 'Amount of tokens to purchase (in USD)',
+    example: 10.00,
+    minimum: 0.01
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  userPaid: number;
+}
+
+export class GetTokenPriceDto {
+  @ApiProperty({
+    description: 'Token contract address to get price for',
+    example: '0x1234567890123456789012345678901234567890'
+  })
+  @IsString()
+  @IsNotEmpty()
+  tokenAddress: string;
 }
 
 export class TokenPurchaseResponseDto {
