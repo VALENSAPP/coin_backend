@@ -72,52 +72,72 @@ let TokenService = TokenService_1 = class TokenService {
             const initialPriceUSD = ethers_1.ethers.parseEther('0.001');
             const scalingConstantUSD = ethers_1.ethers.parseEther('0.01');
             this.logger.log(`Creating token for user ${userId}: ${tokenName}`);
+            let simulatedTokenAddress = null;
+            try {
+                simulatedTokenAddress = await this.contract.createToken.staticCall(tokenName, tokenSymbol, initialSupply, initialPriceUSD, scalingConstantUSD);
+                this.logger.log(`Simulated token address: ${simulatedTokenAddress}`);
+            }
+            catch (simError) {
+                this.logger.warn('Could not simulate contract call:', simError.message);
+            }
             const tx = await this.contract.createToken(tokenName, tokenSymbol, initialSupply, initialPriceUSD, scalingConstantUSD);
             this.logger.log(`Transaction sent: ${tx.hash}`);
             const receipt = await tx.wait();
             this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
-            let tokenAddress = null;
-            if (receipt.returnValue) {
-                tokenAddress = receipt.returnValue;
-                this.logger.log(`Token address from return value: ${tokenAddress}`);
-            }
-            else {
+            let tokenAddress = simulatedTokenAddress;
+            if (!tokenAddress) {
                 this.logger.log(`Receipt logs count: ${receipt.logs.length}`);
-                const tokenCreatedEvent = receipt.logs.find((log) => {
+                receipt.logs.forEach((log, index) => {
                     try {
                         const parsedLog = this.contract.interface.parseLog(log);
-                        return parsedLog?.name === 'TokenCreated';
-                    }
-                    catch {
-                        return false;
-                    }
-                });
-                if (tokenCreatedEvent) {
-                    try {
-                        const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
-                        if (parsedLog && parsedLog.args) {
-                            tokenAddress = parsedLog.args.coin;
-                            this.logger.log(`Token created at address: ${tokenAddress}`);
+                        if (parsedLog) {
+                            this.logger.log(`Log ${index}: ${parsedLog.name}`, parsedLog.args);
+                        }
+                        else {
+                            this.logger.log(`Log ${index}: Parsed as null`);
                         }
                     }
                     catch (parseError) {
-                        this.logger.error('Error parsing TokenCreated event:', parseError);
+                        this.logger.log(`Log ${index}: Unable to parse - ${log.topics?.[0] || 'no topics'}`);
+                    }
+                });
+                if (receipt.returnData) {
+                    try {
+                        const decodedResult = this.contract.interface.decodeFunctionResult('createToken', receipt.returnData);
+                        if (decodedResult && decodedResult[0]) {
+                            tokenAddress = decodedResult[0];
+                            this.logger.log(`Token address from decoded return data: ${tokenAddress}`);
+                        }
+                    }
+                    catch (decodeError) {
+                        this.logger.error('Error decoding return data:', decodeError);
                     }
                 }
-                else {
-                    this.logger.warn('TokenCreated event not found in transaction logs');
-                }
-            }
-            if (!tokenAddress && receipt.returnData) {
-                try {
-                    const decodedResult = this.contract.interface.decodeFunctionResult('createToken', receipt.returnData);
-                    if (decodedResult && decodedResult[0]) {
-                        tokenAddress = decodedResult[0];
-                        this.logger.log(`Token address from decoded return data: ${tokenAddress}`);
+                if (!tokenAddress) {
+                    const tokenCreatedEvent = receipt.logs.find((log) => {
+                        try {
+                            const parsedLog = this.contract.interface.parseLog(log);
+                            return parsedLog?.name === 'TokenCreated';
+                        }
+                        catch {
+                            return false;
+                        }
+                    });
+                    if (tokenCreatedEvent) {
+                        try {
+                            const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
+                            if (parsedLog && parsedLog.args) {
+                                tokenAddress = parsedLog.args.coin;
+                                this.logger.log(`Token created at address: ${tokenAddress}`);
+                            }
+                        }
+                        catch (parseError) {
+                            this.logger.error('Error parsing TokenCreated event:', parseError);
+                        }
                     }
-                }
-                catch (decodeError) {
-                    this.logger.error('Error decoding return data:', decodeError);
+                    else {
+                        this.logger.warn('TokenCreated event not found in transaction logs');
+                    }
                 }
             }
             const userToken = await this.prisma.userToken.create({
