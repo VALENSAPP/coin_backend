@@ -76,6 +76,7 @@ let TokenService = TokenService_1 = class TokenService {
             this.logger.log(`Transaction sent: ${tx.hash}`);
             const receipt = await tx.wait();
             this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
+            this.logger.log(`Receipt logs count: ${receipt.logs.length}`);
             const tokenCreatedEvent = receipt.logs.find((log) => {
                 try {
                     const parsedLog = this.contract.interface.parseLog(log);
@@ -86,12 +87,20 @@ let TokenService = TokenService_1 = class TokenService {
                 }
             });
             let tokenAddress = null;
-            console.log("LLLLLLLLLLLLLLLLLLL", tokenCreatedEvent, this.contract.interface.parseLog(tokenCreatedEvent));
             if (tokenCreatedEvent) {
-                const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
-                if (parsedLog) {
-                    tokenAddress = parsedLog.args.coin;
+                try {
+                    const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
+                    if (parsedLog && parsedLog.args) {
+                        tokenAddress = parsedLog.args.coin;
+                        this.logger.log(`Token created at address: ${tokenAddress}`);
+                    }
                 }
+                catch (parseError) {
+                    this.logger.error('Error parsing TokenCreated event:', parseError);
+                }
+            }
+            else {
+                this.logger.warn('TokenCreated event not found in transaction logs');
             }
             const userToken = await this.prisma.userToken.create({
                 data: {

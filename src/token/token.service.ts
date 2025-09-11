@@ -92,6 +92,8 @@ console.log("oooooooooo",user);
       this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
 
       // Extract token address from transaction logs
+      this.logger.log(`Receipt logs count: ${receipt.logs.length}`);
+
       const tokenCreatedEvent = receipt.logs.find((log: any) => {
         try {
           const parsedLog = this.contract.interface.parseLog(log);
@@ -102,14 +104,18 @@ console.log("oooooooooo",user);
       });
 
       let tokenAddress = null;
-        console.log("LLLLLLLLLLLLLLLLLLL",tokenCreatedEvent,this.contract.interface.parseLog(tokenCreatedEvent));
       if (tokenCreatedEvent) {
-        const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
-      
-        
-        if (parsedLog) {
-          tokenAddress = parsedLog.args.coin;
+        try {
+          const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
+          if (parsedLog && parsedLog.args) {
+            tokenAddress = parsedLog.args.coin;
+            this.logger.log(`Token created at address: ${tokenAddress}`);
+          }
+        } catch (parseError) {
+          this.logger.error('Error parsing TokenCreated event:', parseError);
         }
+      } else {
+        this.logger.warn('TokenCreated event not found in transaction logs');
       }
 
       // Save token data to database
