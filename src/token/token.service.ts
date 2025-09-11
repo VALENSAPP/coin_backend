@@ -91,31 +91,51 @@ console.log("oooooooooo",user);
 
       this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
 
-      // Extract token address from transaction logs
-      this.logger.log(`Receipt logs count: ${receipt.logs.length}`);
-
-      const tokenCreatedEvent = receipt.logs.find((log: any) => {
-        try {
-          const parsedLog = this.contract.interface.parseLog(log);
-          return parsedLog?.name === 'TokenCreated';
-        } catch {
-          return false;
-        }
-      });
-
       let tokenAddress = null;
-      if (tokenCreatedEvent) {
-        try {
-          const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
-          if (parsedLog && parsedLog.args) {
-            tokenAddress = parsedLog.args.coin;
-            this.logger.log(`Token created at address: ${tokenAddress}`);
-          }
-        } catch (parseError) {
-          this.logger.error('Error parsing TokenCreated event:', parseError);
-        }
+
+      // Try to get token address from return value first
+      if (receipt.returnValue) {
+        tokenAddress = receipt.returnValue;
+        this.logger.log(`Token address from return value: ${tokenAddress}`);
       } else {
-        this.logger.warn('TokenCreated event not found in transaction logs');
+        // Fallback: Extract token address from transaction logs
+        this.logger.log(`Receipt logs count: ${receipt.logs.length}`);
+
+        const tokenCreatedEvent = receipt.logs.find((log: any) => {
+          try {
+            const parsedLog = this.contract.interface.parseLog(log);
+            return parsedLog?.name === 'TokenCreated';
+          } catch {
+            return false;
+          }
+        });
+
+        if (tokenCreatedEvent) {
+          try {
+            const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
+            if (parsedLog && parsedLog.args) {
+              tokenAddress = parsedLog.args.coin;
+              this.logger.log(`Token created at address: ${tokenAddress}`);
+            }
+          } catch (parseError) {
+            this.logger.error('Error parsing TokenCreated event:', parseError);
+          }
+        } else {
+          this.logger.warn('TokenCreated event not found in transaction logs');
+        }
+      }
+
+      // If still no token address, try to decode return data
+      if (!tokenAddress && receipt.returnData) {
+        try {
+          const decodedResult = this.contract.interface.decodeFunctionResult('createToken', receipt.returnData);
+          if (decodedResult && decodedResult[0]) {
+            tokenAddress = decodedResult[0];
+            this.logger.log(`Token address from decoded return data: ${tokenAddress}`);
+          }
+        } catch (decodeError) {
+          this.logger.error('Error decoding return data:', decodeError);
+        }
       }
 
       // Save token data to database
