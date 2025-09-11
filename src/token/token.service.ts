@@ -102,8 +102,11 @@ console.log("oooooooooo",user);
       });
 
       let tokenAddress = null;
+        console.log("LLLLLLLLLLLLLLLLLLL",tokenCreatedEvent,this.contract.interface.parseLog(tokenCreatedEvent));
       if (tokenCreatedEvent) {
         const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
+      
+        
         if (parsedLog) {
           tokenAddress = parsedLog.args.coin;
         }

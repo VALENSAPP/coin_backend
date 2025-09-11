@@ -18,12 +18,12 @@ export declare class TokenPurchaseService {
     getUserTokenPurchases(userId: string): Promise<{
         id: string;
         createdAt: Date;
-        status: string;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
+        status: string;
         completedAt: Date | null;
     }[]>;
     buyToken(buyerUserId: string, dto: BuyTokenDto): Promise<{
