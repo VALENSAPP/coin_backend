@@ -278,6 +278,26 @@ console.log("oooooooooo",user);
     try {
       this.logger.log(`Getting price for token: ${tokenAddress}`);
 
+      // First, check if token exists in the contract's mapping
+      try {
+        const tokenInfo = await this.contract.tokens(tokenAddress);
+        this.logger.log(`Token info from contract:`, {
+          coinAddress: tokenInfo.coinAddress,
+          initialPrice: tokenInfo.initialPriceUSD.toString(),
+          scalingConstant: tokenInfo.scalingConstantUSD.toString(),
+          initialSupply: tokenInfo.initialSupply.toString(),
+          followers: tokenInfo.followers.toString(),
+        });
+
+        if (tokenInfo.coinAddress === ethers.ZeroAddress) {
+          this.logger.warn(`Token ${tokenAddress} not found in contract mapping`);
+          throw new BadRequestException(`Token not found in contract: ${tokenAddress}`);
+        }
+      } catch (tokenInfoError) {
+        this.logger.error('Error fetching token info:', tokenInfoError);
+        throw new BadRequestException(`Token not registered in contract: ${tokenAddress}`);
+      }
+
       // Call the smart contract method
       const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
 
@@ -294,6 +314,16 @@ console.log("oooooooooo",user);
 
     } catch (error) {
       this.logger.error('Error getting token price:', error);
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // Check if it's a contract revert with "unknown token"
+      if (error.message && error.message.includes('unknown token')) {
+        throw new BadRequestException(`Token not recognized by contract: ${tokenAddress}`);
+      }
+
       throw new BadRequestException(`Failed to get token price: ${error.message}`);
     }
   }

@@ -234,6 +234,24 @@ let TokenService = TokenService_1 = class TokenService {
     async getPricePerTokenUsd(tokenAddress) {
         try {
             this.logger.log(`Getting price for token: ${tokenAddress}`);
+            try {
+                const tokenInfo = await this.contract.tokens(tokenAddress);
+                this.logger.log(`Token info from contract:`, {
+                    coinAddress: tokenInfo.coinAddress,
+                    initialPrice: tokenInfo.initialPriceUSD.toString(),
+                    scalingConstant: tokenInfo.scalingConstantUSD.toString(),
+                    initialSupply: tokenInfo.initialSupply.toString(),
+                    followers: tokenInfo.followers.toString(),
+                });
+                if (tokenInfo.coinAddress === ethers_1.ethers.ZeroAddress) {
+                    this.logger.warn(`Token ${tokenAddress} not found in contract mapping`);
+                    throw new common_1.BadRequestException(`Token not found in contract: ${tokenAddress}`);
+                }
+            }
+            catch (tokenInfoError) {
+                this.logger.error('Error fetching token info:', tokenInfoError);
+                throw new common_1.BadRequestException(`Token not registered in contract: ${tokenAddress}`);
+            }
             const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
             const priceInUsd = Number(priceInWei) / 1e18;
             this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
@@ -245,6 +263,12 @@ let TokenService = TokenService_1 = class TokenService {
         }
         catch (error) {
             this.logger.error('Error getting token price:', error);
+            if (error instanceof common_1.BadRequestException) {
+                throw error;
+            }
+            if (error.message && error.message.includes('unknown token')) {
+                throw new common_1.BadRequestException(`Token not recognized by contract: ${tokenAddress}`);
+            }
             throw new common_1.BadRequestException(`Failed to get token price: ${error.message}`);
         }
     }
