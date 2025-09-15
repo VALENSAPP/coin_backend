@@ -12,6 +12,7 @@ export declare class TokenPurchaseService {
     createTokenPurchase(userId: string, dto: PurchaseTokensDto): Promise<TokenPurchaseResponseDto>;
     handlePaymentSuccess(paymentIntentId: string): Promise<void>;
     handleCheckoutSessionCompleted(sessionId: string): Promise<void>;
+    handleCheckoutSessionExpired(sessionId: string): Promise<void>;
     handlePaymentFailed(paymentIntentId: string): Promise<void>;
     getUserTokenBalance(userId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{

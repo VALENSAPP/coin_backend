@@ -41,7 +41,13 @@ let BillingWebhookController = class BillingWebhookController {
         }
         switch (event.type) {
             case 'checkout.session.completed':
-                await this.billingService.handleCheckoutSessionCompleted(event.data.object);
+                const session = event.data.object;
+                if (session.metadata?.type === 'token_purchase') {
+                    await this.tokenPurchaseService.handleCheckoutSessionCompleted(session.id);
+                }
+                else {
+                    await this.billingService.handleCheckoutSessionCompleted(session);
+                }
                 break;
             case 'invoice.paid':
                 await this.billingService.handleInvoicePaid(event.data.object);
@@ -57,6 +63,9 @@ let BillingWebhookController = class BillingWebhookController {
                 break;
             case 'payment_intent.payment_failed':
                 await this.handlePaymentIntentFailed(event.data.object);
+                break;
+            case 'checkout.session.expired':
+                await this.handleCheckoutSessionExpired(event.data.object);
                 break;
             default:
                 break;
@@ -84,6 +93,16 @@ let BillingWebhookController = class BillingWebhookController {
         }
         catch (error) {
             console.error('Error handling payment intent failure:', error);
+        }
+    }
+    async handleCheckoutSessionExpired(session) {
+        try {
+            if (session.metadata?.type === 'token_purchase') {
+                await this.tokenPurchaseService.handleCheckoutSessionExpired(session.id);
+            }
+        }
+        catch (error) {
+            console.error('Error handling checkout session expiration:', error);
         }
     }
 };

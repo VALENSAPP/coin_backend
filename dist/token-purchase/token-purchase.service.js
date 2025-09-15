@@ -187,6 +187,28 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
             throw error;
         }
     }
+    async handleCheckoutSessionExpired(sessionId) {
+        try {
+            const tokenPurchase = await this.prisma.tokenPurchase.findFirst({
+                where: { stripeCheckoutSessionId: sessionId },
+            });
+            if (!tokenPurchase) {
+                this.logger.warn(`Token purchase not found for checkout session: ${sessionId}`);
+                return;
+            }
+            await this.prisma.tokenPurchase.update({
+                where: { id: tokenPurchase.id },
+                data: {
+                    status: 'expired',
+                },
+            });
+            this.logger.log(`Token purchase expired: ${tokenPurchase.id}`);
+        }
+        catch (error) {
+            this.logger.error('Error handling checkout session expiration:', error);
+            throw error;
+        }
+    }
     async handlePaymentFailed(paymentIntentId) {
         try {
             const tokenPurchase = await this.prisma.tokenPurchase.findFirst({

@@ -11,4 +11,5 @@ export declare class BillingWebhookController {
     }>;
     private handlePaymentIntentSucceeded;
     private handlePaymentIntentFailed;
+    private handleCheckoutSessionExpired;
 }

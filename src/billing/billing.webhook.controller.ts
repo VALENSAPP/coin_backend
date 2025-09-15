@@ -34,7 +34,12 @@ export class BillingWebhookController {
 
     switch (event.type) {
       case 'checkout.session.completed':
-        await this.billingService.handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.type === 'token_purchase') {
+          await this.tokenPurchaseService.handleCheckoutSessionCompleted(session.id);
+        } else {
+          await this.billingService.handleCheckoutSessionCompleted(session);
+        }
         break;
       case 'invoice.paid':
         await this.billingService.handleInvoicePaid(event.data.object as Stripe.Invoice);
@@ -50,6 +55,9 @@ export class BillingWebhookController {
         break;
       case 'payment_intent.payment_failed':
         await this.handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+        break;
+      case 'checkout.session.expired':
+        await this.handleCheckoutSessionExpired(event.data.object as Stripe.Checkout.Session);
         break;
       default:
         break;
@@ -79,6 +87,17 @@ export class BillingWebhookController {
       }
     } catch (error) {
       console.error('Error handling payment intent failure:', error);
+    }
+  }
+
+  private async handleCheckoutSessionExpired(session: Stripe.Checkout.Session) {
+    try {
+      // Check if this is a token purchase by looking at metadata
+      if (session.metadata?.type === 'token_purchase') {
+        await this.tokenPurchaseService.handleCheckoutSessionExpired(session.id);
+      }
+    } catch (error) {
+      console.error('Error handling checkout session expiration:', error);
     }
   }
 }
