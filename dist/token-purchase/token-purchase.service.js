@@ -152,6 +152,41 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
             throw error;
         }
     }
+    async handleCheckoutSessionCompleted(sessionId) {
+        try {
+            const tokenPurchase = await this.prisma.tokenPurchase.findFirst({
+                where: { stripeCheckoutSessionId: sessionId },
+            });
+            if (!tokenPurchase) {
+                this.logger.warn(`Token purchase not found for checkout session: ${sessionId}`);
+                return;
+            }
+            if (tokenPurchase.status === 'completed') {
+                this.logger.log(`Token purchase already completed: ${tokenPurchase.id}`);
+                return;
+            }
+            await this.prisma.tokenPurchase.update({
+                where: { id: tokenPurchase.id },
+                data: {
+                    status: 'completed',
+                    completedAt: new Date(),
+                },
+            });
+            await this.prisma.user.update({
+                where: { id: tokenPurchase.userId },
+                data: {
+                    tokenBalance: {
+                        increment: tokenPurchase.tokensReceived,
+                    },
+                },
+            });
+            this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens credited to user ${tokenPurchase.userId}`);
+        }
+        catch (error) {
+            this.logger.error('Error handling checkout session success:', error);
+            throw error;
+        }
+    }
     async handlePaymentFailed(paymentIntentId) {
         try {
             const tokenPurchase = await this.prisma.tokenPurchase.findFirst({

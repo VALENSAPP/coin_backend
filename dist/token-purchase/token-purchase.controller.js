@@ -55,11 +55,11 @@ __decorate([
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_1.ApiOperation)({
         summary: 'Purchase tokens with USD payment',
-        description: 'Creates a Stripe payment intent for token purchase. Rate: 1 USD = 100 tokens. All fee parameters (platformFee, vendorFee, restAmount, tokensReceived) are provided by the frontend.'
+        description: 'Creates a Stripe checkout session for token purchase. Rate: 1 USD = 100 tokens. All fee parameters (platformFee, vendorFee, restAmount, tokensReceived) are provided by the frontend. Returns session URL for payment redirect.'
     }),
     (0, swagger_1.ApiResponse)({
         status: common_1.HttpStatus.CREATED,
-        description: 'Payment intent created successfully',
+        description: 'Checkout session created successfully',
         type: purchase_tokens_dto_1.TokenPurchaseResponseDto
     }),
     (0, swagger_1.ApiResponse)({

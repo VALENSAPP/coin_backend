@@ -111,7 +111,7 @@ export class TokenPurchaseService {
           tokensReceived: dto.tokensReceived,
           stripeCheckoutSessionId: session.id,
           status: 'pending',
-        },
+        } as any, // Temporary workaround for Prisma client generation issue
       });
 
       return {
@@ -177,6 +177,53 @@ export class TokenPurchaseService {
 
     } catch (error) {
       this.logger.error('Error handling payment success:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle successful checkout session webhook
+   */
+  async handleCheckoutSessionCompleted(sessionId: string) {
+    try {
+      // Find the token purchase
+      const tokenPurchase = await this.prisma.tokenPurchase.findFirst({
+        where: { stripeCheckoutSessionId: sessionId } as any,
+      });
+
+      if (!tokenPurchase) {
+        this.logger.warn(`Token purchase not found for checkout session: ${sessionId}`);
+        return;
+      }
+
+      if (tokenPurchase.status === 'completed') {
+        this.logger.log(`Token purchase already completed: ${tokenPurchase.id}`);
+        return;
+      }
+
+      // Update token purchase status
+      await this.prisma.tokenPurchase.update({
+        where: { id: tokenPurchase.id },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
+
+      // Credit tokens to user
+      await this.prisma.user.update({
+        where: { id: tokenPurchase.userId },
+        data: {
+          tokenBalance: {
+            increment: tokenPurchase.tokensReceived,
+          },
+        },
+      });
+
+      this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens credited to user ${tokenPurchase.userId}`);
+
+    } catch (error) {
+      this.logger.error('Error handling checkout session success:', error);
       throw error;
     }
   }

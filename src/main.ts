@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { setupSwagger } from './swagger/swagger.config';
-import { PrismaClient } from '@prisma/client';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import * as bodyParser from 'body-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';

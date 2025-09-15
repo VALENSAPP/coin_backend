@@ -11,17 +11,18 @@ export declare class TokenPurchaseService {
     private validateFees;
     createTokenPurchase(userId: string, dto: PurchaseTokensDto): Promise<TokenPurchaseResponseDto>;
     handlePaymentSuccess(paymentIntentId: string): Promise<void>;
+    handleCheckoutSessionCompleted(sessionId: string): Promise<void>;
     handlePaymentFailed(paymentIntentId: string): Promise<void>;
     getUserTokenBalance(userId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{
         id: string;
+        createdAt: Date;
+        status: string;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
-        status: string;
-        createdAt: Date;
         completedAt: Date | null;
     }[]>;
     buyToken(buyerUserId: string, dto: BuyTokenDto): Promise<{

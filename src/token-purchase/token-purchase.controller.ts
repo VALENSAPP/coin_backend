@@ -19,11 +19,11 @@ export class TokenPurchaseController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Purchase tokens with USD payment',
-    description: 'Creates a Stripe payment intent for token purchase. Rate: 1 USD = 100 tokens. All fee parameters (platformFee, vendorFee, restAmount, tokensReceived) are provided by the frontend.'
+    description: 'Creates a Stripe checkout session for token purchase. Rate: 1 USD = 100 tokens. All fee parameters (platformFee, vendorFee, restAmount, tokensReceived) are provided by the frontend. Returns session URL for payment redirect.'
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
-    description: 'Payment intent created successfully',
+    description: 'Checkout session created successfully',
     type: TokenPurchaseResponseDto
   })
   @ApiResponse({

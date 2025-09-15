@@ -24,9 +24,9 @@ export declare class TokenController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            tokenAddress: string | null;
             initialSupply: string;
             transactionHash: string;
-            tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
             initialPrice: string;
@@ -41,9 +41,7 @@ export declare class TokenController {
             initialPrice: any;
             scalingConstant: any;
             initialSupply: any;
-            totalSold: any;
             followers: any;
-            poolBalance: any;
         };
     }>;
     getUserTokenWithInfo(userId: string): Promise<{
@@ -54,9 +52,9 @@ export declare class TokenController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            tokenAddress: string | null;
             initialSupply: string;
             transactionHash: string;
-            tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
             initialPrice: string;
@@ -68,17 +66,15 @@ export declare class TokenController {
                 initialPrice: any;
                 scalingConstant: any;
                 initialSupply: any;
-                totalSold: any;
                 followers: any;
-                poolBalance: any;
             };
             userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            tokenAddress: string | null;
             initialSupply: string;
             transactionHash: string;
-            tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
             initialPrice: string;

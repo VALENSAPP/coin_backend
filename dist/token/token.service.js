@@ -195,12 +195,10 @@ let TokenService = TokenService_1 = class TokenService {
             const tokenInfo = await this.contract.tokens(tokenAddress);
             return {
                 coinAddress: tokenInfo.coinAddress,
-                initialPrice: tokenInfo.initialPrice.toString(),
-                scalingConstant: tokenInfo.scalingConstant.toString(),
+                initialPrice: tokenInfo.initialPriceUSD.toString(),
+                scalingConstant: tokenInfo.scalingConstantUSD.toString(),
                 initialSupply: tokenInfo.initialSupply.toString(),
-                totalSold: tokenInfo.totalSold.toString(),
                 followers: tokenInfo.followers.toString(),
-                poolBalance: tokenInfo.poolBalance.toString(),
             };
         }
         catch (error) {

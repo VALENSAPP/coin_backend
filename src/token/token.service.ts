@@ -228,12 +228,10 @@ console.log("oooooooooo",user);
 
       return {
         coinAddress: tokenInfo.coinAddress,
-        initialPrice: tokenInfo.initialPrice.toString(),
-        scalingConstant: tokenInfo.scalingConstant.toString(),
+        initialPrice: tokenInfo.initialPriceUSD.toString(),
+        scalingConstant: tokenInfo.scalingConstantUSD.toString(),
         initialSupply: tokenInfo.initialSupply.toString(),
-        totalSold: tokenInfo.totalSold.toString(),
         followers: tokenInfo.followers.toString(),
-        poolBalance: tokenInfo.poolBalance.toString(),
       };
     } catch (error) {
       this.logger.error('Error fetching token info:', error);
