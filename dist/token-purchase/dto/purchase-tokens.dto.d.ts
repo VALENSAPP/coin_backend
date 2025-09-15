@@ -1,5 +1,9 @@
 export declare class PurchaseTokensDto {
     amount: number;
+    platformFee: number;
+    vendorFee: number;
+    restAmount: number;
+    tokensReceived: number;
     vendorId?: string;
 }
 export declare class BuyTokenDto {
@@ -17,5 +21,5 @@ export declare class TokenPurchaseResponseDto {
     restAmount: number;
     tokensReceived: number;
     status: string;
-    stripePaymentIntentId: string;
+    sessionUrl?: string;
 }

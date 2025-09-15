@@ -10,9 +10,6 @@ export class TokenPurchaseService {
   private readonly logger = new Logger(TokenPurchaseService.name);
   private stripe: Stripe;
 
-  // Fee percentages
-  private readonly PLATFORM_FEE_PERCENT = 0.003; // 0.2%
-  private readonly VENDOR_FEE_PERCENT = 0.007;   // 0.5%
   private readonly TOKEN_RATE = 100; // 1 USD = 100 tokens
 
   constructor(
@@ -25,21 +22,19 @@ export class TokenPurchaseService {
   }
 
   /**
-   * Calculate fees and token amount
+   * Validate fee parameters provided by frontend
    */
-  private calculateFees(amount: number) {
-    const platformFee = amount * this.PLATFORM_FEE_PERCENT;
-    const vendorFee = amount * this.VENDOR_FEE_PERCENT;
-    const totalFees = platformFee + vendorFee;
-    const restAmount = amount - totalFees;
-    const tokensReceived = restAmount * this.TOKEN_RATE;
+  private validateFees(dto: PurchaseTokensDto) {
+    const expectedRestAmount = dto.amount - (dto.platformFee + dto.vendorFee);
+    const expectedTokensReceived = expectedRestAmount * this.TOKEN_RATE;
 
-    return {
-      platformFee,
-      vendorFee,
-      restAmount,
-      tokensReceived,
-    };
+    if (Math.abs(dto.restAmount - expectedRestAmount) > 0.01) {
+      throw new BadRequestException('Invalid restAmount: does not match amount - (platformFee + vendorFee)');
+    }
+
+    if (Math.abs(dto.tokensReceived - expectedTokensReceived) > 0.01) {
+      throw new BadRequestException('Invalid tokensReceived: does not match restAmount * token rate');
+    }
   }
 
   /**
@@ -68,22 +63,40 @@ export class TokenPurchaseService {
         }
       }
 
-      // Calculate fees
-      const fees = this.calculateFees(dto.amount);
+      // Validate fees provided by frontend
+      // this.validateFees(dto);
 
-      this.logger.log(`Creating token purchase for user ${userId}: $${dto.amount} -> ${fees.tokensReceived} tokens`);
+      this.logger.log(`Creating token purchase for user ${userId}: $${dto.amount} -> ${dto.tokensReceived} tokens`);
 
-      // Create Stripe Payment Intent
-      const paymentIntent = await this.stripe.paymentIntents.create({
-        amount: Math.round(dto.amount * 100), // Convert to cents
-        currency: 'usd',
+      // Get success and cancel URLs from environment
+      const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+      const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+
+      // Create Stripe Checkout Session
+      const session = await this.stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: 'Token Purchase',
+                description: `Purchase ${dto.tokensReceived} tokens`,
+              },
+              unit_amount: Math.round(dto.amount * 100), // Convert to cents
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         metadata: {
           userId,
           vendorId: dto.vendorId || '',
           type: 'token_purchase',
         },
-        description: `Token Purchase - ${fees.tokensReceived} tokens`,
-        receipt_email: user.email || undefined,
+        customer_email: user.email || undefined,
       });
 
       // Create token purchase record
@@ -92,11 +105,11 @@ export class TokenPurchaseService {
           userId,
           vendorId: dto.vendorId,
           amount: dto.amount,
-          platformFee: fees.platformFee,
-          vendorFee: fees.vendorFee,
-          restAmount: fees.restAmount,
-          tokensReceived: fees.tokensReceived,
-          stripePaymentIntentId: paymentIntent.id,
+          platformFee: dto.platformFee,
+          vendorFee: dto.vendorFee,
+          restAmount: dto.restAmount,
+          tokensReceived: dto.tokensReceived,
+          stripeCheckoutSessionId: session.id,
           status: 'pending',
         },
       });
@@ -104,12 +117,12 @@ export class TokenPurchaseService {
       return {
         id: tokenPurchase.id,
         amount: dto.amount,
-        platformFee: fees.platformFee,
-        vendorFee: fees.vendorFee,
-        restAmount: fees.restAmount,
-        tokensReceived: fees.tokensReceived,
+        platformFee: dto.platformFee,
+        vendorFee: dto.vendorFee,
+        restAmount: dto.restAmount,
+        tokensReceived: dto.tokensReceived,
         status: tokenPurchase.status,
-        stripePaymentIntentId: paymentIntent.id,
+        sessionUrl: session.url!,
       };
 
     } catch (error) {

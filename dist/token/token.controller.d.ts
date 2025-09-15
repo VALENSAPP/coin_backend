@@ -20,15 +20,15 @@ export declare class TokenController {
     getUserToken(userId: string): Promise<{
         message: string;
         data: {
+            userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            userId: string;
+            initialSupply: string;
             transactionHash: string;
             tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
-            initialSupply: string;
             initialPrice: string;
             scalingConstant: string;
             blockNumber: number;
@@ -50,15 +50,15 @@ export declare class TokenController {
         message: string;
         data: {
             tokenInfo: null;
+            userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            userId: string;
+            initialSupply: string;
             transactionHash: string;
             tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
-            initialSupply: string;
             initialPrice: string;
             scalingConstant: string;
             blockNumber: number;
@@ -72,15 +72,15 @@ export declare class TokenController {
                 followers: any;
                 poolBalance: any;
             };
+            userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            userId: string;
+            initialSupply: string;
             transactionHash: string;
             tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
-            initialSupply: string;
             initialPrice: string;
             scalingConstant: string;
             blockNumber: number;

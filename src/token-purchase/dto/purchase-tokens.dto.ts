@@ -12,6 +12,42 @@ export class PurchaseTokensDto {
   amount: number;
 
   @ApiProperty({
+    description: 'Platform fee provided by frontend',
+    example: 0.02,
+    minimum: 0
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  platformFee: number;
+
+  @ApiProperty({
+    description: 'Vendor fee provided by frontend',
+    example: 0.05,
+    minimum: 0
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  vendorFee: number;
+
+  @ApiProperty({
+    description: 'Amount after deducting fees provided by frontend',
+    example: 9.93,
+    minimum: 0
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  restAmount: number;
+
+  @ApiProperty({
+    description: 'Tokens to be received provided by frontend',
+    example: 993,
+    minimum: 0
+  })
+  @IsNumber()
+  @Min(0)
+  tokensReceived: number;
+
+  @ApiProperty({
     description: 'Vendor user ID (whose tokens are being purchased). Optional - if not provided, platform tokens.',
     example: '123e4567-e89b-12d3-a456-426614174000',
     required: false
@@ -93,8 +129,8 @@ export class TokenPurchaseResponseDto {
   status: string;
 
   @ApiProperty({
-    description: 'Stripe payment intent ID',
-    example: 'pi_1234567890'
+    description: 'Stripe checkout session URL for payment',
+    example: 'https://checkout.stripe.com/pay/cs_test_...'
   })
-  stripePaymentIntentId: string;
+  sessionUrl?: string;
 }

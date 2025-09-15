@@ -19,7 +19,7 @@ export class TokenPurchaseController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Purchase tokens with USD payment',
-    description: 'Creates a Stripe payment intent for token purchase. Rate: 1 USD = 100 tokens. Fees: 0.2% platform + 0.5% vendor = 0.7% total deduction.'
+    description: 'Creates a Stripe payment intent for token purchase. Rate: 1 USD = 100 tokens. All fee parameters (platformFee, vendorFee, restAmount, tokensReceived) are provided by the frontend.'
   })
   @ApiResponse({
     status: HttpStatus.CREATED,

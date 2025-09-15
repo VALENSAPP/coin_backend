@@ -13,13 +13,13 @@ export declare class TokenPurchaseController {
     getPurchaseHistory(req: Request): Promise<{
         purchases: {
             id: string;
-            createdAt: Date;
             amount: number;
             platformFee: number;
             vendorFee: number;
             restAmount: number;
             tokensReceived: number;
             status: string;
+            createdAt: Date;
             completedAt: Date | null;
         }[];
     }>;

@@ -14,6 +14,10 @@ const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class PurchaseTokensDto {
     amount;
+    platformFee;
+    vendorFee;
+    restAmount;
+    tokensReceived;
     vendorId;
 }
 exports.PurchaseTokensDto = PurchaseTokensDto;
@@ -27,6 +31,46 @@ __decorate([
     (0, class_validator_1.Min)(0.01),
     __metadata("design:type", Number)
 ], PurchaseTokensDto.prototype, "amount", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Platform fee provided by frontend',
+        example: 0.02,
+        minimum: 0
+    }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], PurchaseTokensDto.prototype, "platformFee", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Vendor fee provided by frontend',
+        example: 0.05,
+        minimum: 0
+    }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], PurchaseTokensDto.prototype, "vendorFee", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Amount after deducting fees provided by frontend',
+        example: 9.93,
+        minimum: 0
+    }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 2 }),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], PurchaseTokensDto.prototype, "restAmount", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Tokens to be received provided by frontend',
+        example: 993,
+        minimum: 0
+    }),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], PurchaseTokensDto.prototype, "tokensReceived", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Vendor user ID (whose tokens are being purchased). Optional - if not provided, platform tokens.',
@@ -81,7 +125,7 @@ class TokenPurchaseResponseDto {
     restAmount;
     tokensReceived;
     status;
-    stripePaymentIntentId;
+    sessionUrl;
 }
 exports.TokenPurchaseResponseDto = TokenPurchaseResponseDto;
 __decorate([
@@ -135,9 +179,9 @@ __decorate([
 ], TokenPurchaseResponseDto.prototype, "status", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
-        description: 'Stripe payment intent ID',
-        example: 'pi_1234567890'
+        description: 'Stripe checkout session URL for payment',
+        example: 'https://checkout.stripe.com/pay/cs_test_...'
     }),
     __metadata("design:type", String)
-], TokenPurchaseResponseDto.prototype, "stripePaymentIntentId", void 0);
+], TokenPurchaseResponseDto.prototype, "sessionUrl", void 0);
 //# sourceMappingURL=purchase-tokens.dto.js.map
