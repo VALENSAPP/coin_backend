@@ -12,12 +12,13 @@ const token_purchase_service_1 = require("./token-purchase.service");
 const token_purchase_controller_1 = require("./token-purchase.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
 const token_module_1 = require("../token/token.module");
+const user_module_1 = require("../user/user.module");
 let TokenPurchaseModule = class TokenPurchaseModule {
 };
 exports.TokenPurchaseModule = TokenPurchaseModule;
 exports.TokenPurchaseModule = TokenPurchaseModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, token_module_1.TokenModule],
+        imports: [prisma_module_1.PrismaModule, token_module_1.TokenModule, user_module_1.UserModule],
         controllers: [token_purchase_controller_1.TokenPurchaseController],
         providers: [token_purchase_service_1.TokenPurchaseService],
         exports: [token_purchase_service_1.TokenPurchaseService],
