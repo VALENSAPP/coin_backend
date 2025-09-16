@@ -189,7 +189,7 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 this.logger.error('No coin address available for purchase');
                 return;
             }
-            const usdPaid = ethers_1.ethers.parseEther(tokenPurchase.amount.toString());
+            const usdPaid = ethers_1.ethers.parseEther(tokenPurchase.restAmount.toString());
             const contract = this.tokenService.getContract();
             if (!contract) {
                 this.logger.error('Smart contract not initialized');
