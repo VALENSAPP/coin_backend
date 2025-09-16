@@ -234,7 +234,7 @@ export class TokenPurchaseService {
       }
 
       // Convert amount to wei (usdPaid)
-      const usdPaid = ethers.parseEther(tokenPurchase.amount.toString());
+      const usdPaid = ethers.parseEther(tokenPurchase.restAmount.toString());
 
       // Call buyFor on the smart contract
       const contract = this.tokenService.getContract();
