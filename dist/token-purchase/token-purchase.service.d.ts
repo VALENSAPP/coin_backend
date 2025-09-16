@@ -1,13 +1,15 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
+import { UserService } from '../user/user.service';
 export declare class TokenPurchaseService {
     private readonly prisma;
     private readonly tokenService;
+    private readonly userService;
     private readonly logger;
     private stripe;
     private readonly TOKEN_RATE;
-    constructor(prisma: PrismaService, tokenService: TokenService);
+    constructor(prisma: PrismaService, tokenService: TokenService, userService: UserService);
     private validateFees;
     createTokenPurchase(userId: string, dto: PurchaseTokensDto): Promise<TokenPurchaseResponseDto>;
     handlePaymentSuccess(paymentIntentId: string): Promise<void>;

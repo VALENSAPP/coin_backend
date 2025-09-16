@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
+import { UserService } from '../user/user.service';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 
@@ -14,7 +15,8 @@ export class TokenPurchaseService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly tokenService: TokenService
+    private readonly tokenService: TokenService,
+    private readonly userService: UserService
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -250,6 +252,16 @@ export class TokenPurchaseService {
         // Wait for transaction confirmation
         const receipt = await tx.wait();
         this.logger.log(`BuyFor transaction confirmed in block: ${receipt.blockNumber}`);
+
+        // Follow the token owner if vendorId exists
+        if (tokenPurchase.vendorId) {
+          try {
+            await this.userService.followPerson(tokenPurchase.userId, tokenPurchase.vendorId);
+            this.logger.log(`User ${tokenPurchase.userId} followed token owner ${tokenPurchase.vendorId}`);
+          } catch (followError) {
+            this.logger.warn(`Failed to follow token owner: ${followError.message}`);
+          }
+        }
       } catch (blockchainError) {
         this.logger.error('Error calling buyFor on blockchain:', blockchainError);
       }

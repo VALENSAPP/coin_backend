@@ -14,17 +14,20 @@ exports.TokenPurchaseService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const token_service_1 = require("../token/token.service");
+const user_service_1 = require("../user/user.service");
 const stripe_1 = require("stripe");
 const ethers_1 = require("ethers");
 let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
     prisma;
     tokenService;
+    userService;
     logger = new common_1.Logger(TokenPurchaseService_1.name);
     stripe;
     TOKEN_RATE = 100;
-    constructor(prisma, tokenService) {
+    constructor(prisma, tokenService, userService) {
         this.prisma = prisma;
         this.tokenService = tokenService;
+        this.userService = userService;
         this.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
             apiVersion: '2024-06-20',
         });
@@ -200,6 +203,15 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 this.logger.log(`BuyFor transaction sent: ${tx.hash} for user ${tokenPurchase.userId}`);
                 const receipt = await tx.wait();
                 this.logger.log(`BuyFor transaction confirmed in block: ${receipt.blockNumber}`);
+                if (tokenPurchase.vendorId) {
+                    try {
+                        await this.userService.followPerson(tokenPurchase.userId, tokenPurchase.vendorId);
+                        this.logger.log(`User ${tokenPurchase.userId} followed token owner ${tokenPurchase.vendorId}`);
+                    }
+                    catch (followError) {
+                        this.logger.warn(`Failed to follow token owner: ${followError.message}`);
+                    }
+                }
             }
             catch (blockchainError) {
                 this.logger.error('Error calling buyFor on blockchain:', blockchainError);
@@ -333,6 +345,7 @@ exports.TokenPurchaseService = TokenPurchaseService;
 exports.TokenPurchaseService = TokenPurchaseService = TokenPurchaseService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        token_service_1.TokenService])
+        token_service_1.TokenService,
+        user_service_1.UserService])
 ], TokenPurchaseService);
 //# sourceMappingURL=token-purchase.service.js.map
