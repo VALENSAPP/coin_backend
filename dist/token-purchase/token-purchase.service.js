@@ -156,6 +156,13 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 this.logger.warn(`Token purchase not found for checkout session: ${sessionId}`);
                 return;
             }
+            this.logger.log(`Token purchase found: ${JSON.stringify({
+                id: tokenPurchase.id,
+                userId: tokenPurchase.userId,
+                vendorId: tokenPurchase.vendorId,
+                amount: tokenPurchase.amount,
+                status: tokenPurchase.status
+            })}`);
             if (tokenPurchase.status === 'completed') {
                 this.logger.log(`Token purchase already completed: ${tokenPurchase.id}`);
                 return;
@@ -192,7 +199,7 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 this.logger.error('No coin address available for purchase');
                 return;
             }
-            const usdPaid = ethers_1.ethers.parseEther(tokenPurchase.restAmount.toString());
+            const usdPaid = ethers_1.ethers.parseEther(tokenPurchase.amount.toString());
             const contract = this.tokenService.getContract();
             if (!contract) {
                 this.logger.error('Smart contract not initialized');
@@ -203,14 +210,24 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 this.logger.log(`BuyFor transaction sent: ${tx.hash} for user ${tokenPurchase.userId}`);
                 const receipt = await tx.wait();
                 this.logger.log(`BuyFor transaction confirmed in block: ${receipt.blockNumber}`);
-                if (tokenPurchase.vendorId) {
+                this.logger.log(`Checking follow logic - vendorId: ${tokenPurchase.vendorId}, userId: ${tokenPurchase.userId}`);
+                if (tokenPurchase.vendorId && tokenPurchase.vendorId.trim() !== '') {
+                    this.logger.log(`Attempting to follow token owner ${tokenPurchase.vendorId} by user ${tokenPurchase.userId}`);
                     try {
                         await this.userService.followPerson(tokenPurchase.userId, tokenPurchase.vendorId);
-                        this.logger.log(`User ${tokenPurchase.userId} followed token owner ${tokenPurchase.vendorId}`);
+                        this.logger.log(`SUCCESS: User ${tokenPurchase.userId} followed token owner ${tokenPurchase.vendorId}`);
                     }
                     catch (followError) {
-                        this.logger.warn(`Failed to follow token owner: ${followError.message}`);
+                        if (followError.message && followError.message.includes('Already following')) {
+                            this.logger.log(`INFO: User ${tokenPurchase.userId} already follows token owner ${tokenPurchase.vendorId}`);
+                        }
+                        else {
+                            this.logger.error(`FAILED: Follow attempt failed: ${followError.message}`, followError.stack);
+                        }
                     }
+                }
+                else {
+                    this.logger.log(`SKIP: No valid vendorId found (null or empty), skipping follow`);
                 }
             }
             catch (blockchainError) {
