@@ -163,17 +163,7 @@ export class TokenPurchaseService {
         },
       });
 
-      // Credit tokens to user
-      await this.prisma.user.update({
-        where: { id: tokenPurchase.userId },
-        data: {
-          tokenBalance: {
-            increment: tokenPurchase.tokensReceived,
-          },
-        },
-      });
-
-      this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens credited to user ${tokenPurchase.userId}`);
+      this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens purchased for user ${tokenPurchase.userId}`);
 
     } catch (error) {
       this.logger.error('Error handling payment success:', error);
@@ -210,17 +200,61 @@ export class TokenPurchaseService {
         },
       });
 
-      // Credit tokens to user
-      await this.prisma.user.update({
+      // Get user details
+      const user = await this.prisma.user.findUnique({
         where: { id: tokenPurchase.userId },
-        data: {
-          tokenBalance: {
-            increment: tokenPurchase.tokensReceived,
-          },
-        },
+        select: { id: true, walletAddress: true },
       });
 
-      this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens credited to user ${tokenPurchase.userId}`);
+      if (!user || !user.walletAddress) {
+        this.logger.error(`User ${tokenPurchase.userId} not found or no wallet address`);
+        return;
+      }
+
+      // Get coin address
+      let coinAddress: string | null = null;
+      if (tokenPurchase.vendorId) {
+        const vendorToken = await this.prisma.userToken.findFirst({
+          where: { userId: tokenPurchase.vendorId },
+          select: { tokenAddress: true },
+        });
+        if (vendorToken && vendorToken.tokenAddress) {
+          coinAddress = vendorToken.tokenAddress;
+        }
+      }
+
+      if (!coinAddress) {
+        // Use default coin address if available
+        coinAddress = process.env.DEFAULT_COIN_ADDRESS as string;
+      }
+
+      if (!coinAddress) {
+        this.logger.error('No coin address available for purchase');
+        return;
+      }
+
+      // Convert amount to wei (usdPaid)
+      const usdPaid = ethers.parseEther(tokenPurchase.amount.toString());
+
+      // Call buyFor on the smart contract
+      const contract = this.tokenService.getContract();
+      if (!contract) {
+        this.logger.error('Smart contract not initialized');
+        return;
+      }
+
+      try {
+        const tx = await contract.buyFor(coinAddress, user.walletAddress, usdPaid);
+        this.logger.log(`BuyFor transaction sent: ${tx.hash} for user ${tokenPurchase.userId}`);
+
+        // Wait for transaction confirmation
+        const receipt = await tx.wait();
+        this.logger.log(`BuyFor transaction confirmed in block: ${receipt.blockNumber}`);
+      } catch (blockchainError) {
+        this.logger.error('Error calling buyFor on blockchain:', blockchainError);
+      }
+
+      this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens purchased for user ${tokenPurchase.userId}`);
 
     } catch (error) {
       this.logger.error('Error handling checkout session success:', error);
