@@ -216,6 +216,13 @@ export class BillingService {
       },
     });
   }
+
+  async getLatestTransactions(userId: string) {
+    return this.prisma.payment.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }
 
 

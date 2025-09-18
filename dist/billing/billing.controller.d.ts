@@ -23,4 +23,19 @@ export declare class BillingController {
             currentPeriodEnd: Date | null;
         };
     }>;
+    getLatestTransactions(req: Request): Promise<{
+        transactions: {
+            userId: string;
+            id: string;
+            createdAt: Date;
+            status: string;
+            currency: string;
+            amount: number;
+            forPayment: string;
+            stripeInvoiceId: string | null;
+            stripePaymentIntentId: string | null;
+            periodStart: Date | null;
+            periodEnd: Date | null;
+        }[];
+    }>;
 }

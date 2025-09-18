@@ -230,6 +230,12 @@ let BillingService = class BillingService {
             },
         });
     }
+    async getLatestTransactions(userId) {
+        return this.prisma.payment.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
 };
 exports.BillingService = BillingService;
 exports.BillingService = BillingService = __decorate([
