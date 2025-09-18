@@ -4,6 +4,7 @@ export declare class PurchaseTokensDto {
     vendorFee: number;
     restAmount: number;
     tokensReceived: number;
+    purchaseTokenPrice: number;
     vendorId?: string;
 }
 export declare class BuyTokenDto {
@@ -20,6 +21,7 @@ export declare class TokenPurchaseResponseDto {
     vendorFee: number;
     restAmount: number;
     tokensReceived: number;
+    purchaseTokenPrice: number;
     status: string;
     sessionUrl?: string;
 }
