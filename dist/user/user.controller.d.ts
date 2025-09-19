@@ -141,6 +141,9 @@ export declare class UserController {
     editProfile(req: Request, dto: ProfileEditDto, image: Express.Multer.File): Promise<{
         message: string;
         user: {
+            totalPosts: number;
+            totalFollowing: number;
+            totalFollowers: number;
             email: string | null;
             password: string | null;
             googleId: string | null;
@@ -406,6 +409,9 @@ export declare class UserController {
             image: string | null;
             id: string;
         }[];
+    }>;
+    getHitLeft(req: Request): Promise<{
+        hitLeft: number;
     }>;
     getUserById(id: string): Promise<{
         user: {

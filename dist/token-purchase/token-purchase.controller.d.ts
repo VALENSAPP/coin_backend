@@ -15,8 +15,8 @@ export declare class TokenPurchaseController {
             id: string;
             createdAt: Date;
             status: string;
-            amount: number;
             completedAt: Date | null;
+            amount: number;
             platformFee: number;
             vendorFee: number;
             restAmount: number;

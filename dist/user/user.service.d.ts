@@ -87,6 +87,9 @@ export declare class UserService {
         tokenBalance: number;
     }>;
     editProfile(userId: string, dto: any, image?: Express.Multer.File): Promise<{
+        totalPosts: number;
+        totalFollowing: number;
+        totalFollowers: number;
         email: string | null;
         password: string | null;
         googleId: string | null;
@@ -362,6 +365,7 @@ export declare class UserService {
         totalFollowing: number;
         totalFollowers: number;
     }>;
+    getHitLeft(userId: string): Promise<number>;
     searchUser(query: string): Promise<{
         email: string | null;
         userName: string | null;

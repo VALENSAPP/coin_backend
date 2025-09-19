@@ -469,6 +469,16 @@ export class UserController {
     return { users };
   }
 
+  @Get('getHitLeft')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user hit left' })
+  async getHitLeft(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    const hitLeft = await this.userService.getHitLeft(userId);
+    return { hitLeft };
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

@@ -21,8 +21,8 @@ export declare class TokenPurchaseService {
         id: string;
         createdAt: Date;
         status: string;
-        amount: number;
         completedAt: Date | null;
+        amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
