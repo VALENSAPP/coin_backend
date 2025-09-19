@@ -33,6 +33,41 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
             apiVersion: '2024-06-20',
         });
     }
+    async getTotalTokenData(userId) {
+        try {
+            const userToken = await this.prisma.userToken.findFirst({
+                where: { userId },
+                select: { tokenAddress: true },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (!userToken || !userToken.tokenAddress) {
+                throw new common_1.BadRequestException('Token address not found for user');
+            }
+            const tokenAddress = userToken.tokenAddress;
+            const tokenPurchaseSum = await this.prisma.tokenPurchase.aggregate({
+                _sum: {
+                    tokensReceived: true,
+                },
+                where: {
+                    userId,
+                    status: 'completed',
+                },
+            });
+            const tokenAmount = tokenPurchaseSum._sum.tokensReceived || 0;
+            const priceData = await this.tokenService.getPricePerTokenUsd(tokenAddress);
+            const tokenPrice = priceData.priceInUsd;
+            const totalTokenAmount = tokenPrice * tokenAmount;
+            return {
+                tokenPrice,
+                tokenAmount,
+                totalTokenAmount,
+            };
+        }
+        catch (error) {
+            this.logger.error('Error getting total token data:', error);
+            throw error;
+        }
+    }
     validateFees(dto) {
         const expectedRestAmount = dto.amount - (dto.platformFee + dto.vendorFee);
         const expectedTokensReceived = expectedRestAmount * this.TOKEN_RATE;

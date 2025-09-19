@@ -22,15 +22,15 @@ export declare class TokenService {
         userTokenId: string;
     }>;
     getUserToken(userId: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        transactionHash: string;
         tokenAddress: string | null;
+        initialSupply: string;
+        transactionHash: string;
         tokenName: string;
         tokenSymbol: string;
-        initialSupply: string;
         initialPrice: string;
         scalingConstant: string;
         blockNumber: number;
@@ -44,15 +44,15 @@ export declare class TokenService {
     }>;
     getUserTokenWithInfo(userId: string): Promise<{
         tokenInfo: null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        transactionHash: string;
         tokenAddress: string | null;
+        initialSupply: string;
+        transactionHash: string;
         tokenName: string;
         tokenSymbol: string;
-        initialSupply: string;
         initialPrice: string;
         scalingConstant: string;
         blockNumber: number;
@@ -64,15 +64,15 @@ export declare class TokenService {
             initialSupply: any;
             followers: any;
         };
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
-        transactionHash: string;
         tokenAddress: string | null;
+        initialSupply: string;
+        transactionHash: string;
         tokenName: string;
         tokenSymbol: string;
-        initialSupply: string;
         initialPrice: string;
         scalingConstant: string;
         blockNumber: number;

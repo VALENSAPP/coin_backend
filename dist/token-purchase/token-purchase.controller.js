@@ -26,6 +26,10 @@ let TokenPurchaseController = class TokenPurchaseController {
         this.tokenPurchaseService = tokenPurchaseService;
         this.tokenService = tokenService;
     }
+    async getTotaltoken(req) {
+        const userId = req.user.userId;
+        return this.tokenPurchaseService.getTotalTokenData(userId);
+    }
     async purchaseTokens(dto, req) {
         const userId = req.user.userId;
         return this.tokenPurchaseService.createTokenPurchase(userId, dto);
@@ -57,6 +61,35 @@ let TokenPurchaseController = class TokenPurchaseController {
     }
 };
 exports.TokenPurchaseController = TokenPurchaseController;
+__decorate([
+    (0, common_1.Get)('getTotaltoken'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get total token amount and price for authenticated user',
+        description: 'Returns token price from contract, total tokens received from purchases, and total token amount (price * amount)'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Total token data retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                tokenPrice: { type: 'number', example: 0.001 },
+                tokenAmount: { type: 'number', example: 1500 },
+                totalTokenAmount: { type: 'number', example: 1.5 }
+            }
+        }
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid JWT token'
+    }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], TokenPurchaseController.prototype, "getTotaltoken", null);
 __decorate([
     (0, common_1.Post)('purchase'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

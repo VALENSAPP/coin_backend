@@ -14,6 +14,34 @@ export class TokenPurchaseController {
     private readonly tokenService: TokenService
   ) {}
 
+  @Get('getTotaltoken')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get total token amount and price for authenticated user',
+    description: 'Returns token price from contract, total tokens received from purchases, and total token amount (price * amount)'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Total token data retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        tokenPrice: { type: 'number', example: 0.001 },
+        tokenAmount: { type: 'number', example: 1500 },
+        totalTokenAmount: { type: 'number', example: 1.5 }
+      }
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized - Invalid JWT token'
+  })
+  async getTotaltoken(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.tokenPurchaseService.getTotalTokenData(userId);
+  }
+
   @Post('purchase')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
