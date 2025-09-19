@@ -57,6 +57,8 @@ model User {
   sentConversations    Conversation[]         @relation("ConversationSender")
   receivedConversations Conversation[]        @relation("ConversationReceiver")
   userTokens           UserToken[]
+  postHits             PostHit[]
+
 }
 
 model Post {
@@ -287,6 +289,17 @@ model UserToken {
 
   @@index([userId])
   @@index([tokenAddress])
+}
+
+model PostHit {
+  id                    String    @id @default(uuid())
+  userId                String
+  hitLeft               Int   // User's hit left to add the post 
+  createdAt             DateTime  @default(now())
+  completedAt           DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum RegistrationType {
