@@ -216,7 +216,7 @@ model TokenPurchase {
   status                String    @default("pending") // pending, completed, failed
   stripePaymentIntentId String?
   stripeCheckoutSessionId String?
-  purchaseTokenPrice    Float     //Token Price at the time user purchase
+  purchaseTokenPrice    Float     @default(0) //Token Price at the time user purchase
   stripeInvoiceId       String?
   createdAt             DateTime  @default(now())
   completedAt           DateTime?
