@@ -6,6 +6,11 @@ export declare class TokenPurchaseController {
     private readonly tokenPurchaseService;
     private readonly tokenService;
     constructor(tokenPurchaseService: TokenPurchaseService, tokenService: TokenService);
+    getTotaltoken(req: Request): Promise<{
+        tokenPrice: number;
+        tokenAmount: number;
+        totalTokenAmount: number;
+    }>;
     purchaseTokens(dto: PurchaseTokensDto, req: Request): Promise<TokenPurchaseResponseDto>;
     getTokenBalance(req: Request): Promise<{
         balance: number;
@@ -17,10 +22,10 @@ export declare class TokenPurchaseController {
             status: string;
             completedAt: Date | null;
             amount: number;
+            tokensReceived: number;
             platformFee: number;
             vendorFee: number;
             restAmount: number;
-            tokensReceived: number;
         }[];
     }>;
     buyToken(dto: BuyTokenDto, req: Request): Promise<{

@@ -44,9 +44,18 @@ let UserService = class UserService {
                 };
             }
         }
-        if (data.email &&
-            await this.prisma.user.findFirst({ where: { email: data.email, deletedAt: null } })) {
-            throw new common_1.BadRequestException('Email already registered');
+        if (data.email) {
+            const existingUser = await this.prisma.user.findFirst({
+                where: { email: data.email }
+            });
+            if (existingUser) {
+                if (existingUser.deletedAt === null) {
+                    throw new common_1.BadRequestException('Email already registered');
+                }
+                else {
+                    throw new common_1.BadRequestException('Email previously registered. Please contact support for account recovery.');
+                }
+            }
         }
         if (data.googleId &&
             await this.prisma.user.findFirst({ where: { googleId: data.googleId, deletedAt: null } })) {
@@ -70,18 +79,42 @@ let UserService = class UserService {
         const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
         const encryptedPrivateKey = (0, crypto_util_1.encryptSecret)(wallet.privateKey, encryptionKey);
         const encryptedMnemonic = (0, crypto_util_1.encryptSecret)(wallet.mnemonic, encryptionKey);
-        const user = await this.prisma.user.create({
-            data: {
-                email: data.email,
-                password: passwordHash,
-                googleId: data.googleId,
-                twitterId: data.twitterId,
-                walletAddress: wallet.address,
-                walletPrivateKey: encryptedPrivateKey,
-                walletMnemonic: encryptedMnemonic,
-                registrationType: data.registrationType,
-            },
-        });
+        let user;
+        try {
+            user = await this.prisma.user.create({
+                data: {
+                    email: data.email,
+                    password: passwordHash,
+                    googleId: data.googleId,
+                    twitterId: data.twitterId,
+                    walletAddress: wallet.address,
+                    walletPrivateKey: encryptedPrivateKey,
+                    walletMnemonic: encryptedMnemonic,
+                    registrationType: data.registrationType,
+                },
+            });
+        }
+        catch (error) {
+            if (error.code === 'P2002') {
+                const field = error.meta?.target?.[0];
+                if (field === 'email') {
+                    throw new common_1.BadRequestException('Email already registered');
+                }
+                else if (field === 'walletAddress') {
+                    throw new common_1.BadRequestException('Wallet address already registered');
+                }
+                else if (field === 'googleId') {
+                    throw new common_1.BadRequestException('Google account already registered');
+                }
+                else if (field === 'twitterId') {
+                    throw new common_1.BadRequestException('Twitter account already registered');
+                }
+                else {
+                    throw new common_1.BadRequestException(`Unique constraint violation on field: ${field}`);
+                }
+            }
+            throw error;
+        }
         const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
         return {
             access_token: this.jwtService.sign(payload),
