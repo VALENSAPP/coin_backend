@@ -19,14 +19,14 @@ export declare class TokenPurchaseService {
     getUserTokenBalance(userId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{
         id: string;
+        createdAt: Date;
+        status: string;
         amount: number;
+        completedAt: Date | null;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
-        status: string;
-        createdAt: Date;
-        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string): Promise<{
         tokenAddress: string | null;

@@ -19,4 +19,17 @@ export declare class BillingService {
     handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void>;
     handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void>;
     handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
+    getLatestTransactions(userId: string): Promise<{
+        userId: string;
+        id: string;
+        createdAt: Date;
+        status: string;
+        currency: string;
+        amount: number;
+        forPayment: string;
+        stripeInvoiceId: string | null;
+        stripePaymentIntentId: string | null;
+        periodStart: Date | null;
+        periodEnd: Date | null;
+    }[]>;
 }

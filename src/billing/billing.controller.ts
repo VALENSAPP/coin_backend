@@ -65,6 +65,16 @@ export class BillingController {
     const details = await this.billingService.getSubscriptionDetails(userId);
     return { subscription: details };
   }
+
+  @Get('get-latest-transactions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get latest transactions for the user' })
+  async getLatestTransactions(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    const transactions = await this.billingService.getLatestTransactions(userId);
+    return { transactions };
+  }
 }
 
 

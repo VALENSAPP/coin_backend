@@ -48,6 +48,15 @@ export class PurchaseTokensDto {
   tokensReceived: number;
 
   @ApiProperty({
+    description: 'Token price at the time of purchase',
+    example: 0.01,
+    minimum: 0
+  })
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  purchaseTokenPrice: number;
+
+  @ApiProperty({
     description: 'Vendor user ID (whose tokens are being purchased). Optional - if not provided, platform tokens.',
     example: '123e4567-e89b-12d3-a456-426614174000',
     required: false
@@ -139,6 +148,12 @@ export class TokenPurchaseResponseDto {
     example: 933
   })
   tokensReceived: number;
+
+  @ApiProperty({
+    description: 'Token price at the time of purchase',
+    example: 0.01
+  })
+  purchaseTokenPrice: number;
 
   @ApiProperty({
     description: 'Payment status',

@@ -18,6 +18,7 @@ class PurchaseTokensDto {
     vendorFee;
     restAmount;
     tokensReceived;
+    purchaseTokenPrice;
     vendorId;
 }
 exports.PurchaseTokensDto = PurchaseTokensDto;
@@ -71,6 +72,16 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], PurchaseTokensDto.prototype, "tokensReceived", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Token price at the time of purchase',
+        example: 0.01,
+        minimum: 0
+    }),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], PurchaseTokensDto.prototype, "purchaseTokenPrice", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Vendor user ID (whose tokens are being purchased). Optional - if not provided, platform tokens.',
@@ -147,6 +158,7 @@ class TokenPurchaseResponseDto {
     vendorFee;
     restAmount;
     tokensReceived;
+    purchaseTokenPrice;
     status;
     sessionUrl;
 }
@@ -193,6 +205,13 @@ __decorate([
     }),
     __metadata("design:type", Number)
 ], TokenPurchaseResponseDto.prototype, "tokensReceived", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Token price at the time of purchase',
+        example: 0.01
+    }),
+    __metadata("design:type", Number)
+], TokenPurchaseResponseDto.prototype, "purchaseTokenPrice", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Payment status',

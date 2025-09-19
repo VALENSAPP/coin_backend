@@ -58,6 +58,8 @@ model User {
   sentConversations    Conversation[]         @relation("ConversationSender")
   receivedConversations Conversation[]        @relation("ConversationReceiver")
   userTokens           UserToken[]
+  postHits             PostHit[]
+
 }
 
 model Post {
@@ -214,6 +216,7 @@ model TokenPurchase {
   status                String    @default("pending") // pending, completed, failed
   stripePaymentIntentId String?
   stripeCheckoutSessionId String?
+  purchaseTokenPrice    Float     //Token Price at the time user purchase
   stripeInvoiceId       String?
   createdAt             DateTime  @default(now())
   completedAt           DateTime?
@@ -305,6 +308,17 @@ model UserToken {
 
   @@index([userId])
   @@index([tokenAddress])
+}
+
+model PostHit {
+  id                    String    @id @default(uuid())
+  userId                String
+  hitLeft               Int   // User's hit left to add the post 
+  createdAt             DateTime  @default(now())
+  completedAt           DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum RegistrationType {
