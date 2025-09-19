@@ -210,7 +210,8 @@ export class UserService {
       where: { id: userId },
       data,
     });
-    return user;
+    const dashboardData = await this.getUserDashboard(userId);
+    return { ...user, ...dashboardData };
   }
 
   // Forgot password: generate OTP, save to user, send email (stub)
@@ -546,6 +547,17 @@ export class UserService {
       totalFollowing,
       totalFollowers,
     };
+  }
+
+  async getHitLeft(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    const postHit = await this.prisma.postHit.findFirst({
+      where: { userId },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+    return postHit ? postHit.hitLeft : 0;
   }
 
  async searchUser(query: string) {

@@ -393,6 +393,11 @@ let UserController = class UserController {
         const users = await this.userService.searchUser(query);
         return { users };
     }
+    async getHitLeft(req) {
+        const userId = req.user.userId;
+        const hitLeft = await this.userService.getHitLeft(userId);
+        return { hitLeft };
+    }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
         return { user };
@@ -672,6 +677,16 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "searchUser", null);
+__decorate([
+    (0, common_1.Get)('getHitLeft'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Get user hit left' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getHitLeft", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
