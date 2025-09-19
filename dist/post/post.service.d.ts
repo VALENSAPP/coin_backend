@@ -3,13 +3,13 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, taggedPeople?: string[]): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -92,13 +92,13 @@ export declare class PostService {
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -120,16 +120,16 @@ export declare class PostService {
         totalLikes: number;
     }>;
     commentOnPost(postId: string, userId: string, comment: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
         comment: string;
     }>;
     editComment(commentId: string, userId: string, newComment: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -211,22 +211,22 @@ export declare class PostService {
         deletedIds: string[];
     }>;
     hidePost(postId: string, userId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
     }>;
     unhidePost(postId: string, userId: string): Promise<{
         message: string;
     }>;
     getHidePost(userId: string): Promise<{
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -234,14 +234,14 @@ export declare class PostService {
         taggedPeople: string[];
     }[]>;
     sendMessage(senderId: string, receiverId: string, message: string): Promise<{
-        type: import(".prisma/client").$Enums.ConversationType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        content: string | null;
         postId: string | null;
+        type: import(".prisma/client").$Enums.ConversationType;
         senderId: string;
         receiverId: string;
+        content: string | null;
         storyId: string | null;
     }>;
     getConversations(userId: string): Promise<{
@@ -250,19 +250,19 @@ export declare class PostService {
         content: string | null;
         createdAt: Date;
         sender: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         receiver: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         post: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             text: string | null;
@@ -271,8 +271,8 @@ export declare class PostService {
         } | null;
         story: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             caption: string | null;
@@ -285,19 +285,19 @@ export declare class PostService {
         content: string | null;
         createdAt: Date;
         sender: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         receiver: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         post: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             text: string | null;
@@ -306,8 +306,8 @@ export declare class PostService {
         } | null;
         story: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             caption: string | null;
