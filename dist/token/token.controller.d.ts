@@ -24,9 +24,9 @@ export declare class TokenController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            tokenAddress: string | null;
             initialSupply: string;
             transactionHash: string;
+            tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
             initialPrice: string;
@@ -52,9 +52,9 @@ export declare class TokenController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            tokenAddress: string | null;
             initialSupply: string;
             transactionHash: string;
+            tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
             initialPrice: string;
@@ -72,9 +72,9 @@ export declare class TokenController {
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            tokenAddress: string | null;
             initialSupply: string;
             transactionHash: string;
+            tokenAddress: string | null;
             tokenName: string;
             tokenSymbol: string;
             initialPrice: string;

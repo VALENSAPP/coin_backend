@@ -89,31 +89,37 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 },
                 customer_email: user.email || undefined,
             });
+            const tokenPurchaseData = {
+                userId,
+                vendorId: dto.vendorId,
+                amount: dto.amount,
+                platformFee: dto.platformFee,
+                vendorFee: dto.vendorFee,
+                restAmount: dto.restAmount,
+                tokensReceived: dto.tokensReceived,
+                stripeCheckoutSessionId: session.id,
+                status: 'pending',
+            };
+            if (dto.purchaseTokenPrice !== undefined) {
+                tokenPurchaseData.purchaseTokenPrice = dto.purchaseTokenPrice;
+            }
             const tokenPurchase = await this.prisma.tokenPurchase.create({
-                data: {
-                    userId,
-                    vendorId: dto.vendorId,
-                    amount: dto.amount,
-                    platformFee: dto.platformFee,
-                    vendorFee: dto.vendorFee,
-                    restAmount: dto.restAmount,
-                    tokensReceived: dto.tokensReceived,
-                    purchaseTokenPrice: dto.purchaseTokenPrice,
-                    stripeCheckoutSessionId: session.id,
-                    status: 'pending',
-                },
+                data: tokenPurchaseData,
             });
-            return {
+            const response = {
                 id: tokenPurchase.id,
                 amount: dto.amount,
                 platformFee: dto.platformFee,
                 vendorFee: dto.vendorFee,
                 restAmount: dto.restAmount,
                 tokensReceived: dto.tokensReceived,
-                purchaseTokenPrice: dto.purchaseTokenPrice,
                 status: tokenPurchase.status,
                 sessionUrl: session.url,
             };
+            if (dto.purchaseTokenPrice !== undefined) {
+                response.purchaseTokenPrice = dto.purchaseTokenPrice;
+            }
+            return response;
         }
         catch (error) {
             this.logger.error('Error creating token purchase:', error);

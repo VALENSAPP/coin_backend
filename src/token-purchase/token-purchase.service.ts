@@ -103,32 +103,44 @@ export class TokenPurchaseService {
       });
 
       // Create token purchase record
+      const tokenPurchaseData: any = {
+        userId,
+        vendorId: dto.vendorId,
+        amount: dto.amount,
+        platformFee: dto.platformFee,
+        vendorFee: dto.vendorFee,
+        restAmount: dto.restAmount,
+        tokensReceived: dto.tokensReceived,
+        stripeCheckoutSessionId: session.id,
+        status: 'pending',
+      };
+
+      // Only include purchaseTokenPrice if it's provided and the database supports it
+      if (dto.purchaseTokenPrice !== undefined) {
+        tokenPurchaseData.purchaseTokenPrice = dto.purchaseTokenPrice;
+      }
+
       const tokenPurchase = await this.prisma.tokenPurchase.create({
-        data: {
-          userId,
-          vendorId: dto.vendorId,
-          amount: dto.amount,
-          platformFee: dto.platformFee,
-          vendorFee: dto.vendorFee,
-          restAmount: dto.restAmount,
-          tokensReceived: dto.tokensReceived,
-          purchaseTokenPrice: dto.purchaseTokenPrice,
-          stripeCheckoutSessionId: session.id,
-          status: 'pending',
-        } as any, // Temporary workaround for Prisma client generation issue
+        data: tokenPurchaseData,
       });
 
-      return {
+      const response: any = {
         id: tokenPurchase.id,
         amount: dto.amount,
         platformFee: dto.platformFee,
         vendorFee: dto.vendorFee,
         restAmount: dto.restAmount,
         tokensReceived: dto.tokensReceived,
-        purchaseTokenPrice: dto.purchaseTokenPrice,
         status: tokenPurchase.status,
         sessionUrl: session.url!,
       };
+
+      // Only include purchaseTokenPrice in response if it was provided
+      if (dto.purchaseTokenPrice !== undefined) {
+        response.purchaseTokenPrice = dto.purchaseTokenPrice;
+      }
+
+      return response;
 
     } catch (error) {
       this.logger.error('Error creating token purchase:', error);
