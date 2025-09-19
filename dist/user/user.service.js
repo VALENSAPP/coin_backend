@@ -44,9 +44,18 @@ let UserService = class UserService {
                 };
             }
         }
-        if (data.email &&
-            await this.prisma.user.findFirst({ where: { email: data.email, deletedAt: null } })) {
-            throw new common_1.BadRequestException('Email already registered');
+        if (data.email) {
+            const existingUser = await this.prisma.user.findFirst({
+                where: { email: data.email }
+            });
+            if (existingUser) {
+                if (existingUser.deletedAt === null) {
+                    throw new common_1.BadRequestException('Email already registered');
+                }
+                else {
+                    throw new common_1.BadRequestException('Email previously registered. Please contact support for account recovery.');
+                }
+            }
         }
         if (data.googleId &&
             await this.prisma.user.findFirst({ where: { googleId: data.googleId, deletedAt: null } })) {

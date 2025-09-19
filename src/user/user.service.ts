@@ -53,11 +53,19 @@ export class UserService {
       // If not found, proceed to registration as usual
     }
     // Check for existing user by unique fields (exclude soft-deleted)
-    if (
-      data.email &&
-      await this.prisma.user.findFirst({ where: { email: data.email, deletedAt: null } })
-    ) {
-      throw new BadRequestException('Email already registered');
+    if (data.email) {
+      const existingUser = await this.prisma.user.findFirst({
+        where: { email: data.email }
+      });
+      if (existingUser) {
+        if (existingUser.deletedAt === null) {
+          throw new BadRequestException('Email already registered');
+        } else {
+          // Soft-deleted user exists, we'll allow re-registration but need to handle carefully
+          // For now, throw error to prevent conflicts
+          throw new BadRequestException('Email previously registered. Please contact support for account recovery.');
+        }
+      }
     }
     if (
       data.googleId &&
@@ -88,18 +96,38 @@ export class UserService {
     const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
     const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        password: passwordHash,
-        googleId: data.googleId,
-        twitterId: data.twitterId,
-        walletAddress: wallet.address,
-        walletPrivateKey: encryptedPrivateKey,
-        walletMnemonic: encryptedMnemonic,
-        registrationType: data.registrationType,
-      },
-    });
+    let user;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          email: data.email,
+          password: passwordHash,
+          googleId: data.googleId,
+          twitterId: data.twitterId,
+          walletAddress: wallet.address,
+          walletPrivateKey: encryptedPrivateKey,
+          walletMnemonic: encryptedMnemonic,
+          registrationType: data.registrationType,
+        },
+      });
+    } catch (error: any) {
+      // Handle Prisma unique constraint violations
+      if (error.code === 'P2002') {
+        const field = error.meta?.target?.[0];
+        if (field === 'email') {
+          throw new BadRequestException('Email already registered');
+        } else if (field === 'walletAddress') {
+          throw new BadRequestException('Wallet address already registered');
+        } else if (field === 'googleId') {
+          throw new BadRequestException('Google account already registered');
+        } else if (field === 'twitterId') {
+          throw new BadRequestException('Twitter account already registered');
+        } else {
+          throw new BadRequestException(`Unique constraint violation on field: ${field}`);
+        }
+      }
+      throw error;
+    }
 
     const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
     return {
