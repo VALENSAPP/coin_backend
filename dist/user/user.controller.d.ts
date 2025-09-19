@@ -141,6 +141,9 @@ export declare class UserController {
     editProfile(req: Request, dto: ProfileEditDto, image: Express.Multer.File): Promise<{
         message: string;
         user: {
+            totalPosts: number;
+            totalFollowing: number;
+            totalFollowers: number;
             id: string;
             email: string | null;
             password: string | null;
@@ -193,16 +196,16 @@ export declare class UserController {
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     }>;
     unfollow(req: Request, dto: UnfollowDto): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     }>;
     blockUser(req: Request, dto: BlockUserDto): Promise<{
         id: string;
@@ -255,8 +258,8 @@ export declare class UserController {
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     })[]>;
     getFollowingList(userId: string): Promise<({
         following: {
@@ -296,8 +299,8 @@ export declare class UserController {
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     })[]>;
     getBlockedUsers(req: Request): Promise<({
         blocked: {
@@ -406,6 +409,9 @@ export declare class UserController {
             displayName: string | null;
             userName: string | null;
         }[];
+    }>;
+    getHitLeft(req: Request): Promise<{
+        hitLeft: number;
     }>;
     getUserById(id: string): Promise<{
         user: {

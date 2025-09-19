@@ -176,7 +176,8 @@ let UserService = class UserService {
             where: { id: userId },
             data,
         });
-        return user;
+        const dashboardData = await this.getUserDashboard(userId);
+        return { ...user, ...dashboardData };
     }
     async forgotPassword(email) {
         const user = await this.prisma.user.findUnique({ where: { email } });
@@ -479,6 +480,17 @@ let UserService = class UserService {
             totalFollowing,
             totalFollowers,
         };
+    }
+    async getHitLeft(userId) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const postHit = await this.prisma.postHit.findFirst({
+            where: { userId },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+        return postHit ? postHit.hitLeft : 0;
     }
     async searchUser(query) {
         if (!query)

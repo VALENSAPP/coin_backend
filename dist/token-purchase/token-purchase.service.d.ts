@@ -21,12 +21,12 @@ export declare class TokenPurchaseService {
         id: string;
         createdAt: Date;
         status: string;
+        completedAt: Date | null;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
-        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string): Promise<{
         tokenAddress: string | null;

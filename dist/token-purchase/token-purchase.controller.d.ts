@@ -15,12 +15,12 @@ export declare class TokenPurchaseController {
             id: string;
             createdAt: Date;
             status: string;
+            completedAt: Date | null;
             amount: number;
             platformFee: number;
             vendorFee: number;
             restAmount: number;
             tokensReceived: number;
-            completedAt: Date | null;
         }[];
     }>;
     buyToken(dto: BuyTokenDto, req: Request): Promise<{

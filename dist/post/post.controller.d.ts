@@ -14,12 +14,12 @@ export declare class PostController {
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -28,12 +28,12 @@ export declare class PostController {
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -234,12 +234,12 @@ export declare class PostController {
     }>;
     getHidePost(req: Request): Promise<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        userId: string;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -250,11 +250,11 @@ export declare class PostController {
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        type: import(".prisma/client").$Enums.ConversationType;
-        content: string | null;
         postId: string | null;
+        type: import(".prisma/client").$Enums.ConversationType;
         senderId: string;
         receiverId: string;
+        content: string | null;
         storyId: string | null;
     }>;
     getConversations(req: Request): Promise<{

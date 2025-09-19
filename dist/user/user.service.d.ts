@@ -87,6 +87,9 @@ export declare class UserService {
         tokenBalance: number;
     }>;
     editProfile(userId: string, dto: any, image?: Express.Multer.File): Promise<{
+        totalPosts: number;
+        totalFollowing: number;
+        totalFollowers: number;
         id: string;
         email: string | null;
         password: string | null;
@@ -194,8 +197,8 @@ export declare class UserService {
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     }>;
     getFollowersList(userId: string): Promise<({
         follower: {
@@ -235,8 +238,8 @@ export declare class UserService {
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     })[]>;
     getFollowingList(userId: string): Promise<({
         following: {
@@ -276,16 +279,16 @@ export declare class UserService {
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     })[]>;
     unfollow(followerId: string, followingId: string): Promise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         followerId: string;
-        followingId: string;
         status: import(".prisma/client").$Enums.FollowStatus;
+        followingId: string;
     }>;
     getPendingFollowRequests(userId: string): Promise<never[]>;
     blockUser(blockerId: string, blockedId: string): Promise<{
@@ -362,6 +365,7 @@ export declare class UserService {
         totalFollowing: number;
         totalFollowers: number;
     }>;
+    getHitLeft(userId: string): Promise<number>;
     searchUser(query: string): Promise<{
         id: string;
         email: string | null;
