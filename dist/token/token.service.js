@@ -68,7 +68,7 @@ let TokenService = TokenService_1 = class TokenService {
             }
             const tokenName = `${user.userName}Valens`;
             const tokenSymbol = tokenName;
-            const initialSupply = ethers_1.ethers.parseEther('100000');
+            const initialSupply = ethers_1.ethers.parseEther('0.001');
             const initialPriceUSD = ethers_1.ethers.parseEther('0.001');
             const scalingConstantUSD = ethers_1.ethers.parseEther('0.01');
             this.logger.log(`Creating token for user ${userId}: ${tokenName}`);
@@ -251,7 +251,7 @@ let TokenService = TokenService_1 = class TokenService {
                 throw new common_1.BadRequestException(`Token not registered in contract: ${tokenAddress}`);
             }
             const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
-            const priceInUsd = parseFloat(ethers_1.ethers.formatEther(priceInWei));
+            const priceInUsd = Number(priceInWei) / 1e18;
             this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
             return {
                 tokenAddress,

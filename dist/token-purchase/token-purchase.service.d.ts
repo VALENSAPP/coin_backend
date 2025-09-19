@@ -10,11 +10,6 @@ export declare class TokenPurchaseService {
     private stripe;
     private readonly TOKEN_RATE;
     constructor(prisma: PrismaService, tokenService: TokenService, userService: UserService);
-    getTotalTokenData(userId: string): Promise<{
-        tokenPrice: number;
-        tokenAmount: number;
-        totalTokenAmount: number;
-    }>;
     private validateFees;
     createTokenPurchase(userId: string, dto: PurchaseTokensDto): Promise<TokenPurchaseResponseDto>;
     handlePaymentSuccess(paymentIntentId: string): Promise<void>;
