@@ -32,17 +32,27 @@ let PostService = class PostService {
         const processedMusic = music && music.trim() !== '' ? music : null;
         const processedHashtag = hashtag && hashtag.length > 0 ? hashtag : [];
         const processedTaggedPeople = taggedPeople && taggedPeople.length > 0 ? taggedPeople : [];
-        return this.prisma.post.create({
-            data: {
-                userId,
-                text: processedText,
-                images: imageUrls,
-                caption: processedCaption,
-                hashtag: processedHashtag,
-                location: processedLocation,
-                music: processedMusic,
-                taggedPeople: processedTaggedPeople,
-            },
+        return this.prisma.$transaction(async (tx) => {
+            const postHit = await tx.postHit.findFirst({ where: { userId } });
+            if (!postHit || postHit.hitLeft <= 0) {
+                throw new common_1.BadRequestException('out of hits');
+            }
+            await tx.postHit.update({
+                where: { id: postHit.id },
+                data: { hitLeft: postHit.hitLeft - 1 }
+            });
+            return tx.post.create({
+                data: {
+                    userId,
+                    text: processedText,
+                    images: imageUrls,
+                    caption: processedCaption,
+                    hashtag: processedHashtag,
+                    location: processedLocation,
+                    music: processedMusic,
+                    taggedPeople: processedTaggedPeople,
+                },
+            });
         });
     }
     async savePost(postId, userId) {

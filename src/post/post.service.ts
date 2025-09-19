@@ -15,28 +15,43 @@ export class PostService {
       const uploadedUrls = await Promise.all(files.map(f => uploadImageToS3(f, 'post-images')));
       imageUrls = imageUrls.concat(uploadedUrls);
     }
-    
+
     // Handle empty strings by converting them to null
     const processedText = text && text.trim() !== '' ? text : null;
     const processedCaption = caption && caption.trim() !== '' ? caption : null;
     const processedLocation = location && location.trim() !== '' ? location : null;
     const processedMusic = music && music.trim() !== '' ? music : null;
-    
+
     // Handle array fields - if they're empty strings or undefined, use empty array
     const processedHashtag = hashtag && hashtag.length > 0 ? hashtag : [];
     const processedTaggedPeople = taggedPeople && taggedPeople.length > 0 ? taggedPeople : [];
-    
-    return this.prisma.post.create({
-      data: {
-        userId,
-        text: processedText,
-        images: imageUrls,
-        caption: processedCaption,
-        hashtag: processedHashtag,
-        location: processedLocation,
-        music: processedMusic,
-        taggedPeople: processedTaggedPeople,
-      },
+
+    return this.prisma.$transaction(async (tx) => {
+      // Check PostHit for the user
+      const postHit = await tx.postHit.findFirst({ where: { userId } });
+      if (!postHit || postHit.hitLeft <= 0) {
+        throw new BadRequestException('out of hits');
+      }
+
+      // Decrement hitLeft
+      await tx.postHit.update({
+        where: { id: postHit.id },
+        data: { hitLeft: postHit.hitLeft - 1 }
+      });
+
+      // Create the post
+      return tx.post.create({
+        data: {
+          userId,
+          text: processedText,
+          images: imageUrls,
+          caption: processedCaption,
+          hashtag: processedHashtag,
+          location: processedLocation,
+          music: processedMusic,
+          taggedPeople: processedTaggedPeople,
+        },
+      });
     });
   }
 
