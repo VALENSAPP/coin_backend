@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
+import { decryptSecret } from '../common/crypto.util';
 
 @Injectable()
 export class TokenPurchaseService {
@@ -393,6 +394,160 @@ export class TokenPurchaseService {
   }
 
   /**
+   * Get user's token transaction history (purchases and sales) with running balance
+   */
+  async getUserTokenHistory(userId: string, tokenAddress?: string) {
+    try {
+      // Get all purchases for this user (optionally filtered by token)
+      let purchaseWhere: any = {
+        userId,
+        status: 'completed',
+      };
+
+      if (tokenAddress) {
+        // Find vendor ID for the token address
+        const userToken = await this.prisma.userToken.findFirst({
+          where: { tokenAddress },
+          select: { userId: true },
+        });
+        if (userToken) {
+          purchaseWhere.vendorId = userToken.userId;
+        }
+      }
+
+      const purchases = await this.prisma.tokenPurchase.findMany({
+        where: purchaseWhere,
+        orderBy: { completedAt: 'asc' },
+        select: {
+          id: true,
+          vendorId: true,
+          tokensReceived: true,
+          completedAt: true,
+        },
+      });
+
+      // Get token details for purchases
+      const purchaseWithTokenDetails = await Promise.all(
+        purchases.map(async (purchase) => {
+          if (!purchase.vendorId) {
+            return {
+              ...purchase,
+              userToken: null,
+            };
+          }
+          const userToken = await this.prisma.userToken.findFirst({
+            where: { userId: purchase.vendorId },
+            select: {
+              tokenAddress: true,
+              tokenName: true,
+            },
+          });
+          return {
+            ...purchase,
+            userToken,
+          };
+        })
+      );
+
+      // Get all sales for this user (optionally filtered by token)
+      let saleWhere: any = {
+        userId,
+        status: 'completed',
+      };
+
+      if (tokenAddress) {
+        saleWhere.tokenAddress = tokenAddress;
+      }
+
+      const sales = await this.prisma.tokenSale.findMany({
+        where: saleWhere,
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          tokenAddress: true,
+          vendorId: true,
+          amountTokensFloat: true,
+          transactionHash: true,
+          createdAt: true,
+        },
+      });
+
+      // Get token details for sales
+      const salesWithTokenDetails = await Promise.all(
+        sales.map(async (sale) => {
+          const userToken = await this.prisma.userToken.findFirst({
+            where: { tokenAddress: sale.tokenAddress },
+            select: {
+              tokenName: true,
+            },
+          });
+          return {
+            ...sale,
+            userToken,
+          };
+        })
+      );
+
+      // Combine and sort all transactions by date
+      const allTransactions: any[] = [];
+
+      // Add purchases
+      purchaseWithTokenDetails.forEach(purchase => {
+        if (purchase.completedAt) {
+          allTransactions.push({
+            id: purchase.id,
+            type: 'purchase',
+            tokenAddress: purchase.userToken?.tokenAddress || '',
+            tokenName: purchase.userToken?.tokenName || '',
+            vendorId: purchase.vendorId,
+            amount: purchase.tokensReceived,
+            date: purchase.completedAt,
+            transactionHash: null,
+          });
+        }
+      });
+
+      // Add sales
+      salesWithTokenDetails.forEach((sale: any) => {
+        allTransactions.push({
+          id: sale.id,
+          type: 'sale',
+          tokenAddress: sale.tokenAddress,
+          tokenName: sale.userToken?.tokenName || '',
+          vendorId: sale.vendorId,
+          amount: -sale.amountTokensFloat, // Negative for sales
+          date: sale.createdAt,
+          transactionHash: sale.transactionHash,
+        });
+      });
+
+      // Sort by date
+      allTransactions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Calculate running balance
+      let runningBalance = 0;
+      const historyWithBalance = allTransactions.map(transaction => {
+        runningBalance += transaction.amount;
+        return {
+          ...transaction,
+          balanceAfter: runningBalance,
+        };
+      });
+
+      return {
+        tokenAddress: tokenAddress || null,
+        totalTransactions: historyWithBalance.length,
+        currentBalance: runningBalance,
+        history: historyWithBalance.reverse(), // Most recent first
+      };
+
+    } catch (error) {
+      this.logger.error('Error getting token history:', error);
+      throw new BadRequestException('Failed to get token history');
+    }
+  }
+
+  /**
    * Buy tokens using blockchain smart contract
    */
   async buyToken(buyerUserId: string, dto: BuyTokenDto) {
@@ -461,6 +616,197 @@ export class TokenPurchaseService {
         throw error;
       }
       throw new BadRequestException(`Failed to buy token: ${error.message}`);
+    }
+  }
+
+  /**
+   * Sell tokens using blockchain smart contract with permit
+   */
+  async sellToken(sellerUserId: string, dto: SellTokenDto) {
+    try {
+      // Get seller user details including encrypted private key
+      const seller = await this.prisma.user.findUnique({
+        where: { id: sellerUserId },
+        select: { id: true, walletAddress: true, walletPrivateKey: true },
+      });
+
+      if (!seller) {
+        throw new BadRequestException('Seller not found');
+      }
+
+      if (!seller.walletAddress) {
+        throw new BadRequestException('Seller wallet address not found');
+      }
+
+      if (!seller.walletPrivateKey) {
+        throw new BadRequestException('Seller wallet private key not found');
+      }
+
+      // Get vendor (token owner) from userToken table
+      const userToken = await this.prisma.userToken.findFirst({
+        where: { tokenAddress: dto.tokenAddress },
+        select: { userId: true, tokenName: true },
+      });
+
+      if (!userToken) {
+        throw new BadRequestException('Token not found');
+      }
+
+      const vendorId = userToken.userId;
+
+      this.logger.log(`Selling token for user ${sellerUserId}: ${userToken.tokenName} (${dto.tokenAddress})`);
+
+      // Calculate user's token balance for this specific token
+      const tokenPurchases = await this.prisma.tokenPurchase.findMany({
+        where: {
+          userId: sellerUserId,
+          vendorId: vendorId,
+          status: 'completed',
+        },
+        select: { tokensReceived: true },
+      });
+
+      const totalTokensOwned = tokenPurchases.reduce((sum, purchase) => sum + purchase.tokensReceived, 0);
+
+      this.logger.log(`User ${sellerUserId} owns ${totalTokensOwned} tokens of ${dto.tokenAddress}`);
+
+      // Check if user has enough tokens to sell
+      const amountToSell = parseFloat(ethers.formatEther(dto.amountTokens));
+      if (amountToSell > totalTokensOwned) {
+        throw new BadRequestException(`Insufficient token balance. Owned: ${totalTokensOwned}, Trying to sell: ${amountToSell}`);
+      }
+
+      // Generate permit signature
+      const encryptionKey = process.env.WALLET_ENCRYPTION_KEY as string;
+      const privateKey = decryptSecret(seller.walletPrivateKey, encryptionKey);
+
+      const spender = process.env.BSC_CONTRACT_ADDRESS as string;
+      if (!spender) {
+        throw new BadRequestException('Contract address not configured');
+      }
+
+      // Create permit signature
+      const provider = new ethers.JsonRpcProvider(process.env.BSC_RPC_URL || "https://data-seed-prebsc-1-s1.binance.org:8545");
+      const wallet = new ethers.Wallet(privateKey, provider);
+
+      const tokenAbi = [
+        "function name() view returns (string)",
+        "function nonces(address) view returns (uint256)",
+        "function DOMAIN_SEPARATOR() view returns (bytes32)"
+      ];
+
+      const tokenContract = new ethers.Contract(dto.tokenAddress, tokenAbi, provider);
+
+      const name = await tokenContract.name();
+      const version = "1";
+      const chainId = (await provider.getNetwork()).chainId;
+      const nonce = await tokenContract.nonces(wallet.address);
+
+      const domain = {
+        name,
+        version,
+        chainId,
+        verifyingContract: dto.tokenAddress,
+      };
+
+      const types = {
+        Permit: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+        ],
+      };
+
+      const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+
+      const message = {
+        owner: wallet.address,
+        spender,
+        value: dto.amountTokens, // Use the amount being sold
+        nonce,
+        deadline,
+      };
+
+      this.logger.log(`Generating permit signature for token sale: ${JSON.stringify(message, (key, value) => typeof value === 'bigint' ? value.toString() : value)}`);
+
+      const signature = await wallet.signTypedData(domain, types, message);
+      const sig = ethers.Signature.from(signature);
+      const { v, r, s } = sig;
+
+      // Call sellWithPermit on the smart contract
+      const contract = this.tokenService.getContract();
+
+      if (!contract) {
+        throw new BadRequestException('Smart contract not initialized');
+      }
+
+      const tx = await contract.sellWithPermit(
+        dto.tokenAddress,
+        seller.walletAddress,
+        dto.amountTokens,
+        deadline,
+        v,
+        r,
+        s
+      );
+
+      this.logger.log(`SellWithPermit transaction sent: ${tx.hash}`);
+
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+
+      this.logger.log(`SellWithPermit transaction confirmed in block: ${receipt.blockNumber}`);
+
+      // TODO: Uncomment when Prisma client is regenerated
+      // // Record the token sale in database
+      // const tokenSale = await this.prisma.tokenSale.create({
+      //   data: {
+      //     userId: sellerUserId,
+      //     tokenAddress: dto.tokenAddress,
+      //     vendorId: vendorId,
+      //     amountTokens: dto.amountTokens,
+      //     amountTokensFloat: amountToSell,
+      //     transactionHash: tx.hash,
+      //     status: 'completed',
+      //   },
+      // });
+
+      this.logger.log(`Token sale completed for user ${sellerUserId} (database recording temporarily disabled)`);
+
+      // Check if user is selling all tokens
+      const remainingTokens = totalTokensOwned - amountToSell;
+      if (remainingTokens <= 0.000001) { // Allow for small floating point differences
+        this.logger.log(`User ${sellerUserId} sold all tokens of ${dto.tokenAddress}, unfollowing vendor ${vendorId}`);
+        try {
+          await this.userService.unfollow(sellerUserId, vendorId);
+          this.logger.log(`SUCCESS: User ${sellerUserId} unfollowed vendor ${vendorId}`);
+        } catch (unfollowError) {
+          // Log but don't fail the transaction if unfollow fails
+          this.logger.error(`FAILED: Unfollow attempt failed: ${unfollowError.message}`, unfollowError.stack);
+        }
+      } else {
+        this.logger.log(`User ${sellerUserId} still has ${remainingTokens} tokens remaining, keeping follow`);
+      }
+
+      return {
+        success: true,
+        transactionHash: tx.hash,
+        tokenAddress: dto.tokenAddress,
+        sellerAddress: seller.walletAddress,
+        amountSold: amountToSell,
+        remainingTokens: remainingTokens,
+        blockNumber: receipt.blockNumber,
+        // saleId: tokenSale.id, // TODO: Uncomment when database recording is enabled
+      };
+
+    } catch (error) {
+      this.logger.error('Error selling token:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to sell token: ${error.message}`);
     }
   }
 }

@@ -1,7 +1,7 @@
-import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TokenPurchaseService } from './token-purchase.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
@@ -171,5 +171,89 @@ export class TokenPurchaseController {
   })
   async getTokenPrice(@Body() dto: GetTokenPriceDto) {
     return this.tokenService.getPricePerTokenUsd(dto.tokenAddress);
+  }
+
+  @Post('sell-token')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Sell tokens using blockchain smart contract with permit',
+    description: 'Calls the sellWithPermit method on the smart contract to sell tokens. Permit signature is generated server-side using user\'s wallet. Requires tokenAddress and amountTokens.'
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Token sale successful',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean', example: true },
+        transactionHash: { type: 'string', example: '0x123...' },
+        tokenAddress: { type: 'string', example: '0x456...' },
+        sellerAddress: { type: 'string', example: '0x789...' },
+        amountSold: { type: 'number', example: 100.00 },
+        remainingTokens: { type: 'number', example: 0.00 },
+        blockNumber: { type: 'number', example: 123456 }
+      }
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request or insufficient token balance'
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized - Invalid JWT token'
+  })
+  async sellToken(
+    @Body() dto: SellTokenDto,
+    @Req() req: Request
+  ) {
+    const sellerUserId = (req.user as any).userId;
+    return this.tokenPurchaseService.sellToken(sellerUserId, dto);
+  }
+
+  @Get('token-history')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get user token transaction history',
+    description: 'Returns combined history of token purchases and sales with running balance. Optionally filter by token address.'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Token history retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        tokenAddress: { type: 'string', nullable: true, example: '0x123...' },
+        totalTransactions: { type: 'number', example: 5 },
+        currentBalance: { type: 'number', example: 100.50 },
+        history: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              type: { type: 'string', enum: ['purchase', 'sale'] },
+              tokenAddress: { type: 'string' },
+              tokenName: { type: 'string' },
+              vendorId: { type: 'string' },
+              amount: { type: 'number', description: 'Positive for purchases, negative for sales' },
+              date: { type: 'string', format: 'date-time' },
+              transactionHash: { type: 'string', nullable: true },
+              balanceAfter: { type: 'number', description: 'Running balance after this transaction' }
+            }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized - Invalid JWT token'
+  })
+  async getTokenHistory(@Req() req: Request, @Query('tokenAddress') tokenAddress?: string) {
+    const userId = (req.user as any).userId;
+    return this.tokenPurchaseService.getUserTokenHistory(userId, tokenAddress);
   }
 }

@@ -85,6 +85,24 @@ export class GetTokenPriceDto {
   tokenAddress: string;
 }
 
+export class SellTokenDto {
+  @ApiProperty({
+    description: 'Token contract address to sell',
+    example: '0x1234567890123456789012345678901234567890'
+  })
+  @IsString()
+  @IsNotEmpty()
+  tokenAddress: string;
+
+  @ApiProperty({
+    description: 'Amount of tokens to sell (in wei, e.g., 100 tokens = 100000000000000000000)',
+    example: '100000000000000000000'
+  })
+  @IsString()
+  @IsNotEmpty()
+  amountTokens: string;
+}
+
 export class TokenPurchaseResponseDto {
   @ApiProperty({
     description: 'Purchase ID',

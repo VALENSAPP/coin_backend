@@ -13,6 +13,10 @@ export declare class BuyTokenDto {
 export declare class GetTokenPriceDto {
     tokenAddress: string;
 }
+export declare class SellTokenDto {
+    tokenAddress: string;
+    amountTokens: string;
+}
 export declare class TokenPurchaseResponseDto {
     id: string;
     amount: number;

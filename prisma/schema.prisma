@@ -45,6 +45,7 @@ model User {
   hidePosts            HidePost[]
   payments             Payment[]
   tokenPurchases       TokenPurchase[]
+  tokenSales           TokenSale[]
   posts                Post[]
   postComments         PostComment[]
   postLikes            PostLike[]
@@ -219,6 +220,24 @@ model TokenPurchase {
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model TokenSale {
+  id                    String    @id @default(uuid())
+  userId                String    // User selling the tokens
+  tokenAddress          String    // Token contract address
+  vendorId              String    // User whose token is being sold
+  amountTokens          String    // Amount of tokens sold (in wei)
+  amountTokensFloat     Float     // Amount of tokens sold (converted to float for calculations)
+  transactionHash       String    // Blockchain transaction hash
+  status                String    @default("completed") // completed, failed
+  createdAt             DateTime  @default(now())
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenAddress])
   @@index([vendorId])
   @@index([status])
 }
