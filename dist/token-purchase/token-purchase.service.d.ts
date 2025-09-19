@@ -20,13 +20,13 @@ export declare class TokenPurchaseService {
     getUserTokenPurchases(userId: string): Promise<{
         id: string;
         createdAt: Date;
-        status: string;
-        completedAt: Date | null;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
+        status: string;
+        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string): Promise<{
         tokenAddress: string | null;

@@ -69,7 +69,7 @@ console.log("oooooooooo",user);
       // Construct token parameters
       const tokenName = `${user.userName}Valens`;
       const tokenSymbol = tokenName;
-      const initialSupply = ethers.parseEther('0.001'); // 0.001 * 1e18 = 1000000000000000
+      const initialSupply = ethers.parseEther('100000'); // 0.001 * 1e18 = 1000000000000000
       const initialPriceUSD = ethers.parseEther('0.001'); // 0.001 * 1e18 = 1000000000000000
       const scalingConstantUSD = ethers.parseEther('0.01'); // 0.01 * 1e18 = 10000000000000000
 

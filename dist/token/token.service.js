@@ -68,7 +68,7 @@ let TokenService = TokenService_1 = class TokenService {
             }
             const tokenName = `${user.userName}Valens`;
             const tokenSymbol = tokenName;
-            const initialSupply = ethers_1.ethers.parseEther('0.001');
+            const initialSupply = ethers_1.ethers.parseEther('100000');
             const initialPriceUSD = ethers_1.ethers.parseEther('0.001');
             const scalingConstantUSD = ethers_1.ethers.parseEther('0.01');
             this.logger.log(`Creating token for user ${userId}: ${tokenName}`);
