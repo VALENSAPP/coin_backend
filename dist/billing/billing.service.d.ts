@@ -20,12 +20,12 @@ export declare class BillingService {
     handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void>;
     handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
     getLatestTransactions(userId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
-        status: string;
+        userId: string;
         currency: string;
         amount: number;
+        status: string;
         forPayment: string;
         stripeInvoiceId: string | null;
         stripePaymentIntentId: string | null;

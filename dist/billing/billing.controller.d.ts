@@ -25,12 +25,12 @@ export declare class BillingController {
     }>;
     getLatestTransactions(req: Request): Promise<{
         transactions: {
-            userId: string;
             id: string;
             createdAt: Date;
-            status: string;
+            userId: string;
             currency: string;
             amount: number;
+            status: string;
             forPayment: string;
             stripeInvoiceId: string | null;
             stripePaymentIntentId: string | null;
