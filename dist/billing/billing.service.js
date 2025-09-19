@@ -155,6 +155,25 @@ let BillingService = class BillingService {
                 currentPeriodEnd: periodEnd,
             },
         });
+        const postHit = await this.prisma.postHit.findFirst({
+            where: { userId: user.id },
+        });
+        if (postHit) {
+            await this.prisma.postHit.update({
+                where: { id: postHit.id },
+                data: { hitLeft: {
+                        increment: 5
+                    } },
+            });
+        }
+        else {
+            await this.prisma.postHit.create({
+                data: {
+                    userId: user.id,
+                    hitLeft: 5,
+                },
+            });
+        }
     }
     async handleInvoicePaymentFailed(invoice) {
         const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
@@ -228,6 +247,12 @@ let BillingService = class BillingService {
                 forPayment: 'following',
                 stripePaymentIntentId: paymentIntent.id,
             },
+        });
+    }
+    async getLatestTransactions(userId) {
+        return this.prisma.payment.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
         });
     }
 };

@@ -145,6 +145,26 @@ export class BillingService {
         currentPeriodEnd: periodEnd,
       },
     });
+
+    const postHit = await this.prisma.postHit.findFirst({
+      where: { userId: user.id },
+    });
+
+    if (postHit) {
+      await this.prisma.postHit.update({
+        where: { id: postHit.id },
+        data: { hitLeft: {
+          increment: 5
+        } },
+      });
+    } else {
+      await this.prisma.postHit.create({
+        data: {
+          userId: user.id,
+          hitLeft: 5,
+        },
+      });
+    }
   }
 
   async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
@@ -214,6 +234,13 @@ export class BillingService {
         forPayment: 'following',
         stripePaymentIntentId: paymentIntent.id,
       },
+    });
+  }
+
+  async getLatestTransactions(userId: string) {
+    return this.prisma.payment.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

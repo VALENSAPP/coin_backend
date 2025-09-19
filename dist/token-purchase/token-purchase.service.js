@@ -97,6 +97,7 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                     vendorFee: dto.vendorFee,
                     restAmount: dto.restAmount,
                     tokensReceived: dto.tokensReceived,
+                    purchaseTokenPrice: dto.purchaseTokenPrice,
                     stripeCheckoutSessionId: session.id,
                     status: 'pending',
                 },
@@ -108,6 +109,7 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 vendorFee: dto.vendorFee,
                 restAmount: dto.restAmount,
                 tokensReceived: dto.tokensReceived,
+                purchaseTokenPrice: dto.purchaseTokenPrice,
                 status: tokenPurchase.status,
                 sessionUrl: session.url,
             };

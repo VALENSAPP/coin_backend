@@ -46,6 +46,11 @@ let BillingController = class BillingController {
         const details = await this.billingService.getSubscriptionDetails(userId);
         return { subscription: details };
     }
+    async getLatestTransactions(req) {
+        const userId = req.user.userId;
+        const transactions = await this.billingService.getLatestTransactions(userId);
+        return { transactions };
+    }
 };
 exports.BillingController = BillingController;
 __decorate([
@@ -102,6 +107,16 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "getMySubscription", null);
+__decorate([
+    (0, common_1.Get)('get-latest-transactions'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get latest transactions for the user' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "getLatestTransactions", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),

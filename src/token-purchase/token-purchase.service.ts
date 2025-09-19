@@ -111,6 +111,7 @@ export class TokenPurchaseService {
           vendorFee: dto.vendorFee,
           restAmount: dto.restAmount,
           tokensReceived: dto.tokensReceived,
+          purchaseTokenPrice: dto.purchaseTokenPrice,
           stripeCheckoutSessionId: session.id,
           status: 'pending',
         } as any, // Temporary workaround for Prisma client generation issue
@@ -123,6 +124,7 @@ export class TokenPurchaseService {
         vendorFee: dto.vendorFee,
         restAmount: dto.restAmount,
         tokensReceived: dto.tokensReceived,
+        purchaseTokenPrice: dto.purchaseTokenPrice,
         status: tokenPurchase.status,
         sessionUrl: session.url!,
       };
