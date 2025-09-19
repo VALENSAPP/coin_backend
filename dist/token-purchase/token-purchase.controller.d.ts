@@ -16,11 +16,11 @@ export declare class TokenPurchaseController {
             createdAt: Date;
             status: string;
             amount: number;
-            completedAt: Date | null;
             platformFee: number;
             vendorFee: number;
             restAmount: number;
             tokensReceived: number;
+            completedAt: Date | null;
         }[];
     }>;
     buyToken(dto: BuyTokenDto, req: Request): Promise<{
