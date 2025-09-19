@@ -251,7 +251,7 @@ let TokenService = TokenService_1 = class TokenService {
                 throw new common_1.BadRequestException(`Token not registered in contract: ${tokenAddress}`);
             }
             const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
-            const priceInUsd = Number(priceInWei) / 1e18;
+            const priceInUsd = parseFloat(ethers_1.ethers.formatEther(priceInWei));
             this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
             return {
                 tokenAddress,

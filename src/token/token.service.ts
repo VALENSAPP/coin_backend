@@ -300,7 +300,7 @@ console.log("oooooooooo",user);
       const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
 
       // Convert from wei to USD by dividing by 1e18
-      const priceInUsd = Number(priceInWei) / 1e18;
+      const priceInUsd = parseFloat(ethers.formatEther(priceInWei));
 
       this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
 
