@@ -5,4 +5,4 @@
 
 */
 -- AlterTable
-ALTER TABLE "TokenPurchase" ADD COLUMN     "purchaseTokenPrice" DOUBLE PRECISION NOT NULL;
+ALTER TABLE "TokenPurchase" ADD COLUMN     "purchaseTokenPrice" DOUBLE PRECISION NOT NULL DEFAULT 0;

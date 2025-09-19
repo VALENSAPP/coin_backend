@@ -1,5 +1,5 @@
 import { PrismaService } from '../prisma/prisma.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
 export declare class TokenPurchaseService {
@@ -28,12 +28,27 @@ export declare class TokenPurchaseService {
         restAmount: number;
         tokensReceived: number;
     }[]>;
+    getUserTokenHistory(userId: string, tokenAddress?: string): Promise<{
+        tokenAddress: string | null;
+        totalTransactions: number;
+        currentBalance: number;
+        history: any[];
+    }>;
     buyToken(buyerUserId: string, dto: BuyTokenDto): Promise<{
         success: boolean;
         transactionHash: any;
         tokenAddress: string;
         buyerAddress: string;
         usdPaid: number;
+        blockNumber: any;
+    }>;
+    sellToken(sellerUserId: string, dto: SellTokenDto): Promise<{
+        success: boolean;
+        transactionHash: any;
+        tokenAddress: string;
+        sellerAddress: string;
+        amountSold: number;
+        remainingTokens: number;
         blockNumber: any;
     }>;
 }

@@ -1,5 +1,5 @@
 import { TokenPurchaseService } from './token-purchase.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { Request } from 'express';
 export declare class TokenPurchaseController {
@@ -35,5 +35,20 @@ export declare class TokenPurchaseController {
         tokenAddress: string;
         priceInUsd: number;
         priceInWei: any;
+    }>;
+    sellToken(dto: SellTokenDto, req: Request): Promise<{
+        success: boolean;
+        transactionHash: any;
+        tokenAddress: string;
+        sellerAddress: string;
+        amountSold: number;
+        remainingTokens: number;
+        blockNumber: any;
+    }>;
+    getTokenHistory(req: Request, tokenAddress?: string): Promise<{
+        tokenAddress: string | null;
+        totalTransactions: number;
+        currentBalance: number;
+        history: any[];
     }>;
 }
