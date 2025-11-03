@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Post" ADD COLUMN "raiseAmount" DOUBLE PRECISION, ADD COLUMN "start_time" TIMESTAMP(3), ADD COLUMN "end_time" TIMESTAMP(3), ADD COLUMN "type" TEXT;

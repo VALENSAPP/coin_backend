@@ -1,0 +1,97 @@
+import { IsOptional, IsString, IsNumberString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreatePostDto {
+  @ApiProperty({ description: 'Text content of the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  text?: string;
+
+  @ApiProperty({ description: 'Caption for the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  caption?: string;
+
+  @ApiProperty({ description: 'Hashtags for the post', required: false, isArray: true, type: String })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  })
+  hashtag?: string[];
+
+  @ApiProperty({ description: 'Location for the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  location?: string;
+
+  @ApiProperty({ description: 'Music for the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  music?: string;
+
+  @ApiProperty({ description: 'Link for the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  link?: string;
+
+  @ApiProperty({ description: 'Tagged people user IDs', required: false, isArray: true, type: String })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  })
+  taggedPeople?: string[];
+
+  @ApiProperty({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return [];
+    if (Array.isArray(value)) return value;
+    return [value];
+  })
+  images?: any[];
+
+  @ApiProperty({ description: 'Type of post (normal or crowdfunding)', required: false })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiProperty({ description: 'Raise amount for crowdfunding posts', required: false })
+  @IsOptional()
+  @IsNumberString()
+  @Transform(({ value }: { value: any }) => value ? parseFloat(value) : null)
+  raiseAmount?: number;
+
+  @ApiProperty({ description: 'Start time for crowdfunding posts', required: false })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => value ? new Date(value) : null)
+  start_time?: Date;
+
+  @ApiProperty({ description: 'End time for crowdfunding posts', required: false })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => value ? new Date(value) : null)
+  end_time?: Date;
+}

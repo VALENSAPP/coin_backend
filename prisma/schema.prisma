@@ -1,0 +1,404 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                 @id @default(uuid())
+  firebaseUserId       String?                @unique
+  email                String?                @unique
+  password             String?
+  googleId             String?                @unique
+  twitterId            String?                @unique
+  walletAddress        String?                @unique
+  registrationType     RegistrationType
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  age                  Int?
+  deletedAt            DateTime?
+  gender               Gender?
+  image                String?
+  otp                  String?
+  otpExpiresAt         DateTime?
+  phoneNumber          String?
+  isDeleted            Int                    @default(0)
+  verifyEmail          Int                    @default(0)
+  bio                  String?
+  displayName          String?                @unique
+  userName             String?
+  profile              String?                @db.VarChar(255)
+  walletMnemonic       String?
+  walletPrivateKey     String?
+  currentPeriodEnd     DateTime?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  subscriptionEnd      DateTime?
+  subscriptionStart    DateTime?
+  subscriptionStatus   SubscriptionStatus     @default(INACTIVE)
+  tokenBalance         Float                  @default(0)
+  kyc                  Boolean                @default(false)
+  stripeAccountId      String?
+  stripeBankAccountId  String?
+  refreshToken         String?
+  refreshTokenExpiresAt DateTime?
+  blockedBy            BlockedUser[]          @relation("Blocked")
+  blockedUsers         BlockedUser[]          @relation("Blocker")
+  followings           FollowerAndFollowing[] @relation("Follower")
+  followers            FollowerAndFollowing[] @relation("Following")
+  hidePosts            HidePost[]
+  payments             Payment[]
+  tokenPurchases       TokenPurchase[]
+  tokenSales           TokenSale[]
+  posts                Post[]
+  postComments         PostComment[]
+  postLikes            PostLike[]
+  receivedPosts        PostShare[]            @relation("ReceivedBy")
+  sharedPosts          PostShare[]            @relation("SharedBy")
+  savedPosts           SavePost[]
+  stories              Story[]
+  StoryComment         StoryComment[]
+  storyLike            StoryLike[]
+  sentConversations    Conversation[]         @relation("ConversationSender")
+  receivedConversations Conversation[]        @relation("ConversationReceiver")
+  userTokens           UserToken[]
+  postHits             PostHit[]
+  withdrawalRecords    WithdrawalRecord[]
+  kycs                 Kyc[]
+
+}
+
+model Post {
+  id           String        @id @default(uuid())
+  text         String?
+  images       String[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  userId       String
+  deletedAt    DateTime?
+  caption      String?
+  hashtag      String[]
+  location     String?
+  music        String?
+  taggedPeople String[]
+  raiseAmount  Float?
+  start_time   DateTime?
+  end_time     DateTime?
+  type         String?
+  link         String?
+  hides        HidePost[]
+  user         User          @relation(fields: [userId], references: [id])
+  comments     PostComment[]
+  likes        PostLike[]
+  shares       PostShare[]
+  saves        SavePost[]
+  conversations Conversation[]
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+}
+
+model SavePost {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+  @@index([postId])
+}
+
+model FollowerAndFollowing {
+  id          String       @id @default(uuid())
+  followerId  String
+  followingId String
+  status      FollowStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  follower    User         @relation("Follower", fields: [followerId], references: [id])
+  following   User         @relation("Following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id])
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+model PostShare {
+  id             String   @id @default(uuid())
+  postId         String
+  sharedUserId   String
+  receiverUserId String
+  createdAt      DateTime @default(now())
+  post           Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  receivedBy     User     @relation("ReceivedBy", fields: [receiverUserId], references: [id], onDelete: Cascade)
+  sharedBy       User     @relation("SharedBy", fields: [sharedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, sharedUserId, receiverUserId])
+}
+
+model HidePost {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Story {
+  id        String    @id @default(uuid())
+  userId    String
+  media     String[]
+  caption   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id])
+  comment   StoryComment[]
+  storyLike      StoryLike[]
+  conversations Conversation[]
+
+  @@index([userId])
+}
+
+model Payment {
+  id                    String    @id @default(uuid())
+  userId                String
+  amount                Int
+  currency              String
+  status                String
+  forPayment            String    @default("subscription") // "subscription" or "following"
+  stripeInvoiceId       String?
+  stripePaymentIntentId String?
+  createdAt             DateTime  @default(now())
+  periodStart           DateTime?
+  periodEnd             DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model TokenPurchase {
+  id                    String    @id @default(uuid())
+  userId                String
+  vendorId              String?   // User whose token is being purchased
+  amount                Float     // Original payment amount in USD
+  currency              String    @default("USD")
+  platformFee           Float     // 0.2% platform fee
+  vendorFee             Float     // 0.5% vendor fee
+  restAmount            Float     // Amount after fees (93.3% of original)
+  tokensReceived        Float     // Tokens credited (restAmount * 100)
+  status                String    @default("pending") // pending, completed, failed
+  stripePaymentIntentId String?
+  stripeCheckoutSessionId String?
+  purchaseTokenPrice    Float?    @default(0) //Token Price at the time user purchase
+  stripeInvoiceId       String?
+  action                String    @default("buy") // "buy" or "sell"
+  createdAt             DateTime  @default(now())
+  completedAt           DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model TokenSale {
+  id                    String    @id @default(uuid())
+  userId                String    // User selling the tokens
+  tokenAddress          String    // Token contract address
+  vendorId              String    // User whose token is being sold
+  amountTokens          String    // Amount of tokens sold (in wei)
+  sellAmount            Float     // Amount of tokens sold (converted to float for calculations)
+  actualReceivedAmount  Float?
+  adminFeeAmount        Float?
+  transactionHash       String    // Blockchain transaction hash
+  status                String    @default("completed") // completed, failed
+  createdAt             DateTime  @default(now())
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenAddress])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model StoryComment {
+  id        String    @id @default(uuid())
+  storyId   String
+  userId    String
+  comment   String
+  createdAt DateTime @default(now())
+  Story     Story    @relation(fields: [storyId],references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storyId])
+  @@index([userId])
+}
+
+model StoryLike {
+  id        String   @id @default(uuid())
+  storyId   String
+  userId    String
+  createdAt DateTime @default(now())
+  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, userId])
+}
+
+model Conversation {
+  id          String            @id @default(uuid())
+  type        ConversationType
+  senderId    String
+  receiverId  String
+  content     String?
+  postId      String?
+  storyId     String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  sender      User              @relation("ConversationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User              @relation("ConversationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  post        Post?             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  story       Story?            @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([postId])
+  @@index([storyId])
+}
+
+model UserToken {
+  id              String   @id @default(uuid())
+  userId          String
+  transactionHash String   @unique
+  tokenAddress    String?  @unique
+  tokenName       String
+  tokenSymbol     String
+  initialSupply   String
+  initialPrice    String
+  scalingConstant String
+  blockNumber     Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenAddress])
+}
+
+model PostHit {
+  id                    String    @id @default(uuid())
+  userId                String
+  hitLeft               Int   // User's hit left to add the post 
+  createdAt             DateTime  @default(now())
+  completedAt           DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model WithdrawalRecord {
+  id             String   @id @default(uuid())
+  userId         String
+  withdrawAmount Float?
+  txhash         String?
+  status         String   @default("pending") // pending, process, success
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Kyc {
+  id               Int       @id @default(autoincrement())
+  userId           String
+  veriffSessionId  String
+  veriffUrl        String
+  status           KycStatus @default(PENDING)
+  documentType     String?
+  webhookData      Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id])
+}
+
+enum RegistrationType {
+  NORMAL
+  GOOGLE
+  TWITTER
+  WALLET
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+}
+
+enum ConversationType {
+  POST_SHARE
+  STORY_COMMENT
+  CHAT
+}
+
+enum KycStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  DECLINED
+}
