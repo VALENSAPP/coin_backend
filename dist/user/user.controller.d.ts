@@ -19,6 +19,7 @@ export declare class RegisterDto {
     profile?: string;
     password?: string;
     googleId?: string;
+    appleId?: string;
     twitterId?: string;
     walletAddress?: string;
     registrationType: RegistrationType;
@@ -90,6 +91,7 @@ export declare class UserController {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -139,6 +141,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -180,6 +183,7 @@ export declare class UserController {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -224,6 +228,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -312,6 +317,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -364,6 +370,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -412,6 +419,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -458,6 +466,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -549,6 +558,7 @@ export declare class UserController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;

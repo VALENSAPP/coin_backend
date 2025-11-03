@@ -8,6 +8,7 @@ export declare class LoginDto {
     password?: string;
     googleId?: string;
     twitterId?: string;
+    appleId?: string;
     walletAddress?: string;
     registrationType: RegistrationType;
 }
@@ -23,6 +24,7 @@ export declare class AuthController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -79,6 +81,7 @@ export declare class AuthController {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;

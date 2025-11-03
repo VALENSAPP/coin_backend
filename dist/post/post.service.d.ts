@@ -64,6 +64,7 @@ export declare class PostService {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profile: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -87,6 +88,7 @@ export declare class PostService {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profile: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;

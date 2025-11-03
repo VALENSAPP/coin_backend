@@ -36,7 +36,7 @@ if (!admin.apps.length) {
 // import * as AWS from 'aws-sdk';
 // import * as nodemailer from 'nodemailer';
 
-export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET';
+export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET' | 'APPLE';
 
 @Injectable()
 export class UserService {
@@ -52,6 +52,7 @@ export class UserService {
     password?: string;
     googleId?: string;
     twitterId?: string;
+    appleId?: string;
     walletAddress?: string;
     registrationType: RegistrationType;
   }) {
@@ -61,18 +62,20 @@ export class UserService {
       return this.signInWithGoogle(data.googleId);
     }
 
+    if (data.appleId) {
+      return this.signInWithApple(data.appleId);
+    }
+
     // Validate username is required for NORMAL registration
     if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
       throw new BadRequestException('Username is required');
     }
 
     // Special case: If all of twitterId, walletAddress, and googleId are present
-    if (data.twitterId || data.walletAddress || data.googleId) {
+    if (data.walletAddress) {
       const existingUser = await this.prisma.user.findFirst({
         where: {
-          twitterId: data.twitterId,
           walletAddress: data.walletAddress,
-          googleId: data.googleId,
           deletedAt: null,
           userName: data.userName,
         },
@@ -1018,4 +1021,116 @@ export class UserService {
            };
          }
        }
+
+       async signInWithApple(idToken: string) {
+             try {
+               // Validate idToken input
+               if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
+                 return {
+                   error: true,
+                   msg: 'Invalid ID token provided',
+                   body: [],
+                 };
+               }
+         
+               // Verify Firebase ID token
+               const decodedToken = await admin.auth().verifyIdToken(idToken);
+               const email = decodedToken.email;
+               const provider = decodedToken.firebase?.sign_in_provider;
+         
+               // Determine login type based on email domain
+               let loginType: RegistrationType = 'GOOGLE';
+               if (email && email.endsWith('.ac.jp')) {
+                 loginType = 'NORMAL'; // '1' is student, but using NORMAL for now
+               }
+         
+               // Check if user exists
+               const existingUser = await this.prisma.user.findFirst({
+                 where: { email },
+               });
+         
+               if (existingUser) {
+                 // User exists, check if deleted
+                 if (existingUser.isDeleted === 1) {
+                   throw new BadRequestException('Account is deleted by admin');
+                 }
+         
+                 // Check email verification for password provider
+                 if (provider === 'password' && existingUser.verifyEmail !== 1) {
+                   throw new BadRequestException('Please verify your email before signing in.');
+                 }
+         
+                 // Generate tokens
+                const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
+          const access_token = this.jwtService.sign(payload);
+         
+                 // Store refresh token
+                 const refreshTokenHash = randomBytes(32).toString('hex');
+                 const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+         
+                 await this.prisma.user.update({
+                   where: { id: existingUser.id },
+                   data: {
+                     refreshToken: refreshTokenHash,
+                     refreshTokenExpiresAt,
+                   },
+                 });
+         
+                 return {
+                   access_token: access_token,
+                   refresh_token: refreshTokenHash,
+                   ...existingUser
+                 };
+               } else {
+                 // New user registration
+                 const firebaseUserId = decodedToken.uid;
+                 const userId = uuidv4();
+         
+                 const userData = {
+                   id: userId,
+                   firebaseUserId,
+                   email,
+                   userName: decodedToken.name || 'Unknown User',
+                   profile: decodedToken.picture || null,
+                   googleId: provider === 'google.com' ? firebaseUserId : null,
+                   registrationType: loginType,
+                   verifyEmail: 1, // Firebase users are verified
+                 };
+         
+                 // Create user
+                 const newUser = await this.prisma.user.create({
+                   data: userData,
+                 });
+         
+                 // Generate tokens
+                 const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
+           const access_token = this.jwtService.sign(payload);
+         
+                 // Store refresh token
+                 const refreshTokenHash = randomBytes(32).toString('hex');
+                 const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+         
+                 await this.prisma.user.update({
+                   where: { id: newUser.id },
+                   data: {
+                     refreshToken: refreshTokenHash,
+                     refreshTokenExpiresAt,
+                   },
+                 });
+         
+                 return {
+                   access_token: access_token,
+                   refresh_token: refreshTokenHash,
+                   ...newUser
+                 };
+               }
+             } catch (error) {
+               console.error('Firebase auth error:', error);
+               return {
+                 error: true,
+                 msg: error.message || 'Token verification failed',
+                 body: [error],
+               };
+             }
+           }
 }

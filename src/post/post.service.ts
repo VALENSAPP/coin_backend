@@ -2,6 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { uploadImageToS3 } from '../common/s3.util';
 import { Prisma } from '@prisma/client';
+import { profile } from 'console';
 
 @Injectable()
 export class PostService {
@@ -214,6 +215,7 @@ export class PostService {
         select: {
           displayName: true,
           image: true,
+          profile: true,
         },
       },
       _count: {
@@ -271,6 +273,7 @@ export class PostService {
     userId: post.userId,
     userName: post.user?.displayName || null,
     userImage: post.user?.image || null,
+    profile: post.user?.profile || null,
     likeCount: post._count.likes,
     commentCount: post._count.comments,
     shareCount: post._count.shares,
@@ -291,6 +294,7 @@ async getAllPost(viewerUserId?: string) {
         select: {
           displayName: true,
           image: true,
+          profile: true,
         },
       },
       _count: {
@@ -358,6 +362,7 @@ async getAllPost(viewerUserId?: string) {
     userId: post.userId,
     userName: post.user?.displayName || null,
     userImage: post.user?.image || null,
+    profile: post.user?.profile || null,
     likeCount: post._count.likes,
     commentCount: post._count.comments,
     shareCount: post._count.shares, 

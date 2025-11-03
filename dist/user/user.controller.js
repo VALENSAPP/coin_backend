@@ -42,6 +42,7 @@ class RegisterDto {
     profile;
     password;
     googleId;
+    appleId;
     twitterId;
     walletAddress;
     registrationType;
@@ -77,6 +78,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "googleId", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], RegisterDto.prototype, "appleId", void 0);
 __decorate([
     (0, swagger_2.ApiProperty)({ required: false }),
     (0, class_validator_1.IsOptional)(),

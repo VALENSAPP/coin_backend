@@ -44,6 +44,7 @@ export declare class StoryController {
             otp: string | null;
             id: string;
             firebaseUserId: string | null;
+            appleId: string | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;

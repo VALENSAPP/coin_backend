@@ -197,6 +197,7 @@ let PostService = class PostService {
                     select: {
                         displayName: true,
                         image: true,
+                        profile: true,
                     },
                 },
                 _count: {
@@ -243,6 +244,7 @@ let PostService = class PostService {
             userId: post.userId,
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
+            profile: post.user?.profile || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
             shareCount: post._count.shares,
@@ -261,6 +263,7 @@ let PostService = class PostService {
                     select: {
                         displayName: true,
                         image: true,
+                        profile: true,
                     },
                 },
                 _count: {
@@ -318,6 +321,7 @@ let PostService = class PostService {
             userId: post.userId,
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
+            profile: post.user?.profile || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
             shareCount: post._count.shares,

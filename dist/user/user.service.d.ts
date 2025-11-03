@@ -1,6 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET';
+export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET' | 'APPLE';
 export declare class UserService {
     private readonly prisma;
     private readonly jwtService;
@@ -12,6 +12,7 @@ export declare class UserService {
         password?: string;
         googleId?: string;
         twitterId?: string;
+        appleId?: string;
         walletAddress?: string;
         registrationType: RegistrationType;
     }): Promise<{
@@ -21,6 +22,7 @@ export declare class UserService {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -70,6 +72,7 @@ export declare class UserService {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -117,6 +120,7 @@ export declare class UserService {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -159,6 +163,7 @@ export declare class UserService {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -204,6 +209,7 @@ export declare class UserService {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -250,6 +256,7 @@ export declare class UserService {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;
@@ -299,6 +306,7 @@ export declare class UserService {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -351,6 +359,7 @@ export declare class UserService {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -420,6 +429,7 @@ export declare class UserService {
             password: string | null;
             googleId: string | null;
             twitterId: string | null;
+            appleId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
             createdAt: Date;
@@ -504,6 +514,56 @@ export declare class UserService {
         password: string | null;
         googleId: string | null;
         twitterId: string | null;
+        appleId: string | null;
+        walletAddress: string | null;
+        registrationType: import(".prisma/client").$Enums.RegistrationType;
+        createdAt: Date;
+        updatedAt: Date;
+        age: number | null;
+        deletedAt: Date | null;
+        gender: import(".prisma/client").$Enums.Gender | null;
+        image: string | null;
+        otp: string | null;
+        otpExpiresAt: Date | null;
+        phoneNumber: string | null;
+        isDeleted: number;
+        verifyEmail: number;
+        bio: string | null;
+        displayName: string | null;
+        userName: string | null;
+        profile: string | null;
+        walletMnemonic: string | null;
+        walletPrivateKey: string | null;
+        currentPeriodEnd: Date | null;
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        subscriptionEnd: Date | null;
+        subscriptionStart: Date | null;
+        subscriptionStatus: import(".prisma/client").$Enums.SubscriptionStatus;
+        tokenBalance: number;
+        kyc: boolean;
+        stripeAccountId: string | null;
+        stripeBankAccountId: string | null;
+        refreshToken: string | null;
+        refreshTokenExpiresAt: Date | null;
+        access_token: string;
+        refresh_token: string;
+        error?: undefined;
+        msg?: undefined;
+        body?: undefined;
+    } | {
+        error: boolean;
+        msg: any;
+        body: any[];
+    }>;
+    signInWithApple(idToken: string): Promise<{
+        id: string;
+        firebaseUserId: string | null;
+        email: string | null;
+        password: string | null;
+        googleId: string | null;
+        twitterId: string | null;
+        appleId: string | null;
         walletAddress: string | null;
         registrationType: import(".prisma/client").$Enums.RegistrationType;
         createdAt: Date;

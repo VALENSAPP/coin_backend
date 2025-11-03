@@ -87,6 +87,7 @@ export declare class PostController {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profile: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -184,6 +185,7 @@ export declare class PostController {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profile: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;

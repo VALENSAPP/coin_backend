@@ -43,6 +43,7 @@ export declare class StoryService {
             otp: string | null;
             id: string;
             firebaseUserId: string | null;
+            appleId: string | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;

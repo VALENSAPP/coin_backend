@@ -52,6 +52,11 @@ export class RegisterDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  appleId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   twitterId?: string;
 
   @ApiProperty({ required: false })

@@ -37,6 +37,11 @@ export class LoginDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  appleId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   walletAddress?: string;
 
   @ApiProperty({ enum: RegistrationType, required: true })

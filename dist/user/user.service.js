@@ -43,15 +43,16 @@ let UserService = class UserService {
         if (data.googleId) {
             return this.signInWithGoogle(data.googleId);
         }
+        if (data.appleId) {
+            return this.signInWithApple(data.appleId);
+        }
         if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
             throw new common_1.BadRequestException('Username is required');
         }
-        if (data.twitterId || data.walletAddress || data.googleId) {
+        if (data.walletAddress) {
             const existingUser = await this.prisma.user.findFirst({
                 where: {
-                    twitterId: data.twitterId,
                     walletAddress: data.walletAddress,
-                    googleId: data.googleId,
                     deletedAt: null,
                     userName: data.userName,
                 },
@@ -795,6 +796,92 @@ let UserService = class UserService {
         return users.slice(0, limit);
     }
     async signInWithGoogle(idToken) {
+        try {
+            if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
+                return {
+                    error: true,
+                    msg: 'Invalid ID token provided',
+                    body: [],
+                };
+            }
+            const decodedToken = await admin.auth().verifyIdToken(idToken);
+            const email = decodedToken.email;
+            const provider = decodedToken.firebase?.sign_in_provider;
+            let loginType = 'GOOGLE';
+            if (email && email.endsWith('.ac.jp')) {
+                loginType = 'NORMAL';
+            }
+            const existingUser = await this.prisma.user.findFirst({
+                where: { email },
+            });
+            if (existingUser) {
+                if (existingUser.isDeleted === 1) {
+                    throw new common_1.BadRequestException('Account is deleted by admin');
+                }
+                if (provider === 'password' && existingUser.verifyEmail !== 1) {
+                    throw new common_1.BadRequestException('Please verify your email before signing in.');
+                }
+                const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
+                const access_token = this.jwtService.sign(payload);
+                const refreshTokenHash = (0, crypto_1.randomBytes)(32).toString('hex');
+                const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+                await this.prisma.user.update({
+                    where: { id: existingUser.id },
+                    data: {
+                        refreshToken: refreshTokenHash,
+                        refreshTokenExpiresAt,
+                    },
+                });
+                return {
+                    access_token: access_token,
+                    refresh_token: refreshTokenHash,
+                    ...existingUser
+                };
+            }
+            else {
+                const firebaseUserId = decodedToken.uid;
+                const userId = (0, uuid_1.v4)();
+                const userData = {
+                    id: userId,
+                    firebaseUserId,
+                    email,
+                    userName: decodedToken.name || 'Unknown User',
+                    profile: decodedToken.picture || null,
+                    googleId: provider === 'google.com' ? firebaseUserId : null,
+                    registrationType: loginType,
+                    verifyEmail: 1,
+                };
+                const newUser = await this.prisma.user.create({
+                    data: userData,
+                });
+                const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
+                const access_token = this.jwtService.sign(payload);
+                const refreshTokenHash = (0, crypto_1.randomBytes)(32).toString('hex');
+                const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+                await this.prisma.user.update({
+                    where: { id: newUser.id },
+                    data: {
+                        refreshToken: refreshTokenHash,
+                        refreshTokenExpiresAt,
+                    },
+                });
+                return {
+                    access_token: access_token,
+                    refresh_token: refreshTokenHash,
+                    ...newUser
+                };
+            }
+        }
+        catch (error) {
+            console.error('Firebase auth error:', error);
+            return {
+                error: true,
+                msg: error.message || 'Token verification failed',
+                body: [error],
+            };
+        }
+    }
+    async signInWithApple(idToken) {
         try {
             if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
                 return {
