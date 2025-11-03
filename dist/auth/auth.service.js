@@ -114,16 +114,8 @@ let AuthService = class AuthService {
                 if (provider === 'password' && existingUser.verifyEmail !== 1) {
                     throw new common_1.BadRequestException('Please verify your email before signing in.');
                 }
-                const token = this.jwtService.sign({
-                    userId: existingUser.id,
-                    email: existingUser.email,
-                    user_name: existingUser.userName,
-                }, { expiresIn: '1d' });
-                const refreshToken = this.jwtService.sign({
-                    userId: existingUser.id,
-                    email: existingUser.email,
-                    user_name: existingUser.userName,
-                }, { expiresIn: '5d' });
+                const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
+                const access_token = this.jwtService.sign(payload);
                 const refreshTokenHash = (0, crypto_1.randomBytes)(32).toString('hex');
                 const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
                 await this.prisma.user.update({
@@ -134,7 +126,7 @@ let AuthService = class AuthService {
                     },
                 });
                 return {
-                    access_token: token,
+                    access_token: access_token,
                     refresh_token: refreshTokenHash,
                     ...existingUser
                 };
@@ -155,16 +147,8 @@ let AuthService = class AuthService {
                 const newUser = await this.prisma.user.create({
                     data: userData,
                 });
-                const token = this.jwtService.sign({
-                    userId: newUser.id,
-                    email: newUser.email,
-                    user_name: newUser.userName,
-                }, { expiresIn: '1d' });
-                const refreshToken = this.jwtService.sign({
-                    userId: newUser.id,
-                    email: newUser.email,
-                    user_name: newUser.userName,
-                }, { expiresIn: '5d' });
+                const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
+                const access_token = this.jwtService.sign(payload);
                 const refreshTokenHash = (0, crypto_1.randomBytes)(32).toString('hex');
                 const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
                 await this.prisma.user.update({
@@ -175,7 +159,7 @@ let AuthService = class AuthService {
                     },
                 });
                 return {
-                    access_token: token,
+                    access_token: access_token,
                     refresh_token: refreshTokenHash,
                     ...newUser
                 };

@@ -24,11 +24,11 @@ export declare class BillingService {
         id: string;
         createdAt: Date;
         status: string;
-        amount: number;
         currency: string;
-        stripePaymentIntentId: string | null;
-        stripeInvoiceId: string | null;
+        amount: number;
         forPayment: string;
+        stripeInvoiceId: string | null;
+        stripePaymentIntentId: string | null;
         periodStart: Date | null;
         periodEnd: Date | null;
     }[]>;
