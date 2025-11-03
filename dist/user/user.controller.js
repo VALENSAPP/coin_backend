@@ -407,6 +407,7 @@ let UserController = class UserController {
     }
     async editProfile(req, dto, image) {
         const userId = req.user.userId;
+        console.log("LLLLLLLLLLLLLLLLLLLL", req.user, userId);
         const user = await this.userService.editProfile(userId, dto, image);
         return { message: 'Profile updated', user };
     }

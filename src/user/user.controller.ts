@@ -325,6 +325,8 @@ export class UserController {
     @UploadedFile() image: Express.Multer.File,
   ) {
     const userId = (req.user as any).userId;
+    console.log("LLLLLLLLLLLLLLLLLLLL",req.user,userId);
+    
     const user = await this.userService.editProfile(userId, dto, image);
     return { message: 'Profile updated', user };
   }

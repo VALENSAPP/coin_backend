@@ -947,13 +947,13 @@ export class UserService {
     
             // Generate tokens
             const token = this.jwtService.sign({
-              id: existingUser.id,
+              userId: existingUser.id,
               email: existingUser.email,
               user_name: existingUser.userName,
             }, { expiresIn: '1d' });
     
             const refreshToken = this.jwtService.sign({
-              id: existingUser.id,
+              userId: existingUser.id,
               email: existingUser.email,
               user_name: existingUser.userName,
             }, { expiresIn: '5d' });
@@ -998,13 +998,13 @@ export class UserService {
     
             // Generate tokens
             const token = this.jwtService.sign({
-              id: newUser.id,
+              userId: newUser.id,
               email: newUser.email,
               user_name: newUser.userName,
             }, { expiresIn: '1d' });
     
             const refreshToken = this.jwtService.sign({
-              id: newUser.id,
+              userId: newUser.id,
               email: newUser.email,
               user_name: newUser.userName,
             }, { expiresIn: '5d' });
