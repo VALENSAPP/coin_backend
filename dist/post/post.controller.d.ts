@@ -13,16 +13,16 @@ export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
         link: string | null;
-        userId: string;
-        type: string | null;
         text: string | null;
-        caption: string | null;
         images: string[];
+        caption: string | null;
         hashtag: string[];
         location: string | null;
         music: string | null;
@@ -32,16 +32,16 @@ export declare class PostController {
         end_time: Date | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
         link: string | null;
-        userId: string;
-        type: string | null;
         text: string | null;
-        caption: string | null;
         images: string[];
+        caption: string | null;
         hashtag: string[];
         location: string | null;
         music: string | null;
@@ -111,21 +111,21 @@ export declare class PostController {
         totalLikes: number;
     }>;
     commentOnPost(req: Request, dto: CommentOnPostDto): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
-        comment: string;
         postId: string;
+        comment: string;
     }>;
     editComment(req: Request, dto: {
         commentId: string;
         comment: string;
     }): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
-        comment: string;
         postId: string;
+        comment: string;
     }>;
     getCommentListOnPost(dto: GetCommentListOnPostDto): Promise<{
         comments: {
@@ -234,25 +234,25 @@ export declare class PostController {
         deletedIds: string[];
     }>;
     hidePost(req: Request, postId: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
     }>;
     unhidePost(req: Request, postId: string): Promise<{
         message: string;
     }>;
     getHidePost(req: Request): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
         link: string | null;
-        userId: string;
-        type: string | null;
         text: string | null;
-        caption: string | null;
         images: string[];
+        caption: string | null;
         hashtag: string[];
         location: string | null;
         music: string | null;
@@ -262,14 +262,14 @@ export declare class PostController {
         end_time: Date | null;
     }[]>;
     sendMessage(req: Request, dto: SendMessageDto): Promise<{
+        type: import(".prisma/client").$Enums.ConversationType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        type: import(".prisma/client").$Enums.ConversationType;
         content: string | null;
+        postId: string | null;
         senderId: string;
         receiverId: string;
-        postId: string | null;
         storyId: string | null;
     }>;
     getConversations(req: Request): Promise<{
@@ -278,33 +278,33 @@ export declare class PostController {
         content: string | null;
         createdAt: Date;
         sender: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         receiver: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         post: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             text: string | null;
-            caption: string | null;
             images: string[];
+            caption: string | null;
         } | null;
         story: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
-            media: string[];
             caption: string | null;
+            media: string[];
         } | null;
     }[]>;
     getConversationWithUser(req: Request, otherUserId: string): Promise<{
@@ -313,33 +313,33 @@ export declare class PostController {
         content: string | null;
         createdAt: Date;
         sender: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         receiver: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         post: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             text: string | null;
-            caption: string | null;
             images: string[];
+            caption: string | null;
         } | null;
         story: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
-            media: string[];
             caption: string | null;
+            media: string[];
         } | null;
     }[]>;
 }

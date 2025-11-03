@@ -22,8 +22,8 @@ export class AuthService {
   async login(loginDto: any) {
     // Check if this is a Firebase Google sign-in request
     // if (loginDto.idToken && loginDto.registrationType === 'GOOGLE') {
-    if (loginDto.idToken) {
-      return this.signInWithGoogle(loginDto.idToken);
+    if (loginDto.googleId) {
+      return this.signInWithGoogle(loginDto.googleId);
     }
 
     const user = await this.validateUser(loginDto);

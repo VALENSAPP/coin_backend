@@ -36,7 +36,6 @@ class LoginDto {
     googleId;
     twitterId;
     walletAddress;
-    idToken;
     registrationType;
 }
 exports.LoginDto = LoginDto;
@@ -70,12 +69,6 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], LoginDto.prototype, "walletAddress", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)({ required: false }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], LoginDto.prototype, "idToken", void 0);
 __decorate([
     (0, swagger_2.ApiProperty)({ enum: user_controller_1.RegistrationType, required: true }),
     (0, class_validator_1.IsEnum)(user_controller_1.RegistrationType),

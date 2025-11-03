@@ -30,8 +30,8 @@ let AuthService = class AuthService {
         return this.userService.validateUser(loginDto);
     }
     async login(loginDto) {
-        if (loginDto.idToken) {
-            return this.signInWithGoogle(loginDto.idToken);
+        if (loginDto.googleId) {
+            return this.signInWithGoogle(loginDto.googleId);
         }
         const user = await this.validateUser(loginDto);
         if (!user)

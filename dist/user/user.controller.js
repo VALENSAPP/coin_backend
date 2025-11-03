@@ -44,7 +44,6 @@ class RegisterDto {
     googleId;
     twitterId;
     walletAddress;
-    idToken;
     registrationType;
 }
 exports.RegisterDto = RegisterDto;
@@ -90,12 +89,6 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RegisterDto.prototype, "walletAddress", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)({ required: false }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], RegisterDto.prototype, "idToken", void 0);
 __decorate([
     (0, swagger_2.ApiProperty)({ enum: RegistrationType, required: true }),
     (0, class_validator_1.IsEnum)(RegistrationType),

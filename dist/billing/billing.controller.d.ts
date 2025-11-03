@@ -34,9 +34,9 @@ export declare class BillingController {
     }>;
     getLatestTransactions(req: Request): Promise<{
         transactions: {
+            userId: string;
             id: string;
             createdAt: Date;
-            userId: string;
             status: string;
             amount: number;
             currency: string;

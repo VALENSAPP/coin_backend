@@ -39,11 +39,6 @@ export class LoginDto {
   @IsString()
   walletAddress?: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  idToken?: string; // Firebase ID token for Google sign-in
-
   @ApiProperty({ enum: RegistrationType, required: true })
   @IsEnum(RegistrationType)
   @IsNotEmpty()

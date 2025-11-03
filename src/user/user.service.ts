@@ -53,13 +53,12 @@ export class UserService {
     googleId?: string;
     twitterId?: string;
     walletAddress?: string;
-    idToken?: string; // Firebase ID token for Google registration
     registrationType: RegistrationType;
   }) {
     // Check if this is a Firebase Google registration request
     // if (data.idToken && data.registrationType === 'GOOGLE') {
-    if (data.idToken) {
-      return this.signInWithGoogle(data.idToken);
+    if (data.googleId) {
+      return this.signInWithGoogle(data.googleId);
     }
 
     // Validate username is required for NORMAL registration

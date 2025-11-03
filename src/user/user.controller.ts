@@ -59,11 +59,6 @@ export class RegisterDto {
   @IsString()
   walletAddress?: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  idToken?: string; // Firebase ID token for Google registration
-
   @ApiProperty({ enum: RegistrationType, required: true })
   @IsEnum(RegistrationType)
   @IsNotEmpty()

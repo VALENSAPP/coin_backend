@@ -13,7 +13,6 @@ export declare class UserService {
         googleId?: string;
         twitterId?: string;
         walletAddress?: string;
-        idToken?: string;
         registrationType: RegistrationType;
     }): Promise<{
         id: string;

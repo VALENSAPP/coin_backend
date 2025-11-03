@@ -40,8 +40,8 @@ let UserService = class UserService {
         this.jwtService = jwtService;
     }
     async register(data) {
-        if (data.idToken) {
-            return this.signInWithGoogle(data.idToken);
+        if (data.googleId) {
+            return this.signInWithGoogle(data.googleId);
         }
         if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
             throw new common_1.BadRequestException('Username is required');

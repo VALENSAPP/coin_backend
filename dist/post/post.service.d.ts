@@ -3,16 +3,16 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
         link: string | null;
-        userId: string;
-        type: string | null;
         text: string | null;
-        caption: string | null;
         images: string[];
+        caption: string | null;
         hashtag: string[];
         location: string | null;
         music: string | null;
@@ -97,16 +97,16 @@ export declare class PostService {
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
         link: string | null;
-        userId: string;
-        type: string | null;
         text: string | null;
-        caption: string | null;
         images: string[];
+        caption: string | null;
         hashtag: string[];
         location: string | null;
         music: string | null;
@@ -130,18 +130,18 @@ export declare class PostService {
         totalLikes: number;
     }>;
     commentOnPost(postId: string, userId: string, comment: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
-        comment: string;
         postId: string;
+        comment: string;
     }>;
     editComment(commentId: string, userId: string, newComment: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
-        comment: string;
         postId: string;
+        comment: string;
     }>;
     getCommentListOnPost(postId: string): Promise<{
         comments: {
@@ -221,25 +221,25 @@ export declare class PostService {
         deletedIds: string[];
     }>;
     hidePost(postId: string, userId: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
     }>;
     unhidePost(postId: string, userId: string): Promise<{
         message: string;
     }>;
     getHidePost(userId: string): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
         link: string | null;
-        userId: string;
-        type: string | null;
         text: string | null;
-        caption: string | null;
         images: string[];
+        caption: string | null;
         hashtag: string[];
         location: string | null;
         music: string | null;
@@ -249,14 +249,14 @@ export declare class PostService {
         end_time: Date | null;
     }[]>;
     sendMessage(senderId: string, receiverId: string, message: string): Promise<{
+        type: import(".prisma/client").$Enums.ConversationType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        type: import(".prisma/client").$Enums.ConversationType;
         content: string | null;
+        postId: string | null;
         senderId: string;
         receiverId: string;
-        postId: string | null;
         storyId: string | null;
     }>;
     getConversations(userId: string): Promise<{
@@ -265,33 +265,33 @@ export declare class PostService {
         content: string | null;
         createdAt: Date;
         sender: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         receiver: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         post: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             text: string | null;
-            caption: string | null;
             images: string[];
+            caption: string | null;
         } | null;
         story: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
-            media: string[];
             caption: string | null;
+            media: string[];
         } | null;
     }[]>;
     getConversationWithUser(userId: string, otherUserId: string): Promise<{
@@ -300,33 +300,33 @@ export declare class PostService {
         content: string | null;
         createdAt: Date;
         sender: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         receiver: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         post: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             text: string | null;
-            caption: string | null;
             images: string[];
+            caption: string | null;
         } | null;
         story: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
-            media: string[];
             caption: string | null;
+            media: string[];
         } | null;
     }[]>;
 }

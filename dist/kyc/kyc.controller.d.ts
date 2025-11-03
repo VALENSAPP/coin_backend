@@ -11,10 +11,10 @@ export declare class KycController {
         success: boolean;
     }>;
     getStatus(userId: string): Promise<{
+        userId: string;
         id: number;
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
         status: import(".prisma/client").$Enums.KycStatus;
         veriffSessionId: string;
         veriffUrl: string;

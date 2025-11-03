@@ -9,7 +9,6 @@ export declare class LoginDto {
     googleId?: string;
     twitterId?: string;
     walletAddress?: string;
-    idToken?: string;
     registrationType: RegistrationType;
 }
 export declare class AuthController {
