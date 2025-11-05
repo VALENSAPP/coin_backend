@@ -17,6 +17,7 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const crypto_1 = require("crypto");
 const uuid_1 = require("uuid");
 const firebase_config_1 = require("./firebase.config");
+const axios_1 = require("axios");
 let AuthService = class AuthService {
     userService;
     jwtService;
@@ -35,6 +36,9 @@ let AuthService = class AuthService {
         }
         if (loginDto.appleId) {
             return this.signInWithApple(loginDto.appleId);
+        }
+        if (loginDto.twitterId) {
+            return this.twitterLogin(loginDto.twitterId);
         }
         const user = await this.validateUser(loginDto);
         if (!user)
@@ -261,6 +265,72 @@ let AuthService = class AuthService {
                 msg: error.message || 'Token verification failed',
                 body: [error],
             };
+        }
+    }
+    async twitterLogin(accessToken) {
+        try {
+            if (!accessToken) {
+                throw new common_1.BadRequestException('Missing Twitter access token');
+            }
+            const response = await axios_1.default.get('https://api.twitter.com/2/users/me', {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                },
+            });
+            const twitterUser = response.data.data;
+            if (!twitterUser) {
+                throw new common_1.BadRequestException('Failed to fetch user info from Twitter');
+            }
+            const twitterId = twitterUser.id;
+            const email = twitterUser.email || null;
+            const userName = twitterUser.name || twitterUser.username;
+            const profile = twitterUser.profile_image_url || null;
+            let existingUser = await this.prisma.user.findFirst({
+                where: {
+                    OR: [
+                        { twitterId },
+                        email ? { email } : undefined,
+                    ].filter(Boolean),
+                },
+            });
+            if (!existingUser) {
+                const newUser = await this.prisma.user.create({
+                    data: {
+                        id: (0, uuid_1.v4)(),
+                        twitterId,
+                        email,
+                        userName,
+                        profile,
+                        registrationType: 'TWITTER',
+                        verifyEmail: 1,
+                    },
+                });
+                existingUser = newUser;
+            }
+            const payload = {
+                sub: existingUser.id,
+                email: existingUser.email,
+                registrationType: existingUser.registrationType,
+            };
+            const access_token = this.jwtService.sign(payload);
+            const refreshTokenHash = (0, crypto_1.randomBytes)(32).toString('hex');
+            const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+            await this.prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                    refreshToken: refreshTokenHash,
+                    refreshTokenExpiresAt,
+                },
+            });
+            return {
+                access_token,
+                refresh_token: refreshTokenHash,
+                ...existingUser,
+            };
+        }
+        catch (error) {
+            console.error('Twitter login error:', error.response?.data || error.message);
+            throw new common_1.BadRequestException('Twitter login failed');
         }
     }
 };

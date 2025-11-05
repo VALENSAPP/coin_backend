@@ -15,6 +15,7 @@ import { encryptSecret } from '../common/crypto.util';
 // import admin from '../auth/firebase.config';
 // import admin from '../auth/firebase.config';
 import * as admin from 'firebase-admin';
+import axios from 'axios';
 
 // ✅ Use absolute path to service account
 const serviceAccountPath = path.join(process.cwd(), 'config', 'service-account-key.json');
@@ -66,6 +67,9 @@ export class UserService {
       return this.signInWithApple(data.appleId);
     }
 
+     if (data.twitterId) {
+      return this.twitterLogin(data.twitterId);
+    }
     // Validate username is required for NORMAL registration
     if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
       throw new BadRequestException('Username is required');
@@ -299,19 +303,24 @@ export class UserService {
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Email not registered');
-    const otp = randomBytes(3).toString('hex');
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit numeric OTP
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     await this.prisma.user.update({
       where: { email },
       data: { otp, otpExpiresAt },
     });
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
-    await sgMail.send({
-      to: email,
-      from: process.env.SENDGRID_FROM_EMAIL!,
-      subject: 'Your Password Reset OTP',
-      text: `Your OTP for password reset is: ${otp}`,
-    });
+    try {
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+      await sgMail.send({
+        to: email,
+        from: process.env.SENDGRID_FROM_EMAIL!,
+        subject: 'Your Password Reset OTP',
+        text: `Your OTP for password reset is: ${otp}`,
+      });
+    } catch (error) {
+      console.error('SendGrid error:', error);
+      throw new BadRequestException('Failed to send email. Please check your email address or try again later.');
+    }
     return true;
   }
 
@@ -333,7 +342,7 @@ export class UserService {
   async sendEmailOtp(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Email not registered');
-    const otp = randomBytes(3).toString('hex');
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit numeric OTP
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     await this.prisma.user.update({
       where: { email },
@@ -1133,4 +1142,83 @@ export class UserService {
                };
              }
            }
+
+           async twitterLogin(accessToken: string) {
+    try {
+      if (!accessToken) {
+        throw new BadRequestException('Missing Twitter access token');
+      }
+
+      // Fetch user info from Twitter API
+      const response = await axios.get('https://api.twitter.com/2/users/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const twitterUser = response.data.data;
+      if (!twitterUser) {
+        throw new BadRequestException('Failed to fetch user info from Twitter');
+      }
+
+      const twitterId = twitterUser.id;
+      const email = twitterUser.email || null;
+      const userName = twitterUser.name || twitterUser.username;
+      const profile = twitterUser.profile_image_url || null;
+
+      // Check if user already exists
+      let existingUser = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { twitterId },
+            email ? { email } : undefined,
+          ].filter(Boolean) as any,
+        },
+      });
+
+      // If not found, create new user
+      if (!existingUser) {
+        const newUser = await this.prisma.user.create({
+          data: {
+            id: uuidv4(),
+            twitterId,
+            email,
+            userName,
+            profile,
+            registrationType: 'TWITTER',
+            verifyEmail: 1,
+          },
+        });
+        existingUser = newUser;
+      }
+
+      // Generate tokens
+      const payload = {
+        sub: existingUser.id,
+        email: existingUser.email,
+        registrationType: existingUser.registrationType,
+      };
+      const access_token = this.jwtService.sign(payload);
+
+      const refreshTokenHash = randomBytes(32).toString('hex');
+      const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+
+      await this.prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          refreshToken: refreshTokenHash,
+          refreshTokenExpiresAt,
+        },
+      });
+
+      return {
+        access_token,
+        refresh_token: refreshTokenHash,
+        ...existingUser,
+      };
+    } catch (error) {
+      console.error('Twitter login error:', error.response?.data || error.message);
+      throw new BadRequestException('Twitter login failed');
+    }
+  }
 }

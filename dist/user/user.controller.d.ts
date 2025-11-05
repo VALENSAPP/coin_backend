@@ -85,6 +85,10 @@ export declare class UserController {
     private readonly userService;
     constructor(userService: UserService);
     register(dto: RegisterDto): Promise<{
+        error: boolean;
+        msg: any;
+        body: any[];
+    } | {
         id: string;
         firebaseUserId: string | null;
         email: string | null;
@@ -125,13 +129,6 @@ export declare class UserController {
         refreshTokenExpiresAt: Date | null;
         access_token: string;
         refresh_token: string;
-        error?: undefined;
-        msg?: undefined;
-        body?: undefined;
-    } | {
-        error: boolean;
-        msg: any;
-        body: any[];
     } | {
         access_token: string;
         user: {

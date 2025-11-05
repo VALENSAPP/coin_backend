@@ -8,6 +8,7 @@ export declare class LoginDto {
     password?: string;
     googleId?: string;
     twitterId?: string;
+    twitterAccessToken?: string;
     appleId?: string;
     walletAddress?: string;
     registrationType: RegistrationType;
@@ -18,6 +19,10 @@ export declare class AuthController {
     login(body: LoginDto): Promise<{
         message: string;
         user: {
+            error: boolean;
+            msg: any;
+            body: any[];
+        } | {
             id: string;
             firebaseUserId: string | null;
             email: string | null;
@@ -58,13 +63,6 @@ export declare class AuthController {
             refreshTokenExpiresAt: Date | null;
             access_token: string;
             refresh_token: string;
-            error?: undefined;
-            msg?: undefined;
-            body?: undefined;
-        } | {
-            error: boolean;
-            msg: any;
-            body: any[];
         };
     }>;
     refreshToken(body: RefreshTokenDto): Promise<{

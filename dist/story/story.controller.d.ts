@@ -32,6 +32,7 @@ export declare class StoryController {
             profile: string | null;
             password: string | null;
             googleId: string | null;
+            appleId: string | null;
             twitterId: string | null;
             walletAddress: string | null;
             registrationType: import(".prisma/client").$Enums.RegistrationType;
@@ -44,7 +45,6 @@ export declare class StoryController {
             otp: string | null;
             id: string;
             firebaseUserId: string | null;
-            appleId: string | null;
             createdAt: Date;
             updatedAt: Date;
             deletedAt: Date | null;
