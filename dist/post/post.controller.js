@@ -90,8 +90,7 @@ let PostController = class PostController {
     }
     async getSavedPosts(req) {
         console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
-        const u = req.user;
-        const userId = u?.userId ?? u?.sub;
+        const userId = req.user.userId;
         return this.postService.getSavedPostsByUser(userId, userId);
     }
     async getPostById(req, params) {
@@ -165,7 +164,12 @@ __decorate([
         },
     }),
     __param(0, (0, common_1.Req)()),
-    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }))),
+    __param(1, (0, common_1.Body)(new common_1.ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: false,
+        exceptionFactory: (errors) => new common_1.BadRequestException(errors)
+    }))),
     __param(2, (0, common_1.UploadedFiles)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, create_post_dto_1.CreatePostDto, Array]),

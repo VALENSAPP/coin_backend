@@ -109,7 +109,7 @@ let AuthController = class AuthController {
         };
     }
     async getProfile(req) {
-        const userId = req.user.sub;
+        const userId = req.user.userId;
         return this.authService.getProfile(userId);
     }
 };

@@ -68,6 +68,17 @@ export class PostService {
         end_time: end_time ? new Date(end_time) : null
       };
 
+      // Validate processed data
+      if (processedData.raiseAmount && isNaN(processedData.raiseAmount)) {
+        throw new BadRequestException('Invalid raiseAmount');
+      }
+      if (processedData.start_time && isNaN(processedData.start_time.getTime())) {
+        throw new BadRequestException('Invalid start_time');
+      }
+      if (processedData.end_time && isNaN(processedData.end_time.getTime())) {
+        throw new BadRequestException('Invalid end_time');
+      }
+
       return await this.prisma.$transaction(async (tx) => {
         // For crowdfunding, decrement hit
         if (type === 'crowdfunding' || type === 'support') {
@@ -95,6 +106,8 @@ export class PostService {
 
     } catch (error) {
       console.error('Create post error:', error);
+      console.log('Error message:', error.message);
+      console.log('Error stack:', error.stack);
       if (error instanceof BadRequestException) {
         throw error;
       }

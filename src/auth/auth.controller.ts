@@ -86,7 +86,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get authenticated user profile' })
   async getProfile(@Request() req: any) {
-    const userId = req.user.sub; // JWT payload stores user id in 'sub' claim
+    const userId = req.user.userId; // JWT payload stores user id in 'userId' field
     return this.authService.getProfile(userId);
   }
 

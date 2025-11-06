@@ -81,7 +81,6 @@ export class CreatePostDto {
 
   @ApiProperty({ description: 'Raise amount for crowdfunding posts', required: false })
   @IsOptional()
-  @IsNumberString()
   @Transform(({ value }: { value: any }) => value ? parseFloat(value) : null)
   raiseAmount?: number;
 

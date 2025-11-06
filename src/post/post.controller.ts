@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Delete, UseGuards, Req, UseInterceptors, UploadedFiles, ValidationPipe, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Delete, UseGuards, Req, UseInterceptors, UploadedFiles, ValidationPipe, Param, BadRequestException } from '@nestjs/common';
 import { PostService } from './post.service';
 import { CreatePostDto } from './dto/create-post.dto';
 import { GetPostByUserDto } from './dto/get-post-by-user.dto';
@@ -13,6 +13,7 @@ import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery }
 import { AuthGuard } from '@nestjs/passport';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { log } from 'console';
 
 @Controller('post')
 export class PostController {
@@ -48,7 +49,12 @@ export class PostController {
   })
   async createPost(
     @Req() req: Request,
-    @Body(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })) body: CreatePostDto,
+    @Body(new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: false,
+      exceptionFactory: (errors) => new BadRequestException(errors)
+    })) body: CreatePostDto,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
@@ -244,9 +250,8 @@ async editComment(
   @ApiOperation({ summary: 'Get saved posts for the authenticated user' })
   async getSavedPosts(@Req() req: Request) {
     console.log(">>>>>>>>>>>>>>>>>>>>>",req.user);
-    
-    const u: any = req.user as any;
-    const userId = u?.userId ?? u?.sub;
+
+    const userId = (req.user as any).userId;
     return this.postService.getSavedPostsByUser(userId,userId);
   }
 

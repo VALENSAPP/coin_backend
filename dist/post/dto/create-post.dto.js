@@ -124,7 +124,6 @@ __decorate([
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Raise amount for crowdfunding posts', required: false }),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsNumberString)(),
     (0, class_transformer_1.Transform)(({ value }) => value ? parseFloat(value) : null),
     __metadata("design:type", Number)
 ], CreatePostDto.prototype, "raiseAmount", void 0);
