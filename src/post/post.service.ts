@@ -9,79 +9,97 @@ export class PostService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date) {
-    if (!userId) throw new BadRequestException('User ID required');
+    try {
+      if (!userId) throw new BadRequestException('User ID required');
 
-    // For crowdfunding posts, check hits and validate required fields
-    if (type === 'crowdfunding' || type === 'support') {
-      if (raiseAmount === null || raiseAmount === undefined || start_time === null || start_time === undefined || end_time === null || end_time === undefined) {
-        throw new BadRequestException('raiseAmount, start_time, and end_time are required for crowdfunding posts');
-      }
-
-      // Check if user has hits left
-      const postHit = await this.prisma.postHit.findFirst({
-        where: { userId },
+      // Log incoming data for debugging
+      console.log('Creating post with data:', {
+        userId,
+        text,
+        imagesCount: images?.length,
+        filesCount: files?.length,
+        caption,
+        hashtag,
+        type,
+        raiseAmount
       });
 
-      if (!postHit || postHit.hitLeft <= 0) {
-        throw new BadRequestException('No hits left to create a crowdfunding post');
-      }
-    }
-
-    let imageUrls: string[] = images || [];
-    // Upload files to S3 and collect URLs
-    if (files && files.length > 0) {
-      const uploadedUrls = await Promise.all(files.map(f => uploadImageToS3(f, 'post-images')));
-      imageUrls = imageUrls.concat(uploadedUrls);
-    }
-
-    // Handle empty strings by converting them to null
-    const processedText = text && text.trim() !== '' ? text : null;
-    const processedCaption = caption && caption.trim() !== '' ? caption : null;
-    const processedLocation = location && location.trim() !== '' ? location : null;
-    const processedMusic = music && music.trim() !== '' ? music : null;
-    const processedLink = link && link.trim() !== '' ? link : null;
-
-    // Handle array fields - if they're empty strings or undefined, use empty array
-    const processedHashtag = hashtag && hashtag.length > 0 ? hashtag : [];
-    const processedTaggedPeople = taggedPeople && taggedPeople.length > 0 ? taggedPeople : [];
-
-    // Transform raiseAmount to number
-    const processedRaiseAmount = raiseAmount ? parseFloat(raiseAmount.toString()) : null;
-    const processedStartTime = start_time ? new Date(start_time) : null;
-    const processedEndTime = end_time ? new Date(end_time) : null;
-
-    return this.prisma.$transaction(async (tx) => {
-      // For crowdfunding, decrement hit
+      // For crowdfunding posts, check hits and validate required fields
       if (type === 'crowdfunding' || type === 'support') {
-        const postHit = await tx.postHit.findFirst({ where: { userId } });
-        if (!postHit) throw new BadRequestException('PostHit record not found');
-        await tx.postHit.update({
-          where: { id: postHit.id },
-          data: { hitLeft: { decrement: 1 } },
+        if (!raiseAmount || !start_time || !end_time) {
+          throw new BadRequestException('raiseAmount, start_time, and end_time are required for crowdfunding posts');
+        }
+
+        const postHit = await this.prisma.postHit.findFirst({
+          where: { userId },
         });
+
+        if (!postHit || postHit.hitLeft <= 0) {
+          throw new BadRequestException('No hits left to create a crowdfunding post');
+        }
       }
 
-      // Create the post
-      return tx.post.create({
-        data: {
-          userId,
-          text: processedText,
-          images: imageUrls,
-          caption: processedCaption,
-          hashtag: processedHashtag,
-          location: processedLocation,
-          music: processedMusic,
-          link: processedLink,
-          taggedPeople: processedTaggedPeople,
-          type,
-          raiseAmount: processedRaiseAmount,
-          start_time: processedStartTime,
-          end_time: processedEndTime,
-        },
+      let imageUrls: string[] = images || [];
+      
+      // Upload files to S3 and collect URLs
+      if (files && files.length > 0) {
+        try {
+          const uploadedUrls = await Promise.all(
+            files.map(f => uploadImageToS3(f, 'post-images'))
+          );
+          imageUrls = imageUrls.concat(uploadedUrls);
+        } catch (uploadError) {
+          console.error('S3 Upload error:', uploadError);
+          throw new BadRequestException('Failed to upload images');
+        }
+      }
+
+      // Process input data
+      const processedData = {
+        text: text?.trim() || null,
+        caption: caption?.trim() || null,
+        location: location?.trim() || null,
+        music: music?.trim() || null,
+        link: link?.trim() || null,
+        hashtag: hashtag?.filter(Boolean) || [],
+        taggedPeople: taggedPeople?.filter(Boolean) || [],
+        raiseAmount: raiseAmount ? Number(raiseAmount) : null,
+        start_time: start_time ? new Date(start_time) : null,
+        end_time: end_time ? new Date(end_time) : null
+      };
+
+      return await this.prisma.$transaction(async (tx) => {
+        // For crowdfunding, decrement hit
+        if (type === 'crowdfunding' || type === 'support') {
+          const postHit = await tx.postHit.findFirst({ where: { userId } });
+          if (!postHit) throw new BadRequestException('PostHit record not found');
+          
+          await tx.postHit.update({
+            where: { id: postHit.id },
+            data: { hitLeft: { decrement: 1 } },
+          });
+        }
+
+        // Create the post
+        return tx.post.create({
+          data: {
+            userId,
+            ...processedData,
+            images: imageUrls,
+            type,
+          },
+        });
+      }, {
+        timeout: 15000 // Increased timeout
       });
-    }, {
-      timeout: 10000 // Increase timeout to 10 seconds
-    });
+
+    } catch (error) {
+      console.error('Create post error:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(error.message || 'Failed to create post');
+    }
   }
 
   async savePost(postId: string, userId: string) {
