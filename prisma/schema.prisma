@@ -70,6 +70,8 @@ model User {
   withdrawalRecords    WithdrawalRecord[]
   kycs                 Kyc[]
 
+  loginHistories       LoginHistory[]
+
 }
 
 model Post {
@@ -364,6 +366,15 @@ model Kyc {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   user             User      @relation(fields: [userId], references: [id])
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  loginDate DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 enum RegistrationType {

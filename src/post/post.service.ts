@@ -12,7 +12,7 @@ export class PostService {
     if (!userId) throw new BadRequestException('User ID required');
 
     // For crowdfunding posts, check hits and validate required fields
-    if (type === 'crowdfunding') {
+    if (type === 'crowdfunding' || type === 'support') {
       if (raiseAmount === null || raiseAmount === undefined || start_time === null || start_time === undefined || end_time === null || end_time === undefined) {
         throw new BadRequestException('raiseAmount, start_time, and end_time are required for crowdfunding posts');
       }
@@ -52,7 +52,7 @@ export class PostService {
 
     return this.prisma.$transaction(async (tx) => {
       // For crowdfunding, decrement hit
-      if (type === 'crowdfunding') {
+      if (type === 'crowdfunding' || type === 'support') {
         const postHit = await tx.postHit.findFirst({ where: { userId } });
         if (!postHit) throw new BadRequestException('PostHit record not found');
         await tx.postHit.update({

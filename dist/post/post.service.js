@@ -21,7 +21,7 @@ let PostService = class PostService {
     async createPost(userId, text, images, files, caption, hashtag, location, music, link, taggedPeople, type, raiseAmount, start_time, end_time) {
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
-        if (type === 'crowdfunding') {
+        if (type === 'crowdfunding' || type === 'support') {
             if (raiseAmount === null || raiseAmount === undefined || start_time === null || start_time === undefined || end_time === null || end_time === undefined) {
                 throw new common_1.BadRequestException('raiseAmount, start_time, and end_time are required for crowdfunding posts');
             }
@@ -48,7 +48,7 @@ let PostService = class PostService {
         const processedStartTime = start_time ? new Date(start_time) : null;
         const processedEndTime = end_time ? new Date(end_time) : null;
         return this.prisma.$transaction(async (tx) => {
-            if (type === 'crowdfunding') {
+            if (type === 'crowdfunding' || type === 'support') {
                 const postHit = await tx.postHit.findFirst({ where: { userId } });
                 if (!postHit)
                     throw new common_1.BadRequestException('PostHit record not found');
