@@ -147,6 +147,7 @@ let PostService = class PostService {
                     select: {
                         displayName: true,
                         image: true,
+                        profileStatus: true,
                     },
                 },
                 _count: {
@@ -205,6 +206,7 @@ let PostService = class PostService {
             userId: post.userId,
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
+            profileStatus: post.user?.profileStatus || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
             isSaved: savedSet.has(post.id),
@@ -227,6 +229,7 @@ let PostService = class PostService {
                         displayName: true,
                         image: true,
                         profile: true,
+                        profileStatus: true,
                     },
                 },
                 _count: {
@@ -274,6 +277,7 @@ let PostService = class PostService {
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
             profile: post.user?.profile || null,
+            profileStatus: post.user?.profileStatus || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
             shareCount: post._count.shares,
@@ -293,6 +297,7 @@ let PostService = class PostService {
                         displayName: true,
                         image: true,
                         profile: true,
+                        profileStatus: true,
                     },
                 },
                 _count: {
@@ -351,6 +356,7 @@ let PostService = class PostService {
             userName: post.user?.displayName || null,
             userImage: post.user?.image || null,
             profile: post.user?.profile || null,
+            profileStatus: post.user?.profileStatus || null,
             likeCount: post._count.likes,
             commentCount: post._count.comments,
             shareCount: post._count.shares,
@@ -593,6 +599,7 @@ let PostService = class PostService {
                             select: {
                                 displayName: true,
                                 image: true,
+                                profileStatus: true,
                             },
                         },
                         _count: {
@@ -644,6 +651,7 @@ let PostService = class PostService {
                 userId: post.userId,
                 userName: post.user?.displayName || null,
                 userImage: post.user?.image || null,
+                profileStatus: post.user?.profileStatus || null,
                 likeCount: post._count.likes,
                 commentCount: post._count.comments,
                 shareCount: post._count.shares,
@@ -704,7 +712,7 @@ let PostService = class PostService {
             include: {
                 post: {
                     include: {
-                        user: { select: { displayName: true, image: true } },
+                        user: { select: { displayName: true, image: true, profileStatus: true } },
                         _count: { select: { likes: true, comments: true, conversations: { where: { type: 'POST_SHARE' } } } },
                     },
                 },
@@ -730,6 +738,7 @@ let PostService = class PostService {
                 userId: conv.post.userId,
                 userName: conv.post.user?.displayName || null,
                 userImage: conv.post.user?.image || null,
+                profileStatus: conv.post.user?.profileStatus || null,
                 likeCount: conv.post._count.likes,
                 commentCount: conv.post._count.comments,
                 shareCount: conv.post._count.conversations,

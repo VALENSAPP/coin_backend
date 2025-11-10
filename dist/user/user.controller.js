@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserController = exports.GetAllUsersDto = exports.GetUserDashboardDto = exports.GetProfileDto = exports.CheckDisplayNameDto = exports.ChangePasswordDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
+exports.UserController = exports.ProfileStatusSetDto = exports.GetAllUsersDto = exports.GetUserDashboardDto = exports.GetProfileDto = exports.CheckDisplayNameDto = exports.ChangePasswordDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const user_service_1 = require("./user.service");
@@ -394,6 +394,20 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], GetAllUsersDto.prototype, "phoneNumber", void 0);
+class ProfileStatusSetDto {
+    profileStatus;
+}
+exports.ProfileStatusSetDto = ProfileStatusSetDto;
+__decorate([
+    (0, swagger_2.ApiProperty)({
+        description: 'Profile status to set',
+        required: true,
+        example: 'public'
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], ProfileStatusSetDto.prototype, "profileStatus", void 0);
 let UserController = class UserController {
     userService;
     constructor(userService) {
@@ -508,6 +522,10 @@ let UserController = class UserController {
         const userId = req.user.userId;
         const hitLeft = await this.userService.getHitLeft(userId);
         return { hitLeft };
+    }
+    async setProfileStatus(req, dto) {
+        const userId = req.user.userId;
+        return this.userService.setProfileStatus(userId, dto.profileStatus);
     }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
@@ -839,6 +857,18 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "getHitLeft", null);
+__decorate([
+    (0, common_1.Post)('profileStatusSet'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Set user profile status' }),
+    (0, swagger_3.ApiBody)({ type: ProfileStatusSetDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, ProfileStatusSetDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "setProfileStatus", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

@@ -46,6 +46,7 @@ model User {
   stripeBankAccountId  String?
   refreshToken         String?
   refreshTokenExpiresAt DateTime?
+  profileStatus        String                  @default("public")
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")

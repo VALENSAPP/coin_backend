@@ -65,6 +65,7 @@ export declare class PostController {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         isSaved: boolean;
@@ -88,6 +89,7 @@ export declare class PostController {
         userName: string | null;
         userImage: string | null;
         profile: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -163,6 +165,7 @@ export declare class PostController {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -186,6 +189,7 @@ export declare class PostController {
         userName: string | null;
         userImage: string | null;
         profile: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -216,6 +220,7 @@ export declare class PostController {
             userId: string;
             userName: string | null;
             userImage: string | null;
+            profileStatus: string | null;
             likeCount: number;
             commentCount: number;
             shareCount: number;

@@ -42,6 +42,7 @@ export declare class StoryService {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;

@@ -285,6 +285,17 @@ export class GetAllUsersDto {
   phoneNumber?: string;
 }
 
+export class ProfileStatusSetDto {
+  @ApiProperty({
+    description: 'Profile status to set',
+    required: true,
+    example: 'public'
+  })
+  @IsString()
+  @IsNotEmpty()
+  profileStatus: string;
+}
+
 @ApiTags('user')
 @Controller('user')
 export class UserController {
@@ -597,6 +608,15 @@ export class UserController {
     return { hitLeft };
   }
 
+  @Post('profileStatusSet')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Set user profile status' })
+  @ApiBody({ type: ProfileStatusSetDto })
+  async setProfileStatus(@Req() req: Request, @Body() dto: ProfileStatusSetDto) {
+    const userId = (req.user as any).userId;
+    return this.userService.setProfileStatus(userId, dto.profileStatus);
+  }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))

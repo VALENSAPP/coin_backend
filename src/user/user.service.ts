@@ -919,6 +919,26 @@ export class UserService {
     return users.slice(0, limit);
   }
 
+  async setProfileStatus(userId: string, profileStatus: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!profileStatus || profileStatus.trim() === '') {
+      throw new BadRequestException('Profile status is required');
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { profileStatus: profileStatus.trim() },
+    });
+
+    return {
+      message: 'Profile status updated successfully',
+      user: {
+        id: user.id,
+        profileStatus: user.profileStatus,
+      },
+    };
+  }
+
    async signInWithGoogle(idToken: string) {
          try {
            // Validate idToken input

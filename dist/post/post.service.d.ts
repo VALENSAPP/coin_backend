@@ -42,6 +42,7 @@ export declare class PostService {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         isSaved: boolean;
@@ -65,6 +66,7 @@ export declare class PostService {
         userName: string | null;
         userImage: string | null;
         profile: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -89,6 +91,7 @@ export declare class PostService {
         userName: string | null;
         userImage: string | null;
         profile: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -174,6 +177,7 @@ export declare class PostService {
         userId: string;
         userName: string | null;
         userImage: string | null;
+        profileStatus: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -203,6 +207,7 @@ export declare class PostService {
             userId: string;
             userName: string | null;
             userImage: string | null;
+            profileStatus: string | null;
             likeCount: number;
             commentCount: number;
             shareCount: number;

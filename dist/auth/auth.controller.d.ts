@@ -43,6 +43,7 @@ export declare class AuthController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -93,6 +94,7 @@ export declare class AuthController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;

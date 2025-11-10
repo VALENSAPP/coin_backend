@@ -81,6 +81,9 @@ export declare class GetAllUsersDto {
     twitterId?: string;
     phoneNumber?: string;
 }
+export declare class ProfileStatusSetDto {
+    profileStatus: string;
+}
 export declare class UserController {
     private readonly userService;
     constructor(userService: UserService);
@@ -106,6 +109,7 @@ export declare class UserController {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -149,6 +153,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -191,6 +196,7 @@ export declare class UserController {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -236,6 +242,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -325,6 +332,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -378,6 +386,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -427,6 +436,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -474,6 +484,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -547,6 +558,13 @@ export declare class UserController {
     getHitLeft(req: Request): Promise<{
         hitLeft: number;
     }>;
+    setProfileStatus(req: Request, dto: ProfileStatusSetDto): Promise<{
+        message: string;
+        user: {
+            id: string;
+            profileStatus: string;
+        };
+    }>;
     getUserById(id: string): Promise<{
         user: {
             kyc: boolean;
@@ -566,6 +584,7 @@ export declare class UserController {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;

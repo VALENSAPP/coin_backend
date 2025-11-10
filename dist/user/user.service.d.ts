@@ -37,6 +37,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -80,6 +81,7 @@ export declare class UserService {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -128,6 +130,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -171,6 +174,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -217,6 +221,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -264,6 +269,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -314,6 +320,7 @@ export declare class UserService {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -367,6 +374,7 @@ export declare class UserService {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -437,6 +445,7 @@ export declare class UserService {
             image: string | null;
             age: number | null;
             otp: string | null;
+            profileStatus: string;
             id: string;
             firebaseUserId: string | null;
             createdAt: Date;
@@ -504,6 +513,13 @@ export declare class UserService {
         image: string | null;
         id: string;
     }[]>;
+    setProfileStatus(userId: string, profileStatus: string): Promise<{
+        message: string;
+        user: {
+            id: string;
+            profileStatus: string;
+        };
+    }>;
     signInWithGoogle(idToken: string): Promise<{
         kyc: boolean;
         email: string | null;
@@ -522,6 +538,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -571,6 +588,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;
@@ -620,6 +638,7 @@ export declare class UserService {
         image: string | null;
         age: number | null;
         otp: string | null;
+        profileStatus: string;
         id: string;
         firebaseUserId: string | null;
         createdAt: Date;

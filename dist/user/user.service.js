@@ -805,6 +805,24 @@ let UserService = class UserService {
         }
         return users.slice(0, limit);
     }
+    async setProfileStatus(userId, profileStatus) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        if (!profileStatus || profileStatus.trim() === '') {
+            throw new common_1.BadRequestException('Profile status is required');
+        }
+        const user = await this.prisma.user.update({
+            where: { id: userId },
+            data: { profileStatus: profileStatus.trim() },
+        });
+        return {
+            message: 'Profile status updated successfully',
+            user: {
+                id: user.id,
+                profileStatus: user.profileStatus,
+            },
+        };
+    }
     async signInWithGoogle(idToken) {
         try {
             if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
