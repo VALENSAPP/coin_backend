@@ -54,6 +54,11 @@ let AuthService = class AuthService {
                 refreshTokenExpiresAt,
             },
         });
+        await this.prisma.loginHistory.create({
+            data: {
+                userId: user.id,
+            },
+        });
         return {
             access_token,
             refresh_token: refreshToken,
@@ -65,6 +70,20 @@ let AuthService = class AuthService {
         return {
             message: 'Profile fetched successfully',
             user
+        };
+    }
+    async getLoginHistory(userId) {
+        const loginHistory = await this.prisma.loginHistory.findMany({
+            where: {
+                userId: userId,
+            },
+            orderBy: {
+                loginDate: 'desc',
+            },
+        });
+        return {
+            message: 'Login history fetched successfully',
+            loginHistory,
         };
     }
     async refreshToken(refreshToken) {
@@ -132,6 +151,11 @@ let AuthService = class AuthService {
                         refreshTokenExpiresAt,
                     },
                 });
+                await this.prisma.loginHistory.create({
+                    data: {
+                        userId: existingUser.id,
+                    },
+                });
                 return {
                     access_token: access_token,
                     refresh_token: refreshTokenHash,
@@ -163,6 +187,11 @@ let AuthService = class AuthService {
                     data: {
                         refreshToken: refreshTokenHash,
                         refreshTokenExpiresAt,
+                    },
+                });
+                await this.prisma.loginHistory.create({
+                    data: {
+                        userId: newUser.id,
                     },
                 });
                 return {
@@ -218,6 +247,11 @@ let AuthService = class AuthService {
                         refreshTokenExpiresAt,
                     },
                 });
+                await this.prisma.loginHistory.create({
+                    data: {
+                        userId: existingUser.id,
+                    },
+                });
                 return {
                     access_token: access_token,
                     refresh_token: refreshTokenHash,
@@ -249,6 +283,11 @@ let AuthService = class AuthService {
                     data: {
                         refreshToken: refreshTokenHash,
                         refreshTokenExpiresAt,
+                    },
+                });
+                await this.prisma.loginHistory.create({
+                    data: {
+                        userId: newUser.id,
                     },
                 });
                 return {
@@ -320,6 +359,11 @@ let AuthService = class AuthService {
                 data: {
                     refreshToken: refreshTokenHash,
                     refreshTokenExpiresAt,
+                },
+            });
+            await this.prisma.loginHistory.create({
+                data: {
+                    userId: existingUser.id,
                 },
             });
             return {

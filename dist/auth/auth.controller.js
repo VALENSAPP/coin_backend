@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AuthController = exports.LoginDto = exports.RefreshTokenDto = void 0;
+exports.AuthController = exports.LoginDto = exports.GetLoginHistoryDto = exports.RefreshTokenDto = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const auth_service_1 = require("./auth.service");
@@ -30,6 +30,16 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], RefreshTokenDto.prototype, "refreshToken", void 0);
+class GetLoginHistoryDto {
+    userId;
+}
+exports.GetLoginHistoryDto = GetLoginHistoryDto;
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: true }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], GetLoginHistoryDto.prototype, "userId", void 0);
 class LoginDto {
     email;
     password;
@@ -112,6 +122,9 @@ let AuthController = class AuthController {
         const userId = req.user.userId;
         return this.authService.getProfile(userId);
     }
+    async getLoginHistory(body) {
+        return this.authService.getLoginHistory(body.userId);
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -140,6 +153,16 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "getProfile", null);
+__decorate([
+    (0, common_1.Post)('login-history'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_2.ApiOperation)({ summary: 'Get user login history' }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [GetLoginHistoryDto]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "getLoginHistory", null);
 exports.AuthController = AuthController = __decorate([
     (0, swagger_1.ApiTags)('auth'),
     (0, common_1.Controller)('auth'),

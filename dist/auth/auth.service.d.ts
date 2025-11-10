@@ -135,6 +135,14 @@ export declare class AuthService {
             refreshTokenExpiresAt: Date | null;
         };
     }>;
+    getLoginHistory(userId: string): Promise<{
+        message: string;
+        loginHistory: {
+            userId: string;
+            id: string;
+            loginDate: Date;
+        }[];
+    }>;
     refreshToken(refreshToken: string): Promise<{
         access_token: string;
         refresh_token: string;

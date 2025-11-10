@@ -54,6 +54,13 @@ export class AuthService {
       },
     });
 
+    // Save login history
+    await this.prisma.loginHistory.create({
+      data: {
+        userId: user.id,
+      },
+    });
+
     return {
       access_token,
       refresh_token: refreshToken,
@@ -66,6 +73,22 @@ export class AuthService {
     return {
       message: 'Profile fetched successfully',
       user
+    };
+  }
+
+  async getLoginHistory(userId: string) {
+    const loginHistory = await this.prisma.loginHistory.findMany({
+      where: {
+        userId: userId,
+      },
+      orderBy: {
+        loginDate: 'desc',
+      },
+    });
+
+    return {
+      message: 'Login history fetched successfully',
+      loginHistory,
     };
   }
 
@@ -160,7 +183,14 @@ export class AuthService {
               refreshTokenExpiresAt,
             },
           });
-  
+
+          // Save login history
+          await this.prisma.loginHistory.create({
+            data: {
+              userId: existingUser.id,
+            },
+          });
+
           return {
             access_token: access_token,
             refresh_token: refreshTokenHash,
@@ -202,7 +232,14 @@ export class AuthService {
               refreshTokenExpiresAt,
             },
           });
-  
+
+          // Save login history
+          await this.prisma.loginHistory.create({
+            data: {
+              userId: newUser.id,
+            },
+          });
+
           return {
             access_token: access_token,
             refresh_token: refreshTokenHash,
@@ -272,7 +309,14 @@ export class AuthService {
               refreshTokenExpiresAt,
             },
           });
-  
+
+          // Save login history
+          await this.prisma.loginHistory.create({
+            data: {
+              userId: existingUser.id,
+            },
+          });
+
           return {
             access_token: access_token,
             refresh_token: refreshTokenHash,
@@ -282,7 +326,7 @@ export class AuthService {
           // New user registration
           const firebaseUserId = decodedToken.uid;
           const userId = uuidv4();
-  
+
           const userData = {
             id: userId,
             firebaseUserId,
@@ -293,20 +337,20 @@ export class AuthService {
             registrationType: loginType,
             verifyEmail: 1, // Firebase users are verified
           };
-  
+
           // Create user
           const newUser = await this.prisma.user.create({
             data: userData,
           });
-  
+
           // Generate tokens
           const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
     const access_token = this.jwtService.sign(payload);
-  
+
           // Store refresh token
           const refreshTokenHash = randomBytes(32).toString('hex');
           const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-  
+
           await this.prisma.user.update({
             where: { id: newUser.id },
             data: {
@@ -314,7 +358,14 @@ export class AuthService {
               refreshTokenExpiresAt,
             },
           });
-  
+
+          // Save login history
+          await this.prisma.loginHistory.create({
+            data: {
+              userId: newUser.id,
+            },
+          });
+
           return {
             access_token: access_token,
             refresh_token: refreshTokenHash,
@@ -395,6 +446,13 @@ export class AuthService {
         data: {
           refreshToken: refreshTokenHash,
           refreshTokenExpiresAt,
+        },
+      });
+
+      // Save login history
+      await this.prisma.loginHistory.create({
+        data: {
+          userId: existingUser.id,
         },
       });
 

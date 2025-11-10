@@ -13,6 +13,13 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
+export class GetLoginHistoryDto {
+  @ApiProperty({ required: true })
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+}
+
 export class LoginDto {
   @ApiProperty({ required: false })
   @IsOptional()
@@ -88,6 +95,14 @@ export class AuthController {
   async getProfile(@Request() req: any) {
     const userId = req.user.userId; // JWT payload stores user id in 'userId' field
     return this.authService.getProfile(userId);
+  }
+
+  @Post('login-history')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user login history' })
+  async getLoginHistory(@Body() body: GetLoginHistoryDto) {
+    return this.authService.getLoginHistory(body.userId);
   }
 
 }
