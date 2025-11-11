@@ -29,13 +29,13 @@ export declare class TokenPurchaseService {
     getUserTokenPurchases(userId: string): Promise<{
         id: string;
         createdAt: Date;
-        status: string;
-        completedAt: Date | null;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
+        status: string;
+        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string, period?: 'week' | 'month' | 'year'): Promise<{
         tokenAddress: string | null;
@@ -55,7 +55,8 @@ export declare class TokenPurchaseService {
     getTopCreators(): Promise<{
         username: string;
         vendorId: string;
-        purchaseTokenPrice: number;
+        followerCount: number;
+        currentTokenStatus: string;
     }[]>;
     sellToken(sellerUserId: string, dto: SellTokenDto): Promise<{
         success: boolean;

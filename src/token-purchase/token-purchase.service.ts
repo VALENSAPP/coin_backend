@@ -809,25 +809,62 @@ export class TokenPurchaseService {
         }
       }
 
-      // Get usernames and build result
+      // Get usernames, follower count, and token status
       const result = [];
       for (const [vendorId, data] of latestByVendor) {
         const user = await this.prisma.user.findUnique({
           where: { id: vendorId },
-          select: { userName: true, displayName: true },
+          select: { userName: true, displayName: true, id: true },
         });
 
         if (user) {
+          // Get follower count
+          const followerCount = await this.prisma.followerAndFollowing.count({
+            where: {
+              followingId: vendorId,
+              status: 'ACCEPTED'
+            }
+          });
+
+          // Calculate token status (up/low) based on price growth
+          let currentTokenStatus = 'low'; // default
+
+          // Get user's token address and initial price
+          const userToken = await this.prisma.userToken.findFirst({
+            where: { userId: vendorId },
+            select: { tokenAddress: true, initialPrice: true }
+          });
+
+          if (userToken?.tokenAddress) {
+            try {
+              // Get current price
+              const currentPriceData = await this.tokenService.getPricePerTokenUsd(userToken.tokenAddress);
+              const currentPrice = currentPriceData.priceInUsd;
+
+              // Get initial price from userToken
+              const initialPrice = parseFloat(userToken.initialPrice || '0');
+
+              if (initialPrice > 0) {
+                const growthPercentage = ((currentPrice - initialPrice) / initialPrice) * 100;
+                currentTokenStatus = growthPercentage > 0 ? 'up' : 'low';
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to calculate token status for user ${vendorId}:`, error);
+              // Keep default 'low' status
+            }
+          }
+
           result.push({
             username: user.userName || user.displayName || 'Unknown',
             vendorId,
-            purchaseTokenPrice: data.purchaseTokenPrice,
+            followerCount,
+            currentTokenStatus,
           });
         }
       }
 
-      // Sort by purchaseTokenPrice descending to show top creators
-      result.sort((a, b) => b.purchaseTokenPrice - a.purchaseTokenPrice);
+      // Sort by follower count descending to show top creators
+      result.sort((a, b) => b.followerCount - a.followerCount);
 
       return result;
     } catch (error) {

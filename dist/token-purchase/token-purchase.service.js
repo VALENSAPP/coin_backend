@@ -631,17 +631,43 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
             for (const [vendorId, data] of latestByVendor) {
                 const user = await this.prisma.user.findUnique({
                     where: { id: vendorId },
-                    select: { userName: true, displayName: true },
+                    select: { userName: true, displayName: true, id: true },
                 });
                 if (user) {
+                    const followerCount = await this.prisma.followerAndFollowing.count({
+                        where: {
+                            followingId: vendorId,
+                            status: 'ACCEPTED'
+                        }
+                    });
+                    let currentTokenStatus = 'low';
+                    const userToken = await this.prisma.userToken.findFirst({
+                        where: { userId: vendorId },
+                        select: { tokenAddress: true, initialPrice: true }
+                    });
+                    if (userToken?.tokenAddress) {
+                        try {
+                            const currentPriceData = await this.tokenService.getPricePerTokenUsd(userToken.tokenAddress);
+                            const currentPrice = currentPriceData.priceInUsd;
+                            const initialPrice = parseFloat(userToken.initialPrice || '0');
+                            if (initialPrice > 0) {
+                                const growthPercentage = ((currentPrice - initialPrice) / initialPrice) * 100;
+                                currentTokenStatus = growthPercentage > 0 ? 'up' : 'low';
+                            }
+                        }
+                        catch (error) {
+                            this.logger.warn(`Failed to calculate token status for user ${vendorId}:`, error);
+                        }
+                    }
                     result.push({
                         username: user.userName || user.displayName || 'Unknown',
                         vendorId,
-                        purchaseTokenPrice: data.purchaseTokenPrice,
+                        followerCount,
+                        currentTokenStatus,
                     });
                 }
             }
-            result.sort((a, b) => b.purchaseTokenPrice - a.purchaseTokenPrice);
+            result.sort((a, b) => b.followerCount - a.followerCount);
             return result;
         }
         catch (error) {
