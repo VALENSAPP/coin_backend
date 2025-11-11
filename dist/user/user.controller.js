@@ -12,7 +12,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UserController = exports.ProfileStatusSetDto = exports.GetAllUsersDto = exports.GetUserDashboardDto = exports.GetProfileDto = exports.CheckDisplayNameDto = exports.ChangePasswordDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
+exports.UserController = exports.ReactivateAccountDto = exports.ProfileStatusSetDto = exports.GetAllUsersDto = exports.GetUserDashboardDto = exports.GetProfileDto = exports.CheckDisplayNameDto = exports.ChangePasswordDto = exports.ResetPasswordDto = exports.VerifyEmailOtpDto = exports.SendEmailOtpDto = exports.VerifyOtpDto = exports.ForgotPasswordDto = exports.ProfileEditDto = exports.LoginDto = exports.RegisterDto = exports.Gender = exports.RegistrationType = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const user_service_1 = require("./user.service");
@@ -408,6 +408,51 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], ProfileStatusSetDto.prototype, "profileStatus", void 0);
+class ReactivateAccountDto {
+    email;
+    googleId;
+    twitterId;
+    appleId;
+    walletAddress;
+    registrationType;
+}
+exports.ReactivateAccountDto = ReactivateAccountDto;
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReactivateAccountDto.prototype, "email", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReactivateAccountDto.prototype, "googleId", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReactivateAccountDto.prototype, "twitterId", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReactivateAccountDto.prototype, "appleId", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ReactivateAccountDto.prototype, "walletAddress", void 0);
+__decorate([
+    (0, swagger_2.ApiProperty)({ enum: RegistrationType, required: true }),
+    (0, class_validator_1.IsEnum)(RegistrationType),
+    (0, class_validator_1.IsNotEmpty)(),
+    __metadata("design:type", String)
+], ReactivateAccountDto.prototype, "registrationType", void 0);
 let UserController = class UserController {
     userService;
     constructor(userService) {
@@ -530,6 +575,9 @@ let UserController = class UserController {
     async accountDelete(req) {
         const userId = req.user.userId;
         return this.userService.accountDelete(userId);
+    }
+    async reactivateAccount(dto) {
+        return this.userService.reactivateAccount(dto);
     }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
@@ -883,6 +931,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "accountDelete", null);
+__decorate([
+    (0, common_1.Post)('reactivateAccount'),
+    (0, swagger_3.ApiOperation)({ summary: 'Reactivate deleted user account (set isDeleted = 0)' }),
+    (0, swagger_3.ApiBody)({ type: ReactivateAccountDto }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ReactivateAccountDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "reactivateAccount", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

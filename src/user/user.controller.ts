@@ -296,6 +296,38 @@ export class ProfileStatusSetDto {
   profileStatus: string;
 }
 
+export class ReactivateAccountDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  googleId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  twitterId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  appleId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  walletAddress?: string;
+
+  @ApiProperty({ enum: RegistrationType, required: true })
+  @IsEnum(RegistrationType)
+  @IsNotEmpty()
+  registrationType: RegistrationType;
+}
+
 @ApiTags('user')
 @Controller('user')
 export class UserController {
@@ -625,6 +657,13 @@ export class UserController {
   async accountDelete(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.userService.accountDelete(userId);
+  }
+
+  @Post('reactivateAccount')
+  @ApiOperation({ summary: 'Reactivate deleted user account (set isDeleted = 0)' })
+  @ApiBody({ type: ReactivateAccountDto })
+  async reactivateAccount(@Body() dto: ReactivateAccountDto) {
+    return this.userService.reactivateAccount(dto);
   }
 
   @Get(':id')

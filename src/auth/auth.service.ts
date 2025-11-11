@@ -160,7 +160,7 @@ export class AuthService {
         if (existingUser) {
           // User exists, check if deleted
           if (existingUser.isDeleted === 1) {
-            throw new BadRequestException('Account is deleted by admin');
+            throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
           }
   
           // Check email verification for password provider
@@ -286,7 +286,7 @@ export class AuthService {
         if (existingUser) {
           // User exists, check if deleted
           if (existingUser.isDeleted === 1) {
-            throw new BadRequestException('Account is deleted by admin');
+            throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
           }
   
           // Check email verification for password provider
@@ -413,6 +413,10 @@ export class AuthService {
           ].filter(Boolean) as any,
         },
       });
+
+      if (existingUser && existingUser.isDeleted === 1) {
+        throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
+      }
 
       // If not found, create new user
       if (!existingUser) {

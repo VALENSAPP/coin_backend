@@ -135,7 +135,7 @@ let AuthService = class AuthService {
             });
             if (existingUser) {
                 if (existingUser.isDeleted === 1) {
-                    throw new common_1.BadRequestException('Account is deleted by admin');
+                    throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
                 }
                 if (provider === 'password' && existingUser.verifyEmail !== 1) {
                     throw new common_1.BadRequestException('Please verify your email before signing in.');
@@ -231,7 +231,7 @@ let AuthService = class AuthService {
             });
             if (existingUser) {
                 if (existingUser.isDeleted === 1) {
-                    throw new common_1.BadRequestException('Account is deleted by admin');
+                    throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
                 }
                 if (provider === 'password' && existingUser.verifyEmail !== 1) {
                     throw new common_1.BadRequestException('Please verify your email before signing in.');
@@ -332,6 +332,9 @@ let AuthService = class AuthService {
                     ].filter(Boolean),
                 },
             });
+            if (existingUser && existingUser.isDeleted === 1) {
+                throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
+            }
             if (!existingUser) {
                 const newUser = await this.prisma.user.create({
                     data: {

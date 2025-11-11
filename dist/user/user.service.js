@@ -75,6 +75,9 @@ let UserService = class UserService {
             });
             if (existingUser) {
                 if (existingUser.deletedAt === null) {
+                    if (existingUser.isDeleted === 1) {
+                        throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
+                    }
                     throw new common_1.BadRequestException('Email already registered');
                 }
                 else {
@@ -84,14 +87,26 @@ let UserService = class UserService {
         }
         if (data.googleId &&
             await this.prisma.user.findFirst({ where: { googleId: data.googleId, deletedAt: null } })) {
+            const existingUser = await this.prisma.user.findFirst({ where: { googleId: data.googleId, deletedAt: null } });
+            if (existingUser && existingUser.isDeleted === 1) {
+                throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
+            }
             throw new common_1.BadRequestException('Google account already registered');
         }
         if (data.twitterId &&
             await this.prisma.user.findFirst({ where: { twitterId: data.twitterId, deletedAt: null } })) {
+            const existingUser = await this.prisma.user.findFirst({ where: { twitterId: data.twitterId, deletedAt: null } });
+            if (existingUser && existingUser.isDeleted === 1) {
+                throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
+            }
             throw new common_1.BadRequestException('Twitter account already registered');
         }
         if (data.walletAddress &&
             await this.prisma.user.findFirst({ where: { walletAddress: data.walletAddress, deletedAt: null } })) {
+            const existingUser = await this.prisma.user.findFirst({ where: { walletAddress: data.walletAddress, deletedAt: null } });
+            if (existingUser && existingUser.isDeleted === 1) {
+                throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
+            }
             throw new common_1.BadRequestException('Wallet address already registered');
         }
         if (data.userName) {
@@ -188,6 +203,9 @@ let UserService = class UserService {
         }
         else {
             throw new common_1.BadRequestException('Invalid login type or missing credentials');
+        }
+        if (user && user.isDeleted === 1) {
+            throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
         }
         return user;
     }
@@ -835,6 +853,53 @@ let UserService = class UserService {
         });
         return { message: 'Account deleted successfully' };
     }
+    async reactivateAccount(data) {
+        let user = null;
+        if (data.registrationType === 'NORMAL' && data.email) {
+            user = await this.prisma.user.findUnique({ where: { email: data.email } });
+        }
+        else if (data.registrationType === 'GOOGLE' && data.googleId) {
+            user = await this.prisma.user.findUnique({ where: { googleId: data.googleId } });
+        }
+        else if (data.registrationType === 'TWITTER' && data.twitterId) {
+            user = await this.prisma.user.findUnique({ where: { twitterId: data.twitterId } });
+        }
+        else if (data.registrationType === 'APPLE' && data.appleId) {
+            user = await this.prisma.user.findFirst({ where: { email: data.email } });
+        }
+        else if (data.registrationType === 'WALLET' && data.walletAddress) {
+            user = await this.prisma.user.findUnique({ where: { walletAddress: data.walletAddress } });
+        }
+        else {
+            throw new common_1.BadRequestException('Invalid reactivation type or missing credentials');
+        }
+        if (!user) {
+            throw new common_1.BadRequestException('User not found');
+        }
+        if (user.isDeleted !== 1) {
+            throw new common_1.BadRequestException('Account is not deleted or already active');
+        }
+        const updatedUser = await this.prisma.user.update({
+            where: { id: user.id },
+            data: { isDeleted: 0 },
+        });
+        const payload = { sub: updatedUser.id, email: updatedUser.email, registrationType: updatedUser.registrationType };
+        const access_token = this.jwtService.sign(payload);
+        const refreshTokenHash = (0, crypto_1.randomBytes)(32).toString('hex');
+        const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+        await this.prisma.user.update({
+            where: { id: updatedUser.id },
+            data: {
+                refreshToken: refreshTokenHash,
+                refreshTokenExpiresAt,
+            },
+        });
+        return {
+            access_token: access_token,
+            refresh_token: refreshTokenHash,
+            ...updatedUser
+        };
+    }
     async signInWithGoogle(idToken) {
         try {
             if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -856,7 +921,7 @@ let UserService = class UserService {
             });
             if (existingUser) {
                 if (existingUser.isDeleted === 1) {
-                    throw new common_1.BadRequestException('Account is deleted by admin');
+                    throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
                 }
                 if (provider === 'password' && existingUser.verifyEmail !== 1) {
                     throw new common_1.BadRequestException('Please verify your email before signing in.');
@@ -942,7 +1007,7 @@ let UserService = class UserService {
             });
             if (existingUser) {
                 if (existingUser.isDeleted === 1) {
-                    throw new common_1.BadRequestException('Account is deleted by admin');
+                    throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
                 }
                 if (provider === 'password' && existingUser.verifyEmail !== 1) {
                     throw new common_1.BadRequestException('Please verify your email before signing in.');
@@ -1033,6 +1098,9 @@ let UserService = class UserService {
                     ].filter(Boolean),
                 },
             });
+            if (existingUser && existingUser.isDeleted === 1) {
+                throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
+            }
             if (!existingUser) {
                 const newUser = await this.prisma.user.create({
                     data: {
