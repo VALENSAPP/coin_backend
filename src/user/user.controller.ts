@@ -618,6 +618,15 @@ export class UserController {
     return this.userService.setProfileStatus(userId, dto.profileStatus);
   }
 
+  @Post('accountDelete')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete user account (set isDeleted = 1)' })
+  async accountDelete(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.accountDelete(userId);
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

@@ -823,6 +823,18 @@ let UserService = class UserService {
             },
         };
     }
+    async accountDelete(userId) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { isDeleted: 1 },
+        });
+        return { message: 'Account deleted successfully' };
+    }
     async signInWithGoogle(idToken) {
         try {
             if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {

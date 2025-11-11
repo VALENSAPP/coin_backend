@@ -565,6 +565,9 @@ export declare class UserController {
             profileStatus: string;
         };
     }>;
+    accountDelete(req: Request): Promise<{
+        message: string;
+    }>;
     getUserById(id: string): Promise<{
         user: {
             kyc: boolean;

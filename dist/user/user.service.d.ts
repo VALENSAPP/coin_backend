@@ -520,6 +520,9 @@ export declare class UserService {
             profileStatus: string;
         };
     }>;
+    accountDelete(userId: string): Promise<{
+        message: string;
+    }>;
     signInWithGoogle(idToken: string): Promise<{
         kyc: boolean;
         email: string | null;

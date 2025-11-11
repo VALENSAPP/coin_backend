@@ -527,6 +527,10 @@ let UserController = class UserController {
         const userId = req.user.userId;
         return this.userService.setProfileStatus(userId, dto.profileStatus);
     }
+    async accountDelete(req) {
+        const userId = req.user.userId;
+        return this.userService.accountDelete(userId);
+    }
     async getUserById(id) {
         const user = await this.userService.getUserById(id);
         return { user };
@@ -869,6 +873,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, ProfileStatusSetDto]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "setProfileStatus", null);
+__decorate([
+    (0, common_1.Post)('accountDelete'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Delete user account (set isDeleted = 1)' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "accountDelete", null);
 __decorate([
     (0, common_1.Get)(':id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
