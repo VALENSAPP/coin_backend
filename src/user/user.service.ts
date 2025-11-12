@@ -332,11 +332,24 @@ export class UserService {
     });
     try {
       sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+      // Read HTML template
+      const fs = require('fs');
+      const path = require('path');
+      const templatePath = path.join(process.cwd(), 'public', 'otp-email.html');
+      let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
+
+      // Replace placeholders
+      const userName = user.displayName || user.userName || 'User';
+      htmlTemplate = htmlTemplate.replace(/{{user_name}}/g, userName);
+      htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
+
       await sgMail.send({
         to: email,
         from: process.env.SENDGRID_FROM_EMAIL!,
         subject: 'Your Password Reset OTP',
-        text: `Your OTP for password reset is: ${otp}`,
+        html: htmlTemplate,
+        text: `Your OTP for password reset is: ${otp}`, // Fallback for email clients that don't support HTML
       });
     } catch (error) {
       console.error('SendGrid error:', error);

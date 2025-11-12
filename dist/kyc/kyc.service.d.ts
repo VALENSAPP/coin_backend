@@ -12,14 +12,14 @@ export declare class KycService {
         success: boolean;
     }>;
     getKycStatus(userId: string): Promise<{
-        userId: string;
         id: number;
-        createdAt: Date;
-        updatedAt: Date;
-        status: import(".prisma/client").$Enums.KycStatus;
+        userId: string;
         veriffSessionId: string;
         veriffUrl: string;
+        status: import(".prisma/client").$Enums.KycStatus;
         documentType: string | null;
         webhookData: import("@prisma/client/runtime/library").JsonValue | null;
+        createdAt: Date;
+        updatedAt: Date;
     } | null>;
 }

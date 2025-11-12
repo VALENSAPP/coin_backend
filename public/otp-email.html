@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Valens OTP Email</title>
+<style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 0;
+      color: #333333;
+    }
+    .email-container {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+      padding: 30px 40px;
+    }
+    .header {
+      text-align: center;
+    }
+    .logo {
+      width: 220px;
+      max-width: 100%;
+      height: auto;
+    }
+    .divider {
+      border-top: 4px dotted #b999f3;
+      margin: 0 0 25px 0;
+    }
+    .content {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #333333;
+    }
+    .otp-box {
+        border-radius: 8px;
+        padding: 0;
+        margin: 20px 0 0 0;
+        text-align: start;
+        font-size: 20px;
+        font-weight: bold;
+        color: #6b28cc;
+        letter-spacing: 2px;
+        display: flex;
+        justify-content: start;
+        align-items: center;
+        gap: 10px;
+    }
+    img.otp-img {
+    width: 100%;
+    max-width: 30px;
+    }
+    .footer {
+      font-size: 13px;
+      color: #666666;
+      text-align: left;
+      margin-top: 20px;
+    }
+    img.header-img {
+    width: 100%;
+    max-width: 500px;
+    margin: auto;
+}
+</style>
+</head>
+<body>
+<div class="email-container">
+<div class="header">
+<img class="header-img" src="https://valens520.s3.us-east-2.amazonaws.com/post-images/4be93485-4448-46fd-a548-7cc80340698d.png" alt="">
+</div>
+
+    <div class="divider"></div>
+
+    <div class="content">
+<p>Hi <strong>{{user_name}}</strong>,</p>
+<p>
+        We received a request to reset your Valens password. Please use the
+        one-time code below to verify your identity and continue with your
+        password reset:
+</p>
+
+      <div class="otp-box">
+        <img class="otp-img" src="https://valens520.s3.us-east-2.amazonaws.com/post-images/bc7e74ed-402d-43dc-87ae-43a095db4ea9.png" alt="">
+        {{otp_code}}
+</div>
+
+      <p>
+        This code will expire in <strong>10 minutes</strong> for security
+        reasons.
+</p>
+<p>
+        If you didn't request a password reset, you can safely ignore this
+        message—your account will remain secure.
+</p>
+
+      <p class="footer">
+        Valens Technologies Inc.
+</p>
+</div>
+</div>
+</body>
+</html>

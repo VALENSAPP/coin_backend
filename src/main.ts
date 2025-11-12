@@ -10,6 +10,10 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   // Stripe webhook needs raw body
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
+  
+  app.use(bodyParser.json({ limit: '5mb' }));
+  app.use(bodyParser.urlencoded({ extended: true }));
+
   // Serve static files from the public directory
   app.useStaticAssets(join(__dirname, '..', 'public'));
   app.useGlobalInterceptors(new ResponseInterceptor());
