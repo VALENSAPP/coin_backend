@@ -35,14 +35,32 @@ export class KycController {
     );
   }
 
-  @Post('webhook')
-  @ApiOperation({ summary: 'Veriff Webhook' })
+  // @Post('webhook')
+  // @ApiOperation({ summary: 'Veriff Webhook' })
+  // @ApiBody({ type: VeriffWebhookDto })
+  // @ApiResponse({ status: 200, description: 'Webhook handled successfully' })
+  // async webhook(@Body() body: VeriffWebhookDto) {
+  //     console.log('🔔 Veriff Webhook Received:', JSON.stringify(body, null, 2));
+  //   return this.kycService.handleWebhook(body);
+  // }
+
+@Post('webhook')
+@ApiOperation({ summary: 'Veriff Webhook' })
   @ApiBody({ type: VeriffWebhookDto })
   @ApiResponse({ status: 200, description: 'Webhook handled successfully' })
-  async webhook(@Body() body: VeriffWebhookDto) {
-      console.log('🔔 Veriff Webhook Received:', JSON.stringify(body, null, 2));
-    return this.kycService.handleWebhook(body);
-  }
+async handleWebhook(@Body() body: any) {
+  console.log('📨 RAW VERIFF PAYLOAD:', JSON.stringify(body, null, 2));
+
+  const verification = body.resource || body.verification || body;
+  const { id, status, reason } = verification;
+
+  console.log(`✅ Webhook processed for ${id} → ${status}`);
+
+  await this.kycService.handleWebhook(verification);
+  return { success: true };
+}
+
+
 
   @Get('status/:userId')
   @ApiOperation({ summary: 'Get KYC status' })

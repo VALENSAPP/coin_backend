@@ -178,37 +178,60 @@ export class KycService {
   /**
    * Handle Veriff webhook
    */
-  async handleWebhook(body: any) {
-    const { id, status, document } = body.verification;
+  // async handleWebhook(body: any) {
+  //   const { id, status, document } = body.verification;
 
-    const kyc = await this.prisma.kyc.findFirst({
-      where: { veriffSessionId: id },
-    });
+  //   const kyc = await this.prisma.kyc.findFirst({
+  //     where: { veriffSessionId: id },
+  //   });
 
-    if (!kyc) throw new HttpException('KYC record not found', HttpStatus.NOT_FOUND);
+  //   if (!kyc) throw new HttpException('KYC record not found', HttpStatus.NOT_FOUND);
 
-    let newStatus: 'PENDING' | 'APPROVED' | 'DECLINED' = 'PENDING';
-    if (status === 'approved') newStatus = 'APPROVED';
-    if (status === 'declined') newStatus = 'DECLINED';
+  //   let newStatus: 'PENDING' | 'APPROVED' | 'DECLINED' = 'PENDING';
+  //   if (status === 'approved') newStatus = 'APPROVED';
+  //   if (status === 'declined') newStatus = 'DECLINED';
 
-    await this.prisma.kyc.update({
-      where: { id: kyc.id },
-      data: {
-        status: newStatus,
-        documentType: document?.type,
-        webhookData: body,
-      },
-    });
+  //   await this.prisma.kyc.update({
+  //     where: { id: kyc.id },
+  //     data: {
+  //       status: newStatus,
+  //       documentType: document?.type,
+  //       webhookData: body,
+  //     },
+  //   });
 
-    if (newStatus === 'APPROVED') {
-      await this.prisma.user.update({
-        where: { id: kyc.userId },
-        data: { kyc: true },
-      });
-    }
+  //   if (newStatus === 'APPROVED') {
+  //     await this.prisma.user.update({
+  //       where: { id: kyc.userId },
+  //       data: { kyc: true },
+  //     });
+  //   }
 
-    return { success: true };
+  //   return { success: true };
+  // }
+
+
+  async handleWebhook(verification: any) {
+  const { id, status, reason } = verification;
+  
+  const kycRecord = await this.prisma.kYCVerification.findFirst({
+    where: { sessionId: id },
+  });
+
+  if (!kycRecord) {
+    console.error(`❌ No record found for session ID ${id}`);
+    return;
   }
+
+  await this.prisma.kYCVerification.update({
+    where: { id: kycRecord.id },
+    data: { status, reason },
+  });
+
+  console.log(`✅ KYC record updated: ${id} → ${status}`);
+}
+
+
 
   /**
    * Get latest KYC status for a user
