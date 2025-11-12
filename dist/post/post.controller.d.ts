@@ -76,6 +76,7 @@ export declare class PostController {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }[]>;
     getAllPost(req: Request): Promise<{
         id: string;
@@ -105,6 +106,7 @@ export declare class PostController {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }[]>;
     searchAllPost(req: Request, search?: string): Promise<{
         id: string;
@@ -134,6 +136,7 @@ export declare class PostController {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }[] | {
         type: string;
         data: {
@@ -181,6 +184,7 @@ export declare class PostController {
             link: string | null;
             start_time: Date | null;
             end_time: Date | null;
+            raiseAmount: number | null;
         }[];
         message?: undefined;
     }>;
@@ -284,6 +288,11 @@ export declare class PostController {
         isSaved: boolean;
         isLike: boolean;
         isFollow: boolean;
+        raiseAmount: number | null;
+        type: string | null;
+        link: string | null;
+        start_time: Date | null;
+        end_time: Date | null;
     }[]>;
     getPostById(req: Request, params: GetPostByIdDto): Promise<{
         id: string;
@@ -313,6 +322,7 @@ export declare class PostController {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }>;
     sharePostToUser(body: SharePostDto): Promise<{
         message: string;

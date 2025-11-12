@@ -53,6 +53,7 @@ export declare class PostService {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }[]>;
     getPostById(postId: string, viewerId: string): Promise<{
         id: string;
@@ -82,6 +83,7 @@ export declare class PostService {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }>;
     getAllPost(viewerUserId?: string): Promise<{
         id: string;
@@ -111,6 +113,7 @@ export declare class PostService {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }[]>;
     searchAllPost(viewerUserId?: string, search?: string): Promise<{
         id: string;
@@ -140,6 +143,7 @@ export declare class PostService {
         link: string | null;
         start_time: Date | null;
         end_time: Date | null;
+        raiseAmount: number | null;
     }[] | {
         type: string;
         data: {
@@ -187,6 +191,7 @@ export declare class PostService {
             link: string | null;
             start_time: Date | null;
             end_time: Date | null;
+            raiseAmount: number | null;
         }[];
         message?: undefined;
     }>;
@@ -300,6 +305,11 @@ export declare class PostService {
         isSaved: boolean;
         isLike: boolean;
         isFollow: boolean;
+        raiseAmount: number | null;
+        type: string | null;
+        link: string | null;
+        start_time: Date | null;
+        end_time: Date | null;
     }[]>;
     sharePostToUser(postId: string, sharedUserId: string, receiverUserId: string): Promise<{
         message: string;

@@ -217,6 +217,7 @@ let PostService = class PostService {
             link: post.link,
             start_time: post.start_time,
             end_time: post.end_time,
+            raiseAmount: post.raiseAmount,
         }));
     }
     async getPostById(postId, viewerId) {
@@ -293,6 +294,7 @@ let PostService = class PostService {
             link: post.link,
             start_time: post.start_time,
             end_time: post.end_time,
+            raiseAmount: post.raiseAmount,
         };
     }
     async getAllPost(viewerUserId) {
@@ -376,6 +378,7 @@ let PostService = class PostService {
             link: post.link,
             start_time: post.start_time,
             end_time: post.end_time,
+            raiseAmount: post.raiseAmount,
         }));
     }
     async searchAllPost(viewerUserId, search) {
@@ -489,6 +492,7 @@ let PostService = class PostService {
                     link: post.link,
                     start_time: post.start_time,
                     end_time: post.end_time,
+                    raiseAmount: post.raiseAmount,
                 }));
                 return { type: 'posts', data: formattedPosts };
             }
@@ -574,6 +578,7 @@ let PostService = class PostService {
                 link: post.link,
                 start_time: post.start_time,
                 end_time: post.end_time,
+                raiseAmount: post.raiseAmount,
             }));
         }
     }
@@ -952,6 +957,11 @@ let PostService = class PostService {
                 isSaved: savedSet.has(post.id),
                 isLike: likedSet.has(post.id),
                 isFollow: !!(typeof followMap !== 'undefined' && followMap[post.userId]),
+                raiseAmount: post.raiseAmount,
+                type: post.type,
+                link: post.link,
+                start_time: post.start_time,
+                end_time: post.end_time,
             };
         });
     }

@@ -237,6 +237,7 @@ export class PostService {
     link:post.link,
     start_time:post.start_time,
     end_time:post.end_time,
+    raiseAmount:post.raiseAmount,
   }));
   }
 
@@ -326,6 +327,7 @@ export class PostService {
     link:post.link,
     start_time:post.start_time,
     end_time:post.end_time,
+    raiseAmount:post.raiseAmount,
   };
 }
 
@@ -421,6 +423,7 @@ async getAllPost(viewerUserId?: string) {
     link:post.link,
     start_time:post.start_time,
     end_time:post.end_time,
+    raiseAmount:post.raiseAmount,
   }));
 }
 
@@ -552,6 +555,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
          link:post.link,
     start_time:post.start_time,
     end_time:post.end_time,
+    raiseAmount:post.raiseAmount,
       }));
 
       return { type: 'posts', data: formattedPosts };
@@ -650,6 +654,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
        link:post.link,
     start_time:post.start_time,
     end_time:post.end_time,
+    raiseAmount:post.raiseAmount,
     }));
   }
 }
@@ -1087,6 +1092,11 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       isSaved: savedSet.has(post.id),
       isLike: likedSet.has(post.id),
       isFollow: !!(typeof followMap !== 'undefined' && followMap[post.userId]),
+      raiseAmount:post.raiseAmount,
+      type:post.type,
+      link:post.link,
+      start_time:post.start_time,
+      end_time:post.end_time,
     };
   });
 }
