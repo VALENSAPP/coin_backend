@@ -212,10 +212,10 @@ export class KycService {
 
 
   async handleWebhook(verification: any) {
-  const { id, status, reason } = verification;
+  const { id, status } = verification;
   
-  const kycRecord = await this.prisma.kYCVerification.findFirst({
-    where: { sessionId: id },
+  const kycRecord = await this.prisma.kyc.findFirst({
+    where: { veriffSessionId: id },
   });
 
   if (!kycRecord) {
@@ -223,9 +223,9 @@ export class KycService {
     return;
   }
 
-  await this.prisma.kYCVerification.update({
+  await this.prisma.kyc.update({
     where: { id: kycRecord.id },
-    data: { status, reason },
+    data: { status, webhookData: verification },
   });
 
   console.log(`✅ KYC record updated: ${id} → ${status}`);
