@@ -144,7 +144,22 @@ export class PostController {
     return this.postService.getAllPost(viewerUserId);
   }
 
-  
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('searchAll')
+  @ApiQuery({ name: 'search', type: String, required: false, description: 'Search query for users or posts' })
+  async searchAllPost(@Req() req: Request, @Query('search') search?: string) {
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.searchAllPost(viewerUserId, search);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('getAllReel')
+  async getAllReel(@Req() req: Request) {
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.getAllReel(viewerUserId);
+  }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

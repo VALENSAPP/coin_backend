@@ -54,6 +54,14 @@ let PostController = class PostController {
         const viewerUserId = req.user?.userId;
         return this.postService.getAllPost(viewerUserId);
     }
+    async searchAllPost(req, search) {
+        const viewerUserId = req.user?.userId;
+        return this.postService.searchAllPost(viewerUserId, search);
+    }
+    async getAllReel(req) {
+        const viewerUserId = req.user?.userId;
+        return this.postService.getAllReel(viewerUserId);
+    }
     async deletePost(req, query) {
         const userId = req.user.userId;
         return this.postService.deletePost(query.postId, userId);
@@ -231,6 +239,26 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], PostController.prototype, "getAllPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('searchAll'),
+    (0, swagger_1.ApiQuery)({ name: 'search', type: String, required: false, description: 'Search query for users or posts' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('search')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "searchAllPost", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.Get)('getAllReel'),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], PostController.prototype, "getAllReel", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),

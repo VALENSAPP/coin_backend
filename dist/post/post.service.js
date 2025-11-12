@@ -40,7 +40,7 @@ let PostService = class PostService {
                     where: { userId },
                 });
                 if (!postHit || postHit.hitLeft <= 0) {
-                    throw new common_1.BadRequestException('No hits left to create a crowdfunding post');
+                    throw new common_1.BadRequestException('No hits left to create a post');
                 }
             }
             let imageUrls = images || [];
@@ -213,6 +213,10 @@ let PostService = class PostService {
             isLike: likedSet.has(post.id),
             shareCount: post._count.shares,
             isFollow: !!followMap[post.userId],
+            type: post.type,
+            link: post.link,
+            start_time: post.start_time,
+            end_time: post.end_time,
         }));
     }
     async getPostById(postId, viewerId) {
@@ -285,6 +289,10 @@ let PostService = class PostService {
             isLike: !!liked,
             isFollow,
             isHide: !!hidden,
+            type: post.type,
+            link: post.link,
+            start_time: post.start_time,
+            end_time: post.end_time,
         };
     }
     async getAllPost(viewerUserId) {
@@ -364,6 +372,292 @@ let PostService = class PostService {
             isLike: likedSet.has(post.id),
             isFollow: !!followMap[post.userId],
             isHide: hiddenSet.has(post.id),
+            type: post.type,
+            link: post.link,
+            start_time: post.start_time,
+            end_time: post.end_time,
+        }));
+    }
+    async searchAllPost(viewerUserId, search) {
+        if (search && search.trim()) {
+            const users = await this.prisma.user.findMany({
+                where: {
+                    OR: [
+                        { userName: { contains: search.trim(), mode: 'insensitive' } },
+                        { displayName: { contains: search.trim(), mode: 'insensitive' } },
+                    ],
+                    isDeleted: 0,
+                },
+                select: {
+                    id: true,
+                    displayName: true,
+                    userName: true,
+                    image: true,
+                    profile: true,
+                    profileStatus: true,
+                    bio: true,
+                    email: true,
+                },
+            });
+            if (users.length > 0) {
+                return { type: 'users', data: users };
+            }
+            else {
+                const posts = await this.prisma.post.findMany({
+                    where: {
+                        text: { contains: search.trim(), mode: 'insensitive' },
+                        deletedAt: null
+                    },
+                    include: {
+                        user: {
+                            select: {
+                                displayName: true,
+                                image: true,
+                                profile: true,
+                                profileStatus: true,
+                            },
+                        },
+                        _count: {
+                            select: {
+                                likes: true,
+                                comments: true,
+                                shares: true,
+                            },
+                        },
+                    },
+                });
+                if (!posts || posts.length === 0) {
+                    return { message: 'No data found' };
+                }
+                const shuffledPosts = posts.sort(() => Math.random() - 0.5);
+                let savedSet = new Set();
+                let likedSet = new Set();
+                let followMap = {};
+                let hiddenSet = new Set();
+                if (viewerUserId) {
+                    const saved = await this.prisma.savePost.findMany({
+                        where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                        select: { postId: true },
+                    });
+                    savedSet = new Set(saved.map(s => s.postId));
+                    const liked = await this.prisma.postLike.findMany({
+                        where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                        select: { postId: true },
+                    });
+                    likedSet = new Set(liked.map(l => l.postId));
+                    const authorIds = Array.from(new Set(shuffledPosts.map(p => p.userId)));
+                    if (authorIds.length > 0) {
+                        const follows = await this.prisma.followerAndFollowing.findMany({
+                            where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+                            select: { followingId: true },
+                        });
+                        followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
+                    }
+                    if (shuffledPosts.length > 0) {
+                        const hidden = await this.prisma.hidePost.findMany({
+                            where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                            select: { postId: true },
+                        });
+                        hiddenSet = new Set(hidden.map(h => h.postId));
+                    }
+                }
+                const formattedPosts = shuffledPosts.map(post => ({
+                    id: post.id,
+                    text: post.text,
+                    images: post.images,
+                    caption: post.caption,
+                    hashtag: post.hashtag,
+                    location: post.location,
+                    music: post.music,
+                    taggedPeople: post.taggedPeople,
+                    createdAt: post.createdAt,
+                    updatedAt: post.updatedAt,
+                    deletedAt: post.deletedAt,
+                    userId: post.userId,
+                    userName: post.user?.displayName || null,
+                    userImage: post.user?.image || null,
+                    profile: post.user?.profile || null,
+                    profileStatus: post.user?.profileStatus || null,
+                    likeCount: post._count.likes,
+                    commentCount: post._count.comments,
+                    shareCount: post._count.shares,
+                    isSaved: savedSet.has(post.id),
+                    isLike: likedSet.has(post.id),
+                    isFollow: !!followMap[post.userId],
+                    isHide: hiddenSet.has(post.id),
+                    type: post.type,
+                    link: post.link,
+                    start_time: post.start_time,
+                    end_time: post.end_time,
+                }));
+                return { type: 'posts', data: formattedPosts };
+            }
+        }
+        else {
+            const posts = await this.prisma.post.findMany({
+                where: { deletedAt: null },
+                include: {
+                    user: {
+                        select: {
+                            displayName: true,
+                            image: true,
+                            profile: true,
+                            profileStatus: true,
+                        },
+                    },
+                    _count: {
+                        select: {
+                            likes: true,
+                            comments: true,
+                            shares: true,
+                        },
+                    },
+                },
+            });
+            const shuffledPosts = posts.sort(() => Math.random() - 0.5);
+            let savedSet = new Set();
+            let likedSet = new Set();
+            let followMap = {};
+            let hiddenSet = new Set();
+            if (viewerUserId) {
+                const saved = await this.prisma.savePost.findMany({
+                    where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                    select: { postId: true },
+                });
+                savedSet = new Set(saved.map(s => s.postId));
+                const liked = await this.prisma.postLike.findMany({
+                    where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                    select: { postId: true },
+                });
+                likedSet = new Set(liked.map(l => l.postId));
+                const authorIds = Array.from(new Set(shuffledPosts.map(p => p.userId)));
+                if (authorIds.length > 0) {
+                    const follows = await this.prisma.followerAndFollowing.findMany({
+                        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+                        select: { followingId: true },
+                    });
+                    followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
+                }
+                if (shuffledPosts.length > 0) {
+                    const hidden = await this.prisma.hidePost.findMany({
+                        where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                        select: { postId: true },
+                    });
+                    hiddenSet = new Set(hidden.map(h => h.postId));
+                }
+            }
+            return shuffledPosts.map(post => ({
+                id: post.id,
+                text: post.text,
+                images: post.images,
+                caption: post.caption,
+                hashtag: post.hashtag,
+                location: post.location,
+                music: post.music,
+                taggedPeople: post.taggedPeople,
+                createdAt: post.createdAt,
+                updatedAt: post.updatedAt,
+                deletedAt: post.deletedAt,
+                userId: post.userId,
+                userName: post.user?.displayName || null,
+                userImage: post.user?.image || null,
+                profile: post.user?.profile || null,
+                profileStatus: post.user?.profileStatus || null,
+                likeCount: post._count.likes,
+                commentCount: post._count.comments,
+                shareCount: post._count.shares,
+                isSaved: savedSet.has(post.id),
+                isLike: likedSet.has(post.id),
+                isFollow: !!followMap[post.userId],
+                isHide: hiddenSet.has(post.id),
+                type: post.type,
+                link: post.link,
+                start_time: post.start_time,
+                end_time: post.end_time,
+            }));
+        }
+    }
+    async getAllReel(viewerUserId) {
+        const posts = await this.prisma.post.findMany({
+            where: {
+                deletedAt: null,
+                type: 'reel'
+            },
+            include: {
+                user: {
+                    select: {
+                        displayName: true,
+                        image: true,
+                        profile: true,
+                        profileStatus: true,
+                    },
+                },
+                _count: {
+                    select: {
+                        likes: true,
+                        comments: true,
+                        shares: true,
+                    },
+                },
+            },
+        });
+        const shuffledPosts = posts.sort(() => Math.random() - 0.5);
+        let savedSet = new Set();
+        let likedSet = new Set();
+        let followMap = {};
+        let hiddenSet = new Set();
+        if (viewerUserId) {
+            const saved = await this.prisma.savePost.findMany({
+                where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                select: { postId: true },
+            });
+            savedSet = new Set(saved.map(s => s.postId));
+            const liked = await this.prisma.postLike.findMany({
+                where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                select: { postId: true },
+            });
+            likedSet = new Set(liked.map(l => l.postId));
+            const authorIds = Array.from(new Set(shuffledPosts.map(p => p.userId)));
+            if (authorIds.length > 0) {
+                const follows = await this.prisma.followerAndFollowing.findMany({
+                    where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+                    select: { followingId: true },
+                });
+                followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {});
+            }
+            if (shuffledPosts.length > 0) {
+                const hidden = await this.prisma.hidePost.findMany({
+                    where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+                    select: { postId: true },
+                });
+                hiddenSet = new Set(hidden.map(h => h.postId));
+            }
+        }
+        return shuffledPosts.map(post => ({
+            id: post.id,
+            text: post.text,
+            images: post.images,
+            caption: post.caption,
+            hashtag: post.hashtag,
+            location: post.location,
+            music: post.music,
+            taggedPeople: post.taggedPeople,
+            createdAt: post.createdAt,
+            updatedAt: post.updatedAt,
+            deletedAt: post.deletedAt,
+            userId: post.userId,
+            userName: post.user?.displayName || null,
+            userImage: post.user?.image || null,
+            profile: post.user?.profile || null,
+            profileStatus: post.user?.profileStatus || null,
+            likeCount: post._count.likes,
+            commentCount: post._count.comments,
+            shareCount: post._count.shares,
+            isSaved: savedSet.has(post.id),
+            isLike: likedSet.has(post.id),
+            isFollow: !!followMap[post.userId],
+            isHide: hiddenSet.has(post.id),
+            type: post.type,
         }));
     }
     async deletePost(postId, userId) {

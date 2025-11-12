@@ -3,15 +3,13 @@ export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date): Promise<{
-        type: string | null;
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        link: string | null;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -20,6 +18,8 @@ export declare class PostService {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        type: string | null;
+        link: string | null;
     }>;
     savePost(postId: string, userId: string): Promise<{
         message: string;
@@ -49,6 +49,10 @@ export declare class PostService {
         isLike: boolean;
         shareCount: number;
         isFollow: boolean;
+        type: string | null;
+        link: string | null;
+        start_time: Date | null;
+        end_time: Date | null;
     }[]>;
     getPostById(postId: string, viewerId: string): Promise<{
         id: string;
@@ -74,6 +78,10 @@ export declare class PostService {
         isLike: boolean;
         isFollow: boolean;
         isHide: boolean;
+        type: string | null;
+        link: string | null;
+        start_time: Date | null;
+        end_time: Date | null;
     }>;
     getAllPost(viewerUserId?: string): Promise<{
         id: string;
@@ -99,18 +107,124 @@ export declare class PostService {
         isLike: boolean;
         isFollow: boolean;
         isHide: boolean;
-    }[]>;
-    deletePost(postId: string, userId: string): Promise<boolean>;
-    editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
         type: string | null;
-        userId: string;
+        link: string | null;
+        start_time: Date | null;
+        end_time: Date | null;
+    }[]>;
+    searchAllPost(viewerUserId?: string, search?: string): Promise<{
         id: string;
+        text: string | null;
+        images: string[];
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
         createdAt: Date;
         updatedAt: Date;
         deletedAt: Date | null;
+        userId: string;
+        userName: string | null;
+        userImage: string | null;
+        profile: string | null;
+        profileStatus: string | null;
+        likeCount: number;
+        commentCount: number;
+        shareCount: number;
+        isSaved: boolean;
+        isLike: boolean;
+        isFollow: boolean;
+        isHide: boolean;
+        type: string | null;
         link: string | null;
+        start_time: Date | null;
+        end_time: Date | null;
+    }[] | {
+        type: string;
+        data: {
+            id: string;
+            email: string | null;
+            image: string | null;
+            bio: string | null;
+            displayName: string | null;
+            userName: string | null;
+            profile: string | null;
+            profileStatus: string;
+        }[];
+        message?: undefined;
+    } | {
+        message: string;
+        type?: undefined;
+        data?: undefined;
+    } | {
+        type: string;
+        data: {
+            id: string;
+            text: string | null;
+            images: string[];
+            caption: string | null;
+            hashtag: string[];
+            location: string | null;
+            music: string | null;
+            taggedPeople: string[];
+            createdAt: Date;
+            updatedAt: Date;
+            deletedAt: Date | null;
+            userId: string;
+            userName: string | null;
+            userImage: string | null;
+            profile: string | null;
+            profileStatus: string | null;
+            likeCount: number;
+            commentCount: number;
+            shareCount: number;
+            isSaved: boolean;
+            isLike: boolean;
+            isFollow: boolean;
+            isHide: boolean;
+            type: string | null;
+            link: string | null;
+            start_time: Date | null;
+            end_time: Date | null;
+        }[];
+        message?: undefined;
+    }>;
+    getAllReel(viewerUserId?: string): Promise<{
+        id: string;
         text: string | null;
         images: string[];
+        caption: string | null;
+        hashtag: string[];
+        location: string | null;
+        music: string | null;
+        taggedPeople: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        userId: string;
+        userName: string | null;
+        userImage: string | null;
+        profile: string | null;
+        profileStatus: string | null;
+        likeCount: number;
+        commentCount: number;
+        shareCount: number;
+        isSaved: boolean;
+        isLike: boolean;
+        isFollow: boolean;
+        isHide: boolean;
+        type: string | null;
+    }[]>;
+    deletePost(postId: string, userId: string): Promise<boolean>;
+    editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
+        id: string;
+        text: string | null;
+        images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -119,6 +233,8 @@ export declare class PostService {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        type: string | null;
+        link: string | null;
     }>;
     postLikeByUser(postId: string, userId: string): Promise<{
         message: string;
@@ -135,16 +251,16 @@ export declare class PostService {
         totalLikes: number;
     }>;
     commentOnPost(postId: string, userId: string, comment: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
         comment: string;
     }>;
     editComment(commentId: string, userId: string, newComment: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -228,24 +344,22 @@ export declare class PostService {
         deletedIds: string[];
     }>;
     hidePost(postId: string, userId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
+        userId: string;
         postId: string;
     }>;
     unhidePost(postId: string, userId: string): Promise<{
         message: string;
     }>;
     getHidePost(userId: string): Promise<{
-        type: string | null;
-        userId: string;
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
-        deletedAt: Date | null;
-        link: string | null;
         text: string | null;
         images: string[];
+        createdAt: Date;
+        updatedAt: Date;
+        userId: string;
+        deletedAt: Date | null;
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -254,16 +368,18 @@ export declare class PostService {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        type: string | null;
+        link: string | null;
     }[]>;
     sendMessage(senderId: string, receiverId: string, message: string): Promise<{
-        type: import(".prisma/client").$Enums.ConversationType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        content: string | null;
+        type: import(".prisma/client").$Enums.ConversationType;
         postId: string | null;
         senderId: string;
         receiverId: string;
+        content: string | null;
         storyId: string | null;
     }>;
     getConversations(userId: string): Promise<{
@@ -272,19 +388,19 @@ export declare class PostService {
         content: string | null;
         createdAt: Date;
         sender: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         receiver: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         post: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             text: string | null;
@@ -293,8 +409,8 @@ export declare class PostService {
         } | null;
         story: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             caption: string | null;
@@ -307,19 +423,19 @@ export declare class PostService {
         content: string | null;
         createdAt: Date;
         sender: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         receiver: {
-            displayName: string | null;
-            image: string | null;
             id: string;
+            image: string | null;
+            displayName: string | null;
         };
         post: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             text: string | null;
@@ -328,8 +444,8 @@ export declare class PostService {
         } | null;
         story: {
             user: {
-                displayName: string | null;
                 image: string | null;
+                displayName: string | null;
             };
             id: string;
             caption: string | null;
