@@ -143,7 +143,7 @@ export class KycService {
             person: personDetails,
             document: { type: documentType },
             vendorData: userId,
-            callback: `${process.env.BASE_URL}/api/kyc/webhook`,
+            callback: `${process.env.BASE_URL}/kyc/webhook`,
           },
         },
         {
