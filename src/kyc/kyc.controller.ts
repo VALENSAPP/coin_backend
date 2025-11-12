@@ -40,6 +40,7 @@ export class KycController {
   @ApiBody({ type: VeriffWebhookDto })
   @ApiResponse({ status: 200, description: 'Webhook handled successfully' })
   async webhook(@Body() body: VeriffWebhookDto) {
+      console.log('🔔 Veriff Webhook Received:', JSON.stringify(body, null, 2));
     return this.kycService.handleWebhook(body);
   }
 
