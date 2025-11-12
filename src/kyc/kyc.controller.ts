@@ -45,20 +45,25 @@ export class KycController {
   // }
 
 @Post('webhook')
-@ApiOperation({ summary: 'Veriff Webhook' })
-  @ApiBody({ type: VeriffWebhookDto })
-  @ApiResponse({ status: 200, description: 'Webhook handled successfully' })
 async handleWebhook(@Body() body: any) {
   console.log('📨 RAW VERIFF PAYLOAD:', JSON.stringify(body, null, 2));
 
+  // handle both formats safely
   const verification = body.resource || body.verification || body;
-  const { id, status, reason } = verification;
+  console.log('✅ Extracted verification object:', verification);
 
-  console.log(`✅ Webhook processed for ${id} → ${status}`);
+  const id = verification?.id;
+  const status = verification?.status;
+
+  if (!id) {
+    console.error('❌ Missing verification id in payload');
+    return { success: false, message: 'Invalid payload structure', body };
+  }
 
   await this.kycService.handleWebhook(verification);
   return { success: true };
 }
+
 
 
 
