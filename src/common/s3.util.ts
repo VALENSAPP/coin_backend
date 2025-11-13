@@ -16,7 +16,6 @@ export async function uploadImageToS3(file: Express.Multer.File, folder = 'uploa
     Key: key,
     Body: file.buffer,
     ContentType: file.mimetype,
-    ACL: 'public-read', // Removed to support buckets with ACLs disabled
   };
   await s3.putObject(params).promise();
   return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
