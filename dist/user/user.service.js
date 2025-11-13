@@ -327,13 +327,27 @@ let UserService = class UserService {
             where: { email },
             data: { otp, otpExpiresAt },
         });
-        sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-        await sgMail.send({
-            to: email,
-            from: process.env.SENDGRID_FROM_EMAIL,
-            subject: 'Your Email Verification OTP',
-            text: `Your OTP is: ${otp}`,
-        });
+        try {
+            sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+            const fs = require('fs');
+            const path = require('path');
+            const templatePath = path.join(process.cwd(), 'public', 'emailOtp.html');
+            let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
+            const userName = user.displayName || user.userName || 'User';
+            htmlTemplate = htmlTemplate.replace(/{{user_name}}/g, userName);
+            htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
+            await sgMail.send({
+                to: email,
+                from: process.env.SENDGRID_FROM_EMAIL,
+                subject: 'Your Email Verification OTP',
+                html: htmlTemplate,
+                text: `Your OTP for email verification is: ${otp}. This OTP will expire in 10 minutes.`,
+            });
+        }
+        catch (error) {
+            console.error('SendGrid error:', error);
+            throw new common_1.BadRequestException('Failed to send email. Please check your email address or try again later.');
+        }
         return true;
     }
     async verifyEmailOtp(email, otp) {
