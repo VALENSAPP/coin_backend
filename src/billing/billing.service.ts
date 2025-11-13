@@ -146,6 +146,7 @@ export class BillingService {
       },
     });
 
+    // Update user hits to 7 per month for subscription
     const postHit = await this.prisma.postHit.findFirst({
       where: { userId: user.id },
     });
@@ -153,15 +154,13 @@ export class BillingService {
     if (postHit) {
       await this.prisma.postHit.update({
         where: { id: postHit.id },
-        data: { hitLeft: {
-          increment: 5
-        } },
+        data: { hitLeft: 7 },
       });
     } else {
       await this.prisma.postHit.create({
         data: {
           userId: user.id,
-          hitLeft: 5,
+          hitLeft: 7,
         },
       });
     }
@@ -460,6 +459,110 @@ export class BillingService {
         data: { status: 'failed' },
       });
     }
+  }
+
+  async buyHit(amount: number, hitCount: number, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Buy ${hitCount} Hits`,
+              description: `Purchase ${hitCount} additional hits for posting`,
+            },
+            unit_amount: amount, // Amount in cents
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: process.env.STRIPE_SUCCESS_URL!,
+      cancel_url: process.env.STRIPE_CANCEL_URL!,
+      metadata: {
+        type: 'buy_hit',
+        userId: userId,
+        hitCount: hitCount.toString(),
+      },
+      customer_email: user.email || undefined,
+    });
+
+    // Create pending payment record
+    await this.prisma.payment.create({
+      data: {
+        userId: userId,
+        amount: amount,
+        currency: 'USD',
+        status: 'pending',
+        forPayment: 'buyHit',
+        stripePaymentIntentId: session.payment_intent as string,
+      },
+    });
+
+    return { sessionId: session.id, url: session.url };
+  }
+
+  async handleBuyHitPayment(session: Stripe.Checkout.Session) {
+    const userId = session.metadata?.userId;
+    const hitCount = parseInt(session.metadata?.hitCount || '0');
+
+    if (!userId || !hitCount) {
+      console.error('Missing userId or hitCount in buy_hit session metadata');
+      return;
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      console.error(`User ${userId} not found for buy_hit payment`);
+      return;
+    }
+
+    // Update the existing pending payment record to success
+    const paymentIntentId = session.payment_intent as string;
+    await this.prisma.payment.updateMany({
+      where: {
+        userId: userId,
+        stripePaymentIntentId: paymentIntentId,
+        forPayment: 'buyHit',
+        status: 'pending'
+      },
+      data: {
+        status: 'succeeded',
+        amount: session.amount_total || 0,
+        currency: session.currency?.toUpperCase() || 'USD',
+      },
+    });
+
+    // Update or create postHit record with purchased hits
+    const existingPostHit = await this.prisma.postHit.findFirst({
+      where: { userId: userId },
+    });
+
+    if (existingPostHit) {
+      // Add purchased hits to existing hits
+      await this.prisma.postHit.update({
+        where: { id: existingPostHit.id },
+        data: {
+          hitLeft: {
+            increment: hitCount
+          }
+        },
+      });
+    } else {
+      // Create new postHit record
+      await this.prisma.postHit.create({
+        data: {
+          userId: userId,
+          hitLeft: hitCount,
+        },
+      });
+    }
+
+    console.log(`✅ Buy hit payment processed: User ${userId} received ${hitCount} hits`);
   }
 }
 

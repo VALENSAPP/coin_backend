@@ -161,16 +161,14 @@ let BillingService = class BillingService {
         if (postHit) {
             await this.prisma.postHit.update({
                 where: { id: postHit.id },
-                data: { hitLeft: {
-                        increment: 5
-                    } },
+                data: { hitLeft: 7 },
             });
         }
         else {
             await this.prisma.postHit.create({
                 data: {
                     userId: user.id,
-                    hitLeft: 5,
+                    hitLeft: 7,
                 },
             });
         }
@@ -424,6 +422,96 @@ let BillingService = class BillingService {
                 data: { status: 'failed' },
             });
         }
+    }
+    async buyHit(amount, hitCount, userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        const session = await this.stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price_data: {
+                        currency: 'usd',
+                        product_data: {
+                            name: `Buy ${hitCount} Hits`,
+                            description: `Purchase ${hitCount} additional hits for posting`,
+                        },
+                        unit_amount: amount,
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: process.env.STRIPE_SUCCESS_URL,
+            cancel_url: process.env.STRIPE_CANCEL_URL,
+            metadata: {
+                type: 'buy_hit',
+                userId: userId,
+                hitCount: hitCount.toString(),
+            },
+            customer_email: user.email || undefined,
+        });
+        await this.prisma.payment.create({
+            data: {
+                userId: userId,
+                amount: amount,
+                currency: 'USD',
+                status: 'pending',
+                forPayment: 'buyHit',
+                stripePaymentIntentId: session.payment_intent,
+            },
+        });
+        return { sessionId: session.id, url: session.url };
+    }
+    async handleBuyHitPayment(session) {
+        const userId = session.metadata?.userId;
+        const hitCount = parseInt(session.metadata?.hitCount || '0');
+        if (!userId || !hitCount) {
+            console.error('Missing userId or hitCount in buy_hit session metadata');
+            return;
+        }
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            console.error(`User ${userId} not found for buy_hit payment`);
+            return;
+        }
+        const paymentIntentId = session.payment_intent;
+        await this.prisma.payment.updateMany({
+            where: {
+                userId: userId,
+                stripePaymentIntentId: paymentIntentId,
+                forPayment: 'buyHit',
+                status: 'pending'
+            },
+            data: {
+                status: 'succeeded',
+                amount: session.amount_total || 0,
+                currency: session.currency?.toUpperCase() || 'USD',
+            },
+        });
+        const existingPostHit = await this.prisma.postHit.findFirst({
+            where: { userId: userId },
+        });
+        if (existingPostHit) {
+            await this.prisma.postHit.update({
+                where: { id: existingPostHit.id },
+                data: {
+                    hitLeft: {
+                        increment: hitCount
+                    }
+                },
+            });
+        }
+        else {
+            await this.prisma.postHit.create({
+                data: {
+                    userId: userId,
+                    hitLeft: hitCount,
+                },
+            });
+        }
+        console.log(`✅ Buy hit payment processed: User ${userId} received ${hitCount} hits`);
     }
 };
 exports.BillingService = BillingService;

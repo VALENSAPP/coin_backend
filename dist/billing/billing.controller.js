@@ -19,6 +19,7 @@ const swagger_1 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
 const class_validator_1 = require("class-validator");
 const swagger_2 = require("@nestjs/swagger");
+const buy_hit_dto_1 = require("./dto/buy-hit.dto");
 class RequestWithdrawalDto {
     amount;
     bankDetails;
@@ -97,6 +98,14 @@ let BillingController = class BillingController {
         const userId = req.user.userId;
         const result = await this.billingService.createAccountOnboardingLink(userId);
         return result;
+    }
+    async buyHit(req, dto) {
+        const userId = req.user.userId;
+        if (dto.userId !== userId) {
+            throw new common_1.BadRequestException('User ID mismatch');
+        }
+        const result = await this.billingService.buyHit(dto.amount, dto.hitCount, dto.userId);
+        return { message: 'Checkout session created', ...result };
     }
 };
 exports.BillingController = BillingController;
@@ -196,6 +205,18 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "createOnboardingLink", null);
+__decorate([
+    (0, common_1.Post)('buy-hit'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe Checkout Session for buying hits' }),
+    (0, swagger_1.ApiBody)({ type: buy_hit_dto_1.BuyHitDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, buy_hit_dto_1.BuyHitDto]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "buyHit", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),

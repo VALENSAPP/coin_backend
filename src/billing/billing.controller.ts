@@ -5,6 +5,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { IsString, IsNotEmpty, IsNumber, Min, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { BuyHitDto } from './dto/buy-hit.dto';
 
 export class RequestWithdrawalDto {
   @ApiProperty({
@@ -137,6 +138,23 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const result = await this.billingService.createAccountOnboardingLink(userId);
     return result;
+  }
+
+  @Post('buy-hit')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for buying hits' })
+  @ApiBody({ type: BuyHitDto })
+  async buyHit(@Req() req: Request, @Body() dto: BuyHitDto) {
+    const userId = (req.user as any).userId;
+
+    // Validate that the userId in the request matches the authenticated user
+    if (dto.userId !== userId) {
+      throw new BadRequestException('User ID mismatch');
+    }
+
+    const result = await this.billingService.buyHit(dto.amount, dto.hitCount, dto.userId);
+    return { message: 'Checkout session created', ...result };
   }
 }
 

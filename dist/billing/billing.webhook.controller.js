@@ -45,6 +45,9 @@ let BillingWebhookController = class BillingWebhookController {
                 if (session.metadata?.type === 'token_purchase') {
                     await this.tokenPurchaseService.handleCheckoutSessionCompleted(session.id);
                 }
+                else if (session.metadata?.type === 'buy_hit') {
+                    await this.billingService.handleBuyHitPayment(session);
+                }
                 else {
                     await this.billingService.handleCheckoutSessionCompleted(session);
                 }
