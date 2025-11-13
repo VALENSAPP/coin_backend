@@ -1149,6 +1149,108 @@ let UserService = class UserService {
             throw new common_1.BadRequestException('Twitter login failed');
         }
     }
+    async createUserSubscription(userId, dto) {
+        if (!userId)
+            throw new common_1.BadRequestException('User ID required');
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        return this.prisma.userSubscription.create({
+            data: {
+                userId,
+                subscriptionAmount: dto.subscriptionAmount,
+                status: dto.status || 'ACTIVE',
+                isDelete: dto.isDelete || 0,
+            },
+        });
+    }
+    async getUserSubscriptions(userId, filters) {
+        const where = {};
+        if (userId) {
+            where.userId = userId;
+        }
+        if (filters?.status) {
+            where.status = filters.status;
+        }
+        if (filters?.isDelete !== undefined) {
+            where.isDelete = filters.isDelete;
+        }
+        else {
+            where.isDelete = 0;
+        }
+        return this.prisma.userSubscription.findMany({
+            where,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        displayName: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+    }
+    async getUserSubscriptionById(id) {
+        const subscription = await this.prisma.userSubscription.findUnique({
+            where: { id },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        displayName: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+        if (!subscription)
+            throw new common_1.BadRequestException('User subscription not found');
+        return subscription;
+    }
+    async updateUserSubscription(id, dto) {
+        const subscription = await this.prisma.userSubscription.findUnique({
+            where: { id },
+        });
+        if (!subscription)
+            throw new common_1.BadRequestException('User subscription not found');
+        return this.prisma.userSubscription.update({
+            where: { id },
+            data: {
+                subscriptionAmount: dto.subscriptionAmount,
+                status: dto.status,
+                isDelete: dto.isDelete,
+                updatedAt: new Date(),
+            },
+        });
+    }
+    async deleteUserSubscription(id) {
+        const subscription = await this.prisma.userSubscription.findUnique({
+            where: { id },
+        });
+        if (!subscription)
+            throw new common_1.BadRequestException('User subscription not found');
+        return this.prisma.userSubscription.update({
+            where: { id },
+            data: {
+                isDelete: 1,
+                updatedAt: new Date(),
+            },
+        });
+    }
+    async hardDeleteUserSubscription(id) {
+        const subscription = await this.prisma.userSubscription.findUnique({
+            where: { id },
+        });
+        if (!subscription)
+            throw new common_1.BadRequestException('User subscription not found');
+        return this.prisma.userSubscription.delete({
+            where: { id },
+        });
+    }
 };
 exports.UserService = UserService;
 exports.UserService = UserService = __decorate([

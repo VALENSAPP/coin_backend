@@ -2,6 +2,7 @@ import { UserService } from './user.service';
 import { Request } from 'express';
 import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 import { RecentActivitiesDto } from './dto/recent-activities.dto';
+import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto } from './dto/user-subscription.dto';
 export declare enum RegistrationType {
     NORMAL = "NORMAL",
     GOOGLE = "GOOGLE",
@@ -295,18 +296,18 @@ export declare class UserController {
     followPerson(req: Request, dto: FollowPersonDto): Promise<{
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     unfollow(req: Request, dto: UnfollowDto): Promise<{
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     blockUser(req: Request, dto: BlockUserDto): Promise<{
         blockedId: string;
@@ -366,10 +367,10 @@ export declare class UserController {
     } & {
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getFollowingList(userId: string): Promise<({
         following: {
@@ -420,10 +421,10 @@ export declare class UserController {
     } & {
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getBlockedUsers(req: Request): Promise<({
         blocked: {
@@ -663,6 +664,67 @@ export declare class UserController {
         };
     }>;
     softDeleteUser(id: string): Promise<{
+        message: string;
+    }>;
+    createUserSubscription(req: Request, dto: CreateUserSubscriptionDto): Promise<{
+        message: string;
+        subscription: {
+            userId: string;
+            subscriptionAmount: number;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            isDelete: number;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+    }>;
+    getUserSubscriptions(query: any): Promise<{
+        subscriptions: ({
+            user: {
+                email: string | null;
+                displayName: string | null;
+                id: string;
+            };
+        } & {
+            userId: string;
+            subscriptionAmount: number;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            isDelete: number;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+        })[];
+    }>;
+    getUserSubscriptionById(id: string): Promise<{
+        subscription: {
+            user: {
+                email: string | null;
+                displayName: string | null;
+                id: string;
+            };
+        } & {
+            userId: string;
+            subscriptionAmount: number;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            isDelete: number;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+    }>;
+    updateUserSubscription(id: string, dto: UpdateUserSubscriptionDto): Promise<{
+        message: string;
+        subscription: {
+            userId: string;
+            subscriptionAmount: number;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            isDelete: number;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+        };
+    }>;
+    deleteUserSubscription(id: string): Promise<{
         message: string;
     }>;
 }

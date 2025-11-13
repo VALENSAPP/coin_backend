@@ -1,0 +1,56 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNumber, IsOptional, IsString, IsEnum } from 'class-validator';
+
+export enum UserSubscriptionStatus {
+  ACTIVE = 'ACTIVE',
+  CLOSED = 'CLOSED',
+}
+
+export class CreateUserSubscriptionDto {
+  @ApiProperty({ description: 'Subscription amount', example: 99.99 })
+  @IsNumber()
+  subscriptionAmount: number;
+
+  @ApiProperty({
+    description: 'Subscription status',
+    enum: UserSubscriptionStatus,
+    default: UserSubscriptionStatus.ACTIVE,
+    required: false
+  })
+  @IsOptional()
+  @IsEnum(UserSubscriptionStatus)
+  status?: UserSubscriptionStatus;
+}
+
+export class UpdateUserSubscriptionDto {
+  @ApiProperty({ description: 'Subscription amount', example: 149.99, required: false })
+  @IsOptional()
+  @IsNumber()
+  subscriptionAmount?: number;
+
+  @ApiProperty({
+    description: 'Subscription status',
+    enum: UserSubscriptionStatus,
+    required: false
+  })
+  @IsOptional()
+  @IsEnum(UserSubscriptionStatus)
+  status?: UserSubscriptionStatus;
+
+  @ApiProperty({ description: 'Soft delete flag', example: 0, required: false })
+  @IsOptional()
+  @IsNumber()
+  isDelete?: number;
+}
+
+export class UserSubscriptionFilterDto {
+  @ApiProperty({ description: 'Filter by status', enum: UserSubscriptionStatus, required: false })
+  @IsOptional()
+  @IsEnum(UserSubscriptionStatus)
+  status?: UserSubscriptionStatus;
+
+  @ApiProperty({ description: 'Filter by user ID', example: 'uuid-string', required: false })
+  @IsOptional()
+  @IsString()
+  userId?: string;
+}

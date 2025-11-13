@@ -21,9 +21,9 @@ export declare class BillingService {
     handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
     getLatestTransactions(userId: string): Promise<{
         userId: string;
+        status: string;
         id: string;
         createdAt: Date;
-        status: string;
         amount: number;
         currency: string;
         stripePaymentIntentId: string | null;
@@ -40,10 +40,10 @@ export declare class BillingService {
     }>;
     getWithdrawalHistory(userId: string): Promise<{
         userId: string;
+        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: string;
         withdrawAmount: number | null;
         txhash: string | null;
     }[]>;

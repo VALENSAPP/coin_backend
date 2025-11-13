@@ -296,10 +296,10 @@ export declare class UserService {
     followPerson(followerId: string, followingId: string): Promise<{
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     getFollowersList(userId: string): Promise<({
         follower: {
@@ -346,10 +346,10 @@ export declare class UserService {
     } & {
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     getFollowingList(userId: string): Promise<({
         following: {
@@ -400,18 +400,18 @@ export declare class UserService {
     } & {
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     })[]>;
     unfollow(followerId: string, followingId: string): Promise<{
         followingId: string;
         followerId: string;
+        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        status: import(".prisma/client").$Enums.FollowStatus;
     }>;
     getPendingFollowRequests(userId: string): Promise<never[]>;
     blockUser(blockerId: string, blockedId: string): Promise<{
@@ -715,5 +715,71 @@ export declare class UserService {
         refreshTokenExpiresAt: Date | null;
         access_token: string;
         refresh_token: string;
+    }>;
+    createUserSubscription(userId: string, dto: any): Promise<{
+        userId: string;
+        subscriptionAmount: number;
+        status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+        isDelete: number;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    getUserSubscriptions(userId?: string, filters?: any): Promise<({
+        user: {
+            email: string | null;
+            displayName: string | null;
+            id: string;
+        };
+    } & {
+        userId: string;
+        subscriptionAmount: number;
+        status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+        isDelete: number;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+    })[]>;
+    getUserSubscriptionById(id: string): Promise<{
+        user: {
+            email: string | null;
+            displayName: string | null;
+            id: string;
+        };
+    } & {
+        userId: string;
+        subscriptionAmount: number;
+        status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+        isDelete: number;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    updateUserSubscription(id: string, dto: any): Promise<{
+        userId: string;
+        subscriptionAmount: number;
+        status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+        isDelete: number;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    deleteUserSubscription(id: string): Promise<{
+        userId: string;
+        subscriptionAmount: number;
+        status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+        isDelete: number;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }>;
+    hardDeleteUserSubscription(id: string): Promise<{
+        userId: string;
+        subscriptionAmount: number;
+        status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+        isDelete: number;
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
 }

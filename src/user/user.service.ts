@@ -1355,4 +1355,122 @@ export class UserService {
       throw new BadRequestException('Twitter login failed');
     }
   }
+
+  // UserSubscription CRUD Operations
+
+  async createUserSubscription(userId: string, dto: any) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    return this.prisma.userSubscription.create({
+      data: {
+        userId,
+        subscriptionAmount: dto.subscriptionAmount,
+        status: dto.status || 'ACTIVE',
+        isDelete: dto.isDelete || 0,
+      },
+    });
+  }
+
+  async getUserSubscriptions(userId?: string, filters?: any) {
+    const where: any = {};
+
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (filters?.status) {
+      where.status = filters.status;
+    }
+
+    if (filters?.isDelete !== undefined) {
+      where.isDelete = filters.isDelete;
+    } else {
+      // By default, exclude soft-deleted records
+      where.isDelete = 0;
+    }
+
+    return this.prisma.userSubscription.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async getUserSubscriptionById(id: string) {
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!subscription) throw new BadRequestException('User subscription not found');
+    return subscription;
+  }
+
+  async updateUserSubscription(id: string, dto: any) {
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { id },
+    });
+
+    if (!subscription) throw new BadRequestException('User subscription not found');
+
+    return this.prisma.userSubscription.update({
+      where: { id },
+      data: {
+        subscriptionAmount: dto.subscriptionAmount,
+        status: dto.status,
+        isDelete: dto.isDelete,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  async deleteUserSubscription(id: string) {
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { id },
+    });
+
+    if (!subscription) throw new BadRequestException('User subscription not found');
+
+    // Soft delete
+    return this.prisma.userSubscription.update({
+      where: { id },
+      data: {
+        isDelete: 1,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  async hardDeleteUserSubscription(id: string) {
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { id },
+    });
+
+    if (!subscription) throw new BadRequestException('User subscription not found');
+
+    return this.prisma.userSubscription.delete({
+      where: { id },
+    });
+  }
 }

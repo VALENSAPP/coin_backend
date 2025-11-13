@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 import { RecentActivitiesDto } from './dto/recent-activities.dto';
+import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto, UserSubscriptionStatus } from './dto/user-subscription.dto';
 
 export enum RegistrationType {
   NORMAL = 'NORMAL',
@@ -684,6 +685,66 @@ export class UserController {
   async softDeleteUser(@Param('id') id: string) {
     await this.userService.softDeleteUser(id);
     return { message: 'User soft deleted' };
+  }
+
+  // UserSubscription CRUD Endpoints
+
+  @Post('subscription')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new user subscription' })
+  @ApiBody({ type: CreateUserSubscriptionDto })
+  @ApiResponse({ status: 201, description: 'User subscription created successfully' })
+  async createUserSubscription(@Req() req: Request, @Body() dto: CreateUserSubscriptionDto) {
+    const userId = (req.user as any).userId;
+    const subscription = await this.userService.createUserSubscription(userId, dto);
+    return { message: 'User subscription created successfully', subscription };
+  }
+
+  @Get('subscription')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user subscriptions' })
+  @ApiQuery({ name: 'userId', type: String, required: false, description: 'Filter by user ID' })
+  @ApiQuery({ name: 'status', enum: UserSubscriptionStatus, required: false, description: 'Filter by status' })
+  @ApiResponse({ status: 200, description: 'User subscriptions retrieved successfully' })
+  async getUserSubscriptions(@Query() query: any) {
+    const subscriptions = await this.userService.getUserSubscriptions(query.userId, query);
+    return { subscriptions };
+  }
+
+  @Get('subscription/:id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user subscription by ID' })
+  @ApiParam({ name: 'id', type: String, description: 'User subscription ID' })
+  @ApiResponse({ status: 200, description: 'User subscription retrieved successfully' })
+  async getUserSubscriptionById(@Param('id') id: string) {
+    const subscription = await this.userService.getUserSubscriptionById(id);
+    return { subscription };
+  }
+
+  @Patch('subscription/:id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user subscription' })
+  @ApiParam({ name: 'id', type: String, description: 'User subscription ID' })
+  @ApiBody({ type: UpdateUserSubscriptionDto })
+  @ApiResponse({ status: 200, description: 'User subscription updated successfully' })
+  async updateUserSubscription(@Param('id') id: string, @Body() dto: UpdateUserSubscriptionDto) {
+    const subscription = await this.userService.updateUserSubscription(id, dto);
+    return { message: 'User subscription updated successfully', subscription };
+  }
+
+  @Delete('subscription/:id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Soft delete user subscription' })
+  @ApiParam({ name: 'id', type: String, description: 'User subscription ID' })
+  @ApiResponse({ status: 200, description: 'User subscription deleted successfully' })
+  async deleteUserSubscription(@Param('id') id: string) {
+    await this.userService.deleteUserSubscription(id);
+    return { message: 'User subscription deleted successfully' };
   }
 
 // duplicate removed; search route is defined above

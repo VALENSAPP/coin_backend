@@ -70,6 +70,7 @@ model User {
   postHits             PostHit[]
   withdrawalRecords    WithdrawalRecord[]
   kycs                 Kyc[]
+  userSubscriptions    UserSubscription[]
 
   loginHistories       LoginHistory[]
 
@@ -369,6 +370,20 @@ model Kyc {
   user             User      @relation(fields: [userId], references: [id])
 }
 
+model UserSubscription {
+  id                 String                 @id @default(uuid())
+  userId             String
+  subscriptionAmount Float
+  status             UserSubscriptionStatus @default(ACTIVE)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  isDelete           Int                    @default(0)
+  user               User                   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+}
+
 model LoginHistory {
   id        String   @id @default(uuid())
   userId    String
@@ -414,4 +429,9 @@ enum KycStatus {
   SUBMITTED
   APPROVED
   DECLINED
+}
+
+enum UserSubscriptionStatus {
+  ACTIVE
+  CLOSED
 }

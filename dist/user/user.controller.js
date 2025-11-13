@@ -23,6 +23,7 @@ const swagger_3 = require("@nestjs/swagger");
 const passport_1 = require("@nestjs/passport");
 const follow_dto_1 = require("./dto/follow.dto");
 const recent_activities_dto_1 = require("./dto/recent-activities.dto");
+const user_subscription_dto_1 = require("./dto/user-subscription.dto");
 var RegistrationType;
 (function (RegistrationType) {
     RegistrationType["NORMAL"] = "NORMAL";
@@ -587,6 +588,27 @@ let UserController = class UserController {
         await this.userService.softDeleteUser(id);
         return { message: 'User soft deleted' };
     }
+    async createUserSubscription(req, dto) {
+        const userId = req.user.userId;
+        const subscription = await this.userService.createUserSubscription(userId, dto);
+        return { message: 'User subscription created successfully', subscription };
+    }
+    async getUserSubscriptions(query) {
+        const subscriptions = await this.userService.getUserSubscriptions(query.userId, query);
+        return { subscriptions };
+    }
+    async getUserSubscriptionById(id) {
+        const subscription = await this.userService.getUserSubscriptionById(id);
+        return { subscription };
+    }
+    async updateUserSubscription(id, dto) {
+        const subscription = await this.userService.updateUserSubscription(id, dto);
+        return { message: 'User subscription updated successfully', subscription };
+    }
+    async deleteUserSubscription(id) {
+        await this.userService.deleteUserSubscription(id);
+        return { message: 'User subscription deleted successfully' };
+    }
 };
 exports.UserController = UserController;
 __decorate([
@@ -962,6 +984,70 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "softDeleteUser", null);
+__decorate([
+    (0, common_1.Post)('subscription'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Create a new user subscription' }),
+    (0, swagger_3.ApiBody)({ type: user_subscription_dto_1.CreateUserSubscriptionDto }),
+    (0, swagger_3.ApiResponse)({ status: 201, description: 'User subscription created successfully' }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, user_subscription_dto_1.CreateUserSubscriptionDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "createUserSubscription", null);
+__decorate([
+    (0, common_1.Get)('subscription'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Get user subscriptions' }),
+    (0, swagger_3.ApiQuery)({ name: 'userId', type: String, required: false, description: 'Filter by user ID' }),
+    (0, swagger_3.ApiQuery)({ name: 'status', enum: user_subscription_dto_1.UserSubscriptionStatus, required: false, description: 'Filter by status' }),
+    (0, swagger_3.ApiResponse)({ status: 200, description: 'User subscriptions retrieved successfully' }),
+    __param(0, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getUserSubscriptions", null);
+__decorate([
+    (0, common_1.Get)('subscription/:id'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Get user subscription by ID' }),
+    (0, swagger_3.ApiParam)({ name: 'id', type: String, description: 'User subscription ID' }),
+    (0, swagger_3.ApiResponse)({ status: 200, description: 'User subscription retrieved successfully' }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "getUserSubscriptionById", null);
+__decorate([
+    (0, common_1.Patch)('subscription/:id'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Update user subscription' }),
+    (0, swagger_3.ApiParam)({ name: 'id', type: String, description: 'User subscription ID' }),
+    (0, swagger_3.ApiBody)({ type: user_subscription_dto_1.UpdateUserSubscriptionDto }),
+    (0, swagger_3.ApiResponse)({ status: 200, description: 'User subscription updated successfully' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, user_subscription_dto_1.UpdateUserSubscriptionDto]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "updateUserSubscription", null);
+__decorate([
+    (0, common_1.Delete)('subscription/:id'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Soft delete user subscription' }),
+    (0, swagger_3.ApiParam)({ name: 'id', type: String, description: 'User subscription ID' }),
+    (0, swagger_3.ApiResponse)({ status: 200, description: 'User subscription deleted successfully' }),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "deleteUserSubscription", null);
 exports.UserController = UserController = __decorate([
     (0, swagger_1.ApiTags)('user'),
     (0, common_1.Controller)('user'),

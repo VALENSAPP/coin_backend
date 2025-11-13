@@ -35,9 +35,9 @@ export declare class BillingController {
     getLatestTransactions(req: Request): Promise<{
         transactions: {
             userId: string;
+            status: string;
             id: string;
             createdAt: Date;
-            status: string;
             amount: number;
             currency: string;
             stripePaymentIntentId: string | null;
@@ -56,10 +56,10 @@ export declare class BillingController {
     getWithdrawalHistory(req: Request): Promise<{
         withdrawals: {
             userId: string;
+            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
         }[];
