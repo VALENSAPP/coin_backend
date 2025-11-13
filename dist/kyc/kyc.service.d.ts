@@ -8,9 +8,7 @@ export declare class KycService {
         sessionId: any;
         url: any;
     }>;
-    handleWebhook(body: any): Promise<{
-        success: boolean;
-    }>;
+    handleWebhook(verification: any): Promise<void>;
     getKycStatus(userId: string): Promise<{
         id: number;
         userId: string;
@@ -22,4 +20,24 @@ export declare class KycService {
         createdAt: Date;
         updatedAt: Date;
     } | null>;
+    fetchVeriffStatus(sessionId: string): Promise<any>;
+    syncKycStatus(userId: string): Promise<{
+        success: boolean;
+        message: string;
+        status?: undefined;
+        updated?: undefined;
+    } | {
+        success: boolean;
+        status: "PENDING" | "SUBMITTED" | "APPROVED" | "DECLINED";
+        updated: boolean;
+        message?: undefined;
+    }>;
+    syncPendingKycCron(): Promise<void>;
+    syncAllPendingKyc(): Promise<{
+        success: boolean;
+        total: number;
+        updated: number;
+        errors: number;
+        unchanged: number;
+    }>;
 }

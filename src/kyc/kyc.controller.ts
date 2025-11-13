@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, Get } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, Req } from '@nestjs/common';
 import { KycService } from './kyc.service';
 import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { VeriffWebhookDto } from './dto/webhook.dto';
@@ -45,15 +45,24 @@ export class KycController {
   // }
 
 @Post('webhook')
-async handleWebhook(@Body() body: any) {
+async handleWebhook(@Req() req: any) {
+  let body = req.body;
+
+  // If body is a buffer (raw), parse it as JSON
+  if (Buffer.isBuffer(body)) {
+    body = JSON.parse(body.toString());
+  }
+
   console.log('📨 RAW VERIFF PAYLOAD:', JSON.stringify(body, null, 2));
 
   // handle both formats safely
   const verification = body.resource || body.verification || body;
-  console.log('✅ Extracted verification object:', verification);
+  console.log('✅ Extracted verification object:', JSON.stringify(verification, null, 2));
 
   const id = verification?.id;
-  const status = verification?.status;
+  const action = verification?.action;
+  const code = verification?.code;
+  console.log(`🔍 Webhook data - ID: ${id}, Action: ${action}, Code: ${code}`);
 
   if (!id) {
     console.error('❌ Missing verification id in payload');
@@ -73,5 +82,20 @@ async handleWebhook(@Body() body: any) {
   @ApiResponse({ status: 200, description: 'KYC status fetched successfully' })
   async getStatus(@Param('userId') userId: string) {
     return this.kycService.getKycStatus(userId);
+  }
+
+  @Post('sync/:userId')
+  @ApiOperation({ summary: 'Sync KYC status with Veriff API' })
+  @ApiParam({ name: 'userId', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'KYC status synced successfully' })
+  async syncStatus(@Param('userId') userId: string) {
+    return this.kycService.syncKycStatus(userId);
+  }
+
+  @Post('sync-all')
+  @ApiOperation({ summary: 'Sync all pending/submitted KYC records with Veriff API' })
+  @ApiResponse({ status: 200, description: 'All pending KYC records synced successfully' })
+  async syncAllPending() {
+    return this.kycService.syncAllPendingKyc();
   }
 }

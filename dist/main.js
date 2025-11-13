@@ -9,6 +9,9 @@ const path_1 = require("path");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
+    app.use('/kyc/webhook', bodyParser.raw({ type: '*/*' }));
+    app.use(bodyParser.json({ limit: '5mb' }));
+    app.use(bodyParser.urlencoded({ extended: true }));
     app.useStaticAssets((0, path_1.join)(__dirname, '..', 'public'));
     app.useGlobalInterceptors(new response_interceptor_1.ResponseInterceptor());
     (0, swagger_config_1.setupSwagger)(app);

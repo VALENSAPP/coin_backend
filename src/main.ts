@@ -8,8 +8,9 @@ import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  // Stripe webhook needs raw body
+  // Webhooks need raw body for signature verification
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
+  app.use('/kyc/webhook', bodyParser.raw({ type: '*/*' }));
   
   app.use(bodyParser.json({ limit: '5mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));

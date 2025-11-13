@@ -1,114 +1,9 @@
-// import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-// import axios from 'axios';
-// import { PrismaService } from '../prisma/prisma.service';
-// import { KycStatus } from '@prisma/client';
-
-
-// @Injectable()
-// export class KycService {
-//   private veriffBase = process.env.VERIFF_BASE_URL;
-//   private veriffKey = process.env.VERIFF_API_KEY;
-
-//   constructor(private prisma: PrismaService) {}
-
-//   async createVeriffSession(
-//     userId: string,
-//     documentType: 'DRIVERS_LICENSE' | 'PASSPORT' | 'ID_CARD',
-//   ) {
-//     const user = await this.prisma.user.findUnique({ where: { id: userId } });
-//     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
-
-//     // Prepare user details for Veriff
-//     // const personDetails: any = {
-//     //   firstName: user.userName
-//     // };
-
-
-//     try {
-//       const { data } = await axios.post(
-//         `${this.veriffBase}/v1/sessions`,
-//         {
-//           verification: {
-//             // person: personDetails,
-//             document: { type: documentType },
-//             vendorData: userId,
-//             callback: `${process.env.BASE_URL}/api/kyc/webhook`,
-//           },
-//         },
-//         {
-//           headers: {
-//             'X-AUTH-CLIENT': this.veriffKey,
-//             'Content-Type': 'application/json',
-//           },
-//         },
-//       );
-
-//       const sessionId = data.verification.id;
-//       const url = data.verification.url;
-
-//       await this.prisma.kyc.create({
-//         data: {
-//           userId,
-//           veriffSessionId: sessionId,
-//           veriffUrl: url,
-//           status: 'PENDING',
-//           documentType,
-//         },
-//       });
-
-//       return { sessionId, url };
-//     } catch (error) {
-//       console.error(error.response?.data || error);
-//       throw new HttpException('Failed to create KYC session', HttpStatus.BAD_REQUEST);
-//     }
-//   }
-
-//   async handleWebhook(body: any) {
-//     const { id, status, document } = body.verification;
-
-//     const kyc = await this.prisma.kyc.findFirst({
-//       where: { veriffSessionId: id },
-//     });
-
-//     if (!kyc) throw new HttpException('KYC record not found', HttpStatus.NOT_FOUND);
-
-//     let newStatus: 'PENDING' | 'APPROVED' | 'DECLINED' = 'PENDING';
-//     if (status === 'approved') newStatus = 'APPROVED';
-//     if (status === 'declined') newStatus = 'DECLINED';
-
-//     await this.prisma.kyc.update({
-//       where: { id: kyc.id },
-//       data: {
-//         status: newStatus,
-//         documentType: document?.type,
-//         webhookData: body,
-//       },
-//     });
-
-//     if (newStatus === 'APPROVED') {
-//       await this.prisma.user.update({
-//         where: { id: kyc.userId },
-//         data: { kyc: true },
-//       });
-//     }
-
-//     return { success: true };
-//   }
-
-//   async getKycStatus(userId: string) {
-//     return this.prisma.kyc.findFirst({
-//       where: { userId },
-//       orderBy: { createdAt: 'desc' },
-//     });
-//   }
-// }
-
-
-
 
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { createHmac } from 'node:crypto';
 
 @Injectable()
 export class KycService {
@@ -143,7 +38,7 @@ export class KycService {
             person: personDetails,
             document: { type: documentType },
             vendorData: userId,
-            callback: `${process.env.BASE_URL}/kyc/webhook`,
+            callback: `${process.env.BASE_URL}/veriff.html`,
           },
         },
         {
@@ -175,61 +70,52 @@ export class KycService {
     }
   }
 
-  /**
-   * Handle Veriff webhook
-   */
-  // async handleWebhook(body: any) {
-  //   const { id, status, document } = body.verification;
-
-  //   const kyc = await this.prisma.kyc.findFirst({
-  //     where: { veriffSessionId: id },
-  //   });
-
-  //   if (!kyc) throw new HttpException('KYC record not found', HttpStatus.NOT_FOUND);
-
-  //   let newStatus: 'PENDING' | 'APPROVED' | 'DECLINED' = 'PENDING';
-  //   if (status === 'approved') newStatus = 'APPROVED';
-  //   if (status === 'declined') newStatus = 'DECLINED';
-
-  //   await this.prisma.kyc.update({
-  //     where: { id: kyc.id },
-  //     data: {
-  //       status: newStatus,
-  //       documentType: document?.type,
-  //       webhookData: body,
-  //     },
-  //   });
-
-  //   if (newStatus === 'APPROVED') {
-  //     await this.prisma.user.update({
-  //       where: { id: kyc.userId },
-  //       data: { kyc: true },
-  //     });
-  //   }
-
-  //   return { success: true };
-  // }
-
 
   async handleWebhook(verification: any) {
-  const { id, status } = verification;
-  
-  const kycRecord = await this.prisma.kyc.findFirst({
-    where: { veriffSessionId: id },
-  });
+    const { id, action, code } = verification;
 
-  if (!kycRecord) {
-    console.error(`❌ No record found for session ID ${id}`);
-    return;
+    console.log(`🔍 Processing webhook for session ${id} with action: ${action}, code: ${code}`);
+
+    const kycRecord = await this.prisma.kyc.findFirst({
+      where: {
+        veriffSessionId: id,
+        status: { in: ['PENDING', 'SUBMITTED'] }
+      },
+    });
+
+    if (!kycRecord) {
+      console.log(`ℹ️ Skipping webhook for session ${id} - not found or already processed`);
+      return;
+    }
+
+    // Map Veriff action/code to our enum
+    let mappedStatus: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'DECLINED' = 'PENDING';
+
+    if (action === 'approved' || code === 7003) mappedStatus = 'APPROVED';
+    else if (action === 'declined' || code === 7004 || action === 'decision') mappedStatus = 'DECLINED';
+    else if (action === 'submitted' || code === 7002) mappedStatus = 'SUBMITTED';
+    else if (action === 'started' || code === 7001) mappedStatus = 'PENDING';
+    else if (action === 'expired' || action === 'abandoned' || action === 'reviewed') mappedStatus = 'DECLINED';
+
+    console.log(`🔄 Mapping action '${action}' (code: ${code}) to '${mappedStatus}'`);
+
+    await this.prisma.kyc.update({
+      where: { id: kycRecord.id },
+      data: { status: mappedStatus, webhookData: verification },
+    });
+
+    // Update user.kyc field if approved
+    if (mappedStatus === 'APPROVED') {
+      await this.prisma.user.update({
+        where: { id: kycRecord.userId },
+        data: { kyc: true },
+      });
+      console.log(`✅ User KYC status updated to true for user ${kycRecord.userId}`);
+    }
+
+
+    console.log(`✅ KYC record updated: ${id} → ${mappedStatus}`);
   }
-
-  await this.prisma.kyc.update({
-    where: { id: kycRecord.id },
-    data: { status, webhookData: verification },
-  });
-
-  console.log(`✅ KYC record updated: ${id} → ${status}`);
-}
 
 
 
@@ -242,4 +128,176 @@ export class KycService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * Fetch KYC status from Veriff API (fallback when webhook fails)
+   */
+  async fetchVeriffStatus(sessionId: string) {
+    try {
+      // Generate HMAC signature like in the working example
+      const signature = createHmac('sha256', process.env.VERIFF_SECRET_KEY || '')
+        .update(sessionId)
+        .digest('hex')
+        .toLowerCase();
+
+      const headers = {
+        'X-AUTH-CLIENT': this.veriffKey,
+        'X-HMAC-SIGNATURE': signature,
+        'Content-Type': 'application/json',
+      };
+
+      let response;
+
+      try {
+        // Try main session endpoint first
+        response = await axios.get(`${this.veriffBase}/v1/sessions/${sessionId}`, { headers });
+      } catch (err) {
+        console.warn('Full session fetch failed, falling back to attempts endpoint...');
+        // Fallback to attempts endpoint
+        response = await axios.get(`${this.veriffBase}/v1/sessions/${sessionId}/attempts`, { headers });
+      }
+
+      const verificationData = response.data?.verification || response.data?.verifications?.[0];
+
+      if (!verificationData) {
+        console.error('No verification data found in response');
+        return null;
+      }
+
+      const veriffStatus = verificationData.status;
+      console.log(`🔍 Fetched Veriff status for ${sessionId}: ${veriffStatus}`);
+
+      return veriffStatus; // 'approved', 'declined', etc.
+    } catch (error) {
+      console.error('❌ Failed to fetch Veriff status:', error.response?.data || error);
+      return null;
+    }
+  }
+
+  /**
+   * Sync KYC status with Veriff (manual sync for specific user)
+   */
+  async syncKycStatus(userId: string) {
+    const kycRecord = await this.prisma.kyc.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!kycRecord) {
+      throw new HttpException('KYC record not found', HttpStatus.NOT_FOUND);
+    }
+
+    const veriffStatus = await this.fetchVeriffStatus(kycRecord.veriffSessionId);
+    if (!veriffStatus) {
+      return { success: false, message: 'Could not fetch status from Veriff' };
+    }
+
+    // Map Veriff status to our enum
+    let mappedStatus: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'DECLINED' = kycRecord.status;
+    if (veriffStatus === 'approved') mappedStatus = 'APPROVED';
+    else if (veriffStatus === 'declined') mappedStatus = 'DECLINED';
+    else if (veriffStatus === 'submitted') mappedStatus = 'SUBMITTED';
+    else if (veriffStatus === 'expired') mappedStatus = 'DECLINED';
+
+    // Update if status changed
+    if (mappedStatus !== kycRecord.status) {
+      await this.prisma.kyc.update({
+        where: { id: kycRecord.id },
+        data: { status: mappedStatus },
+      });
+
+      if (mappedStatus === 'APPROVED') {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { kyc: true },
+        });
+      }
+
+      console.log(`✅ Synced KYC status: ${kycRecord.veriffSessionId} → ${mappedStatus}`);
+      return { success: true, status: mappedStatus, updated: true };
+    }
+
+    return { success: true, status: mappedStatus, updated: false };
+  }
+
+  /**
+   * Cron job: Sync all pending/submitted KYC records every 5 minutes
+   */
+  @Cron('*/2 * * * * *') // Every 2 minutes
+  async syncPendingKycCron() {
+    console.log('⏰ Cron: Starting scheduled KYC status sync...');
+    await this.syncAllPendingKyc();
+  }
+
+  /**
+   * Sync all pending/submitted KYC records with Veriff
+   */
+  async syncAllPendingKyc() {
+    console.log('🔄 Starting sync for all pending/submitted KYC records...');
+
+    const pendingRecords = await this.prisma.kyc.findMany({
+      where: {
+        status: { in: ['PENDING', 'SUBMITTED'] }
+      }
+    });
+
+    console.log(`📋 Found ${pendingRecords.length} pending/submitted KYC records to sync`);
+
+    let updated = 0;
+    let errors = 0;
+
+    for (const record of pendingRecords) {
+      try {
+        console.log(`🔍 Syncing KYC for user ${record.userId}, session ${record.veriffSessionId}`);
+
+        const veriffStatus = await this.fetchVeriffStatus(record.veriffSessionId);
+        if (!veriffStatus) {
+          console.log(`⚠️ Could not fetch status for session ${record.veriffSessionId}`);
+          errors++;
+          continue;
+        }
+
+        // Map Veriff status to our enum
+        let mappedStatus: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'DECLINED' = record.status;
+        if (veriffStatus === 'approved') mappedStatus = 'APPROVED';
+        else if (veriffStatus === 'declined') mappedStatus = 'DECLINED';
+        else if (veriffStatus === 'submitted') mappedStatus = 'SUBMITTED';
+        else if (veriffStatus === 'expired') mappedStatus = 'DECLINED';
+
+        // Update if status changed
+        if (mappedStatus !== record.status) {
+          await this.prisma.kyc.update({
+            where: { id: record.id },
+            data: { status: mappedStatus },
+          });
+
+          if (mappedStatus === 'APPROVED') {
+            await this.prisma.user.update({
+              where: { id: record.userId },
+              data: { kyc: true },
+            });
+          }
+
+          console.log(`✅ Updated KYC ${record.veriffSessionId}: ${record.status} → ${mappedStatus}`);
+          updated++;
+        } else {
+          console.log(`ℹ️ KYC ${record.veriffSessionId} status unchanged: ${mappedStatus}`);
+        }
+      } catch (error) {
+        console.error(`❌ Error syncing KYC ${record.veriffSessionId}:`, error);
+        errors++;
+      }
+    }
+
+    console.log(`🎯 Sync completed: ${updated} updated, ${errors} errors, ${pendingRecords.length - updated - errors} unchanged`);
+
+    return {
+      success: true,
+      total: pendingRecords.length,
+      updated,
+      errors,
+      unchanged: pendingRecords.length - updated - errors
+    };
+  }
+
 }

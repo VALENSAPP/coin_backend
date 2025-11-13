@@ -16,7 +16,6 @@ exports.KycController = void 0;
 const common_1 = require("@nestjs/common");
 const kyc_service_1 = require("./kyc.service");
 const swagger_1 = require("@nestjs/swagger");
-const webhook_dto_1 = require("./dto/webhook.dto");
 let KycController = class KycController {
     kycService;
     constructor(kycService) {
@@ -25,11 +24,33 @@ let KycController = class KycController {
     async startKyc(userId, documentType, firstName, lastName) {
         return this.kycService.createVeriffSession(userId, documentType, firstName, lastName);
     }
-    async webhook(body) {
-        return this.kycService.handleWebhook(body);
+    async handleWebhook(req) {
+        let body = req.body;
+        if (Buffer.isBuffer(body)) {
+            body = JSON.parse(body.toString());
+        }
+        console.log('📨 RAW VERIFF PAYLOAD:', JSON.stringify(body, null, 2));
+        const verification = body.resource || body.verification || body;
+        console.log('✅ Extracted verification object:', JSON.stringify(verification, null, 2));
+        const id = verification?.id;
+        const action = verification?.action;
+        const code = verification?.code;
+        console.log(`🔍 Webhook data - ID: ${id}, Action: ${action}, Code: ${code}`);
+        if (!id) {
+            console.error('❌ Missing verification id in payload');
+            return { success: false, message: 'Invalid payload structure', body };
+        }
+        await this.kycService.handleWebhook(verification);
+        return { success: true };
     }
     async getStatus(userId) {
         return this.kycService.getKycStatus(userId);
+    }
+    async syncStatus(userId) {
+        return this.kycService.syncKycStatus(userId);
+    }
+    async syncAllPending() {
+        return this.kycService.syncAllPendingKyc();
     }
 };
 exports.KycController = KycController;
@@ -57,14 +78,11 @@ __decorate([
 ], KycController.prototype, "startKyc", null);
 __decorate([
     (0, common_1.Post)('webhook'),
-    (0, swagger_1.ApiOperation)({ summary: 'Veriff Webhook' }),
-    (0, swagger_1.ApiBody)({ type: webhook_dto_1.VeriffWebhookDto }),
-    (0, swagger_1.ApiResponse)({ status: 200, description: 'Webhook handled successfully' }),
-    __param(0, (0, common_1.Body)()),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [webhook_dto_1.VeriffWebhookDto]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
-], KycController.prototype, "webhook", null);
+], KycController.prototype, "handleWebhook", null);
 __decorate([
     (0, common_1.Get)('status/:userId'),
     (0, swagger_1.ApiOperation)({ summary: 'Get KYC status' }),
@@ -75,6 +93,24 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], KycController.prototype, "getStatus", null);
+__decorate([
+    (0, common_1.Post)('sync/:userId'),
+    (0, swagger_1.ApiOperation)({ summary: 'Sync KYC status with Veriff API' }),
+    (0, swagger_1.ApiParam)({ name: 'userId', description: 'User ID' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'KYC status synced successfully' }),
+    __param(0, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], KycController.prototype, "syncStatus", null);
+__decorate([
+    (0, common_1.Post)('sync-all'),
+    (0, swagger_1.ApiOperation)({ summary: 'Sync all pending/submitted KYC records with Veriff API' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'All pending KYC records synced successfully' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], KycController.prototype, "syncAllPending", null);
 exports.KycController = KycController = __decorate([
     (0, swagger_1.ApiTags)('KYC'),
     (0, common_1.Controller)('kyc'),

@@ -1,5 +1,4 @@
 import { KycService } from './kyc.service';
-import { VeriffWebhookDto } from './dto/webhook.dto';
 export declare class KycController {
     private readonly kycService;
     constructor(kycService: KycService);
@@ -7,8 +6,14 @@ export declare class KycController {
         sessionId: any;
         url: any;
     }>;
-    webhook(body: VeriffWebhookDto): Promise<{
+    handleWebhook(req: any): Promise<{
         success: boolean;
+        message: string;
+        body: any;
+    } | {
+        success: boolean;
+        message?: undefined;
+        body?: undefined;
     }>;
     getStatus(userId: string): Promise<{
         id: number;
@@ -21,4 +26,22 @@ export declare class KycController {
         createdAt: Date;
         updatedAt: Date;
     } | null>;
+    syncStatus(userId: string): Promise<{
+        success: boolean;
+        message: string;
+        status?: undefined;
+        updated?: undefined;
+    } | {
+        success: boolean;
+        status: "PENDING" | "SUBMITTED" | "APPROVED" | "DECLINED";
+        updated: boolean;
+        message?: undefined;
+    }>;
+    syncAllPending(): Promise<{
+        success: boolean;
+        total: number;
+        updated: number;
+        errors: number;
+        unchanged: number;
+    }>;
 }
