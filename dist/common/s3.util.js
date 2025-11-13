@@ -17,6 +17,7 @@ async function uploadImageToS3(file, folder = 'uploads') {
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
+        ACL: 'public-read',
     };
     await s3.putObject(params).promise();
     return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
