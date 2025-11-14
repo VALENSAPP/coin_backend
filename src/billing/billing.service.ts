@@ -576,7 +576,7 @@ export class BillingService {
     // Update user fansPage to 1
     await this.prisma.user.update({
       where: { id: userId },
-      data: { fansPage: 1 },
+      data: { fansPage: 1 } as any,
     });
 
     console.log(`✅ Fans page subscription payment processed: User ${userId} fansPage set to 1`);
