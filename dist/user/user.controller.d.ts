@@ -567,6 +567,7 @@ export declare class UserController {
     getHitLeft(req: Request): Promise<{
         hitLeft: number;
         postCount: number;
+        profile: string | null;
     }>;
     setProfileStatus(req: Request, dto: ProfileStatusSetDto): Promise<{
         message: string;

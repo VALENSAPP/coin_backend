@@ -668,7 +668,11 @@ let UserService = class UserService {
             },
         });
         const hitLeft = postHit ? postHit.hitLeft : 0;
-        return { hitLeft, postCount };
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { profile: true },
+        });
+        return { hitLeft, postCount, profile: user?.profile || null };
     }
     async searchUser(query) {
         if (!query)

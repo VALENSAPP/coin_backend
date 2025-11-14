@@ -775,7 +775,13 @@ export class UserService {
     });
     const hitLeft = postHit ? postHit.hitLeft : 0;
 
-    return { hitLeft, postCount };
+    // Get user profile
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { profile: true },
+    });
+
+    return { hitLeft, postCount, profile: user?.profile || null };
   }
 
  async searchUser(query: string) {

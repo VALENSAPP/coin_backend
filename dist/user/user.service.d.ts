@@ -500,6 +500,7 @@ export declare class UserService {
     getHitLeft(userId: string): Promise<{
         hitLeft: number;
         postCount: number;
+        profile: string | null;
     }>;
     searchUser(query: string): Promise<{
         id: string;
