@@ -475,7 +475,7 @@ export class BillingService {
               name: `Buy ${hitCount} Hits`,
               description: `Purchase ${hitCount} additional hits for posting`,
             },
-            unit_amount: amount, // Amount in cents
+            unit_amount: amount * 100, // Amount in cents
           },
           quantity: 1,
         },
