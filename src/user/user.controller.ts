@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query, ParseUUIDPipe } from '@nestjs/common';
+import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query, ParseUUIDPipe,BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { ApiProperty } from '@nestjs/swagger';
@@ -701,18 +701,21 @@ export class UserController {
     return { message: 'User subscription created successfully', subscription };
   }
 
-  @Get('subscription')
+  // ✅ STATIC ROUTE FIRST (no :id parameter)
+  @Get('getSubscriptionByUserID/:userId')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user subscriptions' })
-  @ApiQuery({ name: 'userId', type: String, required: false, description: 'Filter by user ID' })
-  @ApiQuery({ name: 'status', enum: UserSubscriptionStatus, required: false, description: 'Filter by status' })
+  @ApiParam({ name: 'userId', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User subscriptions retrieved successfully' })
-  async getUserSubscriptions(@Query() query: any) {
-    const subscriptions = await this.userService.getUserSubscriptions(query.userId, query);
+  async getSubscriptionByUserID(@Param('userId') userId: string) {
+    console.log('[getUserSubscriptions] userId:', userId);
+
+    const subscriptions = await this.userService.getUserSubscriptions(userId);
     return { subscriptions };
   }
 
+  // ✅ DYNAMIC ROUTE SECOND (with :id parameter)
   @Get('subscription/:id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -746,7 +749,4 @@ export class UserController {
     await this.userService.deleteUserSubscription(id);
     return { message: 'User subscription deleted successfully' };
   }
-
-// duplicate removed; search route is defined above
-
 }

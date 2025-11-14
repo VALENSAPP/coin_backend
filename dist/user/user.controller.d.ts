@@ -680,7 +680,7 @@ export declare class UserController {
             isDelete: number;
         };
     }>;
-    getUserSubscriptions(query: any): Promise<{
+    getSubscriptionByUserID(userId: string): Promise<{
         subscriptions: ({
             user: {
                 id: string;

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsEnum, IsUUID } from 'class-validator';
 
 export enum UserSubscriptionStatus {
   ACTIVE = 'ACTIVE',
@@ -48,9 +48,4 @@ export class UserSubscriptionFilterDto {
   @IsOptional()
   @IsEnum(UserSubscriptionStatus)
   status?: UserSubscriptionStatus;
-
-  @ApiProperty({ description: 'Filter by user ID', example: 'uuid-string', required: false })
-  @IsOptional()
-  @IsString()
-  userId?: string;
 }

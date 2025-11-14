@@ -1193,22 +1193,12 @@ let UserService = class UserService {
             },
         });
     }
-    async getUserSubscriptions(userId, filters) {
-        const where = {};
-        if (userId) {
-            where.userId = userId;
-        }
-        if (filters?.status) {
-            where.status = filters.status;
-        }
-        if (filters?.isDelete !== undefined) {
-            where.isDelete = filters.isDelete;
-        }
-        else {
-            where.isDelete = 0;
-        }
+    async getUserSubscriptions(userId) {
         return this.prisma.userSubscription.findMany({
-            where,
+            where: {
+                isDelete: 0,
+                userId: userId,
+            },
             include: {
                 user: {
                     select: {

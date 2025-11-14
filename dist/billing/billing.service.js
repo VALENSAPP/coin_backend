@@ -437,7 +437,7 @@ let BillingService = class BillingService {
                             name: `Buy ${hitCount} Hits`,
                             description: `Purchase ${hitCount} additional hits for posting`,
                         },
-                        unit_amount: amount,
+                        unit_amount: amount * 100,
                     },
                     quantity: 1,
                 },

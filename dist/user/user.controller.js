@@ -593,8 +593,9 @@ let UserController = class UserController {
         const subscription = await this.userService.createUserSubscription(userId, dto);
         return { message: 'User subscription created successfully', subscription };
     }
-    async getUserSubscriptions(query) {
-        const subscriptions = await this.userService.getUserSubscriptions(query.userId, query);
+    async getSubscriptionByUserID(userId) {
+        console.log('[getUserSubscriptions] userId:', userId);
+        const subscriptions = await this.userService.getUserSubscriptions(userId);
         return { subscriptions };
     }
     async getUserSubscriptionById(id) {
@@ -998,18 +999,17 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "createUserSubscription", null);
 __decorate([
-    (0, common_1.Get)('subscription'),
+    (0, common_1.Get)('getSubscriptionByUserID/:userId'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
     (0, swagger_3.ApiOperation)({ summary: 'Get user subscriptions' }),
-    (0, swagger_3.ApiQuery)({ name: 'userId', type: String, required: false, description: 'Filter by user ID' }),
-    (0, swagger_3.ApiQuery)({ name: 'status', enum: user_subscription_dto_1.UserSubscriptionStatus, required: false, description: 'Filter by status' }),
+    (0, swagger_3.ApiParam)({ name: 'userId', type: String, description: 'User ID' }),
     (0, swagger_3.ApiResponse)({ status: 200, description: 'User subscriptions retrieved successfully' }),
-    __param(0, (0, common_1.Query)()),
+    __param(0, (0, common_1.Param)('userId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
-], UserController.prototype, "getUserSubscriptions", null);
+], UserController.prototype, "getSubscriptionByUserID", null);
 __decorate([
     (0, common_1.Get)('subscription/:id'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),

@@ -729,7 +729,7 @@ export declare class UserService {
         subscriptionAmount: number;
         isDelete: number;
     }>;
-    getUserSubscriptions(userId?: string, filters?: any): Promise<({
+    getUserSubscriptions(userId: string): Promise<({
         user: {
             id: string;
             email: string | null;

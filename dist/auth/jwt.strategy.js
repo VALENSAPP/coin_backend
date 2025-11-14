@@ -35,6 +35,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         if (!user) {
             throw new common_1.UnauthorizedException('Invalid credentials');
         }
+        console.log('Authenticated user:', { userId: payload.sub, email: payload.email });
         return { userId: payload.sub, email: payload.email, registrationType: payload.registrationType };
     }
 };

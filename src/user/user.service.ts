@@ -5,7 +5,7 @@ import { Gender } from './user.controller';
 import { randomBytes } from 'crypto';
 import { Express } from 'express';
 import * as AWS from 'aws-sdk';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, validate as uuidValidate } from 'uuid';
 import * as path from 'path';
 import * as sgMail from '@sendgrid/mail';
 import { JwtService } from '@nestjs/jwt';
@@ -1418,40 +1418,27 @@ export class UserService {
     });
   }
 
-  async getUserSubscriptions(userId?: string, filters?: any) {
-    const where: any = {};
-
-    if (userId) {
-      where.userId = userId;
-    }
-
-    if (filters?.status) {
-      where.status = filters.status;
-    }
-
-    if (filters?.isDelete !== undefined) {
-      where.isDelete = filters.isDelete;
-    } else {
-      // By default, exclude soft-deleted records
-      where.isDelete = 0;
-    }
-
-    return this.prisma.userSubscription.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            displayName: true,
-            email: true,
-          },
+ async getUserSubscriptions(userId: string) {
+  return this.prisma.userSubscription.findMany({
+    where: {
+      isDelete: 0,
+      userId: userId,  // UUID filter
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+}
+
 
   async getUserSubscriptionById(id: string) {
     const subscription = await this.prisma.userSubscription.findUnique({

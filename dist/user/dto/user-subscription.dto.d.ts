@@ -13,5 +13,4 @@ export declare class UpdateUserSubscriptionDto {
 }
 export declare class UserSubscriptionFilterDto {
     status?: UserSubscriptionStatus;
-    userId?: string;
 }

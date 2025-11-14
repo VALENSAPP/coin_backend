@@ -68,7 +68,6 @@ __decorate([
 ], UpdateUserSubscriptionDto.prototype, "isDelete", void 0);
 class UserSubscriptionFilterDto {
     status;
-    userId;
 }
 exports.UserSubscriptionFilterDto = UserSubscriptionFilterDto;
 __decorate([
@@ -77,10 +76,4 @@ __decorate([
     (0, class_validator_1.IsEnum)(UserSubscriptionStatus),
     __metadata("design:type", String)
 ], UserSubscriptionFilterDto.prototype, "status", void 0);
-__decorate([
-    (0, swagger_1.ApiProperty)({ description: 'Filter by user ID', example: 'uuid-string', required: false }),
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], UserSubscriptionFilterDto.prototype, "userId", void 0);
 //# sourceMappingURL=user-subscription.dto.js.map
