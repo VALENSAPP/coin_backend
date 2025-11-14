@@ -154,7 +154,7 @@ export class BillingService {
     if (postHit) {
       await this.prisma.postHit.update({
         where: { id: postHit.id },
-        data: { hitLeft: 7 },
+        data: { hitLeft: 2 },
       });
     } else {
       await this.prisma.postHit.create({
@@ -504,6 +504,82 @@ export class BillingService {
     });
 
     return { sessionId: session.id, url: session.url };
+  }
+
+  async createFansPageSubscriptionCheckoutSession(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: 'price_1STKIwEfZnDK6m7OP2vahCdr',
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: process.env.STRIPE_SUCCESS_URL!,
+      cancel_url: process.env.STRIPE_CANCEL_URL!,
+      metadata: {
+        type: 'fans_page_subscription',
+        userId: userId,
+      },
+      customer_email: user.email || undefined,
+    });
+
+    // Create pending payment record
+    await this.prisma.payment.create({
+      data: {
+        userId: userId,
+        amount: session.amount_total || 0,
+        currency: session.currency?.toUpperCase() || 'USD',
+        status: 'pending',
+        forPayment: 'fanSubscription',
+        stripePaymentIntentId: session.payment_intent as string,
+      },
+    });
+
+    return { sessionId: session.id, url: session.url };
+  }
+
+  async handleFansPageSubscriptionPayment(session: Stripe.Checkout.Session) {
+    const userId = session.metadata?.userId;
+
+    if (!userId) {
+      console.error('Missing userId in fans_page_subscription session metadata');
+      return;
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      console.error(`User ${userId} not found for fans_page_subscription payment`);
+      return;
+    }
+
+    // Update the existing pending payment record to success
+    const paymentIntentId = session.payment_intent as string;
+    await this.prisma.payment.updateMany({
+      where: {
+        userId: userId,
+        stripePaymentIntentId: paymentIntentId,
+        forPayment: 'fanSubscription',
+        status: 'pending'
+      },
+      data: {
+        status: 'succeeded',
+        amount: session.amount_total || 0,
+        currency: session.currency?.toUpperCase() || 'USD',
+      },
+    });
+
+    // Update user fansPage to 1
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { fansPage: 1 },
+    });
+
+    console.log(`✅ Fans page subscription payment processed: User ${userId} fansPage set to 1`);
   }
 
   async handleBuyHitPayment(session: Stripe.Checkout.Session) {

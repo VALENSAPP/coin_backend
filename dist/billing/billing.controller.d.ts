@@ -35,15 +35,15 @@ export declare class BillingController {
     }>;
     getLatestTransactions(req: Request): Promise<{
         transactions: {
-            userId: string;
-            status: string;
             id: string;
             createdAt: Date;
-            amount: number;
+            userId: string;
             currency: string;
-            stripePaymentIntentId: string | null;
-            stripeInvoiceId: string | null;
+            amount: number;
+            status: string;
             forPayment: string;
+            stripeInvoiceId: string | null;
+            stripePaymentIntentId: string | null;
             periodStart: Date | null;
             periodEnd: Date | null;
         }[];
@@ -56,11 +56,11 @@ export declare class BillingController {
     }>;
     getWithdrawalHistory(req: Request): Promise<{
         withdrawals: {
-            userId: string;
-            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            userId: string;
+            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
         }[];
@@ -72,5 +72,8 @@ export declare class BillingController {
         sessionId: string;
         url: string | null;
         message: string;
+    }>;
+    fansPageSubscription(req: Request): Promise<{
+        url: string | null;
     }>;
 }

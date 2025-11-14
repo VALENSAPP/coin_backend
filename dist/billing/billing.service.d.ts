@@ -20,15 +20,15 @@ export declare class BillingService {
     handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void>;
     handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
     getLatestTransactions(userId: string): Promise<{
-        userId: string;
-        status: string;
         id: string;
         createdAt: Date;
-        amount: number;
+        userId: string;
         currency: string;
-        stripePaymentIntentId: string | null;
-        stripeInvoiceId: string | null;
+        amount: number;
+        status: string;
         forPayment: string;
+        stripeInvoiceId: string | null;
+        stripePaymentIntentId: string | null;
         periodStart: Date | null;
         periodEnd: Date | null;
     }[]>;
@@ -39,11 +39,11 @@ export declare class BillingService {
         status: string;
     }>;
     getWithdrawalHistory(userId: string): Promise<{
-        userId: string;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
+        status: string;
         withdrawAmount: number | null;
         txhash: string | null;
     }[]>;
@@ -60,5 +60,10 @@ export declare class BillingService {
         sessionId: string;
         url: string | null;
     }>;
+    createFansPageSubscriptionCheckoutSession(userId: string): Promise<{
+        sessionId: string;
+        url: string | null;
+    }>;
+    handleFansPageSubscriptionPayment(session: Stripe.Checkout.Session): Promise<void>;
     handleBuyHitPayment(session: Stripe.Checkout.Session): Promise<void>;
 }

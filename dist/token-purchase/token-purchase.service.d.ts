@@ -27,9 +27,9 @@ export declare class TokenPurchaseService {
     getUserTokenBalance(userId: string): Promise<number>;
     getVendorTokenAmount(userId: string, vendorId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{
+        status: string;
         id: string;
         createdAt: Date;
-        status: string;
         completedAt: Date | null;
         amount: number;
         platformFee: number;

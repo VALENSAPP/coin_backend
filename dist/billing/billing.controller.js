@@ -107,6 +107,11 @@ let BillingController = class BillingController {
         const result = await this.billingService.buyHit(dto.amount, dto.hitCount, dto.userId);
         return { message: 'Checkout session created', ...result };
     }
+    async fansPageSubscription(req) {
+        const userId = req.user.userId;
+        const session = await this.billingService.createFansPageSubscriptionCheckoutSession(userId);
+        return { url: session.url };
+    }
 };
 exports.BillingController = BillingController;
 __decorate([
@@ -217,6 +222,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, buy_hit_dto_1.BuyHitDto]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "buyHit", null);
+__decorate([
+    (0, common_1.Post)('fans-page-subscription'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe Checkout Session for fans page subscription' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "fansPageSubscription", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),

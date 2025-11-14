@@ -161,7 +161,7 @@ let BillingService = class BillingService {
         if (postHit) {
             await this.prisma.postHit.update({
                 where: { id: postHit.id },
-                data: { hitLeft: 7 },
+                data: { hitLeft: 2 },
             });
         }
         else {
@@ -463,6 +463,70 @@ let BillingService = class BillingService {
             },
         });
         return { sessionId: session.id, url: session.url };
+    }
+    async createFansPageSubscriptionCheckoutSession(userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        const session = await this.stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [
+                {
+                    price: 'price_1STKIwEfZnDK6m7OP2vahCdr',
+                    quantity: 1,
+                },
+            ],
+            mode: 'payment',
+            success_url: process.env.STRIPE_SUCCESS_URL,
+            cancel_url: process.env.STRIPE_CANCEL_URL,
+            metadata: {
+                type: 'fans_page_subscription',
+                userId: userId,
+            },
+            customer_email: user.email || undefined,
+        });
+        await this.prisma.payment.create({
+            data: {
+                userId: userId,
+                amount: session.amount_total || 0,
+                currency: session.currency?.toUpperCase() || 'USD',
+                status: 'pending',
+                forPayment: 'fanSubscription',
+                stripePaymentIntentId: session.payment_intent,
+            },
+        });
+        return { sessionId: session.id, url: session.url };
+    }
+    async handleFansPageSubscriptionPayment(session) {
+        const userId = session.metadata?.userId;
+        if (!userId) {
+            console.error('Missing userId in fans_page_subscription session metadata');
+            return;
+        }
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            console.error(`User ${userId} not found for fans_page_subscription payment`);
+            return;
+        }
+        const paymentIntentId = session.payment_intent;
+        await this.prisma.payment.updateMany({
+            where: {
+                userId: userId,
+                stripePaymentIntentId: paymentIntentId,
+                forPayment: 'fanSubscription',
+                status: 'pending'
+            },
+            data: {
+                status: 'succeeded',
+                amount: session.amount_total || 0,
+                currency: session.currency?.toUpperCase() || 'USD',
+            },
+        });
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { fansPage: 1 },
+        });
+        console.log(`✅ Fans page subscription payment processed: User ${userId} fansPage set to 1`);
     }
     async handleBuyHitPayment(session) {
         const userId = session.metadata?.userId;

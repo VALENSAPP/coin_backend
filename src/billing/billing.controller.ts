@@ -156,6 +156,16 @@ export class BillingController {
     const result = await this.billingService.buyHit(dto.amount, dto.hitCount, dto.userId);
     return { message: 'Checkout session created', ...result };
   }
+
+  @Post('fans-page-subscription')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for fans page subscription' })
+  async fansPageSubscription(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    const session = await this.billingService.createFansPageSubscriptionCheckoutSession(userId);
+    return { url: session.url };
+  }
 }
 
 

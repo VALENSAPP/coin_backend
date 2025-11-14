@@ -64,6 +64,7 @@ export declare class StoryService {
             stripeBankAccountId: string | null;
             refreshToken: string | null;
             refreshTokenExpiresAt: Date | null;
+            fansPage: number;
         };
     } & {
         userId: string;

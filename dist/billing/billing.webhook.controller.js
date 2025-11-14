@@ -48,6 +48,9 @@ let BillingWebhookController = class BillingWebhookController {
                 else if (session.metadata?.type === 'buy_hit') {
                     await this.billingService.handleBuyHitPayment(session);
                 }
+                else if (session.metadata?.type === 'fans_page_subscription') {
+                    await this.billingService.handleFansPageSubscriptionPayment(session);
+                }
                 else {
                     await this.billingService.handleCheckoutSessionCompleted(session);
                 }

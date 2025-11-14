@@ -47,6 +47,7 @@ model User {
   refreshToken         String?
   refreshTokenExpiresAt DateTime?
   profileStatus        String                  @default("public")
+  fansPage             Int                     @default(0)
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")
