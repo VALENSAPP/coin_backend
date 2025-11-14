@@ -5,5 +5,6 @@ export declare class EditPostDto {
     location?: string;
     music?: string;
     taggedPeople?: string[];
+    visibleTo?: string;
     images?: any[];
 }

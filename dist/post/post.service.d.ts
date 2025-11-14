@@ -2,7 +2,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export declare class PostService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date): Promise<{
+    createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, visibleTo?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date): Promise<{
         type: string | null;
         userId: string;
         id: string;
@@ -20,6 +20,7 @@ export declare class PostService {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        visibleTo: string | null;
     }>;
     savePost(postId: string, userId: string): Promise<{
         message: string;
@@ -51,6 +52,7 @@ export declare class PostService {
         isFollow: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -81,6 +83,7 @@ export declare class PostService {
         isHide: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -111,6 +114,7 @@ export declare class PostService {
         isHide: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -141,6 +145,7 @@ export declare class PostService {
         isHide: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -189,6 +194,7 @@ export declare class PostService {
             isHide: boolean;
             type: string | null;
             link: string | null;
+            visibleTo: any;
             start_time: Date | null;
             end_time: Date | null;
             raiseAmount: number | null;
@@ -220,6 +226,7 @@ export declare class PostService {
         isFollow: boolean;
         isHide: boolean;
         type: string | null;
+        visibleTo: any;
     }[]>;
     deletePost(postId: string, userId: string): Promise<boolean>;
     editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]): Promise<{
@@ -240,6 +247,7 @@ export declare class PostService {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        visibleTo: string | null;
     }>;
     postLikeByUser(postId: string, userId: string): Promise<{
         message: string;
@@ -308,6 +316,7 @@ export declare class PostService {
         raiseAmount: number | null;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
     }[]>;
@@ -337,6 +346,7 @@ export declare class PostService {
             likeCount: number;
             commentCount: number;
             shareCount: number;
+            visibleTo: any;
         } | null;
         sharedBy: {
             id: string;
@@ -380,6 +390,7 @@ export declare class PostService {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        visibleTo: string | null;
     }[]>;
     sendMessage(senderId: string, receiverId: string, message: string): Promise<{
         type: import(".prisma/client").$Enums.ConversationType;

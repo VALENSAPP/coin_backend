@@ -10,7 +10,7 @@ import { endWith } from 'rxjs';
 export class PostService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date) {
+  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, visibleTo?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
 
@@ -63,6 +63,7 @@ export class PostService {
         location: location?.trim() || null,
         music: music?.trim() || null,
         link: link?.trim() || null,
+        visibleTo: visibleTo?.trim() || null,
         hashtag: hashtag?.filter(Boolean) || [],
         taggedPeople: taggedPeople?.filter(Boolean) || [],
         raiseAmount: raiseAmount ? Number(raiseAmount) : null,
@@ -235,6 +236,7 @@ export class PostService {
     isFollow: !!followMap[post.userId],
     type:post.type,
     link:post.link,
+    visibleTo: (post as any).visibleTo,
     start_time:post.start_time,
     end_time:post.end_time,
     raiseAmount:post.raiseAmount,
@@ -325,6 +327,7 @@ export class PostService {
     isHide: !!hidden,
     type:post.type,
     link:post.link,
+    visibleTo: (post as any).visibleTo,
     start_time:post.start_time,
     end_time:post.end_time,
     raiseAmount:post.raiseAmount,
@@ -421,6 +424,7 @@ async getAllPost(viewerUserId?: string) {
     isHide: hiddenSet.has(post.id),
     type:post.type,
     link:post.link,
+    visibleTo: (post as any).visibleTo,
     start_time:post.start_time,
     end_time:post.end_time,
     raiseAmount:post.raiseAmount,
@@ -553,9 +557,10 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         isHide: hiddenSet.has(post.id),
         type: post.type,
          link:post.link,
-    start_time:post.start_time,
-    end_time:post.end_time,
-    raiseAmount:post.raiseAmount,
+         visibleTo: (post as any).visibleTo,
+      start_time:post.start_time,
+      end_time:post.end_time,
+      raiseAmount:post.raiseAmount,
       }));
 
       return { type: 'posts', data: formattedPosts };
@@ -652,9 +657,10 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       isHide: hiddenSet.has(post.id),
       type: post.type,
        link:post.link,
-    start_time:post.start_time,
-    end_time:post.end_time,
-    raiseAmount:post.raiseAmount,
+       visibleTo: (post as any).visibleTo,
+  start_time:post.start_time,
+  end_time:post.end_time,
+  raiseAmount:post.raiseAmount,
     }));
   }
 }
@@ -752,6 +758,7 @@ async getAllReel(viewerUserId?: string) {
     isFollow: !!followMap[post.userId],
     isHide: hiddenSet.has(post.id),
     type: post.type,
+    visibleTo: (post as any).visibleTo,
   }));
 }
 
@@ -825,6 +832,14 @@ async getAllReel(viewerUserId?: string) {
     // Only update taggedPeople if it's provided and not empty array
     if (updateData.taggedPeople !== undefined && Array.isArray(updateData.taggedPeople)) {
       updateFields.taggedPeople = updateData.taggedPeople.length > 0 ? updateData.taggedPeople : [];
+    }
+
+    // Only update visibleTo if it's provided and not empty string
+    if (updateData.visibleTo !== undefined && updateData.visibleTo !== null && updateData.visibleTo.trim() !== '') {
+      updateFields.visibleTo = updateData.visibleTo;
+    } else if (updateData.visibleTo === '') {
+      // If empty string is explicitly sent, set to null
+      updateFields.visibleTo = null;
     }
     
     // Update images if new files are uploaded
@@ -1095,6 +1110,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       raiseAmount:post.raiseAmount,
       type:post.type,
       link:post.link,
+      visibleTo: (post as any).visibleTo,
       start_time:post.start_time,
       end_time:post.end_time,
     };
@@ -1191,6 +1207,7 @@ async getSharedPostList(userId: string) {
       likeCount: conv.post._count.likes,
       commentCount: conv.post._count.comments,
       shareCount: conv.post._count.conversations,
+      visibleTo: (conv.post as any).visibleTo,
     },
     sharedBy: conv.sender && {
       id: conv.sender.id,

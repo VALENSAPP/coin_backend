@@ -49,6 +49,12 @@ export class CreatePostDto {
   @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
   link?: string;
 
+  @ApiProperty({ description: 'Visibility setting for the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  visibleTo?: string;
+
   @ApiProperty({ description: 'Tagged people user IDs', required: false, isArray: true, type: String })
   @IsOptional()
   @Transform(({ value }: { value: any }) => {

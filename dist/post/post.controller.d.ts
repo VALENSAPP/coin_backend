@@ -30,6 +30,7 @@ export declare class PostController {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        visibleTo: string | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
         type: string | null;
@@ -49,6 +50,7 @@ export declare class PostController {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        visibleTo: string | null;
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
         id: string;
@@ -74,6 +76,7 @@ export declare class PostController {
         isFollow: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -104,6 +107,7 @@ export declare class PostController {
         isHide: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -134,6 +138,7 @@ export declare class PostController {
         isHide: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -182,6 +187,7 @@ export declare class PostController {
             isHide: boolean;
             type: string | null;
             link: string | null;
+            visibleTo: any;
             start_time: Date | null;
             end_time: Date | null;
             raiseAmount: number | null;
@@ -213,6 +219,7 @@ export declare class PostController {
         isFollow: boolean;
         isHide: boolean;
         type: string | null;
+        visibleTo: any;
     }[]>;
     deletePost(req: Request, query: DeletePostDto): Promise<boolean>;
     postLikeByUser(req: Request, body: PostLikeByUserDto): Promise<{
@@ -291,6 +298,7 @@ export declare class PostController {
         raiseAmount: number | null;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
     }[]>;
@@ -320,6 +328,7 @@ export declare class PostController {
         isHide: boolean;
         type: string | null;
         link: string | null;
+        visibleTo: any;
         start_time: Date | null;
         end_time: Date | null;
         raiseAmount: number | null;
@@ -350,6 +359,7 @@ export declare class PostController {
             likeCount: number;
             commentCount: number;
             shareCount: number;
+            visibleTo: any;
         } | null;
         sharedBy: {
             id: string;
@@ -393,6 +403,7 @@ export declare class PostController {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
+        visibleTo: string | null;
     }[]>;
     sendMessage(req: Request, dto: SendMessageDto): Promise<{
         type: import(".prisma/client").$Enums.ConversationType;

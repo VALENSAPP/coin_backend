@@ -95,6 +95,7 @@ model Post {
   end_time     DateTime?
   type         String?
   link         String?
+  visibleTo    String?
   hides        HidePost[]
   user         User          @relation(fields: [userId], references: [id])
   comments     PostComment[]

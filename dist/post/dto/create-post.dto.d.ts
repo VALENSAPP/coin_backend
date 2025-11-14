@@ -5,6 +5,7 @@ export declare class CreatePostDto {
     location?: string;
     music?: string;
     link?: string;
+    visibleTo?: string;
     taggedPeople?: string[];
     images?: any[];
     type?: string;

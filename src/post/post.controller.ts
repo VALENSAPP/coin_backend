@@ -34,6 +34,7 @@ export class PostController {
         location: { type: 'string', description: 'Location for the post' },
         music: { type: 'string', description: 'Music for the post' },
         link: { type: 'string', description: 'Link for the post' },
+        visibleTo: { type: 'string', description: 'Visibility setting for the post' },
         taggedPeople: { type: 'array', items: { type: 'string' }, description: 'Tagged people user IDs' },
         images: {
           type: 'array',
@@ -68,6 +69,7 @@ export class PostController {
       body.location,
       body.music,
       body.link,
+      body.visibleTo,
       body.taggedPeople,
       body.type,
       body.raiseAmount,
@@ -91,6 +93,7 @@ export class PostController {
         location: { type: 'string', description: 'Location for the post' },
         music: { type: 'string', description: 'Music for the post' },
         link: { type: 'string', description: 'Link for the post' },
+        visibleTo: { type: 'string', description: 'Visibility setting for the post' },
         taggedPeople: { type: 'array', items: { type: 'string' }, description: 'Tagged people user IDs' },
         images: {
           type: 'array',

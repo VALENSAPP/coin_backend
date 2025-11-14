@@ -34,7 +34,7 @@ let PostController = class PostController {
     }
     async createPost(req, body, files) {
         const userId = req.user.userId;
-        return this.postService.createPost(userId, body.text, undefined, files, body.caption, body.hashtag, body.location, body.music, body.link, body.taggedPeople, body.type, body.raiseAmount, body.start_time, body.end_time);
+        return this.postService.createPost(userId, body.text, undefined, files, body.caption, body.hashtag, body.location, body.music, body.link, body.visibleTo, body.taggedPeople, body.type, body.raiseAmount, body.start_time, body.end_time);
     }
     async editPost(req, postId, body, files) {
         console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
@@ -158,6 +158,7 @@ __decorate([
                 location: { type: 'string', description: 'Location for the post' },
                 music: { type: 'string', description: 'Music for the post' },
                 link: { type: 'string', description: 'Link for the post' },
+                visibleTo: { type: 'string', description: 'Visibility setting for the post' },
                 taggedPeople: { type: 'array', items: { type: 'string' }, description: 'Tagged people user IDs' },
                 images: {
                     type: 'array',
@@ -199,6 +200,7 @@ __decorate([
                 location: { type: 'string', description: 'Location for the post' },
                 music: { type: 'string', description: 'Music for the post' },
                 link: { type: 'string', description: 'Link for the post' },
+                visibleTo: { type: 'string', description: 'Visibility setting for the post' },
                 taggedPeople: { type: 'array', items: { type: 'string' }, description: 'Tagged people user IDs' },
                 images: {
                     type: 'array',

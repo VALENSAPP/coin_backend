@@ -20,6 +20,7 @@ class EditPostDto {
     location;
     music;
     taggedPeople;
+    visibleTo;
     images;
 }
 exports.EditPostDto = EditPostDto;
@@ -75,6 +76,12 @@ __decorate([
     }),
     __metadata("design:type", Array)
 ], EditPostDto.prototype, "taggedPeople", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Visibility setting for the post', required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], EditPostDto.prototype, "visibleTo", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true }),
     (0, class_validator_1.IsOptional)(),

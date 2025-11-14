@@ -18,7 +18,7 @@ let PostService = class PostService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async createPost(userId, text, images, files, caption, hashtag, location, music, link, taggedPeople, type, raiseAmount, start_time, end_time) {
+    async createPost(userId, text, images, files, caption, hashtag, location, music, link, visibleTo, taggedPeople, type, raiseAmount, start_time, end_time) {
         try {
             if (!userId)
                 throw new common_1.BadRequestException('User ID required');
@@ -60,6 +60,7 @@ let PostService = class PostService {
                 location: location?.trim() || null,
                 music: music?.trim() || null,
                 link: link?.trim() || null,
+                visibleTo: visibleTo?.trim() || null,
                 hashtag: hashtag?.filter(Boolean) || [],
                 taggedPeople: taggedPeople?.filter(Boolean) || [],
                 raiseAmount: raiseAmount ? Number(raiseAmount) : null,
@@ -215,6 +216,7 @@ let PostService = class PostService {
             isFollow: !!followMap[post.userId],
             type: post.type,
             link: post.link,
+            visibleTo: post.visibleTo,
             start_time: post.start_time,
             end_time: post.end_time,
             raiseAmount: post.raiseAmount,
@@ -292,6 +294,7 @@ let PostService = class PostService {
             isHide: !!hidden,
             type: post.type,
             link: post.link,
+            visibleTo: post.visibleTo,
             start_time: post.start_time,
             end_time: post.end_time,
             raiseAmount: post.raiseAmount,
@@ -376,6 +379,7 @@ let PostService = class PostService {
             isHide: hiddenSet.has(post.id),
             type: post.type,
             link: post.link,
+            visibleTo: post.visibleTo,
             start_time: post.start_time,
             end_time: post.end_time,
             raiseAmount: post.raiseAmount,
@@ -490,6 +494,7 @@ let PostService = class PostService {
                     isHide: hiddenSet.has(post.id),
                     type: post.type,
                     link: post.link,
+                    visibleTo: post.visibleTo,
                     start_time: post.start_time,
                     end_time: post.end_time,
                     raiseAmount: post.raiseAmount,
@@ -576,6 +581,7 @@ let PostService = class PostService {
                 isHide: hiddenSet.has(post.id),
                 type: post.type,
                 link: post.link,
+                visibleTo: post.visibleTo,
                 start_time: post.start_time,
                 end_time: post.end_time,
                 raiseAmount: post.raiseAmount,
@@ -663,6 +669,7 @@ let PostService = class PostService {
             isFollow: !!followMap[post.userId],
             isHide: hiddenSet.has(post.id),
             type: post.type,
+            visibleTo: post.visibleTo,
         }));
     }
     async deletePost(postId, userId) {
@@ -719,6 +726,12 @@ let PostService = class PostService {
         }
         if (updateData.taggedPeople !== undefined && Array.isArray(updateData.taggedPeople)) {
             updateFields.taggedPeople = updateData.taggedPeople.length > 0 ? updateData.taggedPeople : [];
+        }
+        if (updateData.visibleTo !== undefined && updateData.visibleTo !== null && updateData.visibleTo.trim() !== '') {
+            updateFields.visibleTo = updateData.visibleTo;
+        }
+        else if (updateData.visibleTo === '') {
+            updateFields.visibleTo = null;
         }
         if (files && files.length > 0) {
             updateFields.images = imageUrls;
@@ -960,6 +973,7 @@ let PostService = class PostService {
                 raiseAmount: post.raiseAmount,
                 type: post.type,
                 link: post.link,
+                visibleTo: post.visibleTo,
                 start_time: post.start_time,
                 end_time: post.end_time,
             };
@@ -1046,6 +1060,7 @@ let PostService = class PostService {
                 likeCount: conv.post._count.likes,
                 commentCount: conv.post._count.comments,
                 shareCount: conv.post._count.conversations,
+                visibleTo: conv.post.visibleTo,
             },
             sharedBy: conv.sender && {
                 id: conv.sender.id,

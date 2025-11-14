@@ -20,6 +20,7 @@ class CreatePostDto {
     location;
     music;
     link;
+    visibleTo;
     taggedPeople;
     images;
     type;
@@ -83,6 +84,13 @@ __decorate([
     (0, class_transformer_1.Transform)(({ value }) => value && value.trim() !== '' ? value : null),
     __metadata("design:type", String)
 ], CreatePostDto.prototype, "link", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({ description: 'Visibility setting for the post', required: false }),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_transformer_1.Transform)(({ value }) => value && value.trim() !== '' ? value : null),
+    __metadata("design:type", String)
+], CreatePostDto.prototype, "visibleTo", void 0);
 __decorate([
     (0, swagger_1.ApiProperty)({ description: 'Tagged people user IDs', required: false, isArray: true, type: String }),
     (0, class_validator_1.IsOptional)(),

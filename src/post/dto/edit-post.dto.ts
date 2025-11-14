@@ -43,6 +43,11 @@ export class EditPostDto {
   })
   taggedPeople?: string[];
 
+  @ApiProperty({ description: 'Visibility setting for the post', required: false })
+  @IsOptional()
+  @IsString()
+  visibleTo?: string;
+
   @ApiProperty({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true })
   @IsOptional()
   @Transform(({ value }: { value: any }) => {
