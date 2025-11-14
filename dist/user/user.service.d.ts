@@ -497,7 +497,10 @@ export declare class UserService {
         totalFollowing: number;
         totalFollowers: number;
     }>;
-    getHitLeft(userId: string): Promise<number>;
+    getHitLeft(userId: string): Promise<{
+        hitLeft: number;
+        postCount: number;
+    }>;
     searchUser(query: string): Promise<{
         id: string;
         email: string | null;

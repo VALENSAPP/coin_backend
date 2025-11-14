@@ -566,8 +566,8 @@ let UserController = class UserController {
     }
     async getHitLeft(req) {
         const userId = req.user.userId;
-        const hitLeft = await this.userService.getHitLeft(userId);
-        return { hitLeft };
+        const result = await this.userService.getHitLeft(userId);
+        return result;
     }
     async setProfileStatus(req, dto) {
         const userId = req.user.userId;
@@ -925,7 +925,7 @@ __decorate([
     (0, common_1.Get)('getHitLeft'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_3.ApiOperation)({ summary: 'Get user hit left' }),
+    (0, swagger_3.ApiOperation)({ summary: 'Get user hit left and post count' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),

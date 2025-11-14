@@ -651,13 +651,24 @@ let UserService = class UserService {
     async getHitLeft(userId) {
         if (!userId)
             throw new common_1.BadRequestException('User ID required');
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const postCount = await this.prisma.post.count({
+            where: {
+                userId,
+                type: { in: ['crowdfunding', 'support'] },
+                createdAt: { gte: startOfMonth, lt: startOfNextMonth },
+            },
+        });
         const postHit = await this.prisma.postHit.findFirst({
             where: { userId },
             orderBy: {
                 createdAt: 'desc',
             },
         });
-        return postHit ? postHit.hitLeft : 0;
+        const hitLeft = postHit ? postHit.hitLeft : 0;
+        return { hitLeft, postCount };
     }
     async searchUser(query) {
         if (!query)

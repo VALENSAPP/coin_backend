@@ -634,11 +634,11 @@ export class UserController {
   @Get('getHitLeft')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user hit left' })
+  @ApiOperation({ summary: 'Get user hit left and post count' })
   async getHitLeft(@Req() req: Request) {
     const userId = (req.user as any).userId;
-    const hitLeft = await this.userService.getHitLeft(userId);
-    return { hitLeft };
+    const result = await this.userService.getHitLeft(userId);
+    return result;
   }
 
   @Post('profileStatusSet')
