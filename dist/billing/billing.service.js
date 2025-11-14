@@ -465,14 +465,24 @@ let BillingService = class BillingService {
         return { sessionId: session.id, url: session.url };
     }
     async createFansPageSubscriptionCheckoutSession(userId) {
+        const customerId = await this.ensureStripeCustomer(userId);
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user)
             throw new common_1.BadRequestException('User not found');
+        const price = await this.stripe.prices.retrieve('price_1STKIwEfZnDK6m7OP2vahCdr');
+        const amount = price.unit_amount || 0;
         const session = await this.stripe.checkout.sessions.create({
             payment_method_types: ['card'],
+            customer: customerId,
             line_items: [
                 {
-                    price: 'price_1STKIwEfZnDK6m7OP2vahCdr',
+                    price_data: {
+                        currency: 'usd',
+                        product_data: {
+                            name: 'Fans Page Subscription',
+                        },
+                        unit_amount: amount,
+                    },
                     quantity: 1,
                 },
             ],
@@ -483,13 +493,12 @@ let BillingService = class BillingService {
                 type: 'fans_page_subscription',
                 userId: userId,
             },
-            customer_email: user.email || undefined,
         });
         await this.prisma.payment.create({
             data: {
                 userId: userId,
-                amount: session.amount_total || 0,
-                currency: session.currency?.toUpperCase() || 'USD',
+                amount: amount,
+                currency: 'USD',
                 status: 'pending',
                 forPayment: 'fanSubscription',
                 stripePaymentIntentId: session.payment_intent,
