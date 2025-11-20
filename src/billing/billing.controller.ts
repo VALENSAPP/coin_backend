@@ -17,24 +17,6 @@ export class RequestWithdrawalDto {
   @Min(10)
   @IsNotEmpty()
   amount: number;
-
-  @ApiProperty({
-    description: 'Bank account details for withdrawal',
-    example: {
-      accountNumber: '1234567890',
-      routingNumber: '021000021',
-      accountHolderName: 'John Doe',
-      bankName: 'Bank of America'
-    }
-  })
-  @IsObject()
-  @IsNotEmpty()
-  bankDetails: {
-    accountNumber: string;
-    routingNumber: string;
-    accountHolderName: string;
-    bankName: string;
-  };
 }
 
 @ApiTags('billing')
@@ -112,11 +94,11 @@ export class BillingController {
   @Post('request-withdrawal')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Request withdrawal to bank account' })
+  @ApiOperation({ summary: 'Request withdrawal to connected Stripe account' })
   @ApiBody({ type: RequestWithdrawalDto })
   async requestWithdrawal(@Req() req: Request, @Body() dto: RequestWithdrawalDto) {
     const userId = (req.user as any).userId;
-    const result = await this.billingService.requestWithdrawal(userId, dto.amount, dto.bankDetails);
+    const result = await this.billingService.requestWithdrawal(userId, dto.amount);
     return result;
   }
 

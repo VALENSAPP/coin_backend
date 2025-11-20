@@ -22,6 +22,7 @@ const s3_util_1 = require("../common/s3.util");
 const wallet_util_1 = require("../common/wallet.util");
 const crypto_util_1 = require("../common/crypto.util");
 const admin = require("firebase-admin");
+const totp_util_1 = require("../common/totp.util");
 const axios_1 = require("axios");
 const serviceAccountPath = path.join(process.cwd(), 'config', 'service-account-key.json');
 if (!admin.apps.length) {
@@ -1269,6 +1270,79 @@ let UserService = class UserService {
         return this.prisma.userSubscription.delete({
             where: { id },
         });
+    }
+    async enableTwoFactor(userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        if (user.twoFact === 1) {
+            throw new common_1.BadRequestException('Two-factor authentication is already enabled');
+        }
+        const secret = totp_util_1.TOTPUtil.generateSecret();
+        const accountName = user.email || user.userName || 'User';
+        const otpauthUrl = totp_util_1.TOTPUtil.generateGoogleAuthURL(secret, accountName);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { twoFactorSecret: secret },
+        });
+        return {
+            message: 'Two-factor authentication setup initiated',
+            secret: secret,
+            otpauthUrl: otpauthUrl,
+            qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`,
+        };
+    }
+    async verifyAndEnableTwoFactor(userId, token) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        if (!user.twoFactorSecret) {
+            throw new common_1.BadRequestException('Two-factor authentication setup not initiated');
+        }
+        const isValid = totp_util_1.TOTPUtil.verifyTOTP(user.twoFactorSecret, token);
+        if (!isValid) {
+            throw new common_1.BadRequestException('Invalid verification code');
+        }
+        if (user.twoFact === 1) {
+            return { message: 'verification success' };
+        }
+        else {
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { twoFact: 1 },
+            });
+            return { message: 'Two-factor authentication enabled successfully' };
+        }
+    }
+    async disableTwoFactor(userId, token) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
+        if (user.twoFact !== 1) {
+            throw new common_1.BadRequestException('Two-factor authentication is not enabled');
+        }
+        if (!user.twoFactorSecret) {
+            throw new common_1.BadRequestException('Two-factor secret not found');
+        }
+        const isValid = totp_util_1.TOTPUtil.verifyTOTP(user.twoFactorSecret, token);
+        if (!isValid) {
+            throw new common_1.BadRequestException('Invalid verification code');
+        }
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                twoFact: 0,
+                twoFactorSecret: null,
+            },
+        });
+        return { message: 'Two-factor authentication disabled successfully' };
+    }
+    async verifyTwoFactor(userId, token) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || user.twoFact !== 1 || !user.twoFactorSecret) {
+            return false;
+        }
+        return totp_util_1.TOTPUtil.verifyTOTP(user.twoFactorSecret, token);
     }
 };
 exports.UserService = UserService;

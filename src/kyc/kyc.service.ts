@@ -223,11 +223,11 @@ export class KycService {
   /**
    * Cron job: Sync all pending/submitted KYC records every 5 minutes
    */
-  @Cron('*/2 * * * * *') // Every 2 minutes
-  async syncPendingKycCron() {
-    console.log('⏰ Cron: Starting scheduled KYC status sync...');
-    await this.syncAllPendingKyc();
-  }
+  // @Cron('*/2 * * * * *') // Every 2 minutes
+  // async syncPendingKycCron() {
+  //   console.log('⏰ Cron: Starting scheduled KYC status sync...');
+  //   await this.syncAllPendingKyc();
+  // }
 
   /**
    * Sync all pending/submitted KYC records with Veriff

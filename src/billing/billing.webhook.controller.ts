@@ -63,6 +63,15 @@ export class BillingWebhookController {
       case 'checkout.session.expired':
         await this.handleCheckoutSessionExpired(event.data.object as Stripe.Checkout.Session);
         break;
+      case 'transfer.created':
+        await this.billingService.handleTransferCreated(event.data.object as Stripe.Transfer);
+        break;
+      case 'payout.paid':
+        await this.billingService.handlePayoutPaid(event.data.object as Stripe.Payout);
+        break;
+      case 'payout.failed':
+        await this.billingService.handlePayoutFailed(event.data.object as Stripe.Payout);
+        break;
       default:
         break;
     }

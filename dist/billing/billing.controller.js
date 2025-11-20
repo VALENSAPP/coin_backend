@@ -22,7 +22,6 @@ const swagger_2 = require("@nestjs/swagger");
 const buy_hit_dto_1 = require("./dto/buy-hit.dto");
 class RequestWithdrawalDto {
     amount;
-    bankDetails;
 }
 exports.RequestWithdrawalDto = RequestWithdrawalDto;
 __decorate([
@@ -36,20 +35,6 @@ __decorate([
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", Number)
 ], RequestWithdrawalDto.prototype, "amount", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)({
-        description: 'Bank account details for withdrawal',
-        example: {
-            accountNumber: '1234567890',
-            routingNumber: '021000021',
-            accountHolderName: 'John Doe',
-            bankName: 'Bank of America'
-        }
-    }),
-    (0, class_validator_1.IsObject)(),
-    (0, class_validator_1.IsNotEmpty)(),
-    __metadata("design:type", Object)
-], RequestWithdrawalDto.prototype, "bankDetails", void 0);
 let BillingController = class BillingController {
     billingService;
     constructor(billingService) {
@@ -86,7 +71,7 @@ let BillingController = class BillingController {
     }
     async requestWithdrawal(req, dto) {
         const userId = req.user.userId;
-        const result = await this.billingService.requestWithdrawal(userId, dto.amount, dto.bankDetails);
+        const result = await this.billingService.requestWithdrawal(userId, dto.amount);
         return result;
     }
     async getWithdrawalHistory(req) {
@@ -182,7 +167,7 @@ __decorate([
     (0, common_1.Post)('request-withdrawal'),
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, swagger_1.ApiOperation)({ summary: 'Request withdrawal to bank account' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Request withdrawal to connected Stripe account' }),
     (0, swagger_1.ApiBody)({ type: RequestWithdrawalDto }),
     __param(0, (0, common_1.Req)()),
     __param(1, (0, common_1.Body)()),

@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BillingService = void 0;
 const common_1 = require("@nestjs/common");
+const schedule_1 = require("@nestjs/schedule");
 const prisma_service_1 = require("../prisma/prisma.service");
 const stripe_1 = require("stripe");
 let BillingService = class BillingService {
@@ -253,34 +254,44 @@ let BillingService = class BillingService {
             orderBy: { createdAt: 'desc' },
         });
     }
-    async requestWithdrawal(userId, amount, bankDetails) {
-        const user = await this.prisma.user.findUnique({ where: { id: userId } });
-        if (!user)
-            throw new common_1.BadRequestException('User not found');
-        if (user.tokenBalance < amount) {
-            throw new common_1.BadRequestException('Insufficient balance');
-        }
+    async requestWithdrawal(userId, amount) {
+        console.log(`[WITHDRAWAL_REQUEST] User ${userId} requesting withdrawal of $${amount}`);
         if (amount < 10) {
+            console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: amount $${amount} below minimum $10`);
             throw new common_1.BadRequestException('Minimum withdrawal amount is $10');
         }
-        const withdrawal = await this.prisma.withdrawalRecord.create({
-            data: {
-                userId,
-                withdrawAmount: amount,
-                status: 'pending',
-            },
-        });
-        await this.prisma.user.update({
-            where: { id: userId },
-            data: {
-                tokenBalance: {
-                    decrement: amount,
+        const result = await this.prisma.$transaction(async (tx) => {
+            const updated = await tx.user.updateMany({
+                where: {
+                    id: userId,
+                    tokenBalance: { gte: amount },
                 },
-            },
+                data: {
+                    tokenBalance: { decrement: amount },
+                },
+            });
+            if (updated.count === 0) {
+                const user = await tx.user.findUnique({ where: { id: userId } });
+                if (!user) {
+                    console.warn(`[WITHDRAWAL_REQUEST] User ${userId} not found`);
+                    throw new common_1.BadRequestException('User not found');
+                }
+                console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: insufficient balance. Required: $${amount}, Available: $${user.tokenBalance}`);
+                throw new common_1.BadRequestException('Insufficient balance');
+            }
+            const withdrawal = await tx.withdrawalRecord.create({
+                data: {
+                    userId,
+                    withdrawAmount: amount,
+                    status: 'pending',
+                },
+            });
+            return withdrawal;
         });
+        console.log(`[WITHDRAWAL_REQUEST] User ${userId} withdrawal ${result.id} created successfully for $${amount}`);
         return {
             message: 'Withdrawal request submitted successfully',
-            withdrawalId: withdrawal.id,
+            withdrawalId: result.id,
             amount,
             status: 'pending',
         };
@@ -292,79 +303,70 @@ let BillingService = class BillingService {
         });
     }
     async processWithdrawal(withdrawalId) {
+        console.log(`[PROCESS_WITHDRAWAL] Starting processing for withdrawal ${withdrawalId}`);
+        const claim = await this.prisma.withdrawalRecord.updateMany({
+            where: { id: withdrawalId, status: 'pending' },
+            data: { status: 'processing', processingAt: new Date() },
+        });
+        if (claim.count === 0) {
+            console.warn(`[PROCESS_WITHDRAWAL] Withdrawal ${withdrawalId} not found or already processed`);
+            throw new common_1.BadRequestException('Withdrawal not found or already processed');
+        }
+        console.log(`[PROCESS_WITHDRAWAL] Claimed withdrawal ${withdrawalId} for processing`);
         const withdrawal = await this.prisma.withdrawalRecord.findUnique({
             where: { id: withdrawalId },
             include: { user: true },
         });
         if (!withdrawal)
             throw new common_1.BadRequestException('Withdrawal not found');
-        if (withdrawal.status !== 'pending')
-            throw new common_1.BadRequestException('Withdrawal already processed');
         try {
             const user = withdrawal.user;
-            let stripeAccountId = user.stripeAccountId;
-            if (!stripeAccountId) {
-                const account = await this.stripe.accounts.create({
-                    type: 'express',
-                    country: 'US',
-                    email: user.email || undefined,
-                    capabilities: { transfers: { requested: true } },
+            if (!user.stripeAccountId) {
+                console.warn(`[PROCESS_WITHDRAWAL] User ${user.id} needs Stripe Connect onboarding`);
+                await this.prisma.withdrawalRecord.update({
+                    where: { id: withdrawalId },
+                    data: { status: 'requires_onboarding', failureReason: 'no_stripe_account' },
                 });
-                stripeAccountId = account.id;
-                await this.prisma.user.update({
-                    where: { id: user.id },
-                    data: { stripeAccountId },
-                });
+                return { success: false, reason: 'user_needs_onboarding' };
             }
-            if (!user.stripeBankAccountId) {
-                const bankToken = await this.stripe.tokens.create({
-                    bank_account: {
-                        country: 'US',
-                        currency: 'usd',
-                        account_holder_type: 'individual',
-                        routing_number: '110000000',
-                        account_number: '000123456789',
-                    },
+            const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
+            const transfersEnabled = account.capabilities?.transfers === 'active';
+            if (!transfersEnabled) {
+                console.warn(`[PROCESS_WITHDRAWAL] User ${user.id} Stripe account transfers not enabled`);
+                await this.prisma.withdrawalRecord.update({
+                    where: { id: withdrawalId },
+                    data: { status: 'requires_onboarding', failureReason: 'transfers_not_enabled' },
                 });
-                const bankAccount = await this.stripe.accounts.createExternalAccount(stripeAccountId, {
-                    external_account: bankToken.id,
-                });
-                await this.prisma.user.update({
-                    where: { id: user.id },
-                    data: {
-                        stripeBankAccountId: bankAccount.id,
-                    },
-                });
+                return { success: false, reason: 'transfers_not_enabled' };
             }
-            const payout = await this.stripe.payouts.create({
+            const idempotencyKey = `withdrawal-${withdrawalId}-${withdrawal.withdrawAmount}`;
+            const transfer = await this.stripe.transfers.create({
                 amount: Math.round((withdrawal.withdrawAmount ?? 0) * 100),
                 currency: 'usd',
-                description: `Withdrawal for user ${withdrawal.userId}`,
-            }, { stripeAccount: stripeAccountId });
+                destination: user.stripeAccountId,
+                description: `Withdrawal transfer for user ${user.id}`,
+            }, { idempotencyKey });
             await this.prisma.withdrawalRecord.update({
                 where: { id: withdrawalId },
-                data: {
-                    status: 'processing',
-                    txhash: payout.id,
-                },
+                data: { txhash: transfer.id, status: 'processing_transfer' },
             });
-            return { success: true, payoutId: payout.id };
+            console.log(`[PROCESS_WITHDRAWAL] Transfer created successfully for withdrawal ${withdrawalId}: ${transfer.id}`);
+            return { success: true, transferId: transfer.id };
         }
-        catch (error) {
-            console.error('Withdrawal failed:', JSON.stringify(error, null, 2));
-            await this.prisma.user.update({
-                where: { id: withdrawal.userId },
-                data: {
-                    tokenBalance: {
-                        increment: withdrawal.withdrawAmount ?? 0,
-                    },
-                },
+        catch (err) {
+            console.error(`[PROCESS_WITHDRAWAL] Error processing withdrawal ${withdrawalId}:`, err?.message ?? err);
+            await this.prisma.$transaction(async (tx) => {
+                await tx.withdrawalRecord.update({
+                    where: { id: withdrawalId },
+                    data: { status: 'failed', failureReason: `${err?.message ?? 'unknown'}` },
+                });
+                await tx.user.update({
+                    where: { id: withdrawal.userId },
+                    data: { tokenBalance: { increment: withdrawal.withdrawAmount ?? 0 } },
+                });
             });
-            await this.prisma.withdrawalRecord.update({
-                where: { id: withdrawalId },
-                data: { status: 'failed' },
-            });
-            throw error;
+            console.log(`[PROCESS_WITHDRAWAL] Withdrawal ${withdrawalId} marked as failed and balance refunded`);
+            throw err;
         }
     }
     async createAccountOnboardingLink(userId) {
@@ -373,25 +375,47 @@ let BillingService = class BillingService {
             throw new common_1.BadRequestException('User not found');
         let stripeAccountId = user.stripeAccountId;
         if (!stripeAccountId) {
-            const account = await this.stripe.accounts.create({
-                type: 'express',
-                country: 'US',
-                email: user.email || undefined,
-                capabilities: { transfers: { requested: true } },
-            });
-            stripeAccountId = account.id;
-            await this.prisma.user.update({
-                where: { id: userId },
-                data: { stripeAccountId },
-            });
+            try {
+                const account = await this.stripe.accounts.create({
+                    type: 'express',
+                    country: 'US',
+                    email: user.email || undefined,
+                    capabilities: { transfers: { requested: true } },
+                });
+                stripeAccountId = account.id;
+                await this.prisma.user.update({
+                    where: { id: userId },
+                    data: { stripeAccountId },
+                });
+            }
+            catch (error) {
+                console.error('Stripe error creating account:', {
+                    message: error.message,
+                    type: error.type,
+                    code: error.code,
+                    requestId: error.requestId,
+                    raw: error.raw,
+                });
+                throw error;
+                if (error.message?.includes('Connect') || error.message?.includes('signed up for Connect')) {
+                    throw new common_1.BadRequestException('Stripe Connect is not enabled for this account. Please enable Stripe Connect in your Stripe dashboard at https://dashboard.stripe.com/connect/overview');
+                }
+                throw error;
+            }
         }
-        const accountLink = await this.stripe.accountLinks.create({
-            account: stripeAccountId,
-            refresh_url: `${process.env.FRONTEND_URL}/withdrawal/reauth`,
-            return_url: `${process.env.FRONTEND_URL}/withdrawal/success`,
-            type: 'account_onboarding',
-        });
-        return { onboardingUrl: accountLink.url };
+        try {
+            const accountLink = await this.stripe.accountLinks.create({
+                account: stripeAccountId,
+                refresh_url: `${process.env.FRONTEND_URL}/withdrawal/reauth`,
+                return_url: `${process.env.FRONTEND_URL}/withdrawal/success`,
+                type: 'account_onboarding',
+            });
+            return { onboardingUrl: accountLink.url };
+        }
+        catch (error) {
+            console.error('Error creating account link:', error.message);
+            throw new common_1.BadRequestException('Failed to create onboarding link. Please try again later.');
+        }
     }
     async handlePayoutPaid(payout) {
         const withdrawal = await this.prisma.withdrawalRecord.findFirst({
@@ -421,6 +445,14 @@ let BillingService = class BillingService {
                 where: { id: withdrawal.id },
                 data: { status: 'failed' },
             });
+        }
+    }
+    async handleTransferCreated(transfer) {
+        const withdrawal = await this.prisma.withdrawalRecord.findFirst({
+            where: { txhash: transfer.id },
+        });
+        if (withdrawal && withdrawal.status === 'processing_transfer') {
+            console.log(`Transfer created for withdrawal ${withdrawal.id}: ${transfer.id}`);
         }
     }
     async buyHit(amount, hitCount, userId) {
@@ -586,8 +618,36 @@ let BillingService = class BillingService {
         }
         console.log(`✅ Buy hit payment processed: User ${userId} received ${hitCount} hits`);
     }
+    async processPendingWithdrawals() {
+        console.log('[CRON] Processing pending withdrawals...');
+        const pendingWithdrawals = await this.prisma.withdrawalRecord.findMany({
+            where: { status: 'pending' },
+            select: { id: true },
+        });
+        if (pendingWithdrawals.length === 0) {
+            console.log('[CRON] No pending withdrawals to process');
+            return;
+        }
+        console.log(`[CRON] Found ${pendingWithdrawals.length} pending withdrawals to process`);
+        for (const withdrawal of pendingWithdrawals) {
+            try {
+                await this.processWithdrawal(withdrawal.id);
+                console.log(`[CRON] Successfully processed withdrawal ${withdrawal.id}`);
+            }
+            catch (error) {
+                console.error(`[CRON] Failed to process withdrawal ${withdrawal.id}:`, error.message);
+            }
+        }
+        console.log('[CRON] Finished processing pending withdrawals');
+    }
 };
 exports.BillingService = BillingService;
+__decorate([
+    (0, schedule_1.Cron)(schedule_1.CronExpression.EVERY_5_MINUTES),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], BillingService.prototype, "processPendingWithdrawals", null);
 exports.BillingService = BillingService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])

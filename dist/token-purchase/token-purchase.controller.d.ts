@@ -20,9 +20,9 @@ export declare class TokenPurchaseController {
     }>;
     getPurchaseHistory(req: Request): Promise<{
         purchases: {
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             completedAt: Date | null;
             amount: number;
             platformFee: number;

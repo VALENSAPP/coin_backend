@@ -73,6 +73,15 @@ let BillingWebhookController = class BillingWebhookController {
             case 'checkout.session.expired':
                 await this.handleCheckoutSessionExpired(event.data.object);
                 break;
+            case 'transfer.created':
+                await this.billingService.handleTransferCreated(event.data.object);
+                break;
+            case 'payout.paid':
+                await this.billingService.handlePayoutPaid(event.data.object);
+                break;
+            case 'payout.failed':
+                await this.billingService.handlePayoutFailed(event.data.object);
+                break;
             default:
                 break;
         }

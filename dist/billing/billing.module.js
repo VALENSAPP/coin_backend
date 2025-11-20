@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BillingModule = void 0;
 const common_1 = require("@nestjs/common");
+const schedule_1 = require("@nestjs/schedule");
 const billing_service_1 = require("./billing.service");
 const billing_controller_1 = require("./billing.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
@@ -18,7 +19,7 @@ let BillingModule = class BillingModule {
 exports.BillingModule = BillingModule;
 exports.BillingModule = BillingModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, token_purchase_module_1.TokenPurchaseModule],
+        imports: [prisma_module_1.PrismaModule, token_purchase_module_1.TokenPurchaseModule, schedule_1.ScheduleModule.forRoot()],
         controllers: [billing_controller_1.BillingController, billing_webhook_controller_1.BillingWebhookController],
         providers: [billing_service_1.BillingService],
     })

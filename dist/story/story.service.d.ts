@@ -65,6 +65,8 @@ export declare class StoryService {
             refreshToken: string | null;
             refreshTokenExpiresAt: Date | null;
             fansPage: number;
+            twoFact: number;
+            twoFactorSecret: string | null;
         };
     } & {
         userId: string;

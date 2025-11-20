@@ -3,12 +3,6 @@ import { Request } from 'express';
 import { BuyHitDto } from './dto/buy-hit.dto';
 export declare class RequestWithdrawalDto {
     amount: number;
-    bankDetails: {
-        accountNumber: string;
-        routingNumber: string;
-        accountHolderName: string;
-        bankName: string;
-    };
 }
 export declare class BillingController {
     private readonly billingService;
@@ -63,6 +57,8 @@ export declare class BillingController {
             updatedAt: Date;
             withdrawAmount: number | null;
             txhash: string | null;
+            failureReason: string | null;
+            processingAt: Date | null;
         }[];
     }>;
     createOnboardingLink(req: Request): Promise<{

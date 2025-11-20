@@ -610,6 +610,18 @@ let UserController = class UserController {
         await this.userService.deleteUserSubscription(id);
         return { message: 'User subscription deleted successfully' };
     }
+    async enableTwoFactor(req) {
+        const userId = req.user.userId;
+        return this.userService.enableTwoFactor(userId);
+    }
+    async verifyAndEnableTwoFactor(req, dto) {
+        const userId = req.user.userId;
+        return this.userService.verifyAndEnableTwoFactor(userId, dto.token);
+    }
+    async disableTwoFactor(req, dto) {
+        const userId = req.user.userId;
+        return this.userService.disableTwoFactor(userId, dto.token);
+    }
 };
 exports.UserController = UserController;
 __decorate([
@@ -1048,6 +1060,40 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], UserController.prototype, "deleteUserSubscription", null);
+__decorate([
+    (0, common_1.Post)('enable-two-factor'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Enable two-factor authentication' }),
+    __param(0, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "enableTwoFactor", null);
+__decorate([
+    (0, common_1.Post)('verify-two-factor'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Verify and enable two-factor authentication' }),
+    (0, swagger_3.ApiBody)({ schema: { type: 'object', properties: { token: { type: 'string' } } } }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "verifyAndEnableTwoFactor", null);
+__decorate([
+    (0, common_1.Post)('disable-two-factor'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_3.ApiOperation)({ summary: 'Disable two-factor authentication' }),
+    (0, swagger_3.ApiBody)({ schema: { type: 'object', properties: { token: { type: 'string' } } } }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], UserController.prototype, "disableTwoFactor", null);
 exports.UserController = UserController = __decorate([
     (0, swagger_1.ApiTags)('user'),
     (0, common_1.Controller)('user'),

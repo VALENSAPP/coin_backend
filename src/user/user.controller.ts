@@ -749,4 +749,33 @@ export class UserController {
     await this.userService.deleteUserSubscription(id);
     return { message: 'User subscription deleted successfully' };
   }
+
+  @Post('enable-two-factor')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Enable two-factor authentication' })
+  async enableTwoFactor(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.enableTwoFactor(userId);
+  }
+
+  @Post('verify-two-factor')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify and enable two-factor authentication' })
+  @ApiBody({ schema: { type: 'object', properties: { token: { type: 'string' } } } })
+  async verifyAndEnableTwoFactor(@Req() req: Request, @Body() dto: { token: string }) {
+    const userId = (req.user as any).userId;
+    return this.userService.verifyAndEnableTwoFactor(userId, dto.token);
+  }
+
+  @Post('disable-two-factor')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Disable two-factor authentication' })
+  @ApiBody({ schema: { type: 'object', properties: { token: { type: 'string' } } } })
+  async disableTwoFactor(@Req() req: Request, @Body() dto: { token: string }) {
+    const userId = (req.user as any).userId;
+    return this.userService.disableTwoFactor(userId, dto.token);
+  }
 }

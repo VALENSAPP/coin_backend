@@ -32,7 +32,7 @@ export declare class BillingService {
         periodStart: Date | null;
         periodEnd: Date | null;
     }[]>;
-    requestWithdrawal(userId: string, amount: number, bankDetails: any): Promise<{
+    requestWithdrawal(userId: string, amount: number): Promise<{
         message: string;
         withdrawalId: string;
         amount: number;
@@ -46,16 +46,24 @@ export declare class BillingService {
         updatedAt: Date;
         withdrawAmount: number | null;
         txhash: string | null;
+        failureReason: string | null;
+        processingAt: Date | null;
     }[]>;
     processWithdrawal(withdrawalId: string): Promise<{
         success: boolean;
-        payoutId: string;
+        reason: string;
+        transferId?: undefined;
+    } | {
+        success: boolean;
+        transferId: string;
+        reason?: undefined;
     }>;
     createAccountOnboardingLink(userId: string): Promise<{
         onboardingUrl: string;
     }>;
     handlePayoutPaid(payout: Stripe.Payout): Promise<void>;
     handlePayoutFailed(payout: Stripe.Payout): Promise<void>;
+    handleTransferCreated(transfer: Stripe.Transfer): Promise<void>;
     buyHit(amount: number, hitCount: number, userId: string): Promise<{
         sessionId: string;
         url: string | null;
@@ -66,4 +74,5 @@ export declare class BillingService {
     }>;
     handleFansPageSubscriptionPayment(session: Stripe.Checkout.Session): Promise<void>;
     handleBuyHitPayment(session: Stripe.Checkout.Session): Promise<void>;
+    processPendingWithdrawals(): Promise<void>;
 }
