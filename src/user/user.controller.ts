@@ -187,10 +187,6 @@ export class ResetPasswordDto {
 
   @ApiProperty()
   @IsString()
-  otp: string;
-
-  @ApiProperty()
-  @IsString()
   newPassword: string;
 }
 
