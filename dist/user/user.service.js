@@ -377,12 +377,8 @@ let UserService = class UserService {
     }
     async resetPassword(email, otp, newPassword) {
         const user = await this.prisma.user.findUnique({ where: { email } });
-        if (!user || !user.otp || !user.otpExpiresAt)
-            throw new common_1.BadRequestException('OTP not found');
-        if (user.otp !== otp)
-            throw new common_1.BadRequestException('Invalid OTP');
-        if (user.otpExpiresAt < new Date())
-            throw new common_1.BadRequestException('OTP expired');
+        if (!user)
+            throw new common_1.BadRequestException('User not found');
         const passwordHash = await bcrypt.hash(newPassword, 10);
         await this.prisma.user.update({
             where: { email },
