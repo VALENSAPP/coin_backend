@@ -41,6 +41,8 @@ export class BillingWebhookController {
           await this.billingService.handleBuyHitPayment(session);
         } else if (session.metadata?.type === 'fans_page_subscription') {
           await this.billingService.handleFansPageSubscriptionPayment(session);
+        } else if (session.metadata?.type === 'fan_subscription_buy') {
+          await this.billingService.handleFanSubscriptionBuyPayment(session);
         } else {
           await this.billingService.handleCheckoutSessionCompleted(session);
         }

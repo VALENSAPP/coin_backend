@@ -74,6 +74,8 @@ model User {
   withdrawalRecords    WithdrawalRecord[]
   kycs                 Kyc[]
   userSubscriptions    UserSubscription[]
+  fansSubscriptions    FansSubscriptionBuyData[] @relation("Fan")
+  boughtSubscriptions  FansSubscriptionBuyData[] @relation("Buy")
 
   loginHistories       LoginHistory[]
 
@@ -390,6 +392,23 @@ model UserSubscription {
   @@index([status])
 }
 
+model FansSubscriptionBuyData {
+  id        String                  @id @default(uuid())
+  fanUserId String
+  buyUserId String
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+  status    FansSubscriptionStatus  @default(ACTIVE)
+  fanUser   User                    @relation("Fan", fields: [fanUserId], references: [id])
+  buyUser   User                    @relation("Buy", fields: [buyUserId], references: [id])
+
+  @@index([fanUserId])
+  @@index([buyUserId])
+  @@index([status])
+}
+
 model LoginHistory {
   id        String   @id @default(uuid())
   userId    String
@@ -440,4 +459,9 @@ enum KycStatus {
 enum UserSubscriptionStatus {
   ACTIVE
   CLOSED
+}
+
+enum FansSubscriptionStatus {
+  ACTIVE
+  STOP
 }

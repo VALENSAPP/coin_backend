@@ -1,6 +1,7 @@
 import { BillingService } from './billing.service';
 import { Request } from 'express';
 import { BuyHitDto } from './dto/buy-hit.dto';
+import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 export declare class RequestWithdrawalDto {
     amount: number;
 }
@@ -71,5 +72,10 @@ export declare class BillingController {
     }>;
     fansPageSubscription(req: Request): Promise<{
         url: string | null;
+    }>;
+    buyFanSubscription(req: Request, dto: BuyFanSubscriptionDto): Promise<{
+        sessionId: string;
+        url: string | null;
+        message: string;
     }>;
 }

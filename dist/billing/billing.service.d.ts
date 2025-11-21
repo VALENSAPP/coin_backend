@@ -73,6 +73,11 @@ export declare class BillingService {
         url: string | null;
     }>;
     handleFansPageSubscriptionPayment(session: Stripe.Checkout.Session): Promise<void>;
+    handleFanSubscriptionBuyPayment(session: Stripe.Checkout.Session): Promise<void>;
+    createOneTimePaymentCheckForFanSubscription(amount: number, buyUserId: string, fanUserId: string): Promise<{
+        sessionId: string;
+        url: string | null;
+    }>;
     handleBuyHitPayment(session: Stripe.Checkout.Session): Promise<void>;
     processPendingWithdrawals(): Promise<void>;
 }

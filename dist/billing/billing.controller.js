@@ -20,6 +20,7 @@ const passport_1 = require("@nestjs/passport");
 const class_validator_1 = require("class-validator");
 const swagger_2 = require("@nestjs/swagger");
 const buy_hit_dto_1 = require("./dto/buy-hit.dto");
+const buy_fan_subscription_dto_1 = require("./dto/buy-fan-subscription.dto");
 class RequestWithdrawalDto {
     amount;
 }
@@ -96,6 +97,14 @@ let BillingController = class BillingController {
         const userId = req.user.userId;
         const session = await this.billingService.createFansPageSubscriptionCheckoutSession(userId);
         return { url: session.url };
+    }
+    async buyFanSubscription(req, dto) {
+        const userId = req.user.userId;
+        if (dto.fanUserId !== userId) {
+            throw new common_1.BadRequestException('Fan user ID mismatch');
+        }
+        const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
+        return { message: 'Checkout session created', ...result };
     }
 };
 exports.BillingController = BillingController;
@@ -217,6 +226,18 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "fansPageSubscription", null);
+__decorate([
+    (0, common_1.Post)('buy-fan-subscription'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Create Stripe Checkout Session for buying fan subscription' }),
+    (0, swagger_1.ApiBody)({ type: buy_fan_subscription_dto_1.BuyFanSubscriptionDto }),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, buy_fan_subscription_dto_1.BuyFanSubscriptionDto]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "buyFanSubscription", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),

@@ -646,6 +646,100 @@ export class BillingService {
     console.log(`✅ Fans page subscription payment processed: User ${userId} fansPage set to 1`);
   }
 
+  async handleFanSubscriptionBuyPayment(session: Stripe.Checkout.Session) {
+    const fanUserId = session.metadata?.fanUserId;
+    const buyUserId = session.metadata?.buyUserId;
+
+    if (!fanUserId || !buyUserId) {
+      console.error('Missing fanUserId or buyUserId in fan_subscription_buy session metadata');
+      return;
+    }
+
+    const fanUser = await this.prisma.user.findUnique({ where: { id: fanUserId } });
+    if (!fanUser) {
+      console.error(`Fan user ${fanUserId} not found for fan_subscription_buy payment`);
+      return;
+    }
+
+    // Update the existing pending payment record to success
+    const paymentIntentId = session.payment_intent as string;
+    await this.prisma.payment.updateMany({
+      where: {
+        userId: fanUserId,
+        stripePaymentIntentId: paymentIntentId,
+        forPayment: 'fanSubscriptionBuy',
+        status: 'pending'
+      },
+      data: {
+        status: 'succeeded',
+        amount: session.amount_total || 0,
+        currency: session.currency?.toUpperCase() || 'USD',
+      },
+    });
+
+    // Create FansSubscriptionBuyData entry
+    const startDate = new Date();
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1); // Add 30 days (approximately one month)
+
+    await this.prisma.fansSubscriptionBuyData.create({
+      data: {
+        fanUserId,
+        buyUserId,
+        startDate,
+        endDate,
+        status: 'ACTIVE',
+      },
+    });
+
+    console.log(`✅ Fan subscription buy payment processed: Fan ${fanUserId} subscribed to ${buyUserId} for one month`);
+  }
+
+  async createOneTimePaymentCheckForFanSubscription(amount: number, buyUserId: string, fanUserId: string) {
+    const customerId = await this.ensureStripeCustomer(fanUserId);
+    const buyUser = await this.prisma.user.findUnique({ where: { id: buyUserId } });
+    if (!buyUser) throw new BadRequestException('Buy user not found');
+
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      success_url: process.env.STRIPE_SUCCESS_URL!,
+      cancel_url: process.env.STRIPE_CANCEL_URL!,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `Fan Subscription to ${buyUser.displayName || buyUser.userName}`,
+            },
+            unit_amount: amount * 100, // Amount in cents
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        type: 'fan_subscription_buy',
+        fanUserId,
+        buyUserId,
+        amount: amount.toString(),
+      },
+    });
+
+    // Create pending payment record
+    await this.prisma.payment.create({
+      data: {
+        userId: fanUserId,
+        amount: amount,
+        currency: 'USD',
+        status: 'pending',
+        forPayment: 'fanSubscriptionBuy',
+        stripePaymentIntentId: session.payment_intent as string,
+      },
+    });
+
+    return { sessionId: session.id, url: session.url };
+  }
+
   async handleBuyHitPayment(session: Stripe.Checkout.Session) {
     const userId = session.metadata?.userId;
     const hitCount = parseInt(session.metadata?.hitCount || '0');

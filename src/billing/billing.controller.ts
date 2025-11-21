@@ -6,6 +6,7 @@ import { Request } from 'express';
 import { IsString, IsNotEmpty, IsNumber, Min, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { BuyHitDto } from './dto/buy-hit.dto';
+import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 
 export class RequestWithdrawalDto {
   @ApiProperty({
@@ -147,6 +148,23 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const session = await this.billingService.createFansPageSubscriptionCheckoutSession(userId);
     return { url: session.url };
+  }
+
+  @Post('buy-fan-subscription')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for buying fan subscription' })
+  @ApiBody({ type: BuyFanSubscriptionDto })
+  async buyFanSubscription(@Req() req: Request, @Body() dto: BuyFanSubscriptionDto) {
+    const userId = (req.user as any).userId;
+
+    // Validate that the fanUserId matches the authenticated user
+    if (dto.fanUserId !== userId) {
+      throw new BadRequestException('Fan user ID mismatch');
+    }
+
+    const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
+    return { message: 'Checkout session created', ...result };
   }
 }
 
