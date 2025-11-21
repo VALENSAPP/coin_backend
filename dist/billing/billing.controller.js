@@ -106,6 +106,10 @@ let BillingController = class BillingController {
         const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
         return { message: 'Checkout session created', ...result };
     }
+    async getUserBuyFanSubscriptionList(userId) {
+        const subscriptions = await this.billingService.getUserBuyFanSubscriptionList(userId);
+        return { subscriptions };
+    }
 };
 exports.BillingController = BillingController;
 __decorate([
@@ -238,6 +242,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, buy_fan_subscription_dto_1.BuyFanSubscriptionDto]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "buyFanSubscription", null);
+__decorate([
+    (0, common_1.Get)('user-buy-fan-subscription-list'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get list of fans who bought subscription to the user' }),
+    __param(0, (0, common_1.Query)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "getUserBuyFanSubscriptionList", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),

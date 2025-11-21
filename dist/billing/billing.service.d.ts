@@ -20,15 +20,15 @@ export declare class BillingService {
     handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void>;
     handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
     getLatestTransactions(userId: string): Promise<{
-        userId: string;
-        status: string;
         id: string;
         createdAt: Date;
-        amount: number;
+        userId: string;
         currency: string;
-        stripePaymentIntentId: string | null;
-        stripeInvoiceId: string | null;
+        amount: number;
+        status: string;
         forPayment: string;
+        stripeInvoiceId: string | null;
+        stripePaymentIntentId: string | null;
         periodStart: Date | null;
         periodEnd: Date | null;
     }[]>;
@@ -39,11 +39,11 @@ export declare class BillingService {
         status: string;
     }>;
     getWithdrawalHistory(userId: string): Promise<{
-        userId: string;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
+        status: string;
         withdrawAmount: number | null;
         txhash: string | null;
         failureReason: string | null;
@@ -80,4 +80,19 @@ export declare class BillingService {
     }>;
     handleBuyHitPayment(session: Stripe.Checkout.Session): Promise<void>;
     processPendingWithdrawals(): Promise<void>;
+    getUserBuyFanSubscriptionList(userId: string): Promise<({
+        fanUser: {
+            image: string | null;
+            userName: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: import(".prisma/client").$Enums.FansSubscriptionStatus;
+        fanUserId: string;
+        buyUserId: string;
+        startDate: Date;
+        endDate: Date;
+    })[]>;
 }

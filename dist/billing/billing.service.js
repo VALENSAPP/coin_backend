@@ -721,6 +721,16 @@ let BillingService = class BillingService {
         }
         console.log('[CRON] Finished processing pending withdrawals');
     }
+    async getUserBuyFanSubscriptionList(userId) {
+        return this.prisma.fansSubscriptionBuyData.findMany({
+            where: { buyUserId: userId },
+            include: {
+                fanUser: {
+                    select: { userName: true, image: true }
+                }
+            }
+        });
+    }
 };
 exports.BillingService = BillingService;
 __decorate([

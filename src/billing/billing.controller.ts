@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException, Query } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -165,6 +165,15 @@ export class BillingController {
 
     const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
     return { message: 'Checkout session created', ...result };
+  }
+
+  @Get('user-buy-fan-subscription-list')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of fans who bought subscription to the user' })
+  async getUserBuyFanSubscriptionList(@Query('userId') userId: string) {
+    const subscriptions = await this.billingService.getUserBuyFanSubscriptionList(userId);
+    return { subscriptions };
   }
 }
 
