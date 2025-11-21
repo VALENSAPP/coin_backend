@@ -439,7 +439,7 @@ export class UserService {
     return true;
   }
 
-  async resetPassword(email: string, otp: string, newPassword: string) {
+  async resetPassword(email: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('User not found');
     const passwordHash = await bcrypt.hash(newPassword, 10);

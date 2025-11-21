@@ -489,7 +489,7 @@ let UserController = class UserController {
         return { message: 'Email verified' };
     }
     async resetPassword(dto) {
-        await this.userService.resetPassword(dto.email, dto.otp, dto.newPassword);
+        await this.userService.resetPassword(dto.email, dto.newPassword);
         return { message: 'Password reset successful' };
     }
     async changePassword(req, dto) {

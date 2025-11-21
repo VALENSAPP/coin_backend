@@ -407,7 +407,7 @@ export class UserController {
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password after OTP verification' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
-    await this.userService.resetPassword(dto.email, dto.otp, dto.newPassword);
+    await this.userService.resetPassword(dto.email, dto.newPassword);
     return { message: 'Password reset successful' };
   }
 

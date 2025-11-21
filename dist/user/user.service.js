@@ -375,7 +375,7 @@ let UserService = class UserService {
         });
         return true;
     }
-    async resetPassword(email, otp, newPassword) {
+    async resetPassword(email, newPassword) {
         const user = await this.prisma.user.findUnique({ where: { email } });
         if (!user)
             throw new common_1.BadRequestException('User not found');

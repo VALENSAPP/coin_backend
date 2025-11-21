@@ -213,7 +213,7 @@ export declare class UserService {
     verifyOtp(email: string, otp: string): Promise<boolean>;
     sendEmailOtp(email: string): Promise<boolean>;
     verifyEmailOtp(email: string, otp: string): Promise<boolean>;
-    resetPassword(email: string, otp: string, newPassword: string): Promise<boolean>;
+    resetPassword(email: string, newPassword: string): Promise<boolean>;
     changePassword(userId: string, oldPassword: string, newPassword: string): Promise<boolean>;
     getUserById(id: string): Promise<{
         id: string;
