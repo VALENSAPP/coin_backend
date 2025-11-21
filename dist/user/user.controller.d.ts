@@ -59,7 +59,6 @@ export declare class VerifyEmailOtpDto {
 }
 export declare class ResetPasswordDto {
     email: string;
-    otp: string;
     newPassword: string;
 }
 export declare class ChangePasswordDto {

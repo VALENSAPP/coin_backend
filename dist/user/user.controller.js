@@ -260,7 +260,6 @@ __decorate([
 ], VerifyEmailOtpDto.prototype, "otp", void 0);
 class ResetPasswordDto {
     email;
-    otp;
     newPassword;
 }
 exports.ResetPasswordDto = ResetPasswordDto;
@@ -269,11 +268,6 @@ __decorate([
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
 ], ResetPasswordDto.prototype, "email", void 0);
-__decorate([
-    (0, swagger_2.ApiProperty)(),
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], ResetPasswordDto.prototype, "otp", void 0);
 __decorate([
     (0, swagger_2.ApiProperty)(),
     (0, class_validator_1.IsString)(),
