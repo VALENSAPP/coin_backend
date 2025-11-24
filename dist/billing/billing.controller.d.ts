@@ -113,4 +113,115 @@ export declare class BillingController {
             endDate: Date;
         })[];
     }>;
+    userTransactionHistory(userId: string, transactionType: string): Promise<{
+        transactions: {
+            id: string;
+            createdAt: Date;
+            userId: string;
+            currency: string;
+            amount: number;
+            status: string;
+            forPayment: string;
+            stripeInvoiceId: string | null;
+            stripePaymentIntentId: string | null;
+            periodStart: Date | null;
+            periodEnd: Date | null;
+        }[] | {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            userId: string;
+            status: string;
+            withdrawAmount: number | null;
+            txhash: string | null;
+            failureReason: string | null;
+            processingAt: Date | null;
+        }[] | {
+            id: string;
+            createdAt: Date;
+            userId: string;
+            status: string;
+            tokenAddress: string;
+            vendorId: string;
+            amountTokens: string;
+            sellAmount: number;
+            actualReceivedAmount: number | null;
+            adminFeeAmount: number | null;
+            transactionHash: string;
+        }[] | {
+            id: string;
+            createdAt: Date;
+            userId: string;
+            currency: string;
+            amount: number;
+            status: string;
+            stripeInvoiceId: string | null;
+            stripePaymentIntentId: string | null;
+            vendorId: string | null;
+            platformFee: number;
+            vendorFee: number;
+            restAmount: number;
+            tokensReceived: number;
+            stripeCheckoutSessionId: string | null;
+            purchaseTokenPrice: number | null;
+            action: string;
+            completedAt: Date | null;
+        }[] | ({
+            typeTransaction: string;
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            userId: string;
+            status: string;
+            withdrawAmount: number | null;
+            txhash: string | null;
+            failureReason: string | null;
+            processingAt: Date | null;
+        } | {
+            typeTransaction: string;
+            id: string;
+            createdAt: Date;
+            userId: string;
+            status: string;
+            tokenAddress: string;
+            vendorId: string;
+            amountTokens: string;
+            sellAmount: number;
+            actualReceivedAmount: number | null;
+            adminFeeAmount: number | null;
+            transactionHash: string;
+        } | {
+            typeTransaction: string;
+            id: string;
+            createdAt: Date;
+            userId: string;
+            currency: string;
+            amount: number;
+            status: string;
+            stripeInvoiceId: string | null;
+            stripePaymentIntentId: string | null;
+            vendorId: string | null;
+            platformFee: number;
+            vendorFee: number;
+            restAmount: number;
+            tokensReceived: number;
+            stripeCheckoutSessionId: string | null;
+            purchaseTokenPrice: number | null;
+            action: string;
+            completedAt: Date | null;
+        } | {
+            typeTransaction: string;
+            id: string;
+            createdAt: Date;
+            userId: string;
+            currency: string;
+            amount: number;
+            status: string;
+            forPayment: string;
+            stripeInvoiceId: string | null;
+            stripePaymentIntentId: string | null;
+            periodStart: Date | null;
+            periodEnd: Date | null;
+        })[];
+    }>;
 }

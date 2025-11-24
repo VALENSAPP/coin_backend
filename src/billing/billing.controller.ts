@@ -184,6 +184,15 @@ export class BillingController {
     const subscriptions = await this.billingService.fanSubscriptionUserList(userId);
     return { subscriptions };
   }
+
+  @Get('user-transaction-history')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user transaction history by type or all types combined' })
+  async userTransactionHistory(@Query('userId') userId: string, @Query('transactionType') transactionType: string) {
+    const transactions = await this.billingService.userTransactionHistory(userId, transactionType);
+    return { transactions };
+  }
 }
 
 

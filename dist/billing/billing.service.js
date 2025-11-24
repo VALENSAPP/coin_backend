@@ -745,6 +745,61 @@ let BillingService = class BillingService {
             }
         });
     }
+    async userTransactionHistory(userId, transactionType) {
+        if (transactionType === 'all') {
+            const [withdrawals, tokenSales, tokenPurchases, payments] = await Promise.all([
+                this.prisma.withdrawalRecord.findMany({
+                    where: { userId },
+                    orderBy: { createdAt: 'desc' }
+                }),
+                this.prisma.tokenSale.findMany({
+                    where: { userId },
+                    orderBy: { createdAt: 'desc' }
+                }),
+                this.prisma.tokenPurchase.findMany({
+                    where: { userId },
+                    orderBy: { createdAt: 'desc' }
+                }),
+                this.prisma.payment.findMany({
+                    where: { userId },
+                    orderBy: { createdAt: 'desc' }
+                })
+            ]);
+            const allTransactions = [
+                ...withdrawals.map(w => ({ ...w, typeTransaction: 'withdrawal' })),
+                ...tokenSales.map(ts => ({ ...ts, typeTransaction: 'tokenSale' })),
+                ...tokenPurchases.map(tp => ({ ...tp, typeTransaction: 'tokenPurchase' })),
+                ...payments.map(p => ({ ...p, typeTransaction: 'payment' }))
+            ];
+            return allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+        else {
+            switch (transactionType) {
+                case 'withdrawal':
+                    return this.prisma.withdrawalRecord.findMany({
+                        where: { userId },
+                        orderBy: { createdAt: 'desc' }
+                    });
+                case 'tokenSale':
+                    return this.prisma.tokenSale.findMany({
+                        where: { userId },
+                        orderBy: { createdAt: 'desc' }
+                    });
+                case 'tokenPurchase':
+                    return this.prisma.tokenPurchase.findMany({
+                        where: { userId },
+                        orderBy: { createdAt: 'desc' }
+                    });
+                case 'payment':
+                    return this.prisma.payment.findMany({
+                        where: { userId },
+                        orderBy: { createdAt: 'desc' }
+                    });
+                default:
+                    throw new common_1.BadRequestException('Invalid transaction type');
+            }
+        }
+    }
 };
 exports.BillingService = BillingService;
 __decorate([

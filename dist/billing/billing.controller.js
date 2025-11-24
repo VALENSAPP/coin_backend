@@ -114,6 +114,10 @@ let BillingController = class BillingController {
         const subscriptions = await this.billingService.fanSubscriptionUserList(userId);
         return { subscriptions };
     }
+    async userTransactionHistory(userId, transactionType) {
+        const transactions = await this.billingService.userTransactionHistory(userId, transactionType);
+        return { transactions };
+    }
 };
 exports.BillingController = BillingController;
 __decorate([
@@ -266,6 +270,17 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "fanSubscriptionUserList", null);
+__decorate([
+    (0, common_1.Get)('user-transaction-history'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get user transaction history by type or all types combined' }),
+    __param(0, (0, common_1.Query)('userId')),
+    __param(1, (0, common_1.Query)('transactionType')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "userTransactionHistory", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),
