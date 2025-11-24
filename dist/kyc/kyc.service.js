@@ -131,7 +131,20 @@ let KycService = class KycService {
             }
             const veriffStatus = verificationData.status;
             console.log(`🔍 Fetched Veriff status for ${sessionId}: ${veriffStatus}`);
-            return veriffStatus;
+            let reason = null;
+            if (veriffStatus === 'declined') {
+                try {
+                    const decisionResponse = await axios_1.default.get(`${this.veriffBase}/v1/sessions/${sessionId}/decision`, { headers });
+                    const decisionData = decisionResponse.data;
+                    reason = decisionData?.verification?.decision?.reason || decisionData?.reason || 'Unknown reason';
+                    console.log(`📋 Fetched decline reason for ${sessionId}: ${reason}`);
+                }
+                catch (decisionError) {
+                    console.warn(`Could not fetch decision for declined session ${sessionId}:`, decisionError.message);
+                    reason = 'Reason not available';
+                }
+            }
+            return { status: veriffStatus, reason };
         }
         catch (error) {
             console.error('❌ Failed to fetch Veriff status:', error.response?.data || error);
@@ -146,10 +159,12 @@ let KycService = class KycService {
         if (!kycRecord) {
             throw new common_1.HttpException('KYC record not found', common_1.HttpStatus.NOT_FOUND);
         }
-        const veriffStatus = await this.fetchVeriffStatus(kycRecord.veriffSessionId);
-        if (!veriffStatus) {
+        const veriffData = await this.fetchVeriffStatus(kycRecord.veriffSessionId);
+        if (!veriffData) {
             return { success: false, message: 'Could not fetch status from Veriff' };
         }
+        const veriffStatus = veriffData.status;
+        const reason = veriffData.reason;
         let mappedStatus = kycRecord.status;
         if (veriffStatus === 'approved')
             mappedStatus = 'APPROVED';
@@ -171,9 +186,9 @@ let KycService = class KycService {
                 });
             }
             console.log(`✅ Synced KYC status: ${kycRecord.veriffSessionId} → ${mappedStatus}`);
-            return { success: true, status: mappedStatus, updated: true };
+            return { success: true, status: mappedStatus, updated: true, reason: mappedStatus === 'DECLINED' ? reason : null };
         }
-        return { success: true, status: mappedStatus, updated: false };
+        return { success: true, status: mappedStatus, updated: false, reason: mappedStatus === 'DECLINED' ? reason : null };
     }
     async syncAllPendingKyc() {
         console.log('🔄 Starting sync for all pending/submitted KYC records...');
@@ -188,12 +203,13 @@ let KycService = class KycService {
         for (const record of pendingRecords) {
             try {
                 console.log(`🔍 Syncing KYC for user ${record.userId}, session ${record.veriffSessionId}`);
-                const veriffStatus = await this.fetchVeriffStatus(record.veriffSessionId);
-                if (!veriffStatus) {
+                const veriffData = await this.fetchVeriffStatus(record.veriffSessionId);
+                if (!veriffData) {
                     console.log(`⚠️ Could not fetch status for session ${record.veriffSessionId}`);
                     errors++;
                     continue;
                 }
+                const veriffStatus = veriffData.status;
                 let mappedStatus = record.status;
                 if (veriffStatus === 'approved')
                     mappedStatus = 'APPROVED';

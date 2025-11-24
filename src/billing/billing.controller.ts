@@ -175,6 +175,15 @@ export class BillingController {
     const subscriptions = await this.billingService.getUserBuyFanSubscriptionList(userId);
     return { subscriptions };
   }
+
+  @Get('fan-subscription-user-list')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of subscriptions bought by the fan user' })
+  async fanSubscriptionUserList(@Query('userId') userId: string) {
+    const subscriptions = await this.billingService.fanSubscriptionUserList(userId);
+    return { subscriptions };
+  }
 }
 
 

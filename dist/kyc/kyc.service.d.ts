@@ -20,16 +20,21 @@ export declare class KycService {
         documentType: string | null;
         webhookData: import("@prisma/client/runtime/library").JsonValue | null;
     } | null>;
-    fetchVeriffStatus(sessionId: string): Promise<any>;
+    fetchVeriffStatus(sessionId: string): Promise<{
+        status: any;
+        reason: any;
+    } | null>;
     syncKycStatus(userId: string): Promise<{
         success: boolean;
         message: string;
         status?: undefined;
         updated?: undefined;
+        reason?: undefined;
     } | {
         success: boolean;
         status: "PENDING" | "SUBMITTED" | "APPROVED" | "DECLINED";
         updated: boolean;
+        reason: any;
         message?: undefined;
     }>;
     syncAllPendingKyc(): Promise<{

@@ -167,7 +167,21 @@ export class KycService {
       const veriffStatus = verificationData.status;
       console.log(`🔍 Fetched Veriff status for ${sessionId}: ${veriffStatus}`);
 
-      return veriffStatus; // 'approved', 'declined', etc.
+      let reason = null;
+      if (veriffStatus === 'declined') {
+        // Try to fetch decision for declined status
+        try {
+          const decisionResponse = await axios.get(`${this.veriffBase}/v1/sessions/${sessionId}/decision`, { headers });
+          const decisionData = decisionResponse.data;
+          reason = decisionData?.verification?.decision?.reason || decisionData?.reason || 'Unknown reason';
+          console.log(`📋 Fetched decline reason for ${sessionId}: ${reason}`);
+        } catch (decisionError) {
+          console.warn(`Could not fetch decision for declined session ${sessionId}:`, decisionError.message);
+          reason = 'Reason not available';
+        }
+      }
+
+      return { status: veriffStatus, reason }; // Return object with status and reason
     } catch (error) {
       console.error('❌ Failed to fetch Veriff status:', error.response?.data || error);
       return null;
@@ -187,10 +201,13 @@ export class KycService {
       throw new HttpException('KYC record not found', HttpStatus.NOT_FOUND);
     }
 
-    const veriffStatus = await this.fetchVeriffStatus(kycRecord.veriffSessionId);
-    if (!veriffStatus) {
+    const veriffData = await this.fetchVeriffStatus(kycRecord.veriffSessionId);
+    if (!veriffData) {
       return { success: false, message: 'Could not fetch status from Veriff' };
     }
+
+    const veriffStatus = veriffData.status;
+    const reason = veriffData.reason;
 
     // Map Veriff status to our enum
     let mappedStatus: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'DECLINED' = kycRecord.status;
@@ -214,10 +231,10 @@ export class KycService {
       }
 
       console.log(`✅ Synced KYC status: ${kycRecord.veriffSessionId} → ${mappedStatus}`);
-      return { success: true, status: mappedStatus, updated: true };
+      return { success: true, status: mappedStatus, updated: true, reason: mappedStatus === 'DECLINED' ? reason : null };
     }
 
-    return { success: true, status: mappedStatus, updated: false };
+    return { success: true, status: mappedStatus, updated: false, reason: mappedStatus === 'DECLINED' ? reason : null };
   }
 
   /**
@@ -250,12 +267,14 @@ export class KycService {
       try {
         console.log(`🔍 Syncing KYC for user ${record.userId}, session ${record.veriffSessionId}`);
 
-        const veriffStatus = await this.fetchVeriffStatus(record.veriffSessionId);
-        if (!veriffStatus) {
+        const veriffData = await this.fetchVeriffStatus(record.veriffSessionId);
+        if (!veriffData) {
           console.log(`⚠️ Could not fetch status for session ${record.veriffSessionId}`);
           errors++;
           continue;
         }
+
+        const veriffStatus = veriffData.status;
 
         // Map Veriff status to our enum
         let mappedStatus: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'DECLINED' = record.status;

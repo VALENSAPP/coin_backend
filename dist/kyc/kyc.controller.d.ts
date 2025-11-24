@@ -31,10 +31,12 @@ export declare class KycController {
         message: string;
         status?: undefined;
         updated?: undefined;
+        reason?: undefined;
     } | {
         success: boolean;
         status: "PENDING" | "SUBMITTED" | "APPROVED" | "DECLINED";
         updated: boolean;
+        reason: any;
         message?: undefined;
     }>;
     syncAllPending(): Promise<{

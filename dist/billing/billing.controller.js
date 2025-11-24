@@ -110,6 +110,10 @@ let BillingController = class BillingController {
         const subscriptions = await this.billingService.getUserBuyFanSubscriptionList(userId);
         return { subscriptions };
     }
+    async fanSubscriptionUserList(userId) {
+        const subscriptions = await this.billingService.fanSubscriptionUserList(userId);
+        return { subscriptions };
+    }
 };
 exports.BillingController = BillingController;
 __decorate([
@@ -252,6 +256,16 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], BillingController.prototype, "getUserBuyFanSubscriptionList", null);
+__decorate([
+    (0, common_1.Get)('fan-subscription-user-list'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({ summary: 'Get list of subscriptions bought by the fan user' }),
+    __param(0, (0, common_1.Query)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], BillingController.prototype, "fanSubscriptionUserList", null);
 exports.BillingController = BillingController = __decorate([
     (0, swagger_1.ApiTags)('billing'),
     (0, common_1.Controller)('billing'),

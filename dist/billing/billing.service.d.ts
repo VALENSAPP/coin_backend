@@ -95,4 +95,20 @@ export declare class BillingService {
         startDate: Date;
         endDate: Date;
     })[]>;
+    fanSubscriptionUserList(userId: string): Promise<({
+        buyUser: {
+            id: string;
+            image: string | null;
+            userName: string | null;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        status: import(".prisma/client").$Enums.FansSubscriptionStatus;
+        fanUserId: string;
+        buyUserId: string;
+        startDate: Date;
+        endDate: Date;
+    })[]>;
 }

@@ -434,16 +434,6 @@ export class BillingService {
     raw: error.raw,
   });
   throw error;
-
-        // Check if it's a Connect not enabled error
-        if (error.message?.includes('Connect') || error.message?.includes('signed up for Connect')) {
-          throw new BadRequestException(
-            'Stripe Connect is not enabled for this account. Please enable Stripe Connect in your Stripe dashboard at https://dashboard.stripe.com/connect/overview'
-          );
-        }
-
-        // Re-throw other errors
-        throw error;
       }
     }
 
@@ -691,7 +681,14 @@ export class BillingService {
         status: 'ACTIVE',
       },
     });
-
+await this.prisma.user.update({ 
+   where: {
+        id: fanUserId
+      },
+      data: {
+        tokenBalance: session.amount_total || 0
+      },
+    });
     console.log(`✅ Fan subscription buy payment processed: Fan ${fanUserId} subscribed to ${buyUserId} for one month`);
   }
 
@@ -834,6 +831,17 @@ export class BillingService {
       include: {
         fanUser: {
           select: { userName: true, image: true }
+        }
+      }
+    });
+  }
+
+  async fanSubscriptionUserList(userId: string) {
+    return this.prisma.fansSubscriptionBuyData.findMany({
+      where: { fanUserId: userId },
+      include: {
+        buyUser: {
+          select: { id: true, userName: true, image: true }
         }
       }
     });
