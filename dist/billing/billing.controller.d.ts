@@ -30,15 +30,15 @@ export declare class BillingController {
     }>;
     getLatestTransactions(req: Request): Promise<{
         transactions: {
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
-            userId: string;
-            currency: string;
             amount: number;
-            status: string;
-            forPayment: string;
-            stripeInvoiceId: string | null;
+            currency: string;
             stripePaymentIntentId: string | null;
+            stripeInvoiceId: string | null;
+            forPayment: string;
             periodStart: Date | null;
             periodEnd: Date | null;
         }[];
@@ -51,11 +51,11 @@ export declare class BillingController {
     }>;
     getWithdrawalHistory(req: Request): Promise<{
         withdrawals: {
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            userId: string;
-            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
             failureReason: string | null;
@@ -81,14 +81,14 @@ export declare class BillingController {
     getUserBuyFanSubscriptionList(userId: string): Promise<{
         subscriptions: ({
             fanUser: {
-                image: string | null;
                 userName: string | null;
+                image: string | null;
             };
         } & {
+            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             fanUserId: string;
             buyUserId: string;
             startDate: Date;
@@ -98,15 +98,15 @@ export declare class BillingController {
     fanSubscriptionUserList(userId: string): Promise<{
         subscriptions: ({
             buyUser: {
-                id: string;
-                image: string | null;
                 userName: string | null;
+                image: string | null;
+                id: string;
             };
         } & {
+            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             fanUserId: string;
             buyUserId: string;
             startDate: Date;
@@ -115,111 +115,111 @@ export declare class BillingController {
     }>;
     userTransactionHistory(userId: string, transactionType: string): Promise<{
         transactions: {
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
-            userId: string;
-            currency: string;
             amount: number;
-            status: string;
-            forPayment: string;
-            stripeInvoiceId: string | null;
+            currency: string;
             stripePaymentIntentId: string | null;
+            stripeInvoiceId: string | null;
+            forPayment: string;
             periodStart: Date | null;
             periodEnd: Date | null;
         }[] | {
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            userId: string;
-            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
             failureReason: string | null;
             processingAt: Date | null;
         }[] | {
-            id: string;
-            createdAt: Date;
             userId: string;
             status: string;
+            id: string;
+            createdAt: Date;
+            transactionHash: string;
             tokenAddress: string;
             vendorId: string;
             amountTokens: string;
             sellAmount: number;
             actualReceivedAmount: number | null;
             adminFeeAmount: number | null;
-            transactionHash: string;
         }[] | {
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
-            userId: string;
-            currency: string;
-            amount: number;
-            status: string;
-            stripeInvoiceId: string | null;
-            stripePaymentIntentId: string | null;
+            completedAt: Date | null;
             vendorId: string | null;
+            amount: number;
+            currency: string;
             platformFee: number;
             vendorFee: number;
             restAmount: number;
             tokensReceived: number;
+            stripePaymentIntentId: string | null;
             stripeCheckoutSessionId: string | null;
             purchaseTokenPrice: number | null;
+            stripeInvoiceId: string | null;
             action: string;
-            completedAt: Date | null;
         }[] | ({
             typeTransaction: string;
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
-            userId: string;
-            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
             failureReason: string | null;
             processingAt: Date | null;
         } | {
             typeTransaction: string;
-            id: string;
-            createdAt: Date;
             userId: string;
             status: string;
+            id: string;
+            createdAt: Date;
+            transactionHash: string;
             tokenAddress: string;
             vendorId: string;
             amountTokens: string;
             sellAmount: number;
             actualReceivedAmount: number | null;
             adminFeeAmount: number | null;
-            transactionHash: string;
         } | {
             typeTransaction: string;
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
-            userId: string;
-            currency: string;
-            amount: number;
-            status: string;
-            stripeInvoiceId: string | null;
-            stripePaymentIntentId: string | null;
+            completedAt: Date | null;
             vendorId: string | null;
+            amount: number;
+            currency: string;
             platformFee: number;
             vendorFee: number;
             restAmount: number;
             tokensReceived: number;
+            stripePaymentIntentId: string | null;
             stripeCheckoutSessionId: string | null;
             purchaseTokenPrice: number | null;
+            stripeInvoiceId: string | null;
             action: string;
-            completedAt: Date | null;
         } | {
             typeTransaction: string;
+            userId: string;
+            status: string;
             id: string;
             createdAt: Date;
-            userId: string;
-            currency: string;
             amount: number;
-            status: string;
-            forPayment: string;
-            stripeInvoiceId: string | null;
+            currency: string;
             stripePaymentIntentId: string | null;
+            stripeInvoiceId: string | null;
+            forPayment: string;
             periodStart: Date | null;
             periodEnd: Date | null;
         })[];

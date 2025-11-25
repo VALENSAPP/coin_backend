@@ -260,46 +260,36 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 }
             }
             if (!coinAddress) {
-                coinAddress = process.env.DEFAULT_COIN_ADDRESS;
-            }
-            if (!coinAddress) {
                 this.logger.error('No coin address available for purchase');
                 return;
             }
-            const usdPaid = ethers_1.ethers.parseEther(tokenPurchase.amount.toString());
-            console.log("?????????????????????????????????????????????????????????????????", usdPaid);
-            const contract = this.tokenService.getContract();
-            if (!contract) {
-                this.logger.error('Smart contract not initialized');
+            if (!tokenPurchase.vendorId) {
+                this.logger.warn('No vendorId for token purchase, skipping buyToken');
                 return;
             }
-            try {
-                const tx = await contract.buyFor(coinAddress, user.walletAddress, usdPaid);
-                this.logger.log(`BuyFor transaction sent: ${tx.hash} for user ${tokenPurchase.userId}`);
-                const receipt = await tx.wait();
-                this.logger.log(`BuyFor transaction confirmed in block: ${receipt.blockNumber}`);
-                this.logger.log(`Checking follow logic - vendorId: ${tokenPurchase.vendorId}, userId: ${tokenPurchase.userId}`);
-                if (tokenPurchase.vendorId && tokenPurchase.vendorId.trim() !== '') {
-                    this.logger.log(`Attempting to follow token owner ${tokenPurchase.vendorId} by user ${tokenPurchase.userId}`);
-                    try {
-                        await this.userService.followPerson(tokenPurchase.userId, tokenPurchase.vendorId);
-                        this.logger.log(`SUCCESS: User ${tokenPurchase.userId} followed token owner ${tokenPurchase.vendorId}`);
-                    }
-                    catch (followError) {
-                        if (followError.message && followError.message.includes('Already following')) {
-                            this.logger.log(`INFO: User ${tokenPurchase.userId} already follows token owner ${tokenPurchase.vendorId}`);
-                        }
-                        else {
-                            this.logger.error(`FAILED: Follow attempt failed: ${followError.message}`, followError.stack);
-                        }
-                    }
+            const buyResult = await this.buyToken(tokenPurchase.userId, {
+                userId: tokenPurchase.vendorId,
+                userPaid: tokenPurchase.tokensReceived
+            });
+            this.logger.log(`BuyToken completed: ${buyResult.transactionHash} for user ${tokenPurchase.userId}`);
+            this.logger.log(`Checking follow logic - vendorId: ${tokenPurchase.vendorId}, userId: ${tokenPurchase.userId}`);
+            if (tokenPurchase.vendorId && tokenPurchase.vendorId.trim() !== '') {
+                this.logger.log(`Attempting to follow token owner ${tokenPurchase.vendorId} by user ${tokenPurchase.userId}`);
+                try {
+                    await this.userService.followPerson(tokenPurchase.userId, tokenPurchase.vendorId);
+                    this.logger.log(`SUCCESS: User ${tokenPurchase.userId} followed token owner ${tokenPurchase.vendorId}`);
                 }
-                else {
-                    this.logger.log(`SKIP: No valid vendorId found (null or empty), skipping follow`);
+                catch (followError) {
+                    if (followError.message && followError.message.includes('Already following')) {
+                        this.logger.log(`INFO: User ${tokenPurchase.userId} already follows token owner ${tokenPurchase.vendorId}`);
+                    }
+                    else {
+                        this.logger.error(`FAILED: Follow attempt failed: ${followError.message}`, followError.stack);
+                    }
                 }
             }
-            catch (blockchainError) {
-                this.logger.error('Error calling buyFor on blockchain:', blockchainError);
+            else {
+                this.logger.log(`SKIP: No valid vendorId found (null or empty), skipping follow`);
             }
             this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens purchased for user ${tokenPurchase.userId}`);
         }
@@ -578,12 +568,14 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 throw new common_1.BadRequestException('Token not found for this user');
             }
             this.logger.log(`Buying token for user ${dto.userId}: ${userToken.tokenName} (${userToken.tokenAddress})`);
-            const usdPaid = ethers_1.ethers.parseEther(dto.userPaid.toString());
+            this.logger.log(`dto.userPaid (token amount): ${dto.userPaid}`);
+            const tokenAmountInWei = ethers_1.ethers.parseEther(dto.userPaid.toString());
+            this.logger.log(`Converted token amount to wei: ${tokenAmountInWei.toString()}`);
             const contract = this.tokenService.getContract();
             if (!contract) {
                 throw new common_1.BadRequestException('Smart contract not initialized');
             }
-            const tx = await contract.buyFor(userToken.tokenAddress, buyer.walletAddress, usdPaid);
+            const tx = await contract.buyFor(userToken.tokenAddress, buyer.walletAddress, tokenAmountInWei);
             this.logger.log(`Transaction sent: ${tx.hash}`);
             const receipt = await tx.wait();
             this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
@@ -592,7 +584,7 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 transactionHash: tx.hash,
                 tokenAddress: userToken.tokenAddress,
                 buyerAddress: buyer.walletAddress,
-                usdPaid: dto.userPaid,
+                tokenAmount: dto.userPaid,
                 blockNumber: receipt.blockNumber,
             };
         }

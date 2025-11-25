@@ -143,7 +143,7 @@ export class TokenPurchaseController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Buy tokens using blockchain smart contract',
-    description: 'Calls the buyFor method on the smart contract to purchase tokens. Requires userId (whose token to buy) and userPaid amount.'
+    description: 'Calls the buyFor method on the smart contract to purchase tokens. Requires userId (whose token to buy) and tokenAmount.'
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -155,7 +155,7 @@ export class TokenPurchaseController {
         transactionHash: { type: 'string', example: '0x123...' },
         tokenAddress: { type: 'string', example: '0x456...' },
         buyerAddress: { type: 'string', example: '0x789...' },
-        usdPaid: { type: 'number', example: 10.00 },
+        tokenAmount: { type: 'number', example: 10.00 },
         blockNumber: { type: 'number', example: 123456 }
       }
     }

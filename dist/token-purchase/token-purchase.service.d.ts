@@ -27,15 +27,15 @@ export declare class TokenPurchaseService {
     getUserTokenBalance(userId: string): Promise<number>;
     getVendorTokenAmount(userId: string, vendorId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{
-        status: string;
         id: string;
         createdAt: Date;
-        completedAt: Date | null;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
+        status: string;
+        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string, period?: 'week' | 'month' | 'year'): Promise<{
         tokenAddress: string | null;
@@ -49,7 +49,7 @@ export declare class TokenPurchaseService {
         transactionHash: any;
         tokenAddress: string;
         buyerAddress: string;
-        usdPaid: number;
+        tokenAmount: number;
         blockNumber: any;
     }>;
     getTopCreators(): Promise<{
