@@ -12,6 +12,7 @@ const user_service_1 = require("./user.service");
 const user_controller_1 = require("./user.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
 const jwt_1 = require("@nestjs/jwt");
+const kyc_module_1 = require("../kyc/kyc.module");
 let UserModule = class UserModule {
 };
 exports.UserModule = UserModule;
@@ -23,6 +24,7 @@ exports.UserModule = UserModule = __decorate([
                 secret: process.env.JWT_SECRET || 'valens_secret',
                 signOptions: { expiresIn: '1d' },
             }),
+            kyc_module_1.KycModule,
         ],
         controllers: [user_controller_1.UserController],
         providers: [user_service_1.UserService],

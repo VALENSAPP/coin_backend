@@ -1,10 +1,12 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { KycService } from '../kyc/kyc.service';
 export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET' | 'APPLE';
 export declare class UserService {
     private readonly prisma;
     private readonly jwtService;
-    constructor(prisma: PrismaService, jwtService: JwtService);
+    private readonly kycService;
+    constructor(prisma: PrismaService, jwtService: JwtService, kycService: KycService);
     register(data: {
         email?: string;
         userName?: string;
@@ -216,6 +218,7 @@ export declare class UserService {
     resetPassword(email: string, newPassword: string): Promise<boolean>;
     changePassword(userId: string, oldPassword: string, newPassword: string): Promise<boolean>;
     getUserById(id: string): Promise<{
+        kycStatus: import(".prisma/client").$Enums.KycStatus | null;
         kyc: boolean;
         email: string | null;
         userName: string | null;

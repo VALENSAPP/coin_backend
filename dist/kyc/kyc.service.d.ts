@@ -10,15 +10,15 @@ export declare class KycService {
     }>;
     handleWebhook(verification: any): Promise<void>;
     getKycStatus(userId: string): Promise<{
-        id: number;
         userId: string;
-        veriffSessionId: string;
-        veriffUrl: string;
         status: import(".prisma/client").$Enums.KycStatus;
-        documentType: string | null;
-        webhookData: import("@prisma/client/runtime/library").JsonValue | null;
+        id: number;
         createdAt: Date;
         updatedAt: Date;
+        veriffSessionId: string;
+        veriffUrl: string;
+        documentType: string | null;
+        webhookData: import("@prisma/client/runtime/library").JsonValue | null;
     } | null>;
     fetchVeriffStatus(sessionId: string): Promise<{
         status: any;

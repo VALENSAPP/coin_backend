@@ -3,6 +3,7 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
+import { KycModule } from '../kyc/kyc.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { JwtModule } from '@nestjs/jwt';
       secret: process.env.JWT_SECRET || 'valens_secret',
       signOptions: { expiresIn: '1d' },
     }),
+    KycModule,
   ],
   controllers: [UserController],
   providers: [UserService],

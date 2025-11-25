@@ -80,6 +80,7 @@ export declare class AuthController {
     getProfile(req: any): Promise<{
         message: string;
         user: {
+            kycStatus: import(".prisma/client").$Enums.KycStatus | null;
             kyc: boolean;
             email: string | null;
             userName: string | null;

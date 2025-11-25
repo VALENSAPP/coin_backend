@@ -13,7 +13,6 @@ const auth_controller_1 = require("./auth.controller");
 const jwt_1 = require("@nestjs/jwt");
 const passport_1 = require("@nestjs/passport");
 const user_module_1 = require("../user/user.module");
-const user_service_1 = require("../user/user.service");
 const jwt_strategy_1 = require("./jwt.strategy");
 const google_strategy_1 = require("./google.strategy");
 const twitter_strategy_1 = require("./twitter.strategy");
@@ -35,7 +34,7 @@ exports.AuthModule = AuthModule = __decorate([
             prisma_module_1.PrismaModule,
         ],
         controllers: [auth_controller_1.AuthController],
-        providers: [auth_service_1.AuthService, user_service_1.UserService, jwt_strategy_1.JwtStrategy, google_strategy_1.GoogleStrategy, twitter_strategy_1.TwitterStrategy, prisma_service_1.PrismaService],
+        providers: [auth_service_1.AuthService, jwt_strategy_1.JwtStrategy, google_strategy_1.GoogleStrategy, twitter_strategy_1.TwitterStrategy, prisma_service_1.PrismaService],
         exports: [jwt_strategy_1.JwtStrategy, jwt_1.JwtModule, passport_1.PassportModule],
     })
 ], AuthModule);

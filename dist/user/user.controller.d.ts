@@ -193,6 +193,7 @@ export declare class UserController {
     }>;
     getProfile(req: Request, query: GetProfileDto): Promise<{
         isFollow: boolean;
+        kycStatus: import(".prisma/client").$Enums.KycStatus | null;
         kyc: boolean;
         email: string | null;
         userName: string | null;
@@ -650,6 +651,7 @@ export declare class UserController {
     }>;
     getUserById(id: string): Promise<{
         user: {
+            kycStatus: import(".prisma/client").$Enums.KycStatus | null;
             kyc: boolean;
             email: string | null;
             userName: string | null;

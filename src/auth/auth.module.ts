@@ -4,7 +4,6 @@ import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { UserModule } from '../user/user.module';
-import { UserService } from '../user/user.service';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
 import { TwitterStrategy } from './twitter.strategy';
@@ -23,7 +22,7 @@ import './firebase.config'; // Initialize Firebase
     PrismaModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, UserService, JwtStrategy, GoogleStrategy, TwitterStrategy, PrismaService],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, TwitterStrategy, PrismaService],
   exports: [JwtStrategy, JwtModule, PassportModule],
 })
 export class AuthModule {}

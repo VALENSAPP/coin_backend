@@ -103,6 +103,7 @@ export declare class AuthService {
     getProfile(userId: string): Promise<{
         message: string;
         user: {
+            kycStatus: import(".prisma/client").$Enums.KycStatus | null;
             kyc: boolean;
             email: string | null;
             userName: string | null;

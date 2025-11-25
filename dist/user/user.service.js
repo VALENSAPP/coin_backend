@@ -24,6 +24,7 @@ const crypto_util_1 = require("../common/crypto.util");
 const admin = require("firebase-admin");
 const totp_util_1 = require("../common/totp.util");
 const axios_1 = require("axios");
+const kyc_service_1 = require("../kyc/kyc.service");
 const serviceAccountPath = path.join(process.cwd(), 'config', 'service-account-key.json');
 if (!admin.apps.length) {
     const serviceAccount = require(serviceAccountPath);
@@ -37,9 +38,11 @@ if (!admin.apps.length) {
 let UserService = class UserService {
     prisma;
     jwtService;
-    constructor(prisma, jwtService) {
+    kycService;
+    constructor(prisma, jwtService, kycService) {
         this.prisma = prisma;
         this.jwtService = jwtService;
+        this.kycService = kycService;
     }
     async register(data) {
         if (data.googleId) {
@@ -208,7 +211,9 @@ let UserService = class UserService {
         if (user && user.isDeleted === 1) {
             throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
         }
-        return user;
+        return {
+            ...user,
+        };
     }
     async editProfile(userId, dto, image) {
         if (!userId)
@@ -406,7 +411,11 @@ let UserService = class UserService {
         const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
         if (!user)
             throw new common_1.BadRequestException('User not found');
-        return user;
+        const kycStatus = await this.kycService.getKycStatus(id);
+        return {
+            ...user,
+            kycStatus: kycStatus?.status || null,
+        };
     }
     async isFollowing(followerId, followingId) {
         if (!followerId || !followingId)
@@ -974,12 +983,16 @@ let UserService = class UserService {
                 return {
                     access_token: access_token,
                     refresh_token: refreshTokenHash,
-                    ...existingUser
+                    ...existingUser,
                 };
             }
             else {
                 const firebaseUserId = decodedToken.uid;
                 const userId = (0, uuid_1.v4)();
+                const wallet = (0, wallet_util_1.generateWallet)();
+                const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+                const encryptedPrivateKey = (0, crypto_util_1.encryptSecret)(wallet.privateKey, encryptionKey);
+                const encryptedMnemonic = (0, crypto_util_1.encryptSecret)(wallet.mnemonic, encryptionKey);
                 const userData = {
                     id: userId,
                     firebaseUserId,
@@ -989,6 +1002,9 @@ let UserService = class UserService {
                     googleId: provider === 'google.com' ? firebaseUserId : null,
                     registrationType: loginType,
                     verifyEmail: 1,
+                    walletAddress: wallet.address,
+                    walletPrivateKey: encryptedPrivateKey,
+                    walletMnemonic: encryptedMnemonic,
                 };
                 const newUser = await this.prisma.user.create({
                     data: userData,
@@ -1007,7 +1023,7 @@ let UserService = class UserService {
                 return {
                     access_token: access_token,
                     refresh_token: refreshTokenHash,
-                    ...newUser
+                    ...newUser,
                 };
             }
         }
@@ -1060,12 +1076,16 @@ let UserService = class UserService {
                 return {
                     access_token: access_token,
                     refresh_token: refreshTokenHash,
-                    ...existingUser
+                    ...existingUser,
                 };
             }
             else {
                 const firebaseUserId = decodedToken.uid;
                 const userId = (0, uuid_1.v4)();
+                const wallet = (0, wallet_util_1.generateWallet)();
+                const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+                const encryptedPrivateKey = (0, crypto_util_1.encryptSecret)(wallet.privateKey, encryptionKey);
+                const encryptedMnemonic = (0, crypto_util_1.encryptSecret)(wallet.mnemonic, encryptionKey);
                 const userData = {
                     id: userId,
                     firebaseUserId,
@@ -1075,6 +1095,9 @@ let UserService = class UserService {
                     googleId: provider === 'google.com' ? firebaseUserId : null,
                     registrationType: loginType,
                     verifyEmail: 1,
+                    walletAddress: wallet.address,
+                    walletPrivateKey: encryptedPrivateKey,
+                    walletMnemonic: encryptedMnemonic,
                 };
                 const newUser = await this.prisma.user.create({
                     data: userData,
@@ -1093,7 +1116,7 @@ let UserService = class UserService {
                 return {
                     access_token: access_token,
                     refresh_token: refreshTokenHash,
-                    ...newUser
+                    ...newUser,
                 };
             }
         }
@@ -1136,6 +1159,10 @@ let UserService = class UserService {
                 throw new common_1.BadRequestException('Account has been deleted. Please contact support to reactivate.');
             }
             if (!existingUser) {
+                const wallet = (0, wallet_util_1.generateWallet)();
+                const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+                const encryptedPrivateKey = (0, crypto_util_1.encryptSecret)(wallet.privateKey, encryptionKey);
+                const encryptedMnemonic = (0, crypto_util_1.encryptSecret)(wallet.mnemonic, encryptionKey);
                 const newUser = await this.prisma.user.create({
                     data: {
                         id: (0, uuid_1.v4)(),
@@ -1145,6 +1172,9 @@ let UserService = class UserService {
                         profile,
                         registrationType: 'TWITTER',
                         verifyEmail: 1,
+                        walletAddress: wallet.address,
+                        walletPrivateKey: encryptedPrivateKey,
+                        walletMnemonic: encryptedMnemonic,
                     },
                 });
                 existingUser = newUser;
@@ -1345,6 +1375,7 @@ exports.UserService = UserService;
 exports.UserService = UserService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        kyc_service_1.KycService])
 ], UserService);
 //# sourceMappingURL=user.service.js.map

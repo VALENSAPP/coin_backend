@@ -151,6 +151,7 @@ export declare class BillingService {
         id: string;
         createdAt: Date;
         completedAt: Date | null;
+        action: string;
         vendorId: string | null;
         amount: number;
         currency: string;
@@ -162,7 +163,6 @@ export declare class BillingService {
         stripeCheckoutSessionId: string | null;
         purchaseTokenPrice: number | null;
         stripeInvoiceId: string | null;
-        action: string;
     }[] | ({
         typeTransaction: string;
         userId: string;
@@ -194,6 +194,7 @@ export declare class BillingService {
         id: string;
         createdAt: Date;
         completedAt: Date | null;
+        action: string;
         vendorId: string | null;
         amount: number;
         currency: string;
@@ -205,7 +206,6 @@ export declare class BillingService {
         stripeCheckoutSessionId: string | null;
         purchaseTokenPrice: number | null;
         stripeInvoiceId: string | null;
-        action: string;
     } | {
         typeTransaction: string;
         userId: string;
