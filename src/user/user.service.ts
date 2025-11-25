@@ -17,6 +17,7 @@ import { encryptSecret } from '../common/crypto.util';
 import * as admin from 'firebase-admin';
 import { TOTPUtil } from '../common/totp.util';
 import axios from 'axios';
+import { KycService } from '../kyc/kyc.service';
 
 // ✅ Use absolute path to service account
 const serviceAccountPath = path.join(process.cwd(), 'config', 'service-account-key.json');
@@ -45,6 +46,7 @@ export class UserService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly kycService: KycService,
   ) {}
 
   async register(data: {
@@ -242,7 +244,9 @@ export class UserService {
       throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
     }
 
-    return user;
+    return {
+      ...user,
+    };
   }
 
   // Profile edit
@@ -468,7 +472,14 @@ export class UserService {
   async getUserById(id: string) {
     const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
     if (!user) throw new BadRequestException('User not found');
-    return user;
+
+    // Get KYC status
+    const kycStatus = await this.kycService.getKycStatus(id);
+
+    return {
+      ...user,
+      kycStatus: kycStatus?.status || null,
+    };
   }
 
   async isFollowing(followerId: string, followingId: string): Promise<boolean> {
@@ -1132,11 +1143,11 @@ export class UserService {
              // Generate tokens
             const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
       const access_token = this.jwtService.sign(payload);
-     
+
              // Store refresh token
              const refreshTokenHash = randomBytes(32).toString('hex');
              const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-     
+
              await this.prisma.user.update({
                where: { id: existingUser.id },
                data: {
@@ -1144,17 +1155,23 @@ export class UserService {
                  refreshTokenExpiresAt,
                },
              });
-     
+
              return {
                access_token: access_token,
                refresh_token: refreshTokenHash,
-               ...existingUser
+               ...existingUser,
              };
            } else {
              // New user registration
              const firebaseUserId = decodedToken.uid;
              const userId = uuidv4();
-     
+
+             // Generate wallet for new user
+             const wallet = generateWallet();
+             const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+             const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+             const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+
              const userData = {
                id: userId,
                firebaseUserId,
@@ -1164,6 +1181,9 @@ export class UserService {
                googleId: provider === 'google.com' ? firebaseUserId : null,
                registrationType: loginType,
                verifyEmail: 1, // Firebase users are verified
+               walletAddress: wallet.address,
+               walletPrivateKey: encryptedPrivateKey,
+               walletMnemonic: encryptedMnemonic,
              };
      
              // Create user
@@ -1190,7 +1210,7 @@ export class UserService {
              return {
                access_token: access_token,
                refresh_token: refreshTokenHash,
-               ...newUser
+               ...newUser,
              };
            }
          } catch (error) {
@@ -1244,11 +1264,11 @@ export class UserService {
                  // Generate tokens
                 const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
           const access_token = this.jwtService.sign(payload);
-         
+
                  // Store refresh token
                  const refreshTokenHash = randomBytes(32).toString('hex');
                  const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-         
+
                  await this.prisma.user.update({
                    where: { id: existingUser.id },
                    data: {
@@ -1256,17 +1276,23 @@ export class UserService {
                      refreshTokenExpiresAt,
                    },
                  });
-         
+
                  return {
                    access_token: access_token,
                    refresh_token: refreshTokenHash,
-                   ...existingUser
+                   ...existingUser,
                  };
                } else {
                  // New user registration
                  const firebaseUserId = decodedToken.uid;
                  const userId = uuidv4();
-         
+
+                 // Generate wallet for new user
+                 const wallet = generateWallet();
+                 const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+                 const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+                 const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+
                  const userData = {
                    id: userId,
                    firebaseUserId,
@@ -1276,6 +1302,9 @@ export class UserService {
                    googleId: provider === 'google.com' ? firebaseUserId : null,
                    registrationType: loginType,
                    verifyEmail: 1, // Firebase users are verified
+                   walletAddress: wallet.address,
+                   walletPrivateKey: encryptedPrivateKey,
+                   walletMnemonic: encryptedMnemonic,
                  };
          
                  // Create user
@@ -1302,7 +1331,8 @@ export class UserService {
                  return {
                    access_token: access_token,
                    refresh_token: refreshTokenHash,
-                   ...newUser
+                   ...newUser,
+                 
                  };
                }
              } catch (error) {
@@ -1355,6 +1385,12 @@ export class UserService {
 
       // If not found, create new user
       if (!existingUser) {
+        // Generate wallet for new user
+        const wallet = generateWallet();
+        const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+        const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+        const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+
         const newUser = await this.prisma.user.create({
           data: {
             id: uuidv4(),
@@ -1364,6 +1400,9 @@ export class UserService {
             profile,
             registrationType: 'TWITTER',
             verifyEmail: 1,
+            walletAddress: wallet.address,
+            walletPrivateKey: encryptedPrivateKey,
+            walletMnemonic: encryptedMnemonic,
           },
         });
         existingUser = newUser;
@@ -1387,6 +1426,7 @@ export class UserService {
           refreshTokenExpiresAt,
         },
       });
+
 
       return {
         access_token,
