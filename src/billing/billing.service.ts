@@ -749,6 +749,7 @@ export class BillingService {
         stripePaymentIntentId: session.payment_intent as string,
       },
     });
+console.log(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>",buyUserId,amount,session.payment_intent as string);
 
     return { sessionId: session.id, url: session.url };
   }
