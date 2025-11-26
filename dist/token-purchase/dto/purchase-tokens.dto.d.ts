@@ -7,6 +7,7 @@ export declare class PurchaseTokensDto {
     tokensReceived?: number;
     purchaseTokenPrice: number;
     vendorId?: string;
+    postId?: string;
 }
 export declare class BuyTokenDto {
     userId: string;

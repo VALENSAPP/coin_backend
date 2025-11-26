@@ -81,6 +81,15 @@ export class PurchaseTokensDto {
   @IsOptional()
   @IsUUID()
   vendorId?: string;
+
+  @ApiProperty({
+    description: 'Post ID for which the donation is made (required for donations)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    required: false
+  })
+  @IsOptional()
+  @IsUUID()
+  postId?: string;
 }
 
 export class BuyTokenDto {

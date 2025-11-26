@@ -244,6 +244,7 @@ export class TokenPurchaseService {
         const donationData: any = {
           userId,
           vendorId: dto.vendorId,
+          postId: dto.postId,
           amount: dto.amount,
           stripeCheckoutSessionId: session.id,
           status: 'pending',

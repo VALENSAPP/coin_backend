@@ -206,6 +206,7 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 const donationData = {
                     userId,
                     vendorId: dto.vendorId,
+                    postId: dto.postId,
                     amount: dto.amount,
                     stripeCheckoutSessionId: session.id,
                     status: 'pending',
