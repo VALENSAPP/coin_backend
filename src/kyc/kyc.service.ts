@@ -242,7 +242,7 @@ export class KycService {
    */
   @Cron('*/2 * * * * *') // Every 2 minutes
   async syncPendingKycCron() {
-    console.log('⏰ Cron: Starting scheduled KYC status sync...');
+    // console.log('⏰ Cron: Starting scheduled KYC status sync...');
     await this.syncAllPendingKyc();
   }
 
@@ -250,7 +250,7 @@ export class KycService {
    * Sync all pending/submitted KYC records with Veriff
    */
   async syncAllPendingKyc() {
-    console.log('🔄 Starting sync for all pending/submitted KYC records...');
+    // console.log('🔄 Starting sync for all pending/submitted KYC records...');
 
     const pendingRecords = await this.prisma.kyc.findMany({
       where: {
@@ -265,7 +265,7 @@ export class KycService {
 
     for (const record of pendingRecords) {
       try {
-        console.log(`🔍 Syncing KYC for user ${record.userId}, session ${record.veriffSessionId}`);
+        // console.log(`🔍 Syncing KYC for user ${record.userId}, session ${record.veriffSessionId}`);
 
         const veriffData = await this.fetchVeriffStatus(record.veriffSessionId);
         if (!veriffData) {
