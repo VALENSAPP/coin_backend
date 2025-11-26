@@ -3,7 +3,16 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class PurchaseTokensDto {
   @ApiProperty({
-    description: 'Amount in USD to spend on tokens',
+    description: 'Type of purchase',
+    example: 'token_purchase',
+    enum: ['token_purchase', 'donation']
+  })
+  @IsString()
+  @IsIn(['token_purchase', 'donation'])
+  type: string;
+
+  @ApiProperty({
+    description: 'Amount in USD to spend on tokens or donate',
     example: 10.00,
     minimum: 0.01
   })
@@ -12,40 +21,48 @@ export class PurchaseTokensDto {
   amount: number;
 
   @ApiProperty({
-    description: 'Platform fee provided by frontend',
+    description: 'Platform fee provided by frontend (required for token_purchase)',
     example: 0.02,
-    minimum: 0
+    minimum: 0,
+    required: false
   })
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  platformFee: number;
+  platformFee?: number;
 
   @ApiProperty({
-    description: 'Vendor fee provided by frontend',
+    description: 'Vendor fee provided by frontend (required for token_purchase)',
     example: 0.05,
-    minimum: 0
+    minimum: 0,
+    required: false
   })
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  vendorFee: number;
+  vendorFee?: number;
 
   @ApiProperty({
-    description: 'Amount after deducting fees provided by frontend',
+    description: 'Amount after deducting fees provided by frontend (required for token_purchase)',
     example: 9.93,
-    minimum: 0
+    minimum: 0,
+    required: false
   })
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  restAmount: number;
+  restAmount?: number;
 
   @ApiProperty({
-    description: 'Tokens to be received provided by frontend',
+    description: 'Tokens to be received provided by frontend (required for token_purchase)',
     example: 993,
-    minimum: 0
+    minimum: 0,
+    required: false
   })
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  tokensReceived: number;
+  tokensReceived?: number;
 
   @ApiProperty({
     description: 'Token price at the time of purchase',

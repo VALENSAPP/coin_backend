@@ -13,7 +13,6 @@ exports.KycService = void 0;
 const common_1 = require("@nestjs/common");
 const axios_1 = require("axios");
 const prisma_service_1 = require("../prisma/prisma.service");
-const schedule_1 = require("@nestjs/schedule");
 const node_crypto_1 = require("node:crypto");
 let KycService = class KycService {
     prisma;
@@ -191,12 +190,7 @@ let KycService = class KycService {
         }
         return { success: true, status: mappedStatus, updated: false, reason: mappedStatus === 'DECLINED' ? reason : null };
     }
-    async syncPendingKycCron() {
-        console.log('⏰ Cron: Starting scheduled KYC status sync...');
-        await this.syncAllPendingKyc();
-    }
     async syncAllPendingKyc() {
-        console.log('🔄 Starting sync for all pending/submitted KYC records...');
         const pendingRecords = await this.prisma.kyc.findMany({
             where: {
                 status: { in: ['PENDING', 'SUBMITTED'] }
@@ -207,7 +201,6 @@ let KycService = class KycService {
         let errors = 0;
         for (const record of pendingRecords) {
             try {
-                console.log(`🔍 Syncing KYC for user ${record.userId}, session ${record.veriffSessionId}`);
                 const veriffData = await this.fetchVeriffStatus(record.veriffSessionId);
                 if (!veriffData) {
                     console.log(`⚠️ Could not fetch status for session ${record.veriffSessionId}`);
@@ -258,12 +251,6 @@ let KycService = class KycService {
     }
 };
 exports.KycService = KycService;
-__decorate([
-    (0, schedule_1.Cron)('*/2 * * * * *'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], KycService.prototype, "syncPendingKycCron", null);
 exports.KycService = KycService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])

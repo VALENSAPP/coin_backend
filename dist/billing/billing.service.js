@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const prisma_service_1 = require("../prisma/prisma.service");
 const stripe_1 = require("stripe");
+const uuid_1 = require("uuid");
 let BillingService = class BillingService {
     prisma;
     stripe;
@@ -568,8 +569,9 @@ let BillingService = class BillingService {
     async handleFanSubscriptionBuyPayment(session) {
         const fanUserId = session.metadata?.fanUserId;
         const buyUserId = session.metadata?.buyUserId;
-        if (!fanUserId || !buyUserId) {
-            console.error('Missing fanUserId or buyUserId in fan_subscription_buy session metadata');
+        const customPaymentIntentId = session.metadata?.customPaymentIntentId;
+        if (!fanUserId || !buyUserId || !customPaymentIntentId) {
+            console.error('Missing fanUserId, buyUserId, or customPaymentIntentId in fan_subscription_buy session metadata');
             return;
         }
         const fanUser = await this.prisma.user.findUnique({ where: { id: fanUserId } });
@@ -577,11 +579,10 @@ let BillingService = class BillingService {
             console.error(`Fan user ${fanUserId} not found for fan_subscription_buy payment`);
             return;
         }
-        const paymentIntentId = session.payment_intent;
-        await this.prisma.payment.updateMany({
+        const updateResult = await this.prisma.payment.updateMany({
             where: {
-                userId: fanUserId,
-                stripePaymentIntentId: paymentIntentId,
+                userId: buyUserId,
+                stripePaymentIntentId: customPaymentIntentId,
                 forPayment: 'fanSubscriptionBuy',
                 status: 'pending'
             },
@@ -618,6 +619,7 @@ let BillingService = class BillingService {
         const buyUser = await this.prisma.user.findUnique({ where: { id: buyUserId } });
         if (!buyUser)
             throw new common_1.BadRequestException('Buy user not found');
+        const customPaymentIntentId = (0, uuid_1.v4)();
         const session = await this.stripe.checkout.sessions.create({
             mode: 'payment',
             customer: customerId,
@@ -640,16 +642,17 @@ let BillingService = class BillingService {
                 fanUserId,
                 buyUserId,
                 amount: amount.toString(),
+                customPaymentIntentId,
             },
         });
         await this.prisma.payment.create({
             data: {
-                userId: fanUserId,
+                userId: buyUserId,
                 amount: amount,
                 currency: 'USD',
                 status: 'pending',
                 forPayment: 'fanSubscriptionBuy',
-                stripePaymentIntentId: session.payment_intent,
+                stripePaymentIntentId: customPaymentIntentId,
             },
         });
         return { sessionId: session.id, url: session.url };

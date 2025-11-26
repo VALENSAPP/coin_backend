@@ -58,6 +58,7 @@ model User {
   payments             Payment[]
   tokenPurchases       TokenPurchase[]
   tokenSales           TokenSale[]
+  donationData         DonationData[]
   posts                Post[]
   postComments         PostComment[]
   postLikes            PostLike[]
@@ -269,6 +270,27 @@ model TokenSale {
 
   @@index([userId])
   @@index([tokenAddress])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model DonationData {
+  id                    String    @id @default(uuid())
+  userId                String
+  vendorId              String?   // User receiving the donation
+  amount                Float     // Donation amount in USD
+  currency              String    @default("USD")
+  status                String    @default("pending") // pending, completed, failed
+  stripePaymentIntentId String?
+  stripeCheckoutSessionId String?
+  purchaseTokenPrice    Float?    @default(0)
+  stripeInvoiceId       String?
+  action                String    @default("donate")
+  createdAt             DateTime  @default(now())
+  completedAt           DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@index([vendorId])
   @@index([status])
 }

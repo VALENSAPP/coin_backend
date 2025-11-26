@@ -37,7 +37,6 @@ export declare class KycService {
         reason: any;
         message?: undefined;
     }>;
-    syncPendingKycCron(): Promise<void>;
     syncAllPendingKyc(): Promise<{
         success: boolean;
         total: number;

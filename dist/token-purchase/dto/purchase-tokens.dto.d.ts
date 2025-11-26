@@ -1,9 +1,10 @@
 export declare class PurchaseTokensDto {
+    type: string;
     amount: number;
-    platformFee: number;
-    vendorFee: number;
-    restAmount: number;
-    tokensReceived: number;
+    platformFee?: number;
+    vendorFee?: number;
+    restAmount?: number;
+    tokensReceived?: number;
     purchaseTokenPrice: number;
     vendorId?: string;
 }

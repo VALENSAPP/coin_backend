@@ -100,8 +100,8 @@ let BillingController = class BillingController {
     }
     async buyFanSubscription(req, dto) {
         const userId = req.user.userId;
-        if (dto.fanUserId !== userId) {
-            throw new common_1.BadRequestException('Fan user ID mismatch');
+        if (dto.fanUserId == userId) {
+            throw new common_1.BadRequestException('wrong fan user id');
         }
         const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
         return { message: 'Checkout session created', ...result };

@@ -24,6 +24,22 @@ export class TokenPurchaseService {
     });
   }
 
+  /**
+   * Validate fee parameters provided by frontend
+   */
+  private validateFees(dto: PurchaseTokensDto) {
+    const expectedRestAmount = dto.amount - (dto.platformFee! + dto.vendorFee!);
+    const expectedTokensReceived = expectedRestAmount * this.TOKEN_RATE;
+
+    if (Math.abs(dto.restAmount! - expectedRestAmount) > 0.01) {
+      throw new BadRequestException('Invalid restAmount: does not match amount - (platformFee + vendorFee)');
+    }
+
+    if (Math.abs(dto.tokensReceived! - expectedTokensReceived) > 0.01) {
+      throw new BadRequestException('Invalid tokensReceived: does not match restAmount * token rate');
+    }
+  }
+
   async getTotalTokenData(userId: string) {
     try {
       // Get all completed token purchases where action is 'buy'
@@ -101,21 +117,6 @@ export class TokenPurchaseService {
     }
   }
 
-  /**
-   * Validate fee parameters provided by frontend
-   */
-  private validateFees(dto: PurchaseTokensDto) {
-    const expectedRestAmount = dto.amount - (dto.platformFee + dto.vendorFee);
-    const expectedTokensReceived = expectedRestAmount * this.TOKEN_RATE;
-
-    if (Math.abs(dto.restAmount - expectedRestAmount) > 0.01) {
-      throw new BadRequestException('Invalid restAmount: does not match amount - (platformFee + vendorFee)');
-    }
-
-    if (Math.abs(dto.tokensReceived - expectedTokensReceived) > 0.01) {
-      throw new BadRequestException('Invalid tokensReceived: does not match restAmount * token rate');
-    }
-  }
 
   /**
    * Create a token purchase session
@@ -143,10 +144,28 @@ export class TokenPurchaseService {
         }
       }
 
-      // Validate fees provided by frontend
-      // this.validateFees(dto);
+      let productName: string;
+      let productDescription: string;
+      let metadataType: string;
 
-      this.logger.log(`Creating token purchase for user ${userId}: $${dto.amount} -> ${dto.tokensReceived} tokens`);
+      if (dto.type === 'token_purchase') {
+        // Validate fees provided by frontend for token purchase
+        if (dto.platformFee === undefined || dto.vendorFee === undefined || dto.restAmount === undefined || dto.tokensReceived === undefined) {
+          throw new BadRequestException('Fee fields are required for token purchase');
+        }
+        this.validateFees(dto);
+        productName = 'Token Purchase';
+        productDescription = `Purchase ${dto.tokensReceived} tokens`;
+        metadataType = 'token_purchase';
+        this.logger.log(`Creating token purchase for user ${userId}: $${dto.amount} -> ${dto.tokensReceived} tokens`);
+      } else if (dto.type === 'donation') {
+        productName = 'Donation';
+        productDescription = `Donate $${dto.amount}`;
+        metadataType = 'donation';
+        this.logger.log(`Creating donation for user ${userId}: $${dto.amount}`);
+      } else {
+        throw new BadRequestException('Invalid type');
+      }
 
       // Get success and cancel URLs from environment
       const successUrl = process.env.STRIPE_SUCCESS_URL as string;
@@ -160,8 +179,8 @@ export class TokenPurchaseService {
             price_data: {
               currency: 'usd',
               product_data: {
-                name: 'Token Purchase',
-                description: `Purchase ${dto.tokensReceived} tokens`,
+                name: productName,
+                description: productDescription,
               },
               unit_amount: Math.round(dto.amount * 100), // Convert to cents
             },
@@ -174,57 +193,92 @@ export class TokenPurchaseService {
         metadata: {
           userId,
           vendorId: dto.vendorId || '',
-          type: 'token_purchase',
+          type: metadataType,
         },
         customer_email: user.email || undefined,
       });
 
-      // Create token purchase record
-      const tokenPurchaseData: any = {
-        userId,
-        vendorId: dto.vendorId,
-        amount: dto.amount,
-        platformFee: dto.platformFee,
-        vendorFee: dto.vendorFee,
-        restAmount: dto.restAmount,
-        tokensReceived: dto.tokensReceived,
-        stripeCheckoutSessionId: session.id,
-        status: 'pending',
-      };
+      let record: any;
+      let response: any;
 
-      // Only include purchaseTokenPrice if it's provided and the database supports it
-      if (dto.purchaseTokenPrice !== undefined) {
-        tokenPurchaseData.purchaseTokenPrice = dto.purchaseTokenPrice;
-      }
+      if (dto.type === 'token_purchase') {
+        // Create token purchase record
+        const tokenPurchaseData: any = {
+          userId,
+          vendorId: dto.vendorId,
+          amount: dto.amount,
+          platformFee: dto.platformFee,
+          vendorFee: dto.vendorFee,
+          restAmount: dto.restAmount,
+          tokensReceived: dto.tokensReceived,
+          stripeCheckoutSessionId: session.id,
+          status: 'pending',
+        };
 
-      const tokenPurchase = await this.prisma.tokenPurchase.create({
-        data: tokenPurchaseData,
-      });
+        // Only include purchaseTokenPrice if it's provided and the database supports it
+        if (dto.purchaseTokenPrice !== undefined) {
+          tokenPurchaseData.purchaseTokenPrice = dto.purchaseTokenPrice;
+        }
 
-      const response: any = {
-        id: tokenPurchase.id,
-        amount: dto.amount,
-        platformFee: dto.platformFee,
-        vendorFee: dto.vendorFee,
-        restAmount: dto.restAmount,
-        tokensReceived: dto.tokensReceived,
-        status: tokenPurchase.status,
-        sessionUrl: session.url!,
-      };
+        record = await this.prisma.tokenPurchase.create({
+          data: tokenPurchaseData,
+        });
 
-      // Only include purchaseTokenPrice in response if it was provided
-      if (dto.purchaseTokenPrice !== undefined) {
-        response.purchaseTokenPrice = dto.purchaseTokenPrice;
+        response = {
+          id: record.id,
+          amount: dto.amount,
+          platformFee: dto.platformFee,
+          vendorFee: dto.vendorFee,
+          restAmount: dto.restAmount,
+          tokensReceived: dto.tokensReceived,
+          status: record.status,
+          sessionUrl: session.url!,
+        };
+
+        // Only include purchaseTokenPrice in response if it was provided
+        if (dto.purchaseTokenPrice !== undefined) {
+          response.purchaseTokenPrice = dto.purchaseTokenPrice;
+        }
+      } else if (dto.type === 'donation') {
+        // Create donation record
+        const donationData: any = {
+          userId,
+          vendorId: dto.vendorId,
+          amount: dto.amount,
+          stripeCheckoutSessionId: session.id,
+          status: 'pending',
+        };
+
+        // Only include purchaseTokenPrice if it's provided
+        if (dto.purchaseTokenPrice !== undefined) {
+          donationData.purchaseTokenPrice = dto.purchaseTokenPrice;
+        }
+
+        record = await this.prisma.donationData.create({
+          data: donationData,
+        });
+
+        response = {
+          id: record.id,
+          amount: dto.amount,
+          status: record.status,
+          sessionUrl: session.url!,
+        };
+
+        // Only include purchaseTokenPrice in response if it was provided
+        if (dto.purchaseTokenPrice !== undefined) {
+          response.purchaseTokenPrice = dto.purchaseTokenPrice;
+        }
       }
 
       return response;
 
     } catch (error) {
-      this.logger.error('Error creating token purchase:', error);
+      this.logger.error('Error creating purchase:', error);
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException('Failed to create token purchase');
+      throw new BadRequestException('Failed to create purchase');
     }
   }
 
@@ -1063,6 +1117,40 @@ export class TokenPurchaseService {
         throw error;
       }
       throw new BadRequestException(`Failed to sell token: ${error.message}`);
+    }
+  }
+
+  async handleDonationPayment(session: Stripe.Checkout.Session) {
+    try {
+      const userId = session.metadata?.userId;
+      const vendorId = session.metadata?.vendorId;
+
+      if (!userId) {
+        this.logger.error('Missing userId in donation session metadata');
+        return;
+      }
+
+      // Update donation status to completed
+      const updateResult = await this.prisma.donationData.updateMany({
+        where: {
+          userId,
+          stripeCheckoutSessionId: session.id,
+          status: 'pending',
+        },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
+
+      if (updateResult.count === 0) {
+        this.logger.warn(`No pending donation found for session ${session.id}`);
+        return;
+      }
+
+      this.logger.log(`Donation for session ${session.id} completed successfully`);
+    } catch (error) {
+      this.logger.error('Error handling donation payment:', error);
     }
   }
 }

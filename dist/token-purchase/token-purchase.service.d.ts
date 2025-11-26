@@ -2,6 +2,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
+import Stripe from 'stripe';
 export declare class TokenPurchaseService {
     private readonly prisma;
     private readonly tokenService;
@@ -10,6 +11,7 @@ export declare class TokenPurchaseService {
     private stripe;
     private readonly TOKEN_RATE;
     constructor(prisma: PrismaService, tokenService: TokenService, userService: UserService);
+    private validateFees;
     getTotalTokenData(userId: string): Promise<{
         tokenAddress: string;
         tokenAmount: number;
@@ -18,7 +20,6 @@ export declare class TokenPurchaseService {
         vendorName: string;
         vendorId: string;
     }[]>;
-    private validateFees;
     createTokenPurchase(userId: string, dto: PurchaseTokensDto): Promise<TokenPurchaseResponseDto>;
     handlePaymentSuccess(paymentIntentId: string): Promise<void>;
     handleCheckoutSessionCompleted(sessionId: string): Promise<void>;
@@ -27,15 +28,15 @@ export declare class TokenPurchaseService {
     getUserTokenBalance(userId: string): Promise<number>;
     getVendorTokenAmount(userId: string, vendorId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{
-        status: string;
         id: string;
         createdAt: Date;
-        completedAt: Date | null;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
+        status: string;
+        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string, period?: 'week' | 'month' | 'year'): Promise<{
         tokenAddress: string | null;
@@ -67,4 +68,5 @@ export declare class TokenPurchaseService {
         remainingTokens: number;
         blockNumber: any;
     }>;
+    handleDonationPayment(session: Stripe.Checkout.Session): Promise<void>;
 }
