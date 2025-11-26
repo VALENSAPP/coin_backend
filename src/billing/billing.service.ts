@@ -655,7 +655,7 @@ export class BillingService {
     const paymentIntentId = session.payment_intent as string;
     await this.prisma.payment.updateMany({
       where: {
-        userId: fanUserId,
+        userId: buyUserId,
         stripePaymentIntentId: paymentIntentId,
         forPayment: 'fanSubscriptionBuy',
         status: 'pending'
@@ -725,7 +725,7 @@ await this.prisma.user.update({
     // Create pending payment record
     await this.prisma.payment.create({
       data: {
-        userId: fanUserId,
+        userId: buyUserId,
         amount: amount,
         currency: 'USD',
         status: 'pending',
