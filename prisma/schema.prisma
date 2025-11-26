@@ -278,6 +278,7 @@ model DonationData {
   id                    String    @id @default(uuid())
   userId                String
   vendorId              String?   // User receiving the donation
+  postId                String?   // Post for which donation is made
   amount                Float     // Donation amount in USD
   currency              String    @default("USD")
   status                String    @default("pending") // pending, completed, failed
@@ -292,6 +293,7 @@ model DonationData {
 
   @@index([userId])
   @@index([vendorId])
+  @@index([postId])
   @@index([status])
 }
 
