@@ -159,8 +159,8 @@ export class BillingController {
     const userId = (req.user as any).userId;
 
     // Validate that the fanUserId matches the authenticated user
-    if (dto.fanUserId !== userId) {
-      throw new BadRequestException('Fan user ID mismatch');
+    if (dto.fanUserId == userId) {
+      throw new BadRequestException('wrong fan user id');
     }
 
     const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
