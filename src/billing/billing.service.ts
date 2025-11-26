@@ -637,8 +637,10 @@ export class BillingService {
   }
 
   async handleFanSubscriptionBuyPayment(session: Stripe.Checkout.Session) {
+    console.log(`handleFanSubscriptionBuyPayment called for session ${session.id}`);
     const fanUserId = session.metadata?.fanUserId;
     const buyUserId = session.metadata?.buyUserId;
+    console.log(`Metadata: fanUserId=${fanUserId}, buyUserId=${buyUserId}`);
 
     if (!fanUserId || !buyUserId) {
       console.error('Missing fanUserId or buyUserId in fan_subscription_buy session metadata');
@@ -650,10 +652,12 @@ export class BillingService {
       console.error(`Fan user ${fanUserId} not found for fan_subscription_buy payment`);
       return;
     }
+    console.log(`Fan user found: ${fanUser.id}`);
 
     // Update the existing pending payment record to success
     const paymentIntentId = session.payment_intent as string;
-    await this.prisma.payment.updateMany({
+    console.log(`Payment intent ID: ${paymentIntentId}`);
+    const updateResult = await this.prisma.payment.updateMany({
       where: {
         userId: buyUserId,
         stripePaymentIntentId: paymentIntentId,
@@ -666,6 +670,7 @@ export class BillingService {
         currency: session.currency?.toUpperCase() || 'USD',
       },
     });
+    console.log(`Payment update result: ${updateResult.count} records updated`);
 
     // Create FansSubscriptionBuyData entry
     const startDate = new Date();
@@ -681,7 +686,8 @@ export class BillingService {
         status: 'ACTIVE',
       },
     });
-await this.prisma.user.update({ 
+    console.log(`FansSubscriptionBuyData created for fan ${fanUserId} and buy ${buyUserId}`);
+    await this.prisma.user.update({
    where: {
         id: fanUserId
       },
