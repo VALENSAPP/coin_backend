@@ -38,3 +38,9 @@ export declare class GetTokenHistoryDto {
     tokenAddress?: string;
     period?: 'week' | 'month' | 'year';
 }
+export declare class GetPostDonationTotalDto {
+    postId: string;
+}
+export declare class PostDonationTotalResponseDto {
+    totalDonation: number;
+}

@@ -69,4 +69,7 @@ export declare class TokenPurchaseService {
         blockNumber: any;
     }>;
     handleDonationPayment(session: Stripe.Checkout.Session): Promise<void>;
+    getPostDonationTotal(postId: string): Promise<{
+        totalDonation: number;
+    }>;
 }

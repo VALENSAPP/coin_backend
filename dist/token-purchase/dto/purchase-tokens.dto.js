@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GetTokenHistoryDto = exports.TokenPurchaseResponseDto = exports.GetVendorTokenAmountDto = exports.SellTokenDto = exports.GetTokenPriceDto = exports.BuyTokenDto = exports.PurchaseTokensDto = void 0;
+exports.PostDonationTotalResponseDto = exports.GetPostDonationTotalDto = exports.GetTokenHistoryDto = exports.TokenPurchaseResponseDto = exports.GetVendorTokenAmountDto = exports.SellTokenDto = exports.GetTokenPriceDto = exports.BuyTokenDto = exports.PurchaseTokensDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class PurchaseTokensDto {
@@ -295,4 +295,27 @@ __decorate([
     (0, class_validator_1.IsIn)(['week', 'month', 'year']),
     __metadata("design:type", String)
 ], GetTokenHistoryDto.prototype, "period", void 0);
+class GetPostDonationTotalDto {
+    postId;
+}
+exports.GetPostDonationTotalDto = GetPostDonationTotalDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Post ID to get total donation amount for',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    }),
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], GetPostDonationTotalDto.prototype, "postId", void 0);
+class PostDonationTotalResponseDto {
+    totalDonation;
+}
+exports.PostDonationTotalResponseDto = PostDonationTotalResponseDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Total donation amount for the post',
+        example: 150.50
+    }),
+    __metadata("design:type", Number)
+], PostDonationTotalResponseDto.prototype, "totalDonation", void 0);
 //# sourceMappingURL=purchase-tokens.dto.js.map

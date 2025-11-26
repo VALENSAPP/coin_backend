@@ -886,6 +886,26 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
             this.logger.error('Error handling donation payment:', error);
         }
     }
+    async getPostDonationTotal(postId) {
+        try {
+            const result = await this.prisma.donationData.aggregate({
+                _sum: {
+                    amount: true,
+                },
+                where: {
+                    postId,
+                    status: 'completed',
+                },
+            });
+            const totalDonation = result._sum.amount || 0;
+            this.logger.log(`Total donation for post ${postId}: $${totalDonation}`);
+            return { totalDonation };
+        }
+        catch (error) {
+            this.logger.error('Error getting post donation total:', error);
+            throw new common_1.BadRequestException('Failed to get post donation total');
+        }
+    }
 };
 exports.TokenPurchaseService = TokenPurchaseService;
 exports.TokenPurchaseService = TokenPurchaseService = TokenPurchaseService_1 = __decorate([

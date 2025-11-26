@@ -67,6 +67,9 @@ let TokenPurchaseController = class TokenPurchaseController {
     async getTopCreators() {
         return this.tokenPurchaseService.getTopCreators();
     }
+    async getPostDonationTotal(dto) {
+        return this.tokenPurchaseService.getPostDonationTotal(dto.postId);
+    }
 };
 exports.TokenPurchaseController = TokenPurchaseController;
 __decorate([
@@ -410,6 +413,26 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], TokenPurchaseController.prototype, "getTopCreators", null);
+__decorate([
+    (0, common_1.Post)('post-donation-total'),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Get total donation amount for a post',
+        description: 'Returns the total amount of donations received for a specific post'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.OK,
+        description: 'Total donation amount retrieved successfully',
+        type: purchase_tokens_dto_1.PostDonationTotalResponseDto
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.BAD_REQUEST,
+        description: 'Invalid post ID'
+    }),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [purchase_tokens_dto_1.GetPostDonationTotalDto]),
+    __metadata("design:returntype", Promise)
+], TokenPurchaseController.prototype, "getPostDonationTotal", null);
 exports.TokenPurchaseController = TokenPurchaseController = __decorate([
     (0, swagger_1.ApiTags)('token-purchase'),
     (0, common_1.Controller)('token-purchase'),

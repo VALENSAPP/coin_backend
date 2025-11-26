@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TokenPurchaseService } from './token-purchase.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
@@ -349,5 +349,23 @@ export class TokenPurchaseController {
   })
   async getTopCreators() {
     return this.tokenPurchaseService.getTopCreators();
+  }
+
+  @Post('post-donation-total')
+  @ApiOperation({
+    summary: 'Get total donation amount for a post',
+    description: 'Returns the total amount of donations received for a specific post'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Total donation amount retrieved successfully',
+    type: PostDonationTotalResponseDto
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid post ID'
+  })
+  async getPostDonationTotal(@Body() dto: GetPostDonationTotalDto): Promise<PostDonationTotalResponseDto> {
+    return this.tokenPurchaseService.getPostDonationTotal(dto.postId);
   }
 }

@@ -224,3 +224,20 @@ export class GetTokenHistoryDto {
   @IsIn(['week', 'month', 'year'])
   period?: 'week' | 'month' | 'year';
 }
+
+export class GetPostDonationTotalDto {
+  @ApiProperty({
+    description: 'Post ID to get total donation amount for',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @IsUUID()
+  postId: string;
+}
+
+export class PostDonationTotalResponseDto {
+  @ApiProperty({
+    description: 'Total donation amount for the post',
+    example: 150.50
+  })
+  totalDonation: number;
+}
