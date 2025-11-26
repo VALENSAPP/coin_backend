@@ -657,6 +657,16 @@ export class BillingService {
     // Update the existing pending payment record to success
     const paymentIntentId = session.payment_intent as string;
     console.log(`Payment intent ID: ${paymentIntentId}`);
+    // Debug: Check existing payment records
+    const existingPayments = await this.prisma.payment.findMany({
+      where: {
+        userId: buyUserId,
+        stripePaymentIntentId: paymentIntentId,
+        forPayment: 'fanSubscriptionBuy',
+        status: 'pending'
+      }
+    });
+    console.log(`Existing pending payments matching criteria: ${existingPayments.length}`, existingPayments);
     const updateResult = await this.prisma.payment.updateMany({
       where: {
         userId: buyUserId,
