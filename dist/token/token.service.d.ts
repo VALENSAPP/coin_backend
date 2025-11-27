@@ -22,10 +22,10 @@ export declare class TokenService {
         userTokenId: string;
     }>;
     getUserToken(userId: string): Promise<{
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
         transactionHash: string;
         tokenAddress: string | null;
         tokenName: string;
@@ -44,10 +44,10 @@ export declare class TokenService {
     }>;
     getUserTokenWithInfo(userId: string): Promise<{
         tokenInfo: null;
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
         transactionHash: string;
         tokenAddress: string | null;
         tokenName: string;
@@ -64,10 +64,10 @@ export declare class TokenService {
             initialSupply: any;
             followers: any;
         };
-        userId: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        userId: string;
         transactionHash: string;
         tokenAddress: string | null;
         tokenName: string;

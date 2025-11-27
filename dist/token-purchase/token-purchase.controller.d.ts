@@ -1,5 +1,5 @@
 import { TokenPurchaseService } from './token-purchase.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto, DonationResponseDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { Request } from 'express';
 export declare class TokenPurchaseController {
@@ -69,5 +69,6 @@ export declare class TokenPurchaseController {
         followerCount: number;
         currentTokenStatus: string;
     }[]>;
+    createMissionDonation(dto: PurchaseTokensDto, req: Request): Promise<DonationResponseDto>;
     getPostDonationTotal(dto: GetPostDonationTotalDto): Promise<PostDonationTotalResponseDto>;
 }

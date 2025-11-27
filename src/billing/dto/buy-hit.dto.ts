@@ -5,7 +5,8 @@ export class BuyHitDto {
   @ApiProperty({
     description: 'Amount to charge in cents (e.g., 1000 for $10.00)',
     example: 1000,
-    type: Number
+    type: 'number',
+    format: 'float'
   })
   @IsNumber()
   @IsPositive()

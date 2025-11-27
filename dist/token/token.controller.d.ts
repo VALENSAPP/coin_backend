@@ -20,10 +20,10 @@ export declare class TokenController {
     getUserToken(userId: string): Promise<{
         message: string;
         data: {
-            userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            userId: string;
             transactionHash: string;
             tokenAddress: string | null;
             tokenName: string;
@@ -48,10 +48,10 @@ export declare class TokenController {
         message: string;
         data: {
             tokenInfo: null;
-            userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            userId: string;
             transactionHash: string;
             tokenAddress: string | null;
             tokenName: string;
@@ -68,10 +68,10 @@ export declare class TokenController {
                 initialSupply: any;
                 followers: any;
             };
-            userId: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            userId: string;
             transactionHash: string;
             tokenAddress: string | null;
             tokenName: string;

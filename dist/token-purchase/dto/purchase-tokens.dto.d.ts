@@ -44,3 +44,10 @@ export declare class GetPostDonationTotalDto {
 export declare class PostDonationTotalResponseDto {
     totalDonation: number;
 }
+export declare class DonationResponseDto {
+    id: string;
+    amount: number;
+    status: string;
+    sessionUrl?: string;
+    purchaseTokenPrice?: number;
+}

@@ -69,7 +69,7 @@ export class BillingService {
             product_data: {
               name: 'Following Payment',
             },
-            unit_amount: amount * 100, // amount in cents
+            unit_amount: Math.round(amount * 100), // amount in cents
           },
           quantity: 1,
         },
@@ -518,7 +518,7 @@ export class BillingService {
               name: `Buy ${hitCount} Hits`,
               description: `Purchase ${hitCount} additional hits for posting`,
             },
-            unit_amount: amount * 100, // Amount in cents
+            unit_amount: Math.round(amount * 100), // Amount in cents
           },
           quantity: 1,
         },
@@ -538,7 +538,7 @@ export class BillingService {
     await this.prisma.payment.create({
       data: {
         userId: userId,
-        amount: amount,
+        amount: Math.round(amount * 100), // Amount in cents
         currency: 'USD',
         status: 'pending',
         forPayment: 'buyHit',
@@ -712,7 +712,7 @@ export class BillingService {
             product_data: {
               name: `Fan Subscription to ${buyUser.displayName || buyUser.userName}`,
             },
-            unit_amount: amount * 100, // Amount in cents
+            unit_amount: Math.round(amount * 100), // Amount in cents
           },
           quantity: 1,
         },
@@ -730,7 +730,7 @@ export class BillingService {
     await this.prisma.payment.create({
       data: {
         userId: buyUserId,
-        amount: amount,
+        amount: Math.round(amount * 100), // Amount in cents
         currency: 'USD',
         status: 'pending',
         forPayment: 'fanSubscriptionBuy',

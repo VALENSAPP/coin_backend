@@ -31,7 +31,9 @@ export class TokenPurchaseService {
       const tokenPurchases = await this.prisma.tokenPurchase.findMany({
         where: {
           userId,
-          status: 'completed',
+          status: {
+            in: ['completed', 'complete']
+          },
           action: 'buy',
         },
         select: {
@@ -526,7 +528,9 @@ export class TokenPurchaseService {
         where: {
           userId,
           vendorId,
-          status: 'completed',
+          status: {
+            in: ['completed', 'complete']
+          },
         },
       });
 
@@ -594,8 +598,9 @@ export class TokenPurchaseService {
       // Get all purchases for this user (optionally filtered by token and date)
       console.log("?????????????????????????????????????????????????????????????????",userId, tokenAddress, period);
       let purchaseWhere: any = {
-        userId,
-        status: 'completed',
+        status: {
+          in: ['completed', 'complete']
+        },
       };
 
       if (tokenAddress) {
@@ -611,19 +616,20 @@ export class TokenPurchaseService {
 
       // Add date filter for purchases
       if (dateFilter) {
-        purchaseWhere.completedAt = {
+        purchaseWhere.createdAt = {
           gte: dateFilter,
         };
       }
 
       const purchases = await this.prisma.tokenPurchase.findMany({
         where: purchaseWhere,
-        orderBy: { completedAt: 'asc' },
+        orderBy: { createdAt: 'asc' },
         select: {
           id: true,
           vendorId: true,
           tokensReceived: true,
           completedAt: true,
+          createdAt: true,
         },
       });
 
@@ -649,10 +655,8 @@ export class TokenPurchaseService {
           };
         })
       );
-
       // Get all sales for this user (optionally filtered by token and date)
       let saleWhere: any = {
-        userId,
         status: 'completed',
       };
 
@@ -667,7 +671,6 @@ export class TokenPurchaseService {
         };
       }
 
-    console.log("?????????????????????????????????????????????????????????????????",saleWhere);
       const sales = await this.prisma.tokenSale.findMany({
         where: saleWhere,
         orderBy: { createdAt: 'asc' },
@@ -702,7 +705,8 @@ export class TokenPurchaseService {
 
       // Add purchases
       purchaseWithTokenDetails.forEach(purchase => {
-        if (purchase.completedAt) {
+        const transactionDate = purchase.completedAt || purchase.createdAt;
+        if (transactionDate) {
           allTransactions.push({
             id: purchase.id,
             type: 'purchase',
@@ -710,7 +714,7 @@ export class TokenPurchaseService {
             tokenName: purchase.userToken?.tokenName || '',
             vendorId: purchase.vendorId,
             amount: purchase.tokensReceived,
-            date: purchase.completedAt,
+            date: transactionDate,
             transactionHash: null,
           });
         }
@@ -971,7 +975,9 @@ export class TokenPurchaseService {
         where: {
           userId: sellerUserId,
           vendorId: vendorId,
-          status: 'completed',
+          status: {
+            in: ['completed', 'complete']
+          },
         },
         select: { tokensReceived: true },
       });

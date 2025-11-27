@@ -22,7 +22,8 @@ __decorate([
     (0, swagger_1.ApiProperty)({
         description: 'Amount to charge in cents (e.g., 1000 for $10.00)',
         example: 1000,
-        type: Number
+        type: 'number',
+        format: 'float'
     }),
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.IsPositive)(),

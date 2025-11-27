@@ -67,6 +67,10 @@ let TokenPurchaseController = class TokenPurchaseController {
     async getTopCreators() {
         return this.tokenPurchaseService.getTopCreators();
     }
+    async createMissionDonation(dto, req) {
+        const userId = req.user.userId;
+        return this.tokenPurchaseService.missionPostDonation(userId, dto);
+    }
     async getPostDonationTotal(dto) {
         return this.tokenPurchaseService.getPostDonationTotal(dto.postId);
     }
@@ -413,6 +417,33 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], TokenPurchaseController.prototype, "getTopCreators", null);
+__decorate([
+    (0, common_1.Post)('mission-donation'),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Create a mission donation session',
+        description: 'Creates a Stripe checkout session for mission donation. Returns session URL for payment redirect.'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.CREATED,
+        description: 'Donation session created successfully',
+        type: purchase_tokens_dto_1.DonationResponseDto
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.BAD_REQUEST,
+        description: 'Invalid request or user not found'
+    }),
+    (0, swagger_1.ApiResponse)({
+        status: common_1.HttpStatus.UNAUTHORIZED,
+        description: 'Unauthorized - Invalid JWT token'
+    }),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [purchase_tokens_dto_1.PurchaseTokensDto, Object]),
+    __metadata("design:returntype", Promise)
+], TokenPurchaseController.prototype, "createMissionDonation", null);
 __decorate([
     (0, common_1.Post)('post-donation-total'),
     (0, swagger_1.ApiOperation)({

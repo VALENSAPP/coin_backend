@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PostDonationTotalResponseDto = exports.GetPostDonationTotalDto = exports.GetTokenHistoryDto = exports.TokenPurchaseResponseDto = exports.GetVendorTokenAmountDto = exports.SellTokenDto = exports.GetTokenPriceDto = exports.BuyTokenDto = exports.PurchaseTokensDto = void 0;
+exports.DonationResponseDto = exports.PostDonationTotalResponseDto = exports.GetPostDonationTotalDto = exports.GetTokenHistoryDto = exports.TokenPurchaseResponseDto = exports.GetVendorTokenAmountDto = exports.SellTokenDto = exports.GetTokenPriceDto = exports.BuyTokenDto = exports.PurchaseTokensDto = void 0;
 const class_validator_1 = require("class-validator");
 const swagger_1 = require("@nestjs/swagger");
 class PurchaseTokensDto {
@@ -318,4 +318,48 @@ __decorate([
     }),
     __metadata("design:type", Number)
 ], PostDonationTotalResponseDto.prototype, "totalDonation", void 0);
+class DonationResponseDto {
+    id;
+    amount;
+    status;
+    sessionUrl;
+    purchaseTokenPrice;
+}
+exports.DonationResponseDto = DonationResponseDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Donation ID',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+    }),
+    __metadata("design:type", String)
+], DonationResponseDto.prototype, "id", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Donation amount',
+        example: 10.00
+    }),
+    __metadata("design:type", Number)
+], DonationResponseDto.prototype, "amount", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Payment status',
+        example: 'pending'
+    }),
+    __metadata("design:type", String)
+], DonationResponseDto.prototype, "status", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Stripe checkout session URL for payment',
+        example: 'https://checkout.stripe.com/pay/cs_test_...'
+    }),
+    __metadata("design:type", String)
+], DonationResponseDto.prototype, "sessionUrl", void 0);
+__decorate([
+    (0, swagger_1.ApiProperty)({
+        description: 'Token price at the time of donation (optional)',
+        example: 0.01,
+        required: false
+    }),
+    __metadata("design:type", Number)
+], DonationResponseDto.prototype, "purchaseTokenPrice", void 0);
 //# sourceMappingURL=purchase-tokens.dto.js.map
