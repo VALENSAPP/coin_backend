@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto, DonationResponseDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
 import Stripe from 'stripe';
@@ -182,6 +182,20 @@ export class TokenPurchaseService {
         customer_email: user.email || undefined,
       });
 
+      // Create payment record for tracking
+      const paymentData: any = {
+        userId,
+        amount: Math.round(dto.amount * 100), // Store in cents
+        currency: 'usd',
+        stripePaymentIntentId: session.id, // Using session id
+        status: 'pending',
+        forPayment: dto.type === 'token_purchase' ? 'tokenPurchase' : 'donation',
+      };
+
+      await this.prisma.payment.create({
+        data: paymentData,
+      });
+
       let record: any;
       let response: any;
 
@@ -331,6 +345,19 @@ export class TokenPurchaseService {
         this.logger.log(`Token purchase already completed: ${tokenPurchase.id}`);
         return;
       }
+
+      // Update payment status
+      await this.prisma.payment.updateMany({
+        where: {
+          userId: tokenPurchase.userId,
+          stripePaymentIntentId: sessionId,
+          status: 'pending',
+          forPayment: 'tokenPurchase',
+        },
+        data: {
+          status: 'completed',
+        },
+      });
 
       // Update token purchase status
       await this.prisma.tokenPurchase.update({
@@ -1115,6 +1142,19 @@ export class TokenPurchaseService {
         return;
       }
 
+      // Update payment status
+      await this.prisma.payment.updateMany({
+        where: {
+          userId,
+          stripePaymentIntentId: session.id,
+          status: 'pending',
+          forPayment: 'donation',
+        },
+        data: {
+          status: 'completed',
+        },
+      });
+
       // Update donation status to completed
       const updateResult = await this.prisma.donationData.updateMany({
         where: {
@@ -1139,6 +1179,54 @@ export class TokenPurchaseService {
     }
   }
 
+  async handleMissionDonationPayment(session: Stripe.Checkout.Session) {
+    try {
+      const userId = session.metadata?.userId;
+      const vendorId = session.metadata?.vendorId;
+
+      if (!userId) {
+        this.logger.error('Missing userId in mission donation session metadata');
+        return;
+      }
+
+      // Update payment status to completed
+      const paymentUpdateResult = await this.prisma.payment.updateMany({
+        where: {
+          userId,
+          stripePaymentIntentId: session.id,
+          status: 'pending',
+          forPayment: 'missionDonation',
+        },
+        data: {
+          status: 'completed',
+        },
+      });
+
+      // Update mission donation status to completed
+      const donationUpdateResult = await this.prisma.donationData.updateMany({
+        where: {
+          userId,
+          stripeCheckoutSessionId: session.id,
+          status: 'pending',
+          action: 'missionDonation',
+        },
+        data: {
+          status: 'completed',
+          completedAt: new Date(),
+        },
+      });
+
+      if (paymentUpdateResult.count === 0 && donationUpdateResult.count === 0) {
+        this.logger.warn(`No pending mission donation records found for session ${session.id}`);
+        return;
+      }
+
+      this.logger.log(`Mission donation for session ${session.id} completed successfully`);
+    } catch (error) {
+      this.logger.error('Error handling mission donation payment:', error);
+    }
+  }
+
   async getPostDonationTotal(postId: string): Promise<{ totalDonation: number }> {
     try {
       // Aggregate the total donation amount for the post
@@ -1160,6 +1248,122 @@ export class TokenPurchaseService {
     } catch (error) {
       this.logger.error('Error getting post donation total:', error);
       throw new BadRequestException('Failed to get post donation total');
+    }
+  }
+
+  async missionPostDonation(userId: string, dto: PurchaseTokensDto): Promise<DonationResponseDto> {
+    try {
+      // Validate user exists
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found');
+      }
+
+      // Validate vendor if provided
+      if (dto.vendorId) {
+        const vendor = await this.prisma.user.findUnique({
+          where: { id: dto.vendorId },
+          select: { id: true },
+        });
+        if (!vendor) {
+          throw new BadRequestException('Vendor not found');
+        }
+      }
+
+      const productName = 'Mission Donation';
+      const productDescription = `Donate $${dto.amount} to mission`;
+      const metadataType = 'MissionDonation';
+      this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount}`);
+
+      // Get success and cancel URLs from environment
+      const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+      const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+
+      // Create Stripe Checkout Session
+      const session = await this.stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: productName,
+                description: productDescription,
+              },
+              unit_amount: Math.round(dto.amount * 100), // Convert to cents
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: {
+          userId,
+          vendorId: dto.vendorId || '',
+          type: metadataType,
+        },
+        customer_email: user.email || undefined,
+      });
+
+      // Create payment record
+      const paymentData: any = {
+        userId,
+        amount: Math.round(dto.amount * 100), // Store in cents
+        currency: 'usd',
+        stripePaymentIntentId: session.id, // Using session id since Payment table doesn't have checkout session field
+        status: 'pending',
+        forPayment: 'missionDonation',
+      };
+
+      const paymentRecord = await this.prisma.payment.create({
+        data: paymentData,
+      });
+
+      // Create donation record
+      const donationData: any = {
+        userId,
+        vendorId: dto.vendorId,
+        postId: dto.postId,
+        amount: dto.amount,
+        stripeCheckoutSessionId: session.id,
+        status: 'pending',
+        action: 'missionDonation',
+      };
+
+      // Only include purchaseTokenPrice if it's provided
+      if (dto.purchaseTokenPrice !== undefined) {
+        donationData.purchaseTokenPrice = dto.purchaseTokenPrice;
+      }
+
+      const donationRecord = await this.prisma.donationData.create({
+        data: donationData,
+      });
+
+      const response: DonationResponseDto = {
+        id: donationRecord.id,
+        amount: dto.amount,
+        status: donationRecord.status,
+        sessionUrl: session.url!,
+      };
+
+      // Only include purchaseTokenPrice in response if it was provided
+      if (dto.purchaseTokenPrice !== undefined) {
+        response.purchaseTokenPrice = dto.purchaseTokenPrice;
+      }
+
+      return response;
+
+    } catch (error) {
+      this.logger.error('Error creating mission donation:', error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to create mission donation');
     }
   }
 }

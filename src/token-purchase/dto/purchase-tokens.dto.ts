@@ -241,3 +241,36 @@ export class PostDonationTotalResponseDto {
   })
   totalDonation: number;
 }
+
+export class DonationResponseDto {
+  @ApiProperty({
+    description: 'Donation ID',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  id: string;
+
+  @ApiProperty({
+    description: 'Donation amount',
+    example: 10.00
+  })
+  amount: number;
+
+  @ApiProperty({
+    description: 'Payment status',
+    example: 'pending'
+  })
+  status: string;
+
+  @ApiProperty({
+    description: 'Stripe checkout session URL for payment',
+    example: 'https://checkout.stripe.com/pay/cs_test_...'
+  })
+  sessionUrl?: string;
+
+  @ApiProperty({
+    description: 'Token price at the time of donation (optional)',
+    example: 0.01,
+    required: false
+  })
+  purchaseTokenPrice?: number;
+}

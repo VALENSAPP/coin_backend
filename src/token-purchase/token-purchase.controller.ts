@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TokenPurchaseService } from './token-purchase.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto, DonationResponseDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
@@ -349,6 +349,34 @@ export class TokenPurchaseController {
   })
   async getTopCreators() {
     return this.tokenPurchaseService.getTopCreators();
+  }
+
+  @Post('mission-donation')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create a mission donation session',
+    description: 'Creates a Stripe checkout session for mission donation. Returns session URL for payment redirect.'
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Donation session created successfully',
+    type: DonationResponseDto
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request or user not found'
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized - Invalid JWT token'
+  })
+  async createMissionDonation(
+    @Body() dto: PurchaseTokensDto,
+    @Req() req: Request
+  ): Promise<DonationResponseDto> {
+    const userId = (req.user as any).userId;
+    return this.tokenPurchaseService.missionPostDonation(userId, dto);
   }
 
   @Post('post-donation-total')

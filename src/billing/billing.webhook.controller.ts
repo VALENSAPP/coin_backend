@@ -47,6 +47,9 @@ export class BillingWebhookController {
         } else if (session.metadata?.type === 'donation') {
           console.log(`Webhook: Handling donation for session ${session.id}`);
           await this.tokenPurchaseService.handleDonationPayment(session);
+        } else if (session.metadata?.type === 'MissionDonation') {
+          console.log(`Webhook: Handling mission donation for session ${session.id}`);
+          await this.tokenPurchaseService.handleMissionDonationPayment(session);
         } else {
           await this.billingService.handleCheckoutSessionCompleted(session);
         }
