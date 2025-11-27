@@ -24,21 +24,6 @@ export class TokenPurchaseService {
     });
   }
 
-  /**
-   * Validate fee parameters provided by frontend
-   */
-  private validateFees(dto: PurchaseTokensDto) {
-    const expectedRestAmount = dto.amount - (dto.platformFee! + dto.vendorFee!);
-    const expectedTokensReceived = expectedRestAmount * this.TOKEN_RATE;
-
-    if (Math.abs(dto.restAmount! - expectedRestAmount) > 0.01) {
-      throw new BadRequestException('Invalid restAmount: does not match amount - (platformFee + vendorFee)');
-    }
-
-    if (Math.abs(dto.tokensReceived! - expectedTokensReceived) > 0.01) {
-      throw new BadRequestException('Invalid tokensReceived: does not match restAmount * token rate');
-    }
-  }
 
   async getTotalTokenData(userId: string) {
     try {
@@ -153,7 +138,6 @@ export class TokenPurchaseService {
         if (dto.platformFee === undefined || dto.vendorFee === undefined || dto.restAmount === undefined || dto.tokensReceived === undefined) {
           throw new BadRequestException('Fee fields are required for token purchase');
         }
-        this.validateFees(dto);
         productName = 'Token Purchase';
         productDescription = `Purchase ${dto.tokensReceived} tokens`;
         metadataType = 'token_purchase';
