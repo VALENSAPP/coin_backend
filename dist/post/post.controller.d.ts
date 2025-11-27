@@ -13,13 +13,15 @@ export declare class PostController {
     private readonly postService;
     constructor(postService: PostService);
     createPost(req: Request, body: CreatePostDto, files?: Express.Multer.File[]): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
-        text: string | null;
-        images: string[];
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
         deletedAt: Date | null;
+        link: string | null;
+        text: string | null;
+        images: string[];
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -28,18 +30,18 @@ export declare class PostController {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
-        type: string | null;
-        link: string | null;
         visibleTo: string | null;
     }>;
     editPost(req: Request, postId: string, body: EditPostDto, files?: Express.Multer.File[]): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
-        text: string | null;
-        images: string[];
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
         deletedAt: Date | null;
+        link: string | null;
+        text: string | null;
+        images: string[];
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -48,8 +50,6 @@ export declare class PostController {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
-        type: string | null;
-        link: string | null;
         visibleTo: string | null;
     }>;
     getPostByUserId(req: Request, query: GetPostByUserDto): Promise<{
@@ -68,6 +68,7 @@ export declare class PostController {
         userName: string | null;
         userImage: string | null;
         profileStatus: string | null;
+        profile: string | null;
         likeCount: number;
         commentCount: number;
         isSaved: boolean;
@@ -145,14 +146,14 @@ export declare class PostController {
     }[] | {
         type: string;
         data: {
-            id: string;
             email: string | null;
-            image: string | null;
-            bio: string | null;
-            displayName: string | null;
             userName: string | null;
             profile: string | null;
+            displayName: string | null;
+            bio: string | null;
+            image: string | null;
             profileStatus: string;
+            id: string;
         }[];
         message?: undefined;
     } | {
@@ -237,9 +238,9 @@ export declare class PostController {
         totalLikes: number;
     }>;
     commentOnPost(req: Request, dto: CommentOnPostDto): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -247,9 +248,9 @@ export declare class PostController {
         commentId: string;
         comment: string;
     }): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
         comment: string;
     }>;
@@ -289,6 +290,7 @@ export declare class PostController {
         userName: string | null;
         userImage: string | null;
         profileStatus: string | null;
+        profile: string | null;
         likeCount: number;
         commentCount: number;
         shareCount: number;
@@ -356,6 +358,7 @@ export declare class PostController {
             userName: string | null;
             userImage: string | null;
             profileStatus: string | null;
+            profile: string | null;
             likeCount: number;
             commentCount: number;
             shareCount: number;
@@ -377,22 +380,24 @@ export declare class PostController {
         deletedIds: string[];
     }>;
     hidePost(req: Request, postId: string): Promise<{
+        userId: string;
         id: string;
         createdAt: Date;
-        userId: string;
         postId: string;
     }>;
     unhidePost(req: Request, postId: string): Promise<{
         message: string;
     }>;
     getHidePost(req: Request): Promise<{
+        type: string | null;
+        userId: string;
         id: string;
-        text: string | null;
-        images: string[];
         createdAt: Date;
         updatedAt: Date;
-        userId: string;
         deletedAt: Date | null;
+        link: string | null;
+        text: string | null;
+        images: string[];
         caption: string | null;
         hashtag: string[];
         location: string | null;
@@ -401,19 +406,17 @@ export declare class PostController {
         raiseAmount: number | null;
         start_time: Date | null;
         end_time: Date | null;
-        type: string | null;
-        link: string | null;
         visibleTo: string | null;
     }[]>;
     sendMessage(req: Request, dto: SendMessageDto): Promise<{
+        type: import(".prisma/client").$Enums.ConversationType;
         id: string;
         createdAt: Date;
         updatedAt: Date;
-        type: import(".prisma/client").$Enums.ConversationType;
+        content: string | null;
         postId: string | null;
         senderId: string;
         receiverId: string;
-        content: string | null;
         storyId: string | null;
     }>;
     getConversations(req: Request): Promise<{
@@ -422,19 +425,19 @@ export declare class PostController {
         content: string | null;
         createdAt: Date;
         sender: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         receiver: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         post: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             text: string | null;
@@ -443,8 +446,8 @@ export declare class PostController {
         } | null;
         story: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             caption: string | null;
@@ -457,19 +460,19 @@ export declare class PostController {
         content: string | null;
         createdAt: Date;
         sender: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         receiver: {
-            id: string;
-            image: string | null;
             displayName: string | null;
+            image: string | null;
+            id: string;
         };
         post: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             text: string | null;
@@ -478,8 +481,8 @@ export declare class PostController {
         } | null;
         story: {
             user: {
-                image: string | null;
                 displayName: string | null;
+                image: string | null;
             };
             id: string;
             caption: string | null;

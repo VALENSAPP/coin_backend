@@ -160,8 +160,9 @@ export class PostService {
             displayName: true,
             image: true,
             profileStatus: true,
+            profile: true,
           },
-      },
+        },
       _count: {
         select: {
           likes: true,      // from Post model
@@ -228,6 +229,7 @@ export class PostService {
     userName: post.user?.displayName || null,
     userImage: post.user?.image || null,
     profileStatus: post.user?.profileStatus || null,
+    profile: post.user?.profile || null,  
     likeCount: post._count.likes,
     commentCount: post._count.comments,
     isSaved: savedSet.has(post.id),
@@ -1039,8 +1041,9 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
               displayName: true,
               image: true,
               profileStatus: true,
+              profile: true,
             },
-          },
+        },
           _count: {
             select: {
               likes: true,
@@ -1101,6 +1104,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       userName: post.user?.displayName || null,
       userImage: post.user?.image || null,
       profileStatus: post.user?.profileStatus || null,
+      profile: post.user?.profile || null,
       likeCount: post._count.likes,
       commentCount: post._count.comments,
       shareCount: post._count.shares,
@@ -1176,7 +1180,7 @@ async getSharedPostList(userId: string) {
     include: {
       post: {
         include: {
-          user: { select: { displayName: true, image: true, profileStatus: true } },
+          user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
           _count: { select: { likes: true, comments: true, conversations: { where: { type: 'POST_SHARE' } } } },
         },
       },
@@ -1204,6 +1208,7 @@ async getSharedPostList(userId: string) {
       userName: conv.post.user?.displayName || null,
       userImage: conv.post.user?.image || null,
       profileStatus: conv.post.user?.profileStatus || null,
+      profile: conv.post.user?.profile || null,
       likeCount: conv.post._count.likes,
       commentCount: conv.post._count.comments,
       shareCount: conv.post._count.conversations,
