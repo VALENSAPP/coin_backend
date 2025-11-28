@@ -14,6 +14,7 @@ export class AppController {
   }
 
   @Get('.well-known/apple-app-site-association')
+  @Get('well-known/apple-app-site-association')
   @Header('Content-Type', 'application/json')
   getAppleAppSiteAssociation(@Res() res: Response) {
     try {
