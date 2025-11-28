@@ -18,6 +18,7 @@ import * as admin from 'firebase-admin';
 import { TOTPUtil } from '../common/totp.util';
 import axios from 'axios';
 import { KycService } from '../kyc/kyc.service';
+import { NotificationService } from '../notification/notification.service';
 
 // ✅ Use environment variables for Firebase config (more secure)
 // Prevent re-initializing Firebase if already initialized
@@ -69,6 +70,7 @@ export class UserService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly kycService: KycService,
+    private readonly notificationService: NotificationService,
   ) { }
 
   async register(data: {
@@ -570,9 +572,30 @@ export class UserService {
       where: { followerId_followingId: { followerId, followingId } },
     });
     if (existing) throw new BadRequestException('Already following this user');
-    return this.prisma.followerAndFollowing.create({
+
+    const result = await this.prisma.followerAndFollowing.create({
       data: { followerId, followingId, status: 'ACCEPTED' },
     });
+
+    // Send notification to the person being followed
+    try {
+      const follower = await this.prisma.user.findUnique({
+        where: { id: followerId },
+        select: { displayName: true, userName: true },
+      });
+      const followerName = follower?.displayName || follower?.userName || 'Someone';
+
+      await this.notificationService.sendNotificationToUser(
+        followingId,
+        'New Follower',
+        `${followerName} started following you.`,
+        { type: 'follow', followerId, followingId }
+      );
+    } catch (error) {
+      console.error('Failed to send follow notification:', error);
+    }
+
+    return result;
   }
 
   async getFollowersList(userId: string) {
@@ -605,9 +628,30 @@ export class UserService {
       where: { followerId_followingId: { followerId, followingId } },
     });
     if (!existing || existing.status !== 'ACCEPTED') throw new BadRequestException('Not following this user');
-    return this.prisma.followerAndFollowing.delete({
+
+    const result = await this.prisma.followerAndFollowing.delete({
       where: { followerId_followingId: { followerId, followingId } },
     });
+
+    // Send notification to the person being unfollowed
+    try {
+      const follower = await this.prisma.user.findUnique({
+        where: { id: followerId },
+        select: { displayName: true, userName: true },
+      });
+      const followerName = follower?.displayName || follower?.userName || 'Someone';
+
+      await this.notificationService.sendNotificationToUser(
+        followingId,
+        'Follower Unfollowed',
+        `${followerName} unfollowed you.`,
+        { type: 'unfollow', followerId, followingId }
+      );
+    } catch (error) {
+      console.error('Failed to send unfollow notification:', error);
+    }
+
+    return result;
   }
 
   async getPendingFollowRequests(userId: string) {

@@ -1117,6 +1117,18 @@ export class TokenPurchaseService {
 
       this.logger.log(`Token sale completed for user ${sellerUserId} (database recording temporarily disabled)`);
 
+      // Send notification to the seller
+      try {
+        await this.notificationService.sendNotificationToUser(
+          sellerUserId,
+          'Token Sale Successful',
+          `You have successfully sold ${checkAmount} tokens.`,
+          { type: 'token_sale', tokenAddress: dto.tokenAddress, amount: checkAmount.toString() }
+        );
+      } catch (notificationError) {
+        this.logger.error('Failed to send token sale notification:', notificationError);
+      }
+
       // Check if user is selling all tokens
       const remainingTokens = totalTokensOwned - checkAmount;
       if (remainingTokens <= 0.000001) { // Allow for small floating point differences

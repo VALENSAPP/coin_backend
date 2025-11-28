@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../notification/notification.service';
 import Stripe from 'stripe';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -8,7 +9,10 @@ import { v4 as uuidv4 } from 'uuid';
 export class BillingService {
   private stripe: Stripe;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
     });
@@ -465,6 +469,18 @@ export class BillingService {
         where: { id: withdrawal.id },
         data: { status: 'success' as any } as any,
       });
+
+      // Send notification to the user
+      try {
+        await this.notificationService.sendNotificationToUser(
+          withdrawal.userId,
+          'Withdrawal Successful',
+          `Your withdrawal of $${withdrawal.withdrawAmount} has been processed successfully.`,
+          { type: 'withdrawal_success', withdrawalId: withdrawal.id, amount: (withdrawal.withdrawAmount || 0).toString() }
+        );
+      } catch (notificationError) {
+        console.error('Failed to send withdrawal success notification:', notificationError);
+      }
     }
   }
 

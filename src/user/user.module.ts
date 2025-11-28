@@ -4,6 +4,7 @@ import { UserController } from './user.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { KycModule } from '../kyc/kyc.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { KycModule } from '../kyc/kyc.module';
       signOptions: { expiresIn: '1d' },
     }),
     KycModule,
+    NotificationModule,
   ],
   controllers: [UserController],
   providers: [UserService],
