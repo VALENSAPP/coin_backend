@@ -161,6 +161,7 @@ export class PostService {
             image: true,
             profileStatus: true,
             profile: true,
+            tokenBalance: true,
           },
         },
       _count: {
@@ -228,6 +229,7 @@ export class PostService {
     userId: post.userId,
     userName: post.user?.displayName || null,
     userImage: post.user?.image || null,
+    tokenBalance: post.user?.tokenBalance || 0,
     profileStatus: post.user?.profileStatus || null,
     profile: post.user?.profile || null,  
     likeCount: post._count.likes,
@@ -261,6 +263,7 @@ export class PostService {
           image: true,
           profile: true,
           profileStatus: true,
+          tokenBalance: true,
         },
       },
       _count: {
@@ -318,6 +321,7 @@ export class PostService {
     userId: post.userId,
     userName: post.user?.displayName || null,
     userImage: post.user?.image || null,
+    tokenBalance: post.user?.tokenBalance || 0,
     profile: post.user?.profile || null,
     profileStatus: post.user?.profileStatus || null,
     likeCount: post._count.likes,
@@ -348,6 +352,7 @@ async getAllPost(viewerUserId?: string) {
           image: true,
           profile: true,
           profileStatus: true,
+          tokenBalance: true,
         },
       },
       _count: {
@@ -415,6 +420,7 @@ async getAllPost(viewerUserId?: string) {
     userId: post.userId,
     userName: post.user?.displayName || null,
     userImage: post.user?.image || null,
+    tokenBalance: post.user?.tokenBalance || 0,
     profile: post.user?.profile || null,
     profileStatus: post.user?.profileStatus || null,
     likeCount: post._count.likes,
