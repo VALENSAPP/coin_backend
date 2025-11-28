@@ -21,9 +21,9 @@ export declare class BillingService {
     handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent): Promise<void>;
     getLatestTransactions(userId: string): Promise<{
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         amount: number;
         currency: string;
         stripePaymentIntentId: string | null;
@@ -40,10 +40,10 @@ export declare class BillingService {
     }>;
     getWithdrawalHistory(userId: string): Promise<{
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         withdrawAmount: number | null;
         txhash: string | null;
         failureReason: string | null;
@@ -86,10 +86,10 @@ export declare class BillingService {
             image: string | null;
         };
     } & {
-        status: import(".prisma/client").$Enums.FansSubscriptionStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.FansSubscriptionStatus;
         fanUserId: string;
         buyUserId: string;
         startDate: Date;
@@ -102,10 +102,10 @@ export declare class BillingService {
             id: string;
         };
     } & {
-        status: import(".prisma/client").$Enums.FansSubscriptionStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.FansSubscriptionStatus;
         fanUserId: string;
         buyUserId: string;
         startDate: Date;
@@ -113,9 +113,9 @@ export declare class BillingService {
     })[]>;
     userTransactionHistory(userId: string, transactionType: string): Promise<{
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         amount: number;
         currency: string;
         stripePaymentIntentId: string | null;
@@ -125,19 +125,19 @@ export declare class BillingService {
         periodEnd: Date | null;
     }[] | {
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         withdrawAmount: number | null;
         txhash: string | null;
         failureReason: string | null;
         processingAt: Date | null;
     }[] | {
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         transactionHash: string;
         tokenAddress: string;
         vendorId: string;
@@ -147,9 +147,9 @@ export declare class BillingService {
         adminFeeAmount: number | null;
     }[] | {
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         completedAt: Date | null;
         action: string;
         vendorId: string | null;
@@ -166,10 +166,10 @@ export declare class BillingService {
     }[] | ({
         typeTransaction: string;
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: string;
         withdrawAmount: number | null;
         txhash: string | null;
         failureReason: string | null;
@@ -177,9 +177,9 @@ export declare class BillingService {
     } | {
         typeTransaction: string;
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         transactionHash: string;
         tokenAddress: string;
         vendorId: string;
@@ -190,9 +190,9 @@ export declare class BillingService {
     } | {
         typeTransaction: string;
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         completedAt: Date | null;
         action: string;
         vendorId: string | null;
@@ -209,9 +209,9 @@ export declare class BillingService {
     } | {
         typeTransaction: string;
         userId: string;
-        status: string;
         id: string;
         createdAt: Date;
+        status: string;
         amount: number;
         currency: string;
         stripePaymentIntentId: string | null;

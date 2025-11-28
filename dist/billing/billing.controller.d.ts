@@ -31,9 +31,9 @@ export declare class BillingController {
     getLatestTransactions(req: Request): Promise<{
         transactions: {
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             amount: number;
             currency: string;
             stripePaymentIntentId: string | null;
@@ -52,10 +52,10 @@ export declare class BillingController {
     getWithdrawalHistory(req: Request): Promise<{
         withdrawals: {
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
             failureReason: string | null;
@@ -85,10 +85,10 @@ export declare class BillingController {
                 image: string | null;
             };
         } & {
-            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             fanUserId: string;
             buyUserId: string;
             startDate: Date;
@@ -103,10 +103,10 @@ export declare class BillingController {
                 id: string;
             };
         } & {
-            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.FansSubscriptionStatus;
             fanUserId: string;
             buyUserId: string;
             startDate: Date;
@@ -116,9 +116,9 @@ export declare class BillingController {
     userTransactionHistory(userId: string, transactionType: string): Promise<{
         transactions: {
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             amount: number;
             currency: string;
             stripePaymentIntentId: string | null;
@@ -128,19 +128,19 @@ export declare class BillingController {
             periodEnd: Date | null;
         }[] | {
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
             failureReason: string | null;
             processingAt: Date | null;
         }[] | {
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             transactionHash: string;
             tokenAddress: string;
             vendorId: string;
@@ -150,9 +150,9 @@ export declare class BillingController {
             adminFeeAmount: number | null;
         }[] | {
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             completedAt: Date | null;
             action: string;
             vendorId: string | null;
@@ -169,10 +169,10 @@ export declare class BillingController {
         }[] | ({
             typeTransaction: string;
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: string;
             withdrawAmount: number | null;
             txhash: string | null;
             failureReason: string | null;
@@ -180,9 +180,9 @@ export declare class BillingController {
         } | {
             typeTransaction: string;
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             transactionHash: string;
             tokenAddress: string;
             vendorId: string;
@@ -193,9 +193,9 @@ export declare class BillingController {
         } | {
             typeTransaction: string;
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             completedAt: Date | null;
             action: string;
             vendorId: string | null;
@@ -212,9 +212,9 @@ export declare class BillingController {
         } | {
             typeTransaction: string;
             userId: string;
-            status: string;
             id: string;
             createdAt: Date;
+            status: string;
             amount: number;
             currency: string;
             stripePaymentIntentId: string | null;

@@ -49,6 +49,7 @@ export declare class AuthService {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
     }>;
     login(loginDto: any): Promise<{
         error: boolean;
@@ -97,6 +98,7 @@ export declare class AuthService {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
         access_token: string;
         refresh_token: string;
     }>;
@@ -146,6 +148,7 @@ export declare class AuthService {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     }>;
     getLoginHistory(userId: string): Promise<{
@@ -203,6 +206,7 @@ export declare class AuthService {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
         access_token: string;
         refresh_token: string;
         error?: undefined;
@@ -256,6 +260,7 @@ export declare class AuthService {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
         access_token: string;
         refresh_token: string;
         error?: undefined;
@@ -309,6 +314,7 @@ export declare class AuthService {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
         access_token: string;
         refresh_token: string;
     }>;

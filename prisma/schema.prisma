@@ -50,6 +50,7 @@ model User {
   fansPage             Int                     @default(0)
   twoFact              Int                     @default(0)
   twoFactorSecret      String?
+  fcmToken             String?
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")

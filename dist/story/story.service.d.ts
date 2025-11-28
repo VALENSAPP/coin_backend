@@ -67,6 +67,7 @@ export declare class StoryService {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     } & {
         userId: string;

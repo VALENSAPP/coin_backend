@@ -142,6 +142,7 @@ export declare class UserController {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
         access_token: string;
         refresh_token: string;
     } | {
@@ -189,6 +190,7 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     }>;
     getProfile(req: Request, query: GetProfileDto): Promise<{
@@ -236,6 +238,7 @@ export declare class UserController {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
     }>;
     editProfile(req: Request, dto: ProfileEditDto, image: Express.Multer.File): Promise<{
         message: string;
@@ -285,6 +288,7 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     }>;
     forgotPassword(dto: ForgotPasswordDto): Promise<{
@@ -306,32 +310,32 @@ export declare class UserController {
         message: string;
     }>;
     followPerson(req: Request, dto: FollowPersonDto): Promise<{
-        followingId: string;
-        followerId: string;
-        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.FollowStatus;
+        followerId: string;
+        followingId: string;
     }>;
     unfollow(req: Request, dto: UnfollowDto): Promise<{
-        followingId: string;
-        followerId: string;
-        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.FollowStatus;
+        followerId: string;
+        followingId: string;
     }>;
     blockUser(req: Request, dto: BlockUserDto): Promise<{
-        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
+        blockedId: string;
     }>;
     unblockUser(req: Request, dto: UnblockUserDto): Promise<{
-        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
+        blockedId: string;
     }>;
     getPendingFollowRequests(req: Request): Promise<never[]>;
     getFollowersList(userId: string): Promise<({
@@ -378,14 +382,15 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     } & {
-        followingId: string;
-        followerId: string;
-        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.FollowStatus;
+        followerId: string;
+        followingId: string;
     })[]>;
     getFollowingList(userId: string): Promise<({
         following: {
@@ -435,14 +440,15 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     } & {
-        followingId: string;
-        followerId: string;
-        status: import(".prisma/client").$Enums.FollowStatus;
         id: string;
         createdAt: Date;
         updatedAt: Date;
+        status: import(".prisma/client").$Enums.FollowStatus;
+        followerId: string;
+        followingId: string;
     })[]>;
     getBlockedUsers(req: Request): Promise<({
         blocked: {
@@ -488,12 +494,13 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     } & {
-        blockedId: string;
         id: string;
         createdAt: Date;
         blockerId: string;
+        blockedId: string;
     })[]>;
     getAllUsers(query: GetAllUsersDto): Promise<{
         users: {
@@ -539,6 +546,7 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         }[];
     }>;
     getDisplayNames(): Promise<{
@@ -646,6 +654,7 @@ export declare class UserController {
         fansPage: number;
         twoFact: number;
         twoFactorSecret: string | null;
+        fcmToken: string | null;
         access_token: string;
         refresh_token: string;
     }>;
@@ -694,6 +703,7 @@ export declare class UserController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     }>;
     softDeleteUser(id: string): Promise<{
@@ -703,12 +713,12 @@ export declare class UserController {
         message: string;
         subscription: {
             userId: string;
-            subscriptionAmount: number;
-            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
-            isDelete: number;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            subscriptionAmount: number;
+            isDelete: number;
         };
     }>;
     getSubscriptionByUserID(userId: string): Promise<{
@@ -720,12 +730,12 @@ export declare class UserController {
             };
         } & {
             userId: string;
-            subscriptionAmount: number;
-            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
-            isDelete: number;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            subscriptionAmount: number;
+            isDelete: number;
         })[];
     }>;
     getUserSubscriptionById(id: string): Promise<{
@@ -737,24 +747,24 @@ export declare class UserController {
             };
         } & {
             userId: string;
-            subscriptionAmount: number;
-            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
-            isDelete: number;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            subscriptionAmount: number;
+            isDelete: number;
         };
     }>;
     updateUserSubscription(id: string, dto: UpdateUserSubscriptionDto): Promise<{
         message: string;
         subscription: {
             userId: string;
-            subscriptionAmount: number;
-            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
-            isDelete: number;
             id: string;
             createdAt: Date;
             updatedAt: Date;
+            status: import(".prisma/client").$Enums.UserSubscriptionStatus;
+            subscriptionAmount: number;
+            isDelete: number;
         };
     }>;
     deleteUserSubscription(id: string): Promise<{

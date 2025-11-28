@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const token_service_1 = require("../token/token.service");
 const user_service_1 = require("../user/user.service");
+const notification_service_1 = require("../notification/notification.service");
 const stripe_1 = require("stripe");
 const ethers_1 = require("ethers");
 const crypto_util_1 = require("../common/crypto.util");
@@ -22,13 +23,15 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
     prisma;
     tokenService;
     userService;
+    notificationService;
     logger = new common_1.Logger(TokenPurchaseService_1.name);
     stripe;
     TOKEN_RATE = 100;
-    constructor(prisma, tokenService, userService) {
+    constructor(prisma, tokenService, userService, notificationService) {
         this.prisma = prisma;
         this.tokenService = tokenService;
         this.userService = userService;
+        this.notificationService = notificationService;
         this.stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY, {
             apiVersion: '2024-06-20',
         });
@@ -355,6 +358,12 @@ let TokenPurchaseService = TokenPurchaseService_1 = class TokenPurchaseService {
                 this.logger.log(`SKIP: No valid vendorId found (null or empty), skipping follow`);
             }
             this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens purchased for user ${tokenPurchase.userId}`);
+            try {
+                await this.notificationService.sendNotificationToUser(tokenPurchase.userId, 'Token Purchase Successful', `Congratulations! You have successfully purchased ${tokenPurchase.tokensReceived} tokens.`, { type: 'token_purchase', purchaseId: tokenPurchase.id });
+            }
+            catch (notificationError) {
+                this.logger.error('Failed to send push notification:', notificationError);
+            }
         }
         catch (error) {
             this.logger.error('Error handling checkout session success:', error);
@@ -1076,6 +1085,7 @@ exports.TokenPurchaseService = TokenPurchaseService = TokenPurchaseService_1 = _
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         token_service_1.TokenService,
-        user_service_1.UserService])
+        user_service_1.UserService,
+        notification_service_1.NotificationService])
 ], TokenPurchaseService);
 //# sourceMappingURL=token-purchase.service.js.map

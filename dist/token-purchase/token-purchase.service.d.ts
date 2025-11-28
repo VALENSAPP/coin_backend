@@ -2,15 +2,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto, DonationResponseDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
+import { NotificationService } from '../notification/notification.service';
 import Stripe from 'stripe';
 export declare class TokenPurchaseService {
     private readonly prisma;
     private readonly tokenService;
     private readonly userService;
+    private readonly notificationService;
     private readonly logger;
     private stripe;
     private readonly TOKEN_RATE;
-    constructor(prisma: PrismaService, tokenService: TokenService, userService: UserService);
+    constructor(prisma: PrismaService, tokenService: TokenService, userService: UserService, notificationService: NotificationService);
     getTotalTokenData(userId: string): Promise<{
         tokenAddress: string;
         tokenAmount: number;
@@ -27,15 +29,15 @@ export declare class TokenPurchaseService {
     getUserTokenBalance(userId: string): Promise<number>;
     getVendorTokenAmount(userId: string, vendorId: string): Promise<number>;
     getUserTokenPurchases(userId: string): Promise<{
-        status: string;
         id: string;
         createdAt: Date;
-        completedAt: Date | null;
         amount: number;
         platformFee: number;
         vendorFee: number;
         restAmount: number;
         tokensReceived: number;
+        status: string;
+        completedAt: Date | null;
     }[]>;
     getUserTokenHistory(userId: string, tokenAddress?: string, period?: 'week' | 'month' | 'year'): Promise<{
         tokenAddress: string | null;

@@ -18,6 +18,7 @@ const billing_module_1 = require("./billing/billing.module");
 const token_module_1 = require("./token/token.module");
 const token_purchase_module_1 = require("./token-purchase/token-purchase.module");
 const kyc_module_1 = require("./kyc/kyc.module");
+const notification_module_1 = require("./notification/notification.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -34,6 +35,7 @@ exports.AppModule = AppModule = __decorate([
             token_module_1.TokenModule,
             token_purchase_module_1.TokenPurchaseModule,
             kyc_module_1.KycModule,
+            notification_module_1.NotificationModule,
         ],
     })
 ], AppModule);

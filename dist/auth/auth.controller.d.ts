@@ -68,6 +68,7 @@ export declare class AuthController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
             access_token: string;
             refresh_token: string;
         };
@@ -123,6 +124,7 @@ export declare class AuthController {
             fansPage: number;
             twoFact: number;
             twoFactorSecret: string | null;
+            fcmToken: string | null;
         };
     }>;
     getLoginHistory(body: GetLoginHistoryDto): Promise<{

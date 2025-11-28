@@ -13,6 +13,7 @@ exports.KycService = void 0;
 const common_1 = require("@nestjs/common");
 const axios_1 = require("axios");
 const prisma_service_1 = require("../prisma/prisma.service");
+const schedule_1 = require("@nestjs/schedule");
 const node_crypto_1 = require("node:crypto");
 let KycService = class KycService {
     prisma;
@@ -190,6 +191,9 @@ let KycService = class KycService {
         }
         return { success: true, status: mappedStatus, updated: false, reason: mappedStatus === 'DECLINED' ? reason : null };
     }
+    async syncPendingKycCron() {
+        await this.syncAllPendingKyc();
+    }
     async syncAllPendingKyc() {
         const pendingRecords = await this.prisma.kyc.findMany({
             where: {
@@ -251,6 +255,12 @@ let KycService = class KycService {
     }
 };
 exports.KycService = KycService;
+__decorate([
+    (0, schedule_1.Cron)('*/2 * * * * *'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], KycService.prototype, "syncPendingKycCron", null);
 exports.KycService = KycService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])

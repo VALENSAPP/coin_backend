@@ -9,6 +9,7 @@ import { BillingModule } from './billing/billing.module';
 import { TokenModule } from './token/token.module';
 import { TokenPurchaseModule } from './token-purchase/token-purchase.module';
 import { KycModule } from './kyc/kyc.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { KycModule } from './kyc/kyc.module';
     TokenModule,
     TokenPurchaseModule,
     KycModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

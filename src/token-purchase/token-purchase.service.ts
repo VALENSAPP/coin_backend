@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto, DonationResponseDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
+import { NotificationService } from '../notification/notification.service';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 import { decryptSecret } from '../common/crypto.util';
@@ -17,7 +18,8 @@ export class TokenPurchaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly notificationService: NotificationService
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -431,6 +433,18 @@ export class TokenPurchaseService {
       }
 
       this.logger.log(`Token purchase completed: ${tokenPurchase.id} - ${tokenPurchase.tokensReceived} tokens purchased for user ${tokenPurchase.userId}`);
+
+      // Send push notification to the user
+      try {
+        await this.notificationService.sendNotificationToUser(
+          tokenPurchase.userId,
+          'Token Purchase Successful',
+          `Congratulations! You have successfully purchased ${tokenPurchase.tokensReceived} tokens.`,
+          { type: 'token_purchase', purchaseId: tokenPurchase.id }
+        );
+      } catch (notificationError) {
+        this.logger.error('Failed to send push notification:', notificationError);
+      }
 
     } catch (error) {
       this.logger.error('Error handling checkout session success:', error);
