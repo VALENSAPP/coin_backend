@@ -323,6 +323,11 @@ export class ReactivateAccountDto {
   @IsEnum(RegistrationType)
   @IsNotEmpty()
   registrationType: RegistrationType;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
 }
 
 @ApiTags('user')
@@ -773,5 +778,15 @@ export class UserController {
   async disableTwoFactor(@Req() req: Request, @Body() dto: { token: string }) {
     const userId = (req.user as any).userId;
     return this.userService.disableTwoFactor(userId, dto.token);
+  }
+
+  @Post('update-fcm-token')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update FCM token for push notifications' })
+  @ApiBody({ schema: { type: 'object', properties: { fcmToken: { type: 'string' } } } })
+  async updateFcmToken(@Req() req: Request, @Body() dto: { fcmToken: string }) {
+    const userId = (req.user as any).userId;
+    return this.userService.updateFcmToken(userId, dto.fcmToken);
   }
 }

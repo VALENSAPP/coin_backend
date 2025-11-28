@@ -81,6 +81,7 @@ export class UserService {
     appleId?: string;
     walletAddress?: string;
     registrationType: RegistrationType;
+    fcmToken?: string;
   }) {
     // Check if this is a Firebase Google registration request
     // if (data.idToken && data.registrationType === 'GOOGLE') {
@@ -203,6 +204,9 @@ export class UserService {
       }
       if (data.profile) {
         userData.profile = data.profile;
+      }
+      if (data.fcmToken) {
+        userData.fcmToken = data.fcmToken;
       }
       user = await this.prisma.user.create({
         data: userData,
@@ -1658,5 +1662,20 @@ export class UserService {
     }
 
     return TOTPUtil.verifyTOTP(user.twoFactorSecret, token);
+  }
+
+  async updateFcmToken(userId: string, fcmToken: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!fcmToken) throw new BadRequestException('FCM token required');
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken } as any,
+    });
+
+    return { message: 'FCM token updated successfully' };
   }
 }
