@@ -3,8 +3,11 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAM_ID.com.valens",
-        "paths": ["/callback", "/callback/*"]
+        "appID": "6LKPR7J437.com.valens",
+        "paths": [
+          "/callback",
+          "/callback/*"
+        ]
       }
     ]
   }
