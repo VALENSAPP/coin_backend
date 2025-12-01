@@ -1008,6 +1008,7 @@ export class UserService {
           userName: true,
           image: true,
           bio: true,
+          profile:true,
         },
         take: limit,
         orderBy: {
@@ -1036,6 +1037,7 @@ export class UserService {
             userName: true,
             image: true,
             bio: true,
+            profile:true,
           },
         },
       },
@@ -1065,6 +1067,7 @@ export class UserService {
           userName: true,
           image: true,
           bio: true,
+          profile:true,
         },
         take: limit - users.length,
         orderBy: {
