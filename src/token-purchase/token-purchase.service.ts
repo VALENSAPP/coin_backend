@@ -1144,6 +1144,15 @@ export class TokenPurchaseService {
         this.logger.log(`User ${sellerUserId} still has ${remainingTokens} tokens remaining, keeping follow`);
       }
 
+      // Update seller's token balance with the USD value of sold tokens
+      const priceData = await this.tokenService.getPricePerTokenUsd(dto.tokenAddress);
+      const tokenPrice = priceData.priceInUsd;
+      const usdValue = checkAmount * tokenPrice;
+      await this.prisma.user.update({
+        where: { id: sellerUserId },
+        data: { tokenBalance: { increment: usdValue } }
+      });
+
       return {
         success: true,
         transactionHash: tx.hash,
