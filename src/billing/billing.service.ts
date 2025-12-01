@@ -257,27 +257,44 @@ export class BillingService {
       throw new BadRequestException('Minimum withdrawal amount is $10');
     }
 
+    // Get user balance
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, tokenBalance: true },
+    });
+
+    if (!user) {
+      console.warn(`[WITHDRAWAL_REQUEST] User ${userId} not found`);
+      throw new BadRequestException('User not found');
+    }
+
+    const balance = user.tokenBalance;
+    const expectedAmount = Number((balance * 0.75).toFixed(2));
+
+    if (amount !== expectedAmount) {
+      console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: withdrawal amount mismatch. Sent: $${amount}, Expected: $${expectedAmount}`);
+      throw new BadRequestException('withdrawal amount mismatch');
+    }
+
+    const fee = Number((balance * 0.05).toFixed(2));
+    const totalDeduct = amount + fee;
+
     // Use a transaction: check & decrement atomically + create withdrawal record
     const result = await this.prisma.$transaction(async (tx) => {
       // attempt to decrement only when balance is sufficient
       const updated = await tx.user.updateMany({
         where: {
           id: userId,
-          tokenBalance: { gte: amount }, // atomic guard
+          tokenBalance: { gte: totalDeduct }, // atomic guard
         },
         data: {
-          tokenBalance: { decrement: amount },
+          tokenBalance: { decrement: totalDeduct },
         },
       });
 
       if (updated.count === 0) {
-        // no rows updated => insufficient funds or user not found
-        const user = await tx.user.findUnique({ where: { id: userId } });
-        if (!user) {
-          console.warn(`[WITHDRAWAL_REQUEST] User ${userId} not found`);
-          throw new BadRequestException('User not found');
-        }
-        console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: insufficient balance. Required: $${amount}, Available: $${user.tokenBalance}`);
+        // no rows updated => insufficient funds
+        console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: insufficient balance. Required: $${totalDeduct}, Available: $${balance}`);
         throw new BadRequestException('Insufficient balance');
       }
 
