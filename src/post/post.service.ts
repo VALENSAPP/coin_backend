@@ -344,7 +344,6 @@ export class PostService {
 async getAllPost(viewerUserId?: string) {
   const posts = await this.prisma.post.findMany({
     where: { deletedAt: null },
-    orderBy: { createdAt: 'desc' },
     include: {
       user: {
         select: {
@@ -359,7 +358,7 @@ async getAllPost(viewerUserId?: string) {
         select: {
           likes: true,      // from Post model
           comments: true,   // from Post model
-          shares: true,     
+          shares: true,
         },
       },
     },
@@ -404,6 +403,9 @@ async getAllPost(viewerUserId?: string) {
       hiddenSet = new Set(hidden.map(h => h.postId));
     }
   }
+
+  // Shuffle posts randomly for mixed up ordering
+  posts.sort(() => Math.random() - 0.5);
 
   return posts.map(post => ({
     id: post.id,
