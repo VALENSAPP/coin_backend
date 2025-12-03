@@ -2,15 +2,23 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsArray, IsString, ArrayNotEmpty  } from 'class-validator';
 
 export class SharePostDto {
-  @ApiProperty({ description: 'ID of the post to share' })
+  @ApiProperty({ description: 'ID of the media to share (post, reel, story)' })
   @IsString()
-  postId: string;
+  mediaId: string;
 
-  @ApiProperty({ description: 'ID of the user who is sharing the post' })
+  @ApiProperty({ description: 'Type of the media (POST, STORY, REEL)' })
+  @IsString()
+  mediaType: string;
+
+  @ApiProperty({ description: 'Type of the conversation (MEDIA, CHAT)' })
+  @IsString()
+  conversationType: string;
+
+  @ApiProperty({ description: 'ID of the user who is sharing the media' })
   @IsString()
   sharedUserId: string;
 
-  @ApiProperty({ description: 'ID of the user to whom the post is being shared' })
+  @ApiProperty({ description: 'ID of the user to whom the media is being shared' })
   @IsString()
   receiverUserId: string;
 }

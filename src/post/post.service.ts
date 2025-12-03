@@ -1129,48 +1129,54 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
   });
 }
 
-async sharePostToUser(postId: string, sharedUserId: string, receiverUserId: string) {
-  if (!postId) throw new BadRequestException('Post ID required');
+async sharePostToUser(mediaId: string, mediaType: string, conversationType: string, sharedUserId: string, receiverUserId: string) {
+  if (!mediaId) throw new BadRequestException('Media ID required');
+  if (!mediaType) throw new BadRequestException('Media type required');
+  if (!conversationType) throw new BadRequestException('Conversation type required');
   if (!sharedUserId) throw new BadRequestException('Sender user ID required');
   if (!receiverUserId) throw new BadRequestException('Receiver user ID required');
 
-  // Check if post exists and is not deleted
-  const post = await this.prisma.post.findUnique({
-    where: { id: postId, deletedAt: null },
-  });
-  if (!post) throw new BadRequestException('Post not found');
-
   // Prevent sharing to self
   if (sharedUserId === receiverUserId) {
-    throw new BadRequestException('Cannot share post to yourself');
+    throw new BadRequestException('Cannot share media to yourself');
   }
 
-  // Check if a share conversation already exists between these two users for this post
-  let conversation = await this.prisma.conversation.findFirst({
-    where: {
+  // Create new ChatBox for this share
+  const chatBox = await this.prisma.chatBox.create({
+    data: {
       senderId: sharedUserId,
       receiverId: receiverUserId,
-      postId,
-      type: 'POST_SHARE',
+    },
+  });
+
+  // Check if a share conversation already exists between these two users for this media in this chat
+  let conversation = await this.prisma.conversation.findFirst({
+    where: {
+      chatId: chatBox.id,
+      mediaId,
+      type: 'MEDIA',
+      mediaType: mediaType as any,
     },
   });
 
   if (conversation) {
     // Already shared, return existing conversation info
-    return { message: 'Post already shared between these users', conversationId: conversation.id };
+    return { message: 'Media already shared between these users', conversationId: conversation.id };
   }
 
-  // Create the conversation record for post share
+  // Create the conversation record for media share
   conversation = await this.prisma.conversation.create({
     data: {
-      type: 'POST_SHARE',
+      type: 'MEDIA',
       senderId: sharedUserId,
       receiverId: receiverUserId,
-      postId,
+      mediaId,
+      mediaType: mediaType as any,
+      chatId: chatBox.id,
     },
   });
 
-  return { message: 'Post shared successfully', conversationId: conversation.id };
+  return { message: 'Media shared successfully', conversationId: conversation.id };
 }
 
 async getSharedPostList(userId: string) {
@@ -1182,57 +1188,62 @@ async getSharedPostList(userId: string) {
         { senderId: userId },
         { receiverId: userId },
       ],
-      type: 'POST_SHARE',
+      type: 'MEDIA',
     },
     orderBy: { createdAt: 'desc' },
+  });
+
+  // Fetch media data separately based on mediaType
+  const mediaIds: string[] = conversations.map(c => c.mediaId).filter((id): id is string => id !== null);
+  const posts = await this.prisma.post.findMany({
+    where: { id: { in: mediaIds }, deletedAt: null },
     include: {
-      post: {
-        include: {
-          user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
-          _count: { select: { likes: true, comments: true, conversations: { where: { type: 'POST_SHARE' } } } },
-        },
-      },
-      sender: { select: { id: true, displayName: true, image: true } },
-      receiver: { select: { id: true, displayName: true, image: true } },
+      user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
+      _count: { select: { likes: true, comments: true, shares: true } },
     },
   });
 
-  return conversations.map(conv => ({
-    id: conv.id,
-    sharedAt: conv.createdAt,
-    post: conv.post && {
-      id: conv.post.id,
-      text: conv.post.text,
-      images: conv.post.images,
-      caption: conv.post.caption,
-      hashtag: conv.post.hashtag,
-      location: conv.post.location,
-      music: conv.post.music,
-      taggedPeople: conv.post.taggedPeople,
-      createdAt: conv.post.createdAt,
-      updatedAt: conv.post.updatedAt,
-      deletedAt: conv.post.deletedAt,
-      userId: conv.post.userId,
-      userName: conv.post.user?.displayName || null,
-      userImage: conv.post.user?.image || null,
-      profileStatus: conv.post.user?.profileStatus || null,
-      profile: conv.post.user?.profile || null,
-      likeCount: conv.post._count.likes,
-      commentCount: conv.post._count.comments,
-      shareCount: conv.post._count.conversations,
-      visibleTo: (conv.post as any).visibleTo,
-    },
-    sharedBy: conv.sender && {
-      id: conv.sender.id,
-      displayName: conv.sender.displayName,
-      image: conv.sender.image,
-    },
-    receivedBy: conv.receiver && {
-      id: conv.receiver.id,
-      displayName: conv.receiver.displayName,
-      image: conv.receiver.image,
-    },
-  }));
+  const postMap = new Map(posts.map(p => [p.id, p]));
+
+  return conversations.map(conv => {
+    const post = conv.mediaId ? postMap.get(conv.mediaId) : null;
+    return {
+      id: conv.id,
+      sharedAt: conv.createdAt,
+      mediaType: conv.mediaType,
+      post: post && {
+        id: post.id,
+        text: post.text,
+        images: post.images,
+        caption: post.caption,
+        hashtag: post.hashtag,
+        location: post.location,
+        music: post.music,
+        taggedPeople: post.taggedPeople,
+        createdAt: post.createdAt,
+        updatedAt: post.updatedAt,
+        deletedAt: post.deletedAt,
+        userId: post.userId,
+        userName: post.user?.displayName || null,
+        userImage: post.user?.image || null,
+        profileStatus: post.user?.profileStatus || null,
+        profile: post.user?.profile || null,
+        likeCount: post._count.likes,
+        commentCount: post._count.comments,
+        shareCount: post._count.shares,
+        visibleTo: (post as any).visibleTo,
+        type: post.type,
+      },
+      sharedBy: {
+        id: conv.senderId,
+        // Note: sender details not fetched, can add if needed
+      },
+      receivedBy: {
+        id: conv.receiverId,
+        // Note: receiver details not fetched, can add if needed
+      },
+    };
+  });
 }
 
 async deleteSharedPosts(shareIds: string[], userId: string) {
@@ -1241,7 +1252,7 @@ async deleteSharedPosts(shareIds: string[], userId: string) {
 
   // Find all conversation records for the given IDs
   const conversations = await this.prisma.conversation.findMany({
-    where: { id: { in: shareIds }, type: 'POST_SHARE' },
+    where: { id: { in: shareIds }, type: 'MEDIA' },
   });
 
   // Filter to only those the user is authorized to delete
@@ -1253,7 +1264,7 @@ async deleteSharedPosts(shareIds: string[], userId: string) {
 
   // Delete all authorized conversation records
   await this.prisma.conversation.deleteMany({
-    where: { id: { in: deletableIds }, type: 'POST_SHARE' },
+    where: { id: { in: deletableIds }, type: 'MEDIA' },
   });
 
   return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
@@ -1320,23 +1331,6 @@ async getConversations(userId: string) {
     include: {
       sender: { select: { id: true, displayName: true, image: true } },
       receiver: { select: { id: true, displayName: true, image: true } },
-      post: {
-        select: {
-          id: true,
-          text: true,
-          images: true,
-          caption: true,
-          user: { select: { displayName: true, image: true } }
-        }
-      },
-      story: {
-        select: {
-          id: true,
-          caption: true,
-          media: true,
-          user: { select: { displayName: true, image: true } }
-        }
-      },
     },
   });
 
@@ -1347,9 +1341,85 @@ async getConversations(userId: string) {
     createdAt: conv.createdAt,
     sender: conv.sender,
     receiver: conv.receiver,
-    post: conv.post,
-    story: conv.story,
+    post: null,
+    story: null,
   }));
+}
+
+async getUserChatBox(userId: string) {
+  if (!userId) throw new BadRequestException('User ID required');
+
+  const chatBoxes = await this.prisma.chatBox.findMany({
+    where: {
+      OR: [
+        { senderId: userId },
+        { receiverId: userId },
+      ],
+    },
+    include: {
+      sender: {
+        select: {
+          id: true,
+          displayName: true,
+          image: true,
+          profile: true,
+          profileStatus: true,
+        },
+      },
+      receiver: {
+        select: {
+          id: true,
+          displayName: true,
+          image: true,
+          profile: true,
+          profileStatus: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Get conversation details for each chatBox
+  const chatBoxIds = chatBoxes.map(cb => cb.id);
+  const conversations = await this.prisma.conversation.findMany({
+    where: {
+      chatId: { in: chatBoxIds },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Group conversations by chatId
+  const conversationsByChatId = conversations.reduce((acc, conv) => {
+    if (!acc[conv.chatId!]) {
+      acc[conv.chatId!] = [];
+    }
+    acc[conv.chatId!].push(conv);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  const result = chatBoxes.map(chatBox => {
+    const isSender = chatBox.senderId === userId;
+    const receiver = isSender ? chatBox.receiver : chatBox.sender;
+    const chatConversations = conversationsByChatId[chatBox.id] || [];
+    const unreadCount = chatConversations.filter(conv => conv.isSeen === 0).length;
+    const lastMessage = chatConversations.length > 0 ? chatConversations[0] : null;
+
+    return {
+      id: chatBox.id,
+      createdAt: chatBox.createdAt,
+      updatedAt: chatBox.updatedAt,
+      receiver: receiver,
+      unreadCount,
+      lastMessage,
+      sortKey: lastMessage ? lastMessage.createdAt : chatBox.createdAt,
+    };
+  });
+
+  // Sort by latest conversation activity (descending)
+  result.sort((a, b) => new Date(b.sortKey).getTime() - new Date(a.sortKey).getTime());
+
+  // Remove sortKey from response
+  return result.map(({ sortKey, ...item }) => item);
 }
 
 async getConversationWithUser(userId: string, otherUserId: string) {
@@ -1367,23 +1437,6 @@ async getConversationWithUser(userId: string, otherUserId: string) {
     include: {
       sender: { select: { id: true, displayName: true, image: true } },
       receiver: { select: { id: true, displayName: true, image: true } },
-      post: {
-        select: {
-          id: true,
-          text: true,
-          images: true,
-          caption: true,
-          user: { select: { displayName: true, image: true } }
-        }
-      },
-      story: {
-        select: {
-          id: true,
-          caption: true,
-          media: true,
-          user: { select: { displayName: true, image: true } }
-        }
-      },
     },
   });
 
@@ -1394,8 +1447,8 @@ async getConversationWithUser(userId: string, otherUserId: string) {
     createdAt: conv.createdAt,
     sender: conv.sender,
     receiver: conv.receiver,
-    post: conv.post,
-    story: conv.story,
+    post: null,
+    story: null,
   }));
 }
 

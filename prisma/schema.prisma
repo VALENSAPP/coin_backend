@@ -80,6 +80,8 @@ model User {
   boughtSubscriptions  FansSubscriptionBuyData[] @relation("Buy")
 
   loginHistories       LoginHistory[]
+  sentChats            ChatBox[]         @relation("ChatSender")
+  receivedChats        ChatBox[]         @relation("ChatReceiver")
 
 }
 
@@ -108,7 +110,6 @@ model Post {
   likes        PostLike[]
   shares       PostShare[]
   saves        SavePost[]
-  conversations Conversation[]
 }
 
 model PostLike {
@@ -208,7 +209,6 @@ model Story {
   user      User      @relation(fields: [userId], references: [id])
   comment   StoryComment[]
   storyLike      StoryLike[]
-  conversations Conversation[]
 
   @@index([userId])
 }
@@ -328,20 +328,20 @@ model Conversation {
   senderId    String
   receiverId  String
   content     String?
-  postId      String?
-  storyId     String?
+  mediaId     String?
+  mediaType   MediaType?
+  chatId      String?
+  isSeen      Int               @default(0)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   sender      User              @relation("ConversationSender", fields: [senderId], references: [id], onDelete: Cascade)
   receiver    User              @relation("ConversationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  post        Post?             @relation(fields: [postId], references: [id], onDelete: Cascade)
-  story       Story?            @relation(fields: [storyId], references: [id], onDelete: Cascade)
 
   @@index([senderId])
   @@index([receiverId])
-  @@index([postId])
-  @@index([storyId])
+  @@index([mediaId])
+  @@index([chatId])
 }
 
 model UserToken {
@@ -443,6 +443,20 @@ model LoginHistory {
   @@index([userId])
 }
 
+model ChatBox {
+  id        String   @id @default(uuid())
+  senderId  String
+  receiverId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sender   User     @relation("ChatSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User     @relation("ChatReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+}
+
 enum RegistrationType {
   NORMAL
   GOOGLE
@@ -469,9 +483,16 @@ enum FollowStatus {
 }
 
 enum ConversationType {
+  MEDIA
+  CHAT
   POST_SHARE
   STORY_COMMENT
-  CHAT
+}
+
+enum MediaType {
+  REEL
+  STORY
+  POST
 }
 
 enum KycStatus {

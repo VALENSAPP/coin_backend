@@ -286,11 +286,13 @@ async editComment(
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('sharePost')
-  @ApiOperation({ summary: 'Share post to user' })
+  @ApiOperation({ summary: 'Share media to user' })
    @ApiBody({ type: SharePostDto })
   async sharePostToUser(@Body() body: SharePostDto) {
     return this.postService.sharePostToUser(
-      body.postId,
+      body.mediaId,
+      body.mediaType,
+      body.conversationType,
       body.sharedUserId,
       body.receiverUserId,
     );

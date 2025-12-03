@@ -84,10 +84,11 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
     // Note: For story comments, we might want to send to the story owner
     const conversation = await this.prisma.conversation.create({
       data: {
-        type: 'STORY_COMMENT',
+        type: 'MEDIA',
         senderId: userId,
         receiverId: story.userId, // Send to story owner
-        storyId,
+        mediaId: storyId,
+        mediaType: 'STORY',
         content: comment,
       },
     });
