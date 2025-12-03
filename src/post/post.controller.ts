@@ -379,4 +379,13 @@ async getConversationWithUser(@Req() req: Request, @Param('otherUserId') otherUs
   return this.postService.getConversationWithUser(userId, otherUserId);
 }
 
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Get('getUserChatBox')
+@ApiOperation({ summary: 'Get all chat boxes for the authenticated user with conversation details' })
+async getUserChatBox(@Req() req: Request) {
+  const userId = (req.user as any).userId;
+  return this.postService.getUserChatBox(userId);
+}
+
 }
