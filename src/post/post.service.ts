@@ -1433,23 +1433,105 @@ async getConversationWithUser(userId: string, otherUserId: string) {
         { senderId: otherUserId, receiverId: userId },
       ],
     },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
     include: {
       sender: { select: { id: true, displayName: true, image: true } },
       receiver: { select: { id: true, displayName: true, image: true } },
     },
   });
 
-  return conversations.map(conv => ({
-    id: conv.id,
-    type: conv.type,
-    content: conv.content,
-    createdAt: conv.createdAt,
-    sender: conv.sender,
-    receiver: conv.receiver,
-    post: null,
-    story: null,
-  }));
+  // Collect media IDs for MEDIA type conversations
+  const mediaConversations = conversations.filter(c => c.type === 'MEDIA');
+  const postIds = mediaConversations
+    .filter(c => c.mediaType === 'POST' || c.mediaType === 'REEL')
+    .map(c => c.mediaId)
+    .filter(id => id !== null) as string[];
+  const storyIds = mediaConversations
+    .filter(c => c.mediaType === 'STORY')
+    .map(c => c.mediaId)
+    .filter(id => id !== null) as string[];
+
+  // Fetch posts with user details
+  const posts = postIds.length > 0 ? await this.prisma.post.findMany({
+    where: { id: { in: postIds }, deletedAt: null },
+    include: {
+      user: { select: { id: true, displayName: true, image: true, profile: true } },
+    },
+  }) : [];
+
+  // Fetch stories with user details
+  const stories = storyIds.length > 0 ? await this.prisma.story.findMany({
+    where: { id: { in: storyIds } },
+    include: {
+      user: { select: { id: true, displayName: true, image: true, profile: true } },
+    },
+  }) : [];
+
+  // Create maps for quick lookup
+  const postMap = new Map(posts.map(p => [p.id, p]));
+  const storyMap = new Map(stories.map(s => [s.id, s]));
+
+  return conversations.map(conv => {
+    let post = null;
+    let story = null;
+
+    if (conv.type === 'MEDIA' && conv.mediaId) {
+      if (conv.mediaType === 'POST' || conv.mediaType === 'REEL') {
+        const p = postMap.get(conv.mediaId);
+        if (p) {
+          post = {
+            id: p.id,
+            text: p.text,
+            images: p.images,
+            caption: p.caption,
+            hashtag: p.hashtag,
+            location: p.location,
+            music: p.music,
+            taggedPeople: p.taggedPeople,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+            deletedAt: p.deletedAt,
+            userId: p.userId,
+            userName: p.user.displayName,
+            userImage: p.user.image,
+            profile: p.user.profile,
+            type: p.type,
+            link: p.link,
+            visibleTo: p.visibleTo,
+            start_time: p.start_time,
+            end_time: p.end_time,
+            raiseAmount: p.raiseAmount,
+          };
+        }
+      } else if (conv.mediaType === 'STORY') {
+        const s = storyMap.get(conv.mediaId);
+        if (s) {
+          story = {
+            id: s.id,
+            caption: s.caption,
+            media: s.media,
+            createdAt: s.createdAt,
+            updatedAt: s.updatedAt,
+            userId: s.userId,
+            userName: s.user.displayName,
+            userImage: s.user.image,
+            profile: s.user.profile,
+          };
+        }
+      }
+    }
+
+    return {
+      id: conv.id,
+      type: conv.type,
+      content: conv.content,
+      createdAt: conv.createdAt,
+      sender: conv.sender,
+      receiver: conv.receiver,
+      post,
+      story,
+    };
+  });
 }
 
 }
