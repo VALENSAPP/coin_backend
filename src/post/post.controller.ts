@@ -13,6 +13,7 @@ import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery }
 import { AuthGuard } from '@nestjs/passport';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { ChatStatusUpdateDto } from './dto/chat-status-update.dto';
 import { log } from 'console';
 
 @Controller('post')
@@ -386,6 +387,15 @@ async getConversationWithUser(@Req() req: Request, @Param('otherUserId') otherUs
 async getUserChatBox(@Req() req: Request) {
   const userId = (req.user as any).userId;
   return this.postService.getUserChatBox(userId);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('chatStatusUpdate')
+@ApiOperation({ summary: 'Update chat status to mark messages as seen' })
+@ApiBody({ type: ChatStatusUpdateDto })
+async chatStatusUpdate(@Body(new ValidationPipe({ whitelist: true })) dto: ChatStatusUpdateDto) {
+  return this.postService.chatStatusUpdate(dto.chatId);
 }
 
 }

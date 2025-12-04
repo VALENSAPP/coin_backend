@@ -1305,12 +1305,33 @@ async sendMessage(senderId: string, receiverId: string, message: string) {
     throw new BadRequestException('Cannot send message to yourself');
   }
 
+  // Find existing ChatBox between sender and receiver (bidirectional)
+  let chatBox = await this.prisma.chatBox.findFirst({
+    where: {
+      OR: [
+        { senderId, receiverId },
+        { senderId: receiverId, receiverId: senderId },
+      ],
+    },
+  });
+
+  // If no ChatBox exists, create one
+  if (!chatBox) {
+    chatBox = await this.prisma.chatBox.create({
+      data: {
+        senderId,
+        receiverId,
+      },
+    });
+  }
+
   const conversation = await this.prisma.conversation.create({
     data: {
       type: 'CHAT',
       senderId,
       receiverId,
       content: message,
+      chatId: chatBox.id,
     },
   });
 
@@ -1520,18 +1541,38 @@ async getConversationWithUser(userId: string, otherUserId: string) {
         }
       }
     }
+return {
+  id: conv.id,
+  type: conv.type,
+  content: conv.content,
+  createdAt: conv.createdAt,
+  sender: conv.sender,
+  receiver: conv.receiver,
+  post,
+  story,
+};
+});
 
-    return {
-      id: conv.id,
-      type: conv.type,
-      content: conv.content,
-      createdAt: conv.createdAt,
-      sender: conv.sender,
-      receiver: conv.receiver,
-      post,
-      story,
-    };
-  });
+}
+
+async chatStatusUpdate(chatId: string) {
+if (!chatId) throw new BadRequestException('Chat ID required');
+
+// Update all conversation records where chatId matches and isSeen is 0 to set isSeen to 1
+const result = await this.prisma.conversation.updateMany({
+where: {
+  chatId,
+  isSeen: 0,
+},
+data: {
+  isSeen: 1,
+},
+});
+
+return {
+message: 'Chat status updated successfully',
+updatedCount: result.count,
+};
 }
 
 }
