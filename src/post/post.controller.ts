@@ -14,6 +14,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatStatusUpdateDto } from './dto/chat-status-update.dto';
+import { HideChatDto } from './dto/hide-chat.dto';
 import { log } from 'console';
 
 @Controller('post')
@@ -396,6 +397,26 @@ async getUserChatBox(@Req() req: Request) {
 @ApiBody({ type: ChatStatusUpdateDto })
 async chatStatusUpdate(@Body(new ValidationPipe({ whitelist: true })) dto: ChatStatusUpdateDto) {
   return this.postService.chatStatusUpdate(dto.chatId);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('hideChat')
+@ApiOperation({ summary: 'Hide a chat for the authenticated user' })
+@ApiBody({ type: HideChatDto })
+async hideChat(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: HideChatDto) {
+  const userId = (req.user as any).userId;
+  return this.postService.hideChat(dto.chatId, userId);
+}
+
+@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth()
+@Post('unhideChat')
+@ApiOperation({ summary: 'Unhide a chat for the authenticated user' })
+@ApiBody({ type: HideChatDto })
+async unhideChat(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: HideChatDto) {
+  const userId = (req.user as any).userId;
+  return this.postService.unhideChat(dto.chatId, userId);
 }
 
 }

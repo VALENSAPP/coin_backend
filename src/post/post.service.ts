@@ -1141,13 +1141,25 @@ async sharePostToUser(mediaId: string, mediaType: string, conversationType: stri
     throw new BadRequestException('Cannot share media to yourself');
   }
 
-  // Create new ChatBox for this share
-  const chatBox = await this.prisma.chatBox.create({
-    data: {
-      senderId: sharedUserId,
-      receiverId: receiverUserId,
+  // Find existing ChatBox between sender and receiver (bidirectional)
+  let chatBox = await this.prisma.chatBox.findFirst({
+    where: {
+      OR: [
+        { senderId: sharedUserId, receiverId: receiverUserId },
+        { senderId: receiverUserId, receiverId: sharedUserId },
+      ],
     },
   });
+
+  // If no ChatBox exists, create one
+  if (!chatBox) {
+    chatBox = await this.prisma.chatBox.create({
+      data: {
+        senderId: sharedUserId,
+        receiverId: receiverUserId,
+      },
+    });
+  }
 
   // Check if a share conversation already exists between these two users for this media in this chat
   let conversation = await this.prisma.conversation.findFirst({
@@ -1399,7 +1411,7 @@ async getUserChatBox(userId: string) {
     },
     orderBy: { createdAt: 'desc' },
   });
-
+console.log('Fetched chatBoxes:', chatBoxes);
   // Get conversation details for each chatBox
   const chatBoxIds = chatBoxes.map(cb => cb.id);
   const conversations = await this.prisma.conversation.findMany({
@@ -1420,7 +1432,7 @@ async getUserChatBox(userId: string) {
 
   const result = chatBoxes.map(chatBox => {
     const isSender = chatBox.senderId === userId;
-    const receiver = isSender ? chatBox.receiver : chatBox.sender;
+    const user = isSender ? chatBox.receiver : chatBox.sender;
     const chatConversations = conversationsByChatId[chatBox.id] || [];
     const unreadCount = chatConversations.filter(conv => conv.isSeen === 0).length;
     const lastMessage = chatConversations.length > 0 ? chatConversations[0] : null;
@@ -1429,9 +1441,10 @@ async getUserChatBox(userId: string) {
       id: chatBox.id,
       createdAt: chatBox.createdAt,
       updatedAt: chatBox.updatedAt,
-      receiver: receiver,
+      user: user,
       unreadCount,
       lastMessage,
+      isHidden: chatBox.hiddenBy.includes(userId),
       sortKey: lastMessage ? lastMessage.createdAt : chatBox.createdAt,
     };
   });
@@ -1573,6 +1586,75 @@ return {
 message: 'Chat status updated successfully',
 updatedCount: result.count,
 };
+}
+
+async hideChat(chatId: string, userId: string) {
+  if (!chatId) throw new BadRequestException('Chat ID required');
+  if (!userId) throw new BadRequestException('User ID required');
+
+  // Find the chatBox
+  const chatBox = await this.prisma.chatBox.findUnique({
+    where: { id: chatId },
+  });
+
+  if (!chatBox) {
+    throw new BadRequestException('Chat not found');
+  }
+
+  // Check if user is part of this chat
+  if (chatBox.senderId !== userId && chatBox.receiverId !== userId) {
+    throw new BadRequestException('Unauthorized to hide this chat');
+  }
+
+  // Add userId to hiddenBy array
+  const updatedHiddenBy = [...(chatBox.hiddenBy || []), userId];
+
+  // If both users have hidden the chat, delete it completely
+  if (updatedHiddenBy.length >= 2) {
+    // Delete all conversations first
+    await this.prisma.conversation.deleteMany({
+      where: { chatId },
+    });
+
+    // Then delete the chatBox
+    await this.prisma.chatBox.delete({
+      where: { id: chatId },
+    });
+
+    return { message: 'Chat deleted permanently' };
+  } else {
+    // Just hide for this user
+    await this.prisma.chatBox.update({
+      where: { id: chatId },
+      data: { hiddenBy: updatedHiddenBy },
+    });
+
+    return { message: 'Chat hidden successfully' };
+  }
+}
+
+async unhideChat(chatId: string, userId: string) {
+  if (!chatId) throw new BadRequestException('Chat ID required');
+  if (!userId) throw new BadRequestException('User ID required');
+
+  // Find the chatBox
+  const chatBox = await this.prisma.chatBox.findUnique({
+    where: { id: chatId },
+  });
+
+  if (!chatBox) {
+    throw new BadRequestException('Chat not found');
+  }
+
+  // Remove userId from hiddenBy array
+  const updatedHiddenBy = (chatBox.hiddenBy || []).filter(id => id !== userId);
+
+  await this.prisma.chatBox.update({
+    where: { id: chatId },
+    data: { hiddenBy: updatedHiddenBy },
+  });
+
+  return { message: 'Chat unhidden successfully' };
 }
 
 }
