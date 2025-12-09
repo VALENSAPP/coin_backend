@@ -94,6 +94,12 @@ export class NotificationService {
     });
   }
 
+  async getNotificationById(notificationId: string): Promise<Notification | null> {
+    return this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+  }
+
   async markNotificationAsRead(notificationId: string): Promise<void> {
     await this.prisma.notification.update({
       where: { id: notificationId },
