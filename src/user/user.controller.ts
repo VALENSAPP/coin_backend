@@ -672,7 +672,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user by ID' })
-  @ApiParam({ name: 'id', type: String })
+  @ApiParam({ name: 'id', type: 'string', description: 'User ID (UUID format)' })
   async getUserById(@Param('id', new ParseUUIDPipe()) id: string) {
     const user = await this.userService.getUserById(id);
     return { user };

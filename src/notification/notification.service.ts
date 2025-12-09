@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { PrismaService } from '../prisma/prisma.service';
+import { Notification } from '@prisma/client';
 
 @Injectable()
 export class NotificationService {
@@ -12,6 +13,16 @@ export class NotificationService {
     body: string,
     data?: Record<string, string>,
   ): Promise<void> {
+    // Save notification to database
+    await this.prisma.notification.create({
+      data: {
+        userId,
+        title,
+        body,
+        data: data || {},
+      },
+    });
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { fcmToken: true },
@@ -74,5 +85,25 @@ export class NotificationService {
     } catch (error) {
       console.error('Error sending messages:', error);
     }
+  }
+
+  async getNotifications(userId: string): Promise<Notification[]> {
+    return this.prisma.notification.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async markNotificationAsRead(notificationId: string): Promise<void> {
+    await this.prisma.notification.update({
+      where: { id: notificationId },
+      data: { isRead: true },
+    });
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    return this.prisma.notification.count({
+      where: { userId, isRead: false },
+    });
   }
 }

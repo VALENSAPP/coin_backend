@@ -82,6 +82,7 @@ model User {
   loginHistories       LoginHistory[]
   sentChats            ChatBox[]         @relation("ChatSender")
   receivedChats        ChatBox[]         @relation("ChatReceiver")
+  notifications        Notification[]
 
 }
 
@@ -458,6 +459,21 @@ model ChatBox {
   @@index([receiverId])
   // Note: For bidirectional uniqueness, we rely on application logic to prevent duplicates
   // since Prisma doesn't easily support complex unique constraints for bidirectional relationships
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  body      String
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
 }
 
 enum RegistrationType {
