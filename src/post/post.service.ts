@@ -1411,7 +1411,7 @@ async getUserChatBox(userId: string) {
     },
     orderBy: { createdAt: 'desc' },
   });
-console.log('Fetched chatBoxes:', chatBoxes);
+
   // Get conversation details for each chatBox
   const chatBoxIds = chatBoxes.map(cb => cb.id);
   const conversations = await this.prisma.conversation.findMany({
@@ -1433,8 +1433,12 @@ console.log('Fetched chatBoxes:', chatBoxes);
   const result = chatBoxes.map(chatBox => {
     const isSender = chatBox.senderId === userId;
     const user = isSender ? chatBox.receiver : chatBox.sender;
+    const otherUserId = isSender ? chatBox.receiverId : chatBox.senderId;
     const chatConversations = conversationsByChatId[chatBox.id] || [];
-    const unreadCount = chatConversations.filter(conv => conv.isSeen === 0).length;
+    // Only count unread messages sent by the other user to the current user
+    const unreadCount = chatConversations.filter(
+      conv => conv.isSeen === 0 && conv.senderId === otherUserId && conv.receiverId === userId
+    ).length;
     const lastMessage = chatConversations.length > 0 ? chatConversations[0] : null;
 
     return {
