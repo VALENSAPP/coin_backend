@@ -1317,6 +1317,19 @@ async sendMessage(senderId: string, receiverId: string, message: string) {
     throw new BadRequestException('Cannot send message to yourself');
   }
 
+  // Verify both users exist before creating ChatBox
+  const [sender, receiver] = await Promise.all([
+    this.prisma.user.findUnique({ where: { id: senderId } }),
+    this.prisma.user.findUnique({ where: { id: receiverId } }),
+  ]);
+
+  if (!sender) {
+    throw new BadRequestException('Sender user not found');
+  }
+  if (!receiver) {
+    throw new BadRequestException('Receiver user not found');
+  }
+
   // Find existing ChatBox between sender and receiver (bidirectional)
   let chatBox = await this.prisma.chatBox.findFirst({
     where: {
@@ -1418,6 +1431,18 @@ async getUserChatBox(userId: string) {
     where: {
       chatId: { in: chatBoxIds },
     },
+    select: {
+      id: true,
+      senderId: true,
+      receiverId: true,
+      isSeen: true,
+      chatId: true,
+      createdAt: true,
+      content: true,
+      type: true,
+      mediaId: true,
+      mediaType: true,
+    },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -1433,13 +1458,30 @@ async getUserChatBox(userId: string) {
   const result = chatBoxes.map(chatBox => {
     const isSender = chatBox.senderId === userId;
     const user = isSender ? chatBox.receiver : chatBox.sender;
-    const otherUserId = isSender ? chatBox.receiverId : chatBox.senderId;
     const chatConversations = conversationsByChatId[chatBox.id] || [];
-    // Only count unread messages sent by the other user to the current user
-    const unreadCount = chatConversations.filter(
-      conv => conv.isSeen === 0 && conv.senderId === otherUserId && conv.receiverId === userId
-    ).length;
     const lastMessage = chatConversations.length > 0 ? chatConversations[0] : null;
+    
+    // Instagram-like behavior:
+    // - If I (current user) sent the last message, my unreadCount = 0
+    // - If the other user sent the last message, count all unread messages I received from them
+    let unreadCount = 0;
+    
+    if (lastMessage && lastMessage.senderId === userId) {
+      // Current user sent the last message, so unreadCount = 0
+      // (Even if there are old unread messages, we don't show them because user is actively chatting)
+      unreadCount = 0;
+    } else {
+      // Other user sent the last message (or no messages), count all unread messages received
+      unreadCount = chatConversations.filter(
+        conv => {
+          // Only count messages that:
+          // 1. Are unread (isSeen === 0)
+          // 2. Were received by the current user (receiverId === userId)
+          // 3. Were NOT sent by the current user (senderId !== userId)
+          return conv.isSeen === 0 && conv.receiverId === userId && conv.senderId !== userId;
+        }
+      ).length;
+    }
 
     return {
       id: chatBox.id,
