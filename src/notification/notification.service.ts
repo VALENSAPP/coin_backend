@@ -100,9 +100,13 @@ export class NotificationService {
     });
   }
 
-  async markNotificationAsRead(notificationId: string): Promise<void> {
-    await this.prisma.notification.update({
-      where: { id: notificationId },
+  async markNotificationAsRead(notificationIds: string[]): Promise<void> {
+    if (!notificationIds || notificationIds.length === 0) {
+      return;
+    }
+    
+    await this.prisma.notification.updateMany({
+      where: { id: { in: notificationIds } },
       data: { isRead: true },
     });
   }

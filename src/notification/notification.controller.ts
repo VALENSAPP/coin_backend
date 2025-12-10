@@ -1,12 +1,16 @@
-import { Controller, Get, Put, Param, UseGuards, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Put, UseGuards, Req, BadRequestException, Body } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiBody } from '@nestjs/swagger';
+import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(
+    private readonly notificationService: NotificationService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   // protect route with JWT like your post APIs
   @Get()
@@ -18,21 +22,48 @@ export class NotificationController {
     return this.notificationService.getNotifications(userId);
   }
 
-  @Put(':id/read')
+  @Put('mark-as-read')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  async markAsRead(@Param('id') notificationId: string, @Req() req: any) {
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        notificationIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of notification IDs to mark as read',
+        },
+      },
+      required: ['notificationIds'],
+    },
+  })
+  async markAsRead(@Body() body: { notificationIds: string[] }, @Req() req: any) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
 
-    // optional: verify notification belongs to user before marking read
-    const notif = await this.notificationService.getNotificationById(notificationId);
-    if (!notif || notif.userId !== userId) {
-      throw new BadRequestException('Notification not found or access denied');
+    if (!body.notificationIds || !Array.isArray(body.notificationIds) || body.notificationIds.length === 0) {
+      throw new BadRequestException('notificationIds array is required and must not be empty');
     }
 
-    await this.notificationService.markNotificationAsRead(notificationId);
-    return { message: 'Notification marked as read' };
+    // Verify all notifications belong to the user before marking as read
+    const notifications = await this.prisma.notification.findMany({
+      where: { id: { in: body.notificationIds } },
+      select: { id: true, userId: true },
+    });
+
+    // Check if all requested notifications exist and belong to the user
+    if (notifications.length !== body.notificationIds.length) {
+      throw new BadRequestException('Some notifications not found');
+    }
+
+    const invalidNotifications = notifications.filter((notif: { id: string; userId: string }) => notif.userId !== userId);
+    if (invalidNotifications.length > 0) {
+      throw new BadRequestException('Some notifications not found or access denied');
+    }
+
+    await this.notificationService.markNotificationAsRead(body.notificationIds);
+    return { message: 'Notifications marked as read', count: body.notificationIds.length };
   }
 
   @Get('unread-count')
