@@ -20,6 +20,11 @@ export class CreateUserSubscriptionDto {
   @IsOptional()
   @IsEnum(UserSubscriptionStatus)
   status?: UserSubscriptionStatus;
+
+  @ApiProperty({ description: 'Comment for the subscription', example: 'Monthly subscription', required: false })
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
 
 export class UpdateUserSubscriptionDto {
@@ -36,6 +41,11 @@ export class UpdateUserSubscriptionDto {
   @IsOptional()
   @IsEnum(UserSubscriptionStatus)
   status?: UserSubscriptionStatus;
+
+  @ApiProperty({ description: 'Comment for the subscription', example: 'Updated monthly subscription', required: false })
+  @IsOptional()
+  @IsString()
+  comment?: string;
 
   @ApiProperty({ description: 'Soft delete flag', example: 0, required: false })
   @IsOptional()

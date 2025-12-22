@@ -1525,6 +1525,7 @@ export class UserService {
         userId,
         subscriptionAmount: dto.subscriptionAmount,
         status: dto.status || 'ACTIVE',
+        comment: dto.comment,
         isDelete: dto.isDelete || 0,
       },
     });
@@ -1582,6 +1583,7 @@ export class UserService {
       data: {
         subscriptionAmount: dto.subscriptionAmount,
         status: dto.status,
+        comment: dto.comment,
         isDelete: dto.isDelete,
         updatedAt: new Date(),
       },
