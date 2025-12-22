@@ -1161,6 +1161,32 @@ async sharePostToUser(mediaId: string, mediaType: string, conversationType: stri
     });
   }
 
+  // If mediaType is POST, create a PostShare record to track the share count
+  // This should be done regardless of conversation existence, as they serve different purposes
+  if (mediaType === 'POST' || mediaType === 'post') {
+    // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
+    const existingPostShare = await this.prisma.postShare.findUnique({
+      where: {
+        postId_sharedUserId_receiverUserId: {
+          postId: mediaId,
+          sharedUserId: sharedUserId,
+          receiverUserId: receiverUserId,
+        },
+      },
+    });
+
+    // Only create PostShare if it doesn't exist
+    if (!existingPostShare) {
+      await this.prisma.postShare.create({
+        data: {
+          postId: mediaId,
+          sharedUserId: sharedUserId,
+          receiverUserId: receiverUserId,
+        },
+      });
+    }
+  }
+
   // Check if a share conversation already exists between these two users for this media in this chat
   let conversation = await this.prisma.conversation.findFirst({
     where: {
