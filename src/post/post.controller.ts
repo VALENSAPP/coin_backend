@@ -138,15 +138,21 @@ export class PostController {
     console.log('Target user ID:', targetUserId);
     
     const viewerUserId = (req.user as any)?.userId;
-    return this.postService.getPostByUserId(targetUserId, viewerUserId);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    return this.postService.getPostByUserId(targetUserId, viewerUserId, page, limit);
   }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('all')
-  async getAllPost(@Req() req: Request) {
+  @ApiQuery({ name: 'page', type: Number, required: false, description: 'Page (default 1)' })
+  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Items per page, max 50 (default 20)' })
+  async getAllPost(@Req() req: Request, @Query('page') page?: string, @Query('limit') limit?: string) {
     const viewerUserId = (req.user as any)?.userId;
-    return this.postService.getAllPost(viewerUserId);
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.postService.getAllPost(viewerUserId, pageNum, limitNum);
   }
 
   @UseGuards(AuthGuard('jwt'))

@@ -87,10 +87,11 @@ export class NotificationService {
     }
   }
 
-  async getNotifications(userId: string): Promise<Notification[]> {
+  async getNotifications(userId: string, limit: number = 100): Promise<Notification[]> {
     return this.prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(1, limit), 200),
     });
   }
 

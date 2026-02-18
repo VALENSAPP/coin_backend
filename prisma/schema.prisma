@@ -15,6 +15,7 @@ model User {
   googleId             String?                @unique
   twitterId            String?                @unique
   appleId              String?                @unique
+  // Valens stores only user <-> public wallet mapping (non-custodial). No private keys.
   walletAddress        String?                @unique
   registrationType     RegistrationType
   createdAt            DateTime               @default(now())
@@ -32,6 +33,7 @@ model User {
   displayName          String?                @unique
   userName             String?
   profile              String?                @db.VarChar(255)
+  // DEPRECATED per Valens requirements: Valens does not create wallets or control private keys.
   walletMnemonic       String?
   walletPrivateKey     String?
   currentPeriodEnd     DateTime?
@@ -40,6 +42,7 @@ model User {
   subscriptionEnd      DateTime?
   subscriptionStart    DateTime?
   subscriptionStatus   SubscriptionStatus     @default(INACTIVE)
+  // DEPRECATED per Valens requirements: No internal balances or credits; revenue from software/Stripe only.
   tokenBalance         Float                  @default(0)
   kyc                  Boolean                @default(false)
   stripeAccountId      String?
@@ -151,6 +154,7 @@ model SavePost {
   @@index([postId])
 }
 
+// Follow/Unfollow: platform records relationship. Follow Pass (NFT/soulbound) mint/burn is user wallet-signed on-chain.
 model FollowerAndFollowing {
   id          String       @id @default(uuid())
   followerId  String

@@ -6,6 +6,7 @@ import { TokenService } from '../token/token.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 
+/** Token purchase/sale/balance endpoints disabled per Valens requirements. Donation (Stripe) remains. */
 @ApiTags('token-purchase')
 @Controller('token-purchase')
 export class TokenPurchaseController {

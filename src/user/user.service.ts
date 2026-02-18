@@ -10,8 +10,9 @@ import * as path from 'path';
 import * as sgMail from '@sendgrid/mail';
 import { JwtService } from '@nestjs/jwt';
 import { uploadImageToS3 } from '../common/s3.util';
-import { generateWallet } from '../common/wallet.util';
-import { encryptSecret } from '../common/crypto.util';
+// Valens: no wallet creation; users connect third-party non-custodial wallets.
+// import { generateWallet } from '../common/wallet.util';
+// import { encryptSecret } from '../common/crypto.util';
 // import admin from '../auth/firebase.config';
 // import admin from '../auth/firebase.config';
 import * as admin from 'firebase-admin';
@@ -183,11 +184,11 @@ export class UserService {
       if (!data.email || !data.password) throw new BadRequestException('Email and password required');
       passwordHash = await bcrypt.hash(data.password, 10);
     }
-    // Auto-create wallet for every user on signup
-    const wallet = generateWallet();
-    const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
-    const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
-    const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+    // Valens: do NOT create wallets. Store only user-provided walletAddress when they connect (e.g. MetaMask).
+    // const wallet = generateWallet();
+    // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+    // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+    // const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
 
     let user;
     try {
@@ -196,9 +197,9 @@ export class UserService {
         password: passwordHash,
         googleId: data.googleId,
         twitterId: data.twitterId,
-        walletAddress: wallet.address,
-        walletPrivateKey: encryptedPrivateKey,
-        walletMnemonic: encryptedMnemonic,
+        walletAddress: data.walletAddress ?? undefined,
+        // walletPrivateKey: encryptedPrivateKey,
+        // walletMnemonic: encryptedMnemonic,
         registrationType: data.registrationType,
       };
       if (data.userName) {
@@ -553,7 +554,8 @@ export class UserService {
       }
     }
 
-    return this.prisma.user.findMany({ where });
+    const take = 100;
+    return this.prisma.user.findMany({ where, take, orderBy: { createdAt: 'desc' } });
   }
 
   // Soft delete user
@@ -605,19 +607,13 @@ export class UserService {
     });
   }
 
+  // Valens: display follower/following only; no token addresses or pricing.
   async getFollowingList(userId: string) {
     return this.prisma.followerAndFollowing.findMany({
       where: { followerId: userId, status: 'ACCEPTED' },
       include: {
-        following: {
-          include: {
-            userTokens: {
-              select: {
-                tokenAddress: true
-              }
-            }
-          }
-        }
+        following: true,
+        // userTokens / tokenAddress removed: no token display per requirements
       },
     });
   }
@@ -912,53 +908,15 @@ export class UserService {
       }));
     }
 
-    if (!type || type === 'purchase') {
-      const purchases = await this.prisma.tokenPurchase.findMany({
-        where: { vendorId: userId },
-        include: {
-          user: {
-            select: {
-              displayName: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      result.purchase = purchases.map(p => ({
-        vendorId: p.vendorId,
-        userId: p.userId,
-        username: p.user.displayName,
-        tokensReceived: p.tokensReceived,
-        createdAt: p.createdAt,
-      }));
-    }
-
-    if (!type || type === 'sell') {
-      const sales = await this.prisma.tokenSale.findMany({
-        where: { vendorId: userId },
-        include: {
-          user: {
-            select: {
-              displayName: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      result.sell = sales.map(s => ({
-        vendorId: s.vendorId,
-        userId: s.userId,
-        username: s.user.displayName,
-        amountTokens: s.amountTokens,
-        createdAt: s.createdAt,
-      }));
-    }
+    // Valens: no token purchase/sale display; revenue not linked to token activity.
+    // if (!type || type === 'purchase') {
+    //   const purchases = await this.prisma.tokenPurchase.findMany({ ... });
+    //   result.purchase = purchases.map(...);
+    // }
+    // if (!type || type === 'sell') {
+    //   const sales = await this.prisma.tokenSale.findMany({ ... });
+    //   result.sell = sales.map(...);
+    // }
 
     return result;
   }
@@ -1235,15 +1193,14 @@ export class UserService {
           ...existingUser,
         };
       } else {
-        // New user registration
+        // New user registration (Google) — Valens: do NOT create wallets.
         const firebaseUserId = decodedToken.uid;
         const userId = uuidv4();
 
-        // Generate wallet for new user
-        const wallet = generateWallet();
-        const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
-        const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
-        const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+        // const wallet = generateWallet();
+        // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+        // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+        // const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
 
         const userData = {
           id: userId,
@@ -1253,10 +1210,10 @@ export class UserService {
           profile: decodedToken.picture || null,
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
-          verifyEmail: 1, // Firebase users are verified
-          walletAddress: wallet.address,
-          walletPrivateKey: encryptedPrivateKey,
-          walletMnemonic: encryptedMnemonic,
+          verifyEmail: 1,
+          // walletAddress: wallet.address,
+          // walletPrivateKey: encryptedPrivateKey,
+          // walletMnemonic: encryptedMnemonic,
         };
 
         // Create user
@@ -1356,15 +1313,14 @@ export class UserService {
           ...existingUser,
         };
       } else {
-        // New user registration
+        // New user registration (Apple) — Valens: do NOT create wallets.
         const firebaseUserId = decodedToken.uid;
         const userId = uuidv4();
 
-        // Generate wallet for new user
-        const wallet = generateWallet();
-        const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
-        const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
-        const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+        // const wallet = generateWallet();
+        // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+        // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+        // const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
 
         const userData = {
           id: userId,
@@ -1374,10 +1330,10 @@ export class UserService {
           profile: decodedToken.picture || null,
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
-          verifyEmail: 1, // Firebase users are verified
-          walletAddress: wallet.address,
-          walletPrivateKey: encryptedPrivateKey,
-          walletMnemonic: encryptedMnemonic,
+          verifyEmail: 1,
+          // walletAddress: wallet.address,
+          // walletPrivateKey: encryptedPrivateKey,
+          // walletMnemonic: encryptedMnemonic,
         };
 
         // Create user
@@ -1456,13 +1412,12 @@ export class UserService {
         throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
       }
 
-      // If not found, create new user
+      // If not found, create new user — Valens: do NOT create wallets.
       if (!existingUser) {
-        // Generate wallet for new user
-        const wallet = generateWallet();
-        const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
-        const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
-        const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+        // const wallet = generateWallet();
+        // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
+        // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
+        // const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
 
         const newUser = await this.prisma.user.create({
           data: {
@@ -1473,9 +1428,9 @@ export class UserService {
             profile,
             registrationType: 'TWITTER',
             verifyEmail: 1,
-            walletAddress: wallet.address,
-            walletPrivateKey: encryptedPrivateKey,
-            walletMnemonic: encryptedMnemonic,
+            // walletAddress: wallet.address,
+            // walletPrivateKey: encryptedPrivateKey,
+            // walletMnemonic: encryptedMnemonic,
           },
         });
         existingUser = newUser;

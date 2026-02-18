@@ -76,14 +76,11 @@ export class AuthService {
     };
   }
 
-  async getLoginHistory(userId: string) {
+  async getLoginHistory(userId: string, limit: number = 50) {
     const loginHistory = await this.prisma.loginHistory.findMany({
-      where: {
-        userId: userId,
-      },
-      orderBy: {
-        loginDate: 'desc',
-      },
+      where: { userId },
+      orderBy: { loginDate: 'desc' },
+      take: Math.min(Math.max(1, limit), 100),
     });
 
     return {

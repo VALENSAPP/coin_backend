@@ -92,35 +92,33 @@ export class BillingController {
     return { transactions };
   }
 
+  // Valens: withdrawals/redemptions excluded. Revenue from software services (Stripe subscriptions) only.
   @Post('request-withdrawal')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Request withdrawal to connected Stripe account' })
-  @ApiBody({ type: RequestWithdrawalDto })
+  @ApiOperation({ summary: '[Disabled] Request withdrawal' })
   async requestWithdrawal(@Req() req: Request, @Body() dto: RequestWithdrawalDto) {
-    const userId = (req.user as any).userId;
-    const result = await this.billingService.requestWithdrawal(userId, dto.amount);
-    return result;
+    throw new BadRequestException(
+      'Withdrawals are not available. Valens does not manage liquidity or withdrawals; revenue is from software services (e.g. subscriptions) via Stripe only.'
+    );
   }
 
   @Get('withdrawal-history')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user withdrawal history' })
+  @ApiOperation({ summary: '[Disabled] Get withdrawal history' })
   async getWithdrawalHistory(@Req() req: Request) {
-    const userId = (req.user as any).userId;
-    const history = await this.billingService.getWithdrawalHistory(userId);
-    return { withdrawals: history };
+    return { withdrawals: [] };
   }
 
   @Post('create-onboarding-link')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create Stripe Connect onboarding link for withdrawals' })
+  @ApiOperation({ summary: '[Disabled] Stripe Connect onboarding for withdrawals' })
   async createOnboardingLink(@Req() req: Request) {
-    const userId = (req.user as any).userId;
-    const result = await this.billingService.createAccountOnboardingLink(userId);
-    return result;
+    throw new BadRequestException(
+      'Withdrawal onboarding is not available. Valens does not offer withdrawals or redemptions.'
+    );
   }
 
   @Post('buy-hit')

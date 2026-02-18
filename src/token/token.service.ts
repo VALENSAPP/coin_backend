@@ -37,171 +37,18 @@ export class TokenService {
     }
   }
 
+  /** @deprecated Valens does not issue ERC-20 tokens. Excluded per requirements. */
   async createTokenForUser(userId: string) {
-    try {
-      // Get user from database
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          userName: true,
-          walletAddress: true,
-        },
-      });
-console.log("oooooooooo",user);
-
-      if (!user) {
-        throw new BadRequestException('User not found');
-      }
-
-      if (!user.userName) {
-        throw new BadRequestException('User must have a username to create a token');
-      }
-
-      // Check if token already exists for this user
-      const existingToken = await this.prisma.userToken.findFirst({
-        where: { userId },
-      });
-      if (existingToken) {
-        throw new BadRequestException('Token already created for this user');
-      }
-
-      // Construct token parameters
-      const tokenName = `${user.userName}Valens`;
-      const tokenSymbol = tokenName;
-      const initialSupply = ethers.parseEther('100000'); // 0.001 * 1e18 = 1000000000000000
-      const initialPriceUSD = ethers.parseEther('0.001'); // 0.001 * 1e18 = 1000000000000000
-      const scalingConstantUSD = ethers.parseEther('0.01'); // 0.01 * 1e18 = 10000000000000000
-
-      this.logger.log(`Creating token for user ${userId}: ${tokenName}`);
-
-      // First, try to simulate the call to get the return value
-      let simulatedTokenAddress = null;
-      try {
-        simulatedTokenAddress = await this.contract.createToken.staticCall(
-          tokenName,
-          tokenSymbol,
-          initialSupply,
-          initialPriceUSD,
-          scalingConstantUSD
-        );
-        this.logger.log(`Simulated token address: ${simulatedTokenAddress}`);
-      } catch (simError) {
-        this.logger.warn('Could not simulate contract call:', simError.message);
-      }
-
-      // Call the smart contract
-      const tx = await this.contract.createToken(
-        tokenName,
-        tokenSymbol,
-        initialSupply,
-        initialPriceUSD,
-        scalingConstantUSD
-      );
-
-      this.logger.log(`Transaction sent: ${tx.hash}`);
-
-      // Wait for transaction confirmation
-      const receipt = await tx.wait();
-
-      this.logger.log(`Transaction confirmed in block: ${receipt.blockNumber}`);
-
-      let tokenAddress = simulatedTokenAddress;
-
-      // If simulation didn't work, try to get from receipt
-      if (!tokenAddress) {
-        // Log all events in the receipt for debugging
-        this.logger.log(`Receipt logs count: ${receipt.logs.length}`);
-        receipt.logs.forEach((log: any, index: number) => {
-          try {
-            const parsedLog = this.contract.interface.parseLog(log);
-            if (parsedLog) {
-              this.logger.log(`Log ${index}: ${parsedLog.name}`, parsedLog.args);
-            } else {
-              this.logger.log(`Log ${index}: Parsed as null`);
-            }
-          } catch (parseError) {
-            this.logger.log(`Log ${index}: Unable to parse - ${log.topics?.[0] || 'no topics'}`);
-          }
-        });
-
-        // Try to decode return data from the transaction
-        if (receipt.returnData) {
-          try {
-            const decodedResult = this.contract.interface.decodeFunctionResult('createToken', receipt.returnData);
-            if (decodedResult && decodedResult[0]) {
-              tokenAddress = decodedResult[0];
-              this.logger.log(`Token address from decoded return data: ${tokenAddress}`);
-            }
-          } catch (decodeError) {
-            this.logger.error('Error decoding return data:', decodeError);
-          }
-        }
-
-        // Fallback: Look for TokenCreated event
-        if (!tokenAddress) {
-          const tokenCreatedEvent = receipt.logs.find((log: any) => {
-            try {
-              const parsedLog = this.contract.interface.parseLog(log);
-              return parsedLog?.name === 'TokenCreated';
-            } catch {
-              return false;
-            }
-          });
-
-          if (tokenCreatedEvent) {
-            try {
-              const parsedLog = this.contract.interface.parseLog(tokenCreatedEvent);
-              if (parsedLog && parsedLog.args) {
-                tokenAddress = parsedLog.args.coin;
-                this.logger.log(`Token created at address: ${tokenAddress}`);
-              }
-            } catch (parseError) {
-              this.logger.error('Error parsing TokenCreated event:', parseError);
-            }
-          } else {
-            this.logger.warn('TokenCreated event not found in transaction logs');
-          }
-        }
-      }
-
-      // Save token data to database
-      const userToken = await this.prisma.userToken.create({
-        data: {
-          userId,
-          transactionHash: tx.hash,
-          tokenAddress,
-          tokenName,
-          tokenSymbol,
-          initialSupply: initialSupply.toString(),
-          initialPrice: initialPriceUSD.toString(),
-          scalingConstant: scalingConstantUSD.toString(),
-          blockNumber: receipt.blockNumber,
-        },
-      });
-
-      return {
-        success: true,
-        transactionHash: tx.hash,
-        tokenAddress,
-        tokenName,
-        tokenSymbol,
-        initialSupply: initialSupply.toString(),
-        initialPrice: initialPriceUSD.toString(),
-        scalingConstant: scalingConstantUSD.toString(),
-        blockNumber: receipt.blockNumber,
-        userTokenId: userToken.id,
-      };
-
-    } catch (error) {
-      this.logger.error('Error creating token:', error);
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      throw new BadRequestException(`Failed to create token: ${error.message}`);
-    }
+    throw new BadRequestException(
+      'Token creation is not available. Valens operates as a software/social platform only and does not issue or sell tokens.'
+    );
+    // Original implementation commented per Valens requirements (no ERC-20 issuance):
+    // try {
+    //   const user = await this.prisma.user.findUnique({ ... });
+    //   ...
+    //   const tx = await this.contract.createToken(...);
+    //   ...
+    // } catch (error) { ... }
   }
 
   async getUserToken(userId: string) {
@@ -270,59 +117,12 @@ console.log("oooooooooo",user);
   }
 
   /**
-   * Get token price in USD
+   * @deprecated Valens does not calculate or display token prices. Excluded per requirements.
    */
   async getPricePerTokenUsd(tokenAddress: string) {
-    try {
-      this.logger.log(`Getting price for token: ${tokenAddress}`);
-
-      // First, check if token exists in the contract's mapping
-      try {
-        const tokenInfo = await this.contract.tokens(tokenAddress);
-        this.logger.log(`Token info from contract:`, {
-          coinAddress: tokenInfo.coinAddress,
-          initialPrice: tokenInfo.initialPriceUSD.toString(),
-          scalingConstant: tokenInfo.scalingConstantUSD.toString(),
-          initialSupply: tokenInfo.initialSupply.toString(),
-          followers: tokenInfo.followers.toString(),
-        });
-
-        if (tokenInfo.coinAddress === ethers.ZeroAddress) {
-          this.logger.warn(`Token ${tokenAddress} not found in contract mapping`);
-          throw new BadRequestException(`Token not found in contract: ${tokenAddress}`);
-        }
-      } catch (tokenInfoError) {
-        this.logger.error('Error fetching token info:', tokenInfoError);
-        throw new BadRequestException(`Token not registered in contract: ${tokenAddress}`);
-      }
-
-      // Call the smart contract method
-      const priceInWei = await this.contract.getPricePerTokenUSD(tokenAddress);
-
-      // Convert from wei to USD by dividing by 1e18
-      const priceInUsd = parseFloat(ethers.formatEther(priceInWei));
-
-      this.logger.log(`Token ${tokenAddress} price: ${priceInUsd} USD`);
-
-      return {
-        tokenAddress,
-        priceInUsd,
-        priceInWei: priceInWei.toString(),
-      };
-
-    } catch (error) {
-      this.logger.error('Error getting token price:', error);
-
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-
-      // Check if it's a contract revert with "unknown token"
-      if (error.message && error.message.includes('unknown token')) {
-        throw new BadRequestException(`Token not recognized by contract: ${tokenAddress}`);
-      }
-
-      throw new BadRequestException(`Failed to get token price: ${error.message}`);
-    }
+    throw new BadRequestException(
+      'Token price is not available. Valens does not display token prices, ROI, or gains.'
+    );
+    // Original implementation commented: no token pricing per Valens requirements.
   }
 }

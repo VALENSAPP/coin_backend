@@ -148,12 +148,15 @@ export class PostService {
     return { message: 'Post unsaved successfully' };
   }
 
-  async getPostByUserId(userId: string, viewerUserId?: string) {
-    console.log('Service received userId:', userId);
+  async getPostByUserId(userId: string, viewerUserId?: string, page: number = 1, limit: number = 20) {
     if (!userId) throw new BadRequestException('User ID required');
+    const take = Math.min(Math.max(1, limit), 50);
+    const skip = (Math.max(1, page) - 1) * take;
     const posts = await this.prisma.post.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
+      take,
+      skip,
       include: {
         user: {
           select: {
@@ -341,9 +344,14 @@ export class PostService {
 }
 
 
-async getAllPost(viewerUserId?: string) {
+async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
+  const take = Math.min(Math.max(1, limit), 50);
+  const skip = (Math.max(1, page) - 1) * take;
   const posts = await this.prisma.post.findMany({
     where: { deletedAt: null },
+    take,
+    skip,
+    orderBy: { createdAt: 'desc' },
     include: {
       user: {
         select: {

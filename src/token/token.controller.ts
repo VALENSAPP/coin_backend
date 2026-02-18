@@ -5,6 +5,7 @@ import { CreateTokenDto } from './dto/create-token.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 
+/** Token endpoints: ERC-20 creation and price are disabled per Valens requirements (software/social platform only, no token issuance). */
 @ApiTags('token')
 @Controller('token')
 export class TokenController {
@@ -14,8 +15,8 @@ export class TokenController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Create a token for a user',
-    description: 'Creates a new token on BSC blockchain using the user\'s name. Only authenticated users can create tokens.'
+    summary: '[Disabled] Create a token for a user',
+    description: 'Valens does not issue tokens. This endpoint returns 400.'
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -53,12 +54,8 @@ export class TokenController {
     //   throw new BadRequestException('You can only create tokens for yourself');
     // }
 
-    const result = await this.tokenService.createTokenForUser(dto.userId);
-
-    return {
-      message: 'Token created successfully',
-      ...result
-    };
+    await this.tokenService.createTokenForUser(dto.userId);
+    return { message: 'Token created successfully' };
   }
 
   @Get('user/:userId')

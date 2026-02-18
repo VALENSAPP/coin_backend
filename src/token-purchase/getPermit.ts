@@ -1,3 +1,7 @@
+/**
+ * @deprecated Valens does not sell tokens or use permit/sellWithPermit.
+ * This file was used for token sale permit signatures; kept for reference only.
+ */
 const { ethers } = require("ethers");
 
 // -------- CONFIG --------

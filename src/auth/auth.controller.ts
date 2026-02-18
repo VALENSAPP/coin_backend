@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Request } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Request, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -72,6 +72,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user' })
   async login(@Body() body: LoginDto) {
     const result = await this.authService.login(body);
+    if (result && typeof result === 'object' && (result as any).error === true) {
+      throw new UnauthorizedException((result as any).msg || 'Login failed');
+    }
     return {
       message: 'User logged in successfully',
       user: result

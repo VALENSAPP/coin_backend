@@ -242,81 +242,19 @@ export class BillingService {
     });
   }
 
-  async getLatestTransactions(userId: string) {
+  async getLatestTransactions(userId: string, limit: number = 50) {
     return this.prisma.payment.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(1, limit), 100),
     });
   }
 
+  /** @deprecated Valens does not offer withdrawals or redemptions. */
   async requestWithdrawal(userId: string, amount: number) {
-    console.log(`[WITHDRAWAL_REQUEST] User ${userId} requesting withdrawal of $${amount}`);
-
-    if (amount < 10) {
-      console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: amount $${amount} below minimum $10`);
-      throw new BadRequestException('Minimum withdrawal amount is $10');
-    }
-
-    // Get user balance
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, tokenBalance: true },
-    });
-
-    if (!user) {
-      console.warn(`[WITHDRAWAL_REQUEST] User ${userId} not found`);
-      throw new BadRequestException('User not found');
-    }
-
-    const balance = user.tokenBalance;
-    const expectedAmount = Number((balance * 0.75).toFixed(2));
-
-    if (amount !== expectedAmount) {
-      console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: withdrawal amount mismatch. Sent: $${amount}, Expected: $${expectedAmount}`);
-      throw new BadRequestException('withdrawal amount mismatch');
-    }
-
-    const fee = Number((balance * 0.05).toFixed(2));
-    const totalDeduct = amount + fee;
-
-    // Use a transaction: check & decrement atomically + create withdrawal record
-    const result = await this.prisma.$transaction(async (tx) => {
-      // attempt to decrement only when balance is sufficient
-      const updated = await tx.user.updateMany({
-        where: {
-          id: userId,
-          tokenBalance: { gte: totalDeduct }, // atomic guard
-        },
-        data: {
-          tokenBalance: { decrement: totalDeduct },
-        },
-      });
-
-      if (updated.count === 0) {
-        // no rows updated => insufficient funds
-        console.warn(`[WITHDRAWAL_REQUEST] User ${userId} failed: insufficient balance. Required: $${totalDeduct}, Available: $${balance}`);
-        throw new BadRequestException('Insufficient balance');
-      }
-
-      const withdrawal = await tx.withdrawalRecord.create({
-        data: {
-          userId,
-          withdrawAmount: amount,
-          status: 'pending' as any,
-        },
-      });
-
-      return withdrawal;
-    });
-
-    console.log(`[WITHDRAWAL_REQUEST] User ${userId} withdrawal ${result.id} created successfully for $${amount}`);
-
-    return {
-      message: 'Withdrawal request submitted successfully',
-      withdrawalId: result.id,
-      amount,
-      status: 'pending',
-    };
+    throw new BadRequestException(
+      'Withdrawals are not available. Valens does not manage liquidity or withdrawals.'
+    );
   }
 
   async getWithdrawalHistory(userId: string) {
@@ -326,103 +264,9 @@ export class BillingService {
     });
   }
 
+  /** @deprecated Valens does not process withdrawals. */
   async processWithdrawal(withdrawalId: string) {
-    console.log(`[PROCESS_WITHDRAWAL] Starting processing for withdrawal ${withdrawalId}`);
-
-    // Atomically claim the withdrawal: only move from pending -> processing if pending
-    const claim = await this.prisma.withdrawalRecord.updateMany({
-      where: { id: withdrawalId, status: 'pending' },
-      data: { status: 'processing' as any, processingAt: new Date() } as any,
-    });
-
-    if (claim.count === 0) {
-      console.warn(`[PROCESS_WITHDRAWAL] Withdrawal ${withdrawalId} not found or already processed`);
-      // already processed / claimed
-      throw new BadRequestException('Withdrawal not found or already processed');
-    }
-
-    console.log(`[PROCESS_WITHDRAWAL] Claimed withdrawal ${withdrawalId} for processing`);
-
-    const withdrawal = await this.prisma.withdrawalRecord.findUnique({
-      where: { id: withdrawalId },
-      include: { user: true },
-    });
-
-    // sanity check
-    if (!withdrawal) throw new BadRequestException('Withdrawal not found');
-
-    try {
-      const user = withdrawal.user;
-
-      // make sure connected account exists and is ready (KYC, transfers capability)
-      if (!user.stripeAccountId) {
-        console.warn(`[PROCESS_WITHDRAWAL] User ${user.id} needs Stripe Connect onboarding`);
-        // Ideally onboarding happens earlier. If you create here, set status to requires_onboarding and return
-        await this.prisma.withdrawalRecord.update({
-          where: { id: withdrawalId },
-          data: { status: 'requires_onboarding' as any, failureReason: 'no_stripe_account' as any } as any,
-        });
-        return { success: false, reason: 'user_needs_onboarding' };
-      }
-
-      // Check if account has transfers capability
-      const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
-      const transfersEnabled = (account.capabilities as any)?.transfers === 'active';
-
-      if (!transfersEnabled) {
-        console.warn(`[PROCESS_WITHDRAWAL] User ${user.id} Stripe account transfers not enabled`);
-        await this.prisma.withdrawalRecord.update({
-          where: { id: withdrawalId },
-          data: { status: 'requires_onboarding' as any, failureReason: 'transfers_not_enabled' as any } as any,
-        });
-        return { success: false, reason: 'transfers_not_enabled' };
-      }
-
-      // Use platform-to-connected transfer pattern if you're collecting funds on platform
-      const idempotencyKey = `withdrawal-${withdrawalId}-${withdrawal.withdrawAmount}`;
-
-      // Example: transfer from platform to connected account
-      const transfer = await this.stripe.transfers.create(
-        {
-          amount: Math.round((withdrawal.withdrawAmount ?? 0) * 100),
-          currency: 'usd',
-          destination: user.stripeAccountId,
-          description: `Withdrawal transfer for user ${user.id}`,
-        },
-        { idempotencyKey }
-      );
-
-      // store external id and set status to processing_transfer
-      await this.prisma.withdrawalRecord.update({
-        where: { id: withdrawalId },
-        data: { txhash: transfer.id, status: 'processing_transfer' as any } as any,
-      });
-
-      console.log(`[PROCESS_WITHDRAWAL] Transfer created successfully for withdrawal ${withdrawalId}: ${transfer.id}`);
-
-      // After transfer completes, Stripe will eventually payout to user's bank; use webhooks to observe payout events.
-
-      return { success: true, transferId: transfer.id };
-    } catch (err) {
-      console.error(`[PROCESS_WITHDRAWAL] Error processing withdrawal ${withdrawalId}:`, err?.message ?? err);
-
-      // mark failed and refund balance (idempotently)
-      await this.prisma.$transaction(async (tx) => {
-        await tx.withdrawalRecord.update({
-          where: { id: withdrawalId },
-          data: { status: 'failed' as any, failureReason: `${err?.message ?? 'unknown'}` as any } as any,
-        });
-
-        await tx.user.update({
-          where: { id: withdrawal.userId },
-          data: { tokenBalance: { increment: withdrawal.withdrawAmount ?? 0 } },
-        });
-      });
-
-      console.log(`[PROCESS_WITHDRAWAL] Withdrawal ${withdrawalId} marked as failed and balance refunded`);
-
-      throw err;
-    }
+    return; // No-op: withdrawals disabled per Valens requirements
   }
 
   // Generate Stripe Connect onboarding link for user
@@ -833,33 +677,27 @@ export class BillingService {
     console.log(`✅ Buy hit payment processed: User ${userId} received ${hitCount} hits`);
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  // Valens: withdrawals disabled; cron commented to avoid log noise.
+  // @Cron(CronExpression.EVERY_5_MINUTES)
   async processPendingWithdrawals() {
-    console.log('[CRON] Processing pending withdrawals...');
-
-    const pendingWithdrawals = await this.prisma.withdrawalRecord.findMany({
-      where: { status: 'pending' },
-      select: { id: true },
-    });
-
-    if (pendingWithdrawals.length === 0) {
-      console.log('[CRON] No pending withdrawals to process');
-      return;
-    }
-
-    console.log(`[CRON] Found ${pendingWithdrawals.length} pending withdrawals to process`);
-
-    for (const withdrawal of pendingWithdrawals) {
-      try {
-        await this.processWithdrawal(withdrawal.id);
-        console.log(`[CRON] Successfully processed withdrawal ${withdrawal.id}`);
-      } catch (error) {
-        console.error(`[CRON] Failed to process withdrawal ${withdrawal.id}:`, error.message);
-        // Continue processing other withdrawals even if one fails
-      }
-    }
-
-    console.log('[CRON] Finished processing pending withdrawals');
+    return;
+    // console.log('[CRON] Processing pending withdrawals...');
+    // const pendingWithdrawals = await this.prisma.withdrawalRecord.findMany({
+    //   where: { status: 'pending' },
+    //   select: { id: true },
+    // });
+    // if (pendingWithdrawals.length === 0) {
+    //   console.log('[CRON] No pending withdrawals to process');
+    //   return;
+    // }
+    // ...
+    // for (const withdrawal of pendingWithdrawals) {
+    //   try {
+    //     await this.processWithdrawal(withdrawal.id);
+    //     ...
+    //   } catch (error) { ... }
+    // }
+    // console.log('[CRON] Finished processing pending withdrawals');
   }
 
   async getUserBuyFanSubscriptionList(userId: string) {
@@ -884,24 +722,29 @@ export class BillingService {
     });
   }
 
-  async userTransactionHistory(userId: string, transactionType: string) {
+  async userTransactionHistory(userId: string, transactionType: string, limit: number = 50) {
+    const take = Math.min(Math.max(1, limit), 100);
     if (transactionType === 'all') {
       const [withdrawals, tokenSales, tokenPurchases, payments] = await Promise.all([
         this.prisma.withdrawalRecord.findMany({
           where: { userId },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take,
         }),
         this.prisma.tokenSale.findMany({
           where: { userId },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take,
         }),
         this.prisma.tokenPurchase.findMany({
           where: { userId },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take,
         }),
         this.prisma.payment.findMany({
           where: { userId },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take,
         })
       ]);
 
@@ -918,22 +761,26 @@ export class BillingService {
         case 'withdrawal':
           return this.prisma.withdrawalRecord.findMany({
             where: { userId },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take,
           });
         case 'tokenSale':
           return this.prisma.tokenSale.findMany({
             where: { userId },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take,
           });
         case 'tokenPurchase':
           return this.prisma.tokenPurchase.findMany({
             where: { userId },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take,
           });
         case 'payment':
           return this.prisma.payment.findMany({
             where: { userId },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            take,
           });
         default:
           throw new BadRequestException('Invalid transaction type');
