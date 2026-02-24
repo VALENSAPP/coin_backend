@@ -5,9 +5,9 @@ module.exports = {
     {
       name: 'backend-server',
       cwd: path.join(__dirname),
-      script: 'dist/main.js',
-      interpreter: 'node',
-      interpreter_args: '--max-old-space-size=4096',
+      script: 'npm',
+      args: 'run start',
+      interpreter: 'none',
       instances: 1,
       autorestart: true,
       watch: false,
