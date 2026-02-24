@@ -7,3 +7,7 @@ dist
 
 # Firebase service account key
 config/service-account-key.json
+
+# User and app images (local assets)
+userImage
+images

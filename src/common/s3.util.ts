@@ -19,4 +19,28 @@ export async function uploadImageToS3(file: Express.Multer.File, folder = 'uploa
   };
   await s3.putObject(params).promise();
   return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+}
+
+/** Upload a file buffer to S3 (e.g. for seed scripts reading from disk). Returns the public URL. */
+export async function uploadBufferToS3(
+  buffer: Buffer,
+  originalname: string,
+  mimetype: string,
+  folder = 'uploads',
+): Promise<string> {
+  const s3 = new AWS.S3({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    region: process.env.AWS_REGION,
+  });
+  const fileExt = path.extname(originalname) || '.jpg';
+  const key = `${folder}/${uuidv4()}${fileExt}`;
+  const params = {
+    Bucket: process.env.AWS_S3_BUCKET!,
+    Key: key,
+    Body: buffer,
+    ContentType: mimetype,
+  };
+  await s3.putObject(params).promise();
+  return `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
 } 
