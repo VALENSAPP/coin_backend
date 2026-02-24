@@ -9,6 +9,7 @@ import { BillingModule } from './billing/billing.module';
 import { TokenModule } from './token/token.module';
 import { TokenPurchaseModule } from './token-purchase/token-purchase.module';
 import { KycModule } from './kyc/kyc.module';
+import { CompanyProfileModule } from './company-profile/company-profile.module';
 import { NotificationModule } from './notification/notification.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -25,6 +26,7 @@ import { AppService } from './app.service';
     TokenModule,
     TokenPurchaseModule,
     KycModule,
+    CompanyProfileModule,
     NotificationModule,
   ],
   controllers: [AppController],

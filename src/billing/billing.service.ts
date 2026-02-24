@@ -54,13 +54,69 @@ export class BillingService {
     return session;
   }
 
-  async createOneTimePaymentCheckoutSession(userId: string, amount: number) {
-    const customerId = await this.ensureStripeCustomer(userId);
+  /** Platform fee: Valens keeps 5%, rest goes to creator's Stripe Connect account (no holding). */
+  private readonly PLATFORM_FEE_PERCENT = 0.05;
+
+  /** Check if user has completed Stripe Connect onboarding and can receive payments. */
+  async getOnboardingStatus(userId: string): Promise<{
+    canReceivePayments: boolean;
+    onboardingUrl?: string;
+    accountId?: string;
+    message?: string;
+  }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (!user.stripeAccountId) {
+      return {
+        canReceivePayments: false,
+        message: 'Complete Stripe onboarding to receive payments.',
+      };
+    }
+    try {
+      const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
+      const canReceive = !!(account.details_submitted && account.payouts_enabled !== false);
+      return {
+        canReceivePayments: canReceive,
+        accountId: user.stripeAccountId,
+        message: canReceive ? undefined : 'Finish onboarding (e.g. add bank account) to receive payments.',
+      };
+    } catch {
+      return { canReceivePayments: false, accountId: user.stripeAccountId, message: 'Stripe account not ready.' };
+    }
+  }
+
+  /** Throws if user cannot receive payments (onboarding required). */
+  private async requireCanReceivePayments(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+    if (!user.stripeAccountId) {
+      throw new BadRequestException(
+        'Complete Stripe onboarding before receiving payments. Call POST /billing/create-onboarding-link first.',
+      );
+    }
+    const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
+    if (!account.details_submitted) {
+      throw new BadRequestException(
+        'Finish Stripe onboarding (identity and bank details) before receiving payments.',
+      );
+    }
+    return user.stripeAccountId;
+  }
+
+  async createOneTimePaymentCheckoutSession(
+    payerUserId: string,
+    contentUserId: string,
+    amount: number,
+  ) {
+    const destinationAccountId = await this.requireCanReceivePayments(contentUserId);
+    const customerId = await this.ensureStripeCustomer(payerUserId);
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
     if (!successUrl || !cancelUrl) {
       throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
     }
+    const amountCents = Math.round(amount * 100);
+    const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
@@ -73,12 +129,21 @@ export class BillingService {
             product_data: {
               name: 'Following Payment',
             },
-            unit_amount: Math.round(amount * 100), // amount in cents
+            unit_amount: amountCents,
           },
           quantity: 1,
         },
       ],
-      metadata: { userId, type: 'following', amount: amount.toString() },
+      payment_intent_data: {
+        application_fee_amount: applicationFeeCents,
+        transfer_data: { destination: destinationAccountId },
+      },
+      metadata: {
+        payerUserId,
+        contentUserId,
+        type: 'following',
+        amount: amount.toString(),
+      },
     });
     return session;
   }
@@ -269,7 +334,11 @@ export class BillingService {
     return; // No-op: withdrawals disabled per Valens requirements
   }
 
-  // Generate Stripe Connect onboarding link for user
+  // Generate Stripe Connect onboarding link for user.
+  // We create and persist stripeAccountId on first link request. If the user closes the
+  // onboarding URL without completing, we keep the same account and issue a new link
+  // next time (links expire ~30 min). Payments are only allowed when onboarding is
+  // complete (requireCanReceivePayments checks details_submitted).
   async createAccountOnboardingLink(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
@@ -303,10 +372,16 @@ export class BillingService {
     }
 
     try {
+      const baseUrl = (process.env.STRIPE_CONNECT_RETURN_BASE_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
+      if (!baseUrl) {
+        throw new BadRequestException(
+          'Set FRONTEND_URL or STRIPE_CONNECT_RETURN_BASE_URL so Stripe can redirect after onboarding.',
+        );
+      }
       const accountLink = await this.stripe.accountLinks.create({
         account: stripeAccountId,
-        refresh_url: `${process.env.FRONTEND_URL}/withdrawal/reauth`,
-        return_url: `${process.env.FRONTEND_URL}/withdrawal/success`,
+        refresh_url: `${baseUrl}/withdrawal/reauth`,
+        return_url: `${baseUrl}/withdrawal/success`,
         type: 'account_onboarding',
       });
 
@@ -558,24 +633,19 @@ export class BillingService {
         status: 'ACTIVE',
       },
     });
-    await this.prisma.user.update({
-   where: {
-        id: fanUserId
-      },
-      data: {
-        tokenBalance: session.amount_total || 0
-      },
-    });
+    // Creator (buyUserId) receives 95% in their Stripe Connect account via destination charge; no in-app balance hold.
     console.log(`✅ Fan subscription buy payment processed: Fan ${fanUserId} subscribed to ${buyUserId} for one month`);
   }
 
   async createOneTimePaymentCheckForFanSubscription(amount: number, buyUserId: string, fanUserId: string) {
+    const destinationAccountId = await this.requireCanReceivePayments(buyUserId);
     const customerId = await this.ensureStripeCustomer(fanUserId);
     const buyUser = await this.prisma.user.findUnique({ where: { id: buyUserId } });
     if (!buyUser) throw new BadRequestException('Buy user not found');
 
-    // Create our own payment intent ID since session.payment_intent is null at creation
     const customPaymentIntentId = uuidv4();
+    const amountCents = Math.round(amount * 100);
+    const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
@@ -589,11 +659,15 @@ export class BillingService {
             product_data: {
               name: `Fan Subscription to ${buyUser.displayName || buyUser.userName}`,
             },
-            unit_amount: Math.round(amount * 100), // Amount in cents
+            unit_amount: amountCents,
           },
           quantity: 1,
         },
       ],
+      payment_intent_data: {
+        application_fee_amount: applicationFeeCents,
+        transfer_data: { destination: destinationAccountId },
+      },
       metadata: {
         type: 'fan_subscription_buy',
         fanUserId,

@@ -7,6 +7,7 @@ import { IsString, IsNotEmpty, IsNumber, Min, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
+import { PayFollowingDto } from './dto/pay-following.dto';
 
 export class RequestWithdrawalDto {
   @ApiProperty({
@@ -49,26 +50,17 @@ export class BillingController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session for one-time following payment' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        amount: {
-          type: 'number',
-          description: 'Payment amount in USD',
-          example: 10.00,
-        },
-      },
-      required: ['amount'],
-    },
-  })
-  async createOneTimePayment(@Req() req: Request, @Body() body: { amount: number }) {
-    const userId = (req.user as any).userId;
-    const { amount } = body;
-    if (!amount || amount <= 0) {
-      throw new BadRequestException('Invalid amount');
+  @ApiBody({ type: PayFollowingDto })
+  async createOneTimePayment(@Req() req: Request, @Body() dto: PayFollowingDto) {
+    const payerUserId = (req.user as any).userId;
+    if (dto.contentUserId === payerUserId) {
+      throw new BadRequestException('You cannot pay yourself');
     }
-    const session = await this.billingService.createOneTimePaymentCheckoutSession(userId, amount);
+    const session = await this.billingService.createOneTimePaymentCheckoutSession(
+      payerUserId,
+      dto.contentUserId,
+      dto.amount,
+    );
     return { url: session.url };
   }
 
@@ -114,11 +106,20 @@ export class BillingController {
   @Post('create-onboarding-link')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[Disabled] Stripe Connect onboarding for withdrawals' })
+  @ApiOperation({ summary: 'Create Stripe Connect onboarding link (required to receive payments)' })
   async createOnboardingLink(@Req() req: Request) {
-    throw new BadRequestException(
-      'Withdrawal onboarding is not available. Valens does not offer withdrawals or redemptions.'
-    );
+    const userId = (req.user as any).userId;
+    const result = await this.billingService.createAccountOnboardingLink(userId);
+    return result;
+  }
+
+  @Get('onboarding-status')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get Stripe Connect onboarding status for current user' })
+  async getOnboardingStatus(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getOnboardingStatus(userId);
   }
 
   @Post('buy-hit')
