@@ -145,7 +145,7 @@ export class CompanyProfileService {
       where: { userId },
     });
     if (!profile) throw new BadRequestException('Company profile not found.');
-    const documentUrls = profile.documentUrls.filter((u) => u !== documentUrl);
+    const documentUrls = profile.documentUrls.filter((u: string) => u !== documentUrl);
     await this.prisma.companyProfile.update({
       where: { userId },
       data: { documentUrls },
