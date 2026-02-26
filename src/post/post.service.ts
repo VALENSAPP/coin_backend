@@ -148,12 +148,18 @@ export class PostService {
     return { message: 'Post unsaved successfully' };
   }
 
-  async getPostByUserId(userId: string, viewerUserId?: string, page: number = 1, limit: number = 20) {
+  async getPostByUserId(userId: string, viewerUserId?: string, page: number = 1, limit: number = 20, type: 'normal' | 'private' = 'normal') {
     if (!userId) throw new BadRequestException('User ID required');
     const take = Math.min(Math.max(1, limit), 50);
     const skip = (Math.max(1, page) - 1) * take;
+    const whereClause: any = { userId, deletedAt: null };
+    if (type === 'private') {
+      whereClause.type = 'private';
+    } else {
+      whereClause.type = { not: 'private' };
+    }
     const posts = await this.prisma.post.findMany({
-      where: { userId, deletedAt: null },
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
       take,
       skip,
@@ -348,7 +354,7 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
   const take = Math.min(Math.max(1, limit), 50);
   const skip = (Math.max(1, page) - 1) * take;
   const posts = await this.prisma.post.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, type:{ not: 'private' } },
     take,
     skip,
     orderBy: { createdAt: 'desc' },

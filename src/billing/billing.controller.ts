@@ -8,6 +8,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
+import { AddDigitalBadgeDto } from './dto/add-digital-badge.dto';
+
 
 export class RequestWithdrawalDto {
   @ApiProperty({
@@ -192,6 +194,24 @@ export class BillingController {
     const transactions = await this.billingService.userTransactionHistory(userId, transactionType);
     return { transactions };
   }
+
+  @Post('add-digital-badge')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a digital badge transaction (sender = current user from token)' })
+  @ApiBody({ type: AddDigitalBadgeDto })
+  async addDigitalBadge(@Req() req: Request, @Body() dto: AddDigitalBadgeDto) {
+    const senderId = (req.user as any).userId;
+    const result = await this.billingService.addDigitalBadge(senderId, dto);
+    return { message: 'Digital badge added', data: result };
+  }
+
+  @Get('get-digital-badge')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get total digital badge amount received by current user' })
+  async getDigitalBadge(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getDigitalBadge(userId);
+  }
 }
-
-

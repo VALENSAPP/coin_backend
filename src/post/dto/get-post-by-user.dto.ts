@@ -1,4 +1,4 @@
-import { IsUUID, IsOptional, IsInt, Min, Max } from 'class-validator';
+import { IsUUID, IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
@@ -7,6 +7,11 @@ export class GetPostByUserDto {
   @IsOptional()
   @IsUUID()
   userId?: string;
+
+  @ApiProperty({ description: "Filter by post type: 'normal' (exclude private) or 'private'. Default: normal", required: false, enum: ['normal', 'private'], default: 'normal' })
+  @IsOptional()
+  @IsIn(['normal', 'private'])
+  type?: 'normal' | 'private' = 'normal';
 
   @ApiProperty({ description: 'Page (1-based)', required: false, default: 1 })
   @IsOptional()

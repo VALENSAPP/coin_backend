@@ -87,7 +87,8 @@ model User {
   receivedChats        ChatBox[]         @relation("ChatReceiver")
   notifications        Notification[]
   companyProfile       CompanyProfile?
-
+  sentDigitalTransactions     digital_transaction[] @relation("Sender")
+  receivedDigitalTransactions digital_transaction[] @relation("Receiver")
 }
 
 model CompanyProfile {
@@ -500,6 +501,22 @@ model Notification {
 
   @@index([userId])
   @@index([isRead])
+}
+
+model digital_transaction {
+  id         Int      @id @default(autoincrement())
+  senderId   String
+  receiverId String
+  amount     Decimal  @db.Decimal(18, 8)
+  txId       String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender     User     @relation("Sender", fields: [senderId], references: [id])
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
 }
 
 enum RegistrationType {

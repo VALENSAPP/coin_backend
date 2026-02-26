@@ -861,6 +861,30 @@ export class BillingService {
       }
     }
   }
-}
 
+  async addDigitalBadge(senderId: string, dto: { receiverId: string; amount: number; txId: string }) {
+    try {
+      const digitalBadge = await this.prisma.digital_transaction.create({
+        data: {
+          senderId,
+          receiverId: dto.receiverId,
+          amount: dto.amount,
+          txId: dto.txId,
+        },
+      });
+      return digitalBadge;
+    } catch (error) {
+      throw new BadRequestException(error?.message || 'Failed to add digital badge');
+    }
+  }
+
+  async getDigitalBadge(userId: string) {
+    const result = await this.prisma.digital_transaction.aggregate({
+      where: { receiverId: userId },
+      _sum: { amount: true },
+    });
+    const totalAmount = result._sum?.amount != null ? Number(result._sum.amount) : 0;
+    return { totalAmount };
+  }
+}
 

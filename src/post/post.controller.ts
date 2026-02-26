@@ -140,7 +140,8 @@ export class PostController {
     const viewerUserId = (req.user as any)?.userId;
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    return this.postService.getPostByUserId(targetUserId, viewerUserId, page, limit);
+    const type = (query.type === 'private' ? 'private' : 'normal') as 'normal' | 'private';
+    return this.postService.getPostByUserId(targetUserId, viewerUserId, page, limit, type);
   }
 
   @UseGuards(AuthGuard('jwt'))
