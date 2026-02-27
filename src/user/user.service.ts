@@ -1682,4 +1682,19 @@ export class UserService {
 
     return { message: 'FCM token updated successfully' };
   }
+
+  async updateWalletAddress(userId: string, walletAddress: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!walletAddress?.trim()) throw new BadRequestException('Wallet address is required');
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { walletAddress: walletAddress.trim() },
+    });
+
+    return { message: 'Wallet address updated successfully' };
+  }
 }

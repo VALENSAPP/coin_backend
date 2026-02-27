@@ -202,6 +202,13 @@ export class ChangePasswordDto {
   newPassword: string;
 }
 
+export class UpdateWalletAddressDto {
+  @ApiProperty({ description: 'Wallet address to set for the authenticated user' })
+  @IsString()
+  @IsNotEmpty()
+  walletAddress: string;
+}
+
 export class CheckDisplayNameDto {
   @ApiProperty({
     description: 'Display name to check for availability',
@@ -788,5 +795,16 @@ export class UserController {
   async updateFcmToken(@Req() req: Request, @Body() dto: { fcmToken: string }) {
     const userId = (req.user as any).userId;
     return this.userService.updateFcmToken(userId, dto.fcmToken);
+  }
+
+  @Patch('updateWalletAddress')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update wallet address for the authenticated user' })
+  @ApiBody({ type: UpdateWalletAddressDto })
+  @ApiResponse({ status: 200, description: 'Wallet address updated successfully' })
+  async updateWalletAddress(@Req() req: Request, @Body() dto: UpdateWalletAddressDto) {
+    const userId = (req.user as any).userId;
+    return this.userService.updateWalletAddress(userId, dto.walletAddress);
   }
 }
