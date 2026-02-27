@@ -105,6 +105,10 @@ model CompanyProfile {
   website      String?
   gstNumber    String?
   documentUrls String[] @default([])
+  sumSubApplicantId                  String?
+  documentVerificationStatus         String?
+  documentVerificationAt             DateTime?
+  documentVerificationRejectReason   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -418,16 +422,17 @@ model WithdrawalRecord {
 }
 
 model Kyc {
-  id               Int       @id @default(autoincrement())
-  userId           String
-  veriffSessionId  String
-  veriffUrl        String
-  status           KycStatus @default(PENDING)
-  documentType     String?
-  webhookData      Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  user             User      @relation(fields: [userId], references: [id])
+  id                 Int       @id @default(autoincrement())
+  userId             String
+  veriffSessionId    String
+  veriffUrl          String
+  sumsubApplicantId  String?
+  status             KycStatus @default(PENDING)
+  documentType       String?
+  webhookData        Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id])
 }
 
 model UserSubscription {

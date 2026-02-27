@@ -17,7 +17,8 @@ async function bootstrap() {
   // Webhooks need raw body for signature verification
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/kyc/webhook', bodyParser.raw({ type: '*/*' }));
-
+  app.use('/sumsub-verification/webhook', bodyParser.raw({ type: '*/*' }));
+app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
   app.use(bodyParser.json({ limit: '5mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));
 

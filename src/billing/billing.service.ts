@@ -372,10 +372,11 @@ export class BillingService {
     }
 
     try {
-      const baseUrl = (process.env.STRIPE_CONNECT_RETURN_BASE_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
+      // Use backend URL so Stripe redirects to our success page (GET /withdrawal/success). Set to your API base, e.g. https://api.valenscorp.com
+      const baseUrl = (process.env.STRIPE_CONNECT_RETURN_BASE_URL || process.env.BACKEND_URL || process.env.FRONTEND_URL || '').replace(/\/$/, '');
       if (!baseUrl) {
         throw new BadRequestException(
-          'Set FRONTEND_URL or STRIPE_CONNECT_RETURN_BASE_URL so Stripe can redirect after onboarding.',
+          'Set STRIPE_CONNECT_RETURN_BASE_URL, BACKEND_URL, or FRONTEND_URL so Stripe can redirect after onboarding.',
         );
       }
       const accountLink = await this.stripe.accountLinks.create({

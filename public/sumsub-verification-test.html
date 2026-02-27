@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SumSub verification test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 1.25rem; }
+    .step { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 4px; font-weight: 600; }
+    input[type="text"], textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+    textarea { min-height: 80px; }
+    button { padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    #sumsub-websdk-container { min-height: 500px; margin-top: 16px; }
+    .hint { font-size: 13px; color: #64748b; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>SumSub document verification (test page)</h1>
+  <p>Paste the <strong>token</strong> from <code>POST /sumsub-verification/start</code> and click "Open verification" to upload documents in SumSub's UI.</p>
+
+  <div class="step">
+    <label for="token">Access token (from start API response)</label>
+    <textarea id="token" placeholder='Paste the "token" value from your start API response (e.g. _act-sbx-jwt-...)'></textarea>
+    <p class="hint">Get it by calling POST /sumsub-verification/start with your JWT (company user).</p>
+  </div>
+
+  <div class="step">
+    <button type="button" id="launchBtn">Open verification</button>
+  </div>
+
+  <div id="sumsub-websdk-container"></div>
+
+  <script src="https://static.sumsub.com/idensic/static/sns-websdk-builder.js"></script>
+  <script>
+    document.getElementById('launchBtn').addEventListener('click', function () {
+      var tokenInput = document.getElementById('token');
+      var token = (tokenInput && tokenInput.value) ? tokenInput.value.trim() : '';
+      if (!token) {
+        alert('Paste the token from POST /sumsub-verification/start first.');
+        return;
+      }
+      document.getElementById('launchBtn').disabled = true;
+      launchWebSdk(token);
+    });
+
+    function launchWebSdk(accessToken) {
+      var container = document.getElementById('sumsub-websdk-container');
+      container.innerHTML = '';
+
+      var snsWebSdkInstance = snsWebSdk
+        .init(
+          accessToken,
+          function getNewAccessToken() {
+            return Promise.reject(new Error('Token expired. Get a new token from POST /sumsub-verification/start and click Open verification again.'));
+          }
+        )
+        .withConf({ lang: 'en' })
+        .withOptions({ addViewportTag: false, adaptIframeHeight: true })
+        .on('idCheck.onStepCompleted', function (payload) {
+          console.log('onStepCompleted', payload);
+        })
+        .on('idCheck.onError', function (error) {
+          console.log('onError', error);
+          document.getElementById('launchBtn').disabled = false;
+        })
+        .build();
+
+      snsWebSdkInstance.launch('#sumsub-websdk-container');
+    }
+  </script>
+</body>
+</html>

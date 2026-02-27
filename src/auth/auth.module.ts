@@ -1,4 +1,36 @@
-import { Module } from '@nestjs/common';
+// import { Module } from '@nestjs/common';
+// import { AuthService } from './auth.service';
+// import { AuthController } from './auth.controller';
+// import { JwtModule } from '@nestjs/jwt';
+// import { PassportModule } from '@nestjs/passport';
+// import { UserModule } from '../user/user.module';
+// import { JwtStrategy } from './jwt.strategy';
+// import { GoogleStrategy } from './google.strategy';
+// import { TwitterStrategy } from './twitter.strategy';
+// import { PrismaModule } from '../prisma/prisma.module';
+// import { PrismaService } from '../prisma/prisma.service';
+// import './firebase.config'; // Initialize Firebase
+
+// @Module({
+//   imports: [
+//     PassportModule,
+//     JwtModule.register({
+//       secret: process.env.JWT_SECRET || 'valens_secret',
+//       signOptions: { expiresIn: '1d' },
+//     }),
+//     UserModule,
+//     PrismaModule,
+//   ],
+//   controllers: [AuthController],
+//   providers: [AuthService, JwtStrategy, GoogleStrategy, TwitterStrategy, PrismaService],
+//   exports: [JwtStrategy, JwtModule, PassportModule],
+// })
+// export class AuthModule {}
+
+
+//code for the sumsub
+
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
@@ -18,7 +50,7 @@ import './firebase.config'; // Initialize Firebase
       secret: process.env.JWT_SECRET || 'valens_secret',
       signOptions: { expiresIn: '1d' },
     }),
-    UserModule,
+    forwardRef(() => UserModule),
     PrismaModule,
   ],
   controllers: [AuthController],

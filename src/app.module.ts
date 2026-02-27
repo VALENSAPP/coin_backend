@@ -10,6 +10,8 @@ import { TokenModule } from './token/token.module';
 import { TokenPurchaseModule } from './token-purchase/token-purchase.module';
 import { KycModule } from './kyc/kyc.module';
 import { CompanyProfileModule } from './company-profile/company-profile.module';
+import { SumsubVerificationModule } from './sumsub-verification/sumsub-verification.module';
+import { SumsubUserVerificationModule } from './sumsub-user_verification/sumsub-user_verification.module';
 import { NotificationModule } from './notification/notification.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -27,6 +29,8 @@ import { AppService } from './app.service';
     TokenPurchaseModule,
     KycModule,
     CompanyProfileModule,
+    SumsubVerificationModule,
+    SumsubUserVerificationModule,
     NotificationModule,
   ],
   controllers: [AppController],
