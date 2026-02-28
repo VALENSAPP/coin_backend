@@ -137,6 +137,12 @@ export class BillingService {
       payment_intent_data: {
         application_fee_amount: applicationFeeCents,
         transfer_data: { destination: destinationAccountId },
+        metadata: {
+          payerUserId,
+          contentUserId,
+          type: 'following',
+          amount: amount.toString(),
+        },
       },
       metadata: {
         payerUserId,
@@ -289,22 +295,89 @@ export class BillingService {
   }
 
   async handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
+    // eslint-disable-next-line no-console
+    console.log('[Billing] handleOneTimePaymentSuccess — paymentIntentId:', paymentIntent.id);
     const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
-    if (!customerId) return;
+    if (!customerId) {
+      console.warn('[Billing] handleOneTimePaymentSuccess — no customerId on PaymentIntent, skipping');
+      return;
+    }
     const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
-    if (!user) return;
-    const amount = paymentIntent.amount ?? 0;
+    if (!user) {
+      console.warn('[Billing] handleOneTimePaymentSuccess — no user found for customerId:', customerId);
+      return;
+    }
+    const amountCents = paymentIntent.amount ?? 0;
+    const amountInDollars = Math.round(amountCents / 100);
     const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
-    await this.prisma.payment.create({
+    const contentUserId = paymentIntent.metadata?.contentUserId;
+    const periodStart = new Date();
+    const periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const payment = await this.prisma.payment.create({
       data: {
-        userId: user.id,
-        amount: amount,
+        user: { connect: { id: user.id } },
+        ...(contentUserId && { receiver: { connect: { id: contentUserId } } }),
+        amount: amountInDollars,
         currency,
         status: 'succeeded',
         forPayment: 'following',
         stripePaymentIntentId: paymentIntent.id,
+        periodStart,
+        periodEnd,
       },
     });
+    // eslint-disable-next-line no-console
+    console.log('[Billing] Payment created (pay-following success): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amount(USD)=', amountInDollars, 'status=succeeded');
+  }
+
+  async handleOneTimePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
+    // eslint-disable-next-line no-console
+    console.log('[Billing] handleOneTimePaymentFailed — paymentIntentId:', paymentIntent.id);
+    const existing = await this.prisma.payment.findFirst({
+      where: { stripePaymentIntentId: paymentIntent.id, forPayment: 'following' },
+    });
+    if (existing) {
+      await this.prisma.payment.update({
+        where: { id: existing.id },
+        data: { status: 'failed' },
+      });
+      // eslint-disable-next-line no-console
+      console.log('[Billing] Payment updated to failed (pay-following): id=', existing.id);
+      return;
+    }
+    const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
+    if (!customerId) {
+      console.warn('[Billing] handleOneTimePaymentFailed — no customerId on PaymentIntent, skipping');
+      return;
+    }
+    const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
+    if (!user) {
+      console.warn('[Billing] handleOneTimePaymentFailed — no user found for customerId:', customerId);
+      return;
+    }
+    const amountCents = paymentIntent.amount ?? 0;
+    const amountInDollars = Math.round(amountCents / 100);
+    const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
+    const contentUserId = paymentIntent.metadata?.contentUserId;
+    const periodStart = new Date();
+    const periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+    const payment = await this.prisma.payment.create({
+      data: {
+        user: { connect: { id: user.id } },
+        ...(contentUserId && { receiver: { connect: { id: contentUserId } } }),
+        amount: amountInDollars,
+        currency,
+        status: 'failed',
+        forPayment: 'following',
+        stripePaymentIntentId: paymentIntent.id,
+        periodStart,
+        periodEnd,
+      },
+    });
+    // eslint-disable-next-line no-console
+    console.log('[Billing] Payment created (pay-following failed): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amount(USD)=', amountInDollars, 'status=failed');
   }
 
   async getLatestTransactions(userId: string, limit: number = 50) {
@@ -313,6 +386,27 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(1, limit), 100),
     });
+  }
+
+  /**
+   * Get fan subscription status: whether the current user (payer) has an active pay-following
+   * to the given receiver (creator). Uses latest succeeded payment and periodEnd.
+   */
+  async getFanSubscriptionStatus(userId: string, receiverId: string): Promise<{ status: 'Active' | 'Inactive' }> {
+    const latest = await this.prisma.payment.findFirst({
+      where: {
+        userId,
+        receiverId,
+        forPayment: 'following',
+        status: 'succeeded',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latest || !latest.periodEnd) {
+      return { status: 'Inactive' };
+    }
+    const now = new Date();
+    return { status: latest.periodEnd > now ? 'Active' : 'Inactive' };
   }
 
   /** @deprecated Valens does not offer withdrawals or redemptions. */

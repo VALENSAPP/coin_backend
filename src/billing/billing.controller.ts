@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException, Query } from '@nestjs/common';
+import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException, Query, Param } from '@nestjs/common';
 import { BillingService } from './billing.service';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { IsString, IsNotEmpty, IsNumber, Min, IsObject } from 'class-validator';
@@ -84,6 +84,16 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const transactions = await this.billingService.getLatestTransactions(userId);
     return { transactions };
+  }
+
+  @Get('getfanSubscriptionStatus/:id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get fan subscription status for current user and given receiver (creator) id' })
+  @ApiParam({ name: 'id', description: 'Receiver (creator) user id' })
+  async getFanSubscriptionStatus(@Req() req: Request, @Param('id') id: string) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getFanSubscriptionStatus(userId, id);
   }
 
   // Valens: withdrawals/redemptions excluded. Revenue from software services (Stripe subscriptions) only.

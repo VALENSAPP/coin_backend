@@ -117,5 +117,7 @@ app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
   console.log(`Listening on host "${host}" at port "${port}"`);
   console.log(`Socket.IO server running on the same port`);
   console.log(`Access Swagger UI at http://<YOUR_SERVER_IP>:${port}/api`);
+  // Local Stripe testing: run in another terminal: stripe listen --forward-to localhost:${port}/billing/webhook
+  console.log(`[Stripe] For local webhooks run: stripe listen --forward-to http://localhost:${port}/billing/webhook`);
 }
 bootstrap();

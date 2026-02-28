@@ -32,6 +32,9 @@ export class BillingWebhookController {
       return { received: true };
     }
 
+    // eslint-disable-next-line no-console
+    console.log(`[Stripe Webhook] Received event: ${event.type} (id: ${event.id})`);
+
     switch (event.type) {
       case 'checkout.session.completed':
         const session = event.data.object as Stripe.Checkout.Session;
@@ -64,9 +67,13 @@ export class BillingWebhookController {
         await this.billingService.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
       case 'payment_intent.succeeded':
+        // eslint-disable-next-line no-console
+        console.log('[Stripe Webhook] Handling payment_intent.succeeded');
         await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
         break;
       case 'payment_intent.payment_failed':
+        // eslint-disable-next-line no-console
+        console.log('[Stripe Webhook] Handling payment_intent.payment_failed');
         await this.handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
         break;
       case 'checkout.session.expired':
@@ -90,11 +97,19 @@ export class BillingWebhookController {
 
   private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
     try {
+      const type = paymentIntent.metadata?.type;
+      // eslint-disable-next-line no-console
+      console.log(`[Stripe Webhook] payment_intent.succeeded — metadata.type: ${type ?? '(none)'}, id: ${paymentIntent.id}`);
       // Check if this is a token purchase by looking at metadata
-      if (paymentIntent.metadata?.type === 'token_purchase') {
+      if (type === 'token_purchase') {
         await this.tokenPurchaseService.handlePaymentSuccess(paymentIntent.id);
-      } else if (paymentIntent.metadata?.type === 'following') {
+      } else if (type === 'following') {
+        // eslint-disable-next-line no-console
+        console.log('[Stripe Webhook] Routing to handleOneTimePaymentSuccess (pay-following)');
         await this.billingService.handleOneTimePaymentSuccess(paymentIntent);
+      } else {
+        // eslint-disable-next-line no-console
+        console.log('[Stripe Webhook] payment_intent.succeeded — no handler for this type, skipping');
       }
     } catch (error) {
       console.error('Error handling payment intent success:', error);
@@ -103,9 +118,19 @@ export class BillingWebhookController {
 
   private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
     try {
+      const type = paymentIntent.metadata?.type;
+      // eslint-disable-next-line no-console
+      console.log(`[Stripe Webhook] payment_intent.payment_failed — metadata.type: ${type ?? '(none)'}, id: ${paymentIntent.id}`);
       // Check if this is a token purchase by looking at metadata
-      if (paymentIntent.metadata?.type === 'token_purchase') {
+      if (type === 'token_purchase') {
         await this.tokenPurchaseService.handlePaymentFailed(paymentIntent.id);
+      } else if (type === 'following') {
+        // eslint-disable-next-line no-console
+        console.log('[Stripe Webhook] Routing to handleOneTimePaymentFailed (pay-following)');
+        await this.billingService.handleOneTimePaymentFailed(paymentIntent);
+      } else {
+        // eslint-disable-next-line no-console
+        console.log('[Stripe Webhook] payment_intent.payment_failed — no handler for this type, skipping');
       }
     } catch (error) {
       console.error('Error handling payment intent failure:', error);

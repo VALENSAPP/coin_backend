@@ -59,7 +59,8 @@ model User {
   followings           FollowerAndFollowing[] @relation("Follower")
   followers            FollowerAndFollowing[] @relation("Following")
   hidePosts            HidePost[]
-  payments             Payment[]
+  payments             Payment[]              @relation("PaymentPayer")
+  receivedPayments     Payment[]              @relation("PaymentReceiver")
   tokenPurchases       TokenPurchase[]
   tokenSales           TokenSale[]
   donationData         DonationData[]
@@ -247,6 +248,7 @@ model Story {
 model Payment {
   id                    String    @id @default(uuid())
   userId                String
+  receiverId            String?
   amount                Int
   currency              String
   status                String
@@ -256,9 +258,11 @@ model Payment {
   createdAt             DateTime  @default(now())
   periodStart           DateTime?
   periodEnd             DateTime?
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User      @relation("PaymentPayer", fields: [userId], references: [id], onDelete: Cascade)
+  receiver              User?     @relation("PaymentReceiver", fields: [receiverId], references: [id])
 
   @@index([userId])
+  @@index([receiverId])
 }
 
 model TokenPurchase {
