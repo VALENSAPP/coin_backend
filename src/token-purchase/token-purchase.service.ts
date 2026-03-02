@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto, DonationResponseDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto, DonationResponseDto, MissionDonationDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
 import { NotificationService } from '../notification/notification.service';
@@ -14,6 +14,8 @@ export class TokenPurchaseService {
   private stripe: Stripe;
 
   private readonly TOKEN_RATE = 100; // 1 USD = 100 tokens
+  /** Platform fee for mission donation: 5% to platform, 95% to vendor (Stripe Connect). */
+  private readonly PLATFORM_FEE_PERCENT = 0.05;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,6 +28,28 @@ export class TokenPurchaseService {
     });
   }
 
+  /**
+   * Returns vendor's Stripe Connect account id if they can receive payments. Throws otherwise.
+   * Same logic as pay-following: vendor must have completed Connect onboarding.
+   */
+  private async getVendorConnectAccountId(vendorId: string): Promise<string> {
+    const user = await this.prisma.user.findUnique({ where: { id: vendorId } });
+    if (!user) {
+      throw new BadRequestException('Vendor not found');
+    }
+    if (!user.stripeAccountId) {
+      throw new BadRequestException(
+        'Vendor must complete Stripe Connect onboarding to receive mission donations. Call POST /billing/create-onboarding-link first.',
+      );
+    }
+    const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
+    if (!account.details_submitted) {
+      throw new BadRequestException(
+        'Vendor must finish Stripe onboarding (identity and bank details) before receiving mission donations.',
+      );
+    }
+    return user.stripeAccountId;
+  }
 
   /** @deprecated Valens does not display token amounts/prices or tie engagement to token activity. */
   async getTotalTokenData(userId: string) {
@@ -537,39 +561,34 @@ export class TokenPurchaseService {
     }
   }
 
-  async missionPostDonation(userId: string, dto: PurchaseTokensDto): Promise<DonationResponseDto> {
+  async missionPostDonation(userId: string, dto: MissionDonationDto): Promise<DonationResponseDto> {
     try {
-      // Validate user exists
+      // Validate payer exists
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, email: true },
       });
-
+// console.log('Mission donation - payer user:', user, 'note:', dto.note);
       if (!user) {
         throw new BadRequestException('User not found');
       }
 
-      // Validate vendor if provided
-      if (dto.vendorId) {
-        const vendor = await this.prisma.user.findUnique({
-          where: { id: dto.vendorId },
-          select: { id: true },
-        });
-        if (!vendor) {
-          throw new BadRequestException('Vendor not found');
-        }
-      }
+      // Vendor (recipient of 95%) must exist and have Stripe Connect ready
+      const destinationAccountId = await this.getVendorConnectAccountId(dto.vendorId);
 
       const productName = 'Mission Donation';
       const productDescription = `Donate $${dto.amount} to mission`;
       const metadataType = 'MissionDonation';
-      this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount}`);
+      const amountCents = Math.round(dto.amount * 100);
+      const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+
+      this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor ${dto.vendorId})`);
 
       // Get success and cancel URLs from environment
       const successUrl = process.env.STRIPE_SUCCESS_URL as string;
       const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
 
-      // Create Stripe Checkout Session
+      // Create Stripe Checkout Session with 5% platform fee, 95% to vendor (destination charge)
       const session = await this.stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
@@ -580,7 +599,7 @@ export class TokenPurchaseService {
                 name: productName,
                 description: productDescription,
               },
-              unit_amount: Math.round(dto.amount * 100), // Convert to cents
+              unit_amount: amountCents,
             },
             quantity: 1,
           },
@@ -588,29 +607,38 @@ export class TokenPurchaseService {
         mode: 'payment',
         success_url: successUrl,
         cancel_url: cancelUrl,
+        payment_intent_data: {
+          application_fee_amount: applicationFeeCents,
+          transfer_data: { destination: destinationAccountId },
+          metadata: {
+            userId,
+            vendorId: dto.vendorId,
+            type: metadataType,
+          },
+        },
         metadata: {
           userId,
-          vendorId: dto.vendorId || '',
+          vendorId: dto.vendorId,
           type: metadataType,
         },
         customer_email: user.email || undefined,
       });
 
-      // Create payment record
+      // Create payment record (same as before)
       const paymentData: any = {
         userId,
-        amount: Math.round(dto.amount * 100), // Store in cents
+        amount: amountCents,
         currency: 'usd',
-        stripePaymentIntentId: session.id, // Using session id since Payment table doesn't have checkout session field
+        stripePaymentIntentId: session.id,
         status: 'pending',
-        forPayment: 'missionDonation',
+        forPayment: 'missionDonation'
       };
 
-      const paymentRecord = await this.prisma.payment.create({
+      await this.prisma.payment.create({
         data: paymentData,
       });
 
-      // Create donation record
+      // Create donation record (same as before)
       const donationData: any = {
         userId,
         vendorId: dto.vendorId,
@@ -619,31 +647,19 @@ export class TokenPurchaseService {
         stripeCheckoutSessionId: session.id,
         status: 'pending',
         action: 'missionDonation',
+        note: dto.note, // Optional note for the donation
       };
-
-      // Only include purchaseTokenPrice if it's provided
-      if (dto.purchaseTokenPrice !== undefined) {
-        donationData.purchaseTokenPrice = dto.purchaseTokenPrice;
-      }
 
       const donationRecord = await this.prisma.donationData.create({
         data: donationData,
       });
 
-      const response: DonationResponseDto = {
+      return {
         id: donationRecord.id,
         amount: dto.amount,
         status: donationRecord.status,
         sessionUrl: session.url!,
       };
-
-      // Only include purchaseTokenPrice in response if it was provided
-      if (dto.purchaseTokenPrice !== undefined) {
-        response.purchaseTokenPrice = dto.purchaseTokenPrice;
-      }
-
-      return response;
-
     } catch (error) {
       this.logger.error('Error creating mission donation:', error);
       if (error instanceof BadRequestException) {

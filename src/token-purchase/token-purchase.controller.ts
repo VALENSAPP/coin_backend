@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { TokenPurchaseService } from './token-purchase.service';
-import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto, DonationResponseDto } from './dto/purchase-tokens.dto';
+import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto, DonationResponseDto, MissionDonationDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
@@ -355,9 +355,10 @@ export class TokenPurchaseController {
   @Post('mission-donation')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @ApiBody({ type: MissionDonationDto })
   @ApiOperation({
     summary: 'Create a mission donation session',
-    description: 'Creates a Stripe checkout session for mission donation. Returns session URL for payment redirect.'
+    description: 'Creates a Stripe checkout session for mission donation. 5% goes to platform, 95% to vendor (vendorId). Vendor must have Stripe Connect onboarding complete. Returns session URL for payment redirect.'
   })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -373,7 +374,7 @@ export class TokenPurchaseController {
     description: 'Unauthorized - Invalid JWT token'
   })
   async createMissionDonation(
-    @Body() dto: PurchaseTokensDto,
+    @Body() dto: MissionDonationDto,
     @Req() req: Request
   ): Promise<DonationResponseDto> {
     const userId = (req.user as any).userId;

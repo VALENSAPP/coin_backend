@@ -1,5 +1,5 @@
 import { IsNumber, IsOptional, IsString, IsUUID, Min, IsNotEmpty, IsIn } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PurchaseTokensDto {
   @ApiProperty({
@@ -232,6 +232,36 @@ export class GetPostDonationTotalDto {
   })
   @IsUUID()
   postId: string;
+}
+
+export class MissionDonationDto {
+  @ApiProperty({
+    description: 'Donation amount in USD',
+    example: 10.0,
+    minimum: 0.01
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  amount: number;
+
+  @ApiProperty({
+    description: 'User ID who receives 95% (must have Stripe Connect onboarding complete)',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @IsUUID()
+  vendorId: string;
+
+  @ApiProperty({
+    description: 'Post ID for which the donation is made',
+    example: '123e4567-e89b-12d3-a456-426614174000'
+  })
+  @IsUUID()
+  postId: string;
+
+    @ApiPropertyOptional({ description: 'Note for the donation', example: 'We feel good to help!' })
+    @IsOptional()
+    @IsString()
+    note?: string;
 }
 
 export class PostDonationTotalResponseDto {

@@ -326,6 +326,7 @@ model DonationData {
   action                String    @default("donate")
   createdAt             DateTime  @default(now())
   completedAt           DateTime?
+  note                  String?
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
