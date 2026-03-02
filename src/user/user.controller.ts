@@ -151,6 +151,14 @@ export class ProfileEditDto {
   @IsOptional()
   @IsInt()
   age?: number;
+
+  @ApiProperty({
+    required: false,
+    description: 'Array of social media links. In multipart/form-data can be sent as JSON string, e.g. [{"platform":"twitter","url":"..."}] or ["url1","url2"]',
+    isArray: true,
+  })
+  @IsOptional()
+  social_media_links?: string | Record<string, unknown>[];
 }
 
 export class ForgotPasswordDto {

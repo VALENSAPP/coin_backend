@@ -337,6 +337,14 @@ export class UserService {
       data.website_link = dto.website_link;
     }
 
+    if (dto.social_media_links !== undefined) {
+      if (typeof dto.social_media_links === 'string') {
+        data.social_media_links = dto.social_media_links.trim() ? (JSON.parse(dto.social_media_links) as unknown) : [];
+      } else if (Array.isArray(dto.social_media_links)) {
+        data.social_media_links = dto.social_media_links;
+      }
+    }
+
     if (dto.gender !== undefined && dto.gender !== '' && dto.gender !== null) {
       // Validate gender enum value
       const validGenders = ['MALE', 'FEMALE', 'OTHER'];
