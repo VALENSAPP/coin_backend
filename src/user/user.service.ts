@@ -332,6 +332,11 @@ export class UserService {
     if (dto.phoneNumber !== undefined && dto.phoneNumber !== '' && dto.phoneNumber !== null) {
       data.phoneNumber = dto.phoneNumber;
     }
+
+        if (dto.website_link !== undefined && dto.website_link !== '' && dto.website_link !== null) {
+      data.website_link = dto.website_link;
+    }
+
     if (dto.gender !== undefined && dto.gender !== '' && dto.gender !== null) {
       // Validate gender enum value
       const validGenders = ['MALE', 'FEMALE', 'OTHER'];

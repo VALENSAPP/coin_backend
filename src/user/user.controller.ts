@@ -127,6 +127,11 @@ export class ProfileEditDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
+  website_link?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
   phoneNumber?: string;
 
   @ApiProperty({ 
