@@ -108,7 +108,7 @@ export class KycService {
     if (mappedStatus === 'APPROVED') {
       await this.prisma.user.update({
         where: { id: kycRecord.userId },
-        data: { kyc: true },
+        data: { kyc: true, canAccessPlatform: 'true' },
       });
       console.log(`✅ User KYC status updated to true for user ${kycRecord.userId}`);
     }

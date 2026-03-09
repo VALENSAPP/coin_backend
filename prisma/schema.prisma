@@ -56,6 +56,7 @@ model User {
   website_link         String?        
   social_media_links   Json?                  
   fcmToken             String?
+  canAccessPlatform    String                 @default("false")
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")

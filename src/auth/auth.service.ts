@@ -51,6 +51,7 @@ export class AuthService {
       data: {
         refreshToken,
         refreshTokenExpiresAt,
+        canAccessPlatform: 'false',
       },
     });
 

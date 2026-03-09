@@ -249,7 +249,7 @@ export class KycService {
     if (status === 'APPROVED') {
       await this.prisma.user.update({
         where: { id: kycRecord.userId },
-        data: { kyc: true },
+        data: { kyc: true, canAccessPlatform: 'true' },
       });
       this.logger.log(`User KYC set to true for user ${kycRecord.userId}`);
     }

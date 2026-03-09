@@ -396,6 +396,12 @@ export class SumsubVerificationService {
         documentVerificationAt: new Date(),
       },
     });
+      if (status === 'approved') {
+      await this.prisma.user.update({
+        where: { id: profile.userId },
+        data: { kyc: true, canAccessPlatform: 'true' },
+      });
+    }
     console.log('[Sumsub Company] DB updated: profileId=', profile.id, 'userId=', profile.userId, 'status=', status);
   }
 
