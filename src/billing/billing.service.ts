@@ -32,11 +32,16 @@ export class BillingService {
 
   async createCheckoutSession(userId: string) {
     const customerId = await this.ensureStripeCustomer(userId);
-    const priceId = process.env.STRIPE_PRICE_ID as string;
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { profile: true } });
+    if (!user) throw new BadRequestException('User not found');
+    const isCompany = (user.profile || '').toLowerCase() === 'company';
+    const priceId = (isCompany ? process.env.STRIPE_PRICE_ID_Business : process.env.STRIPE_PRICE_ID) as string;
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
     if (!priceId || !successUrl || !cancelUrl) {
-      throw new BadRequestException('Missing STRIPE_PRICE_ID/STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+      throw new BadRequestException(
+        'Missing STRIPE_PRICE_ID/STRIPE_PRICE_ID_Business/STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars',
+      );
     }
     const session = await this.stripe.checkout.sessions.create({
       mode: 'subscription',
