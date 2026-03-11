@@ -102,6 +102,36 @@ app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
     socket.emit('userConversation', { message: 'Failed to fetch conversation' });
   }
 });
+
+  // Mark a single message as seen
+  socket.on('markMessageSeen', async (data: any) => {
+    try {
+      if (typeof data === 'string') {
+        data = JSON.parse(data);
+      }
+
+      const { messageId, userId, otherUserId } = data || {};
+
+      if (!messageId) {
+        socket.emit('messageSeenError', { message: 'messageId required' });
+        return;
+      }
+
+      const result = await postService.messageSeenUpdate(messageId, userId);
+      socket.emit('messageSeen', { messageId, ...result });
+
+      // Notify the other user if connected
+      if (otherUserId) {
+        const otherSocketId = connectedUsers.get(otherUserId);
+        if (otherSocketId) {
+          io.to(otherSocketId).emit('messageSeen', { messageId, seenBy: userId, ...result });
+        }
+      }
+    } catch (error) {
+      console.error('markMessageSeen error:', error);
+      socket.emit('messageSeenError', { message: 'Failed to update seen status' });
+    }
+  });
     
 
     // Handle disconnect

@@ -1645,6 +1645,7 @@ return {
   type: conv.type,
   content: conv.content,
   createdAt: conv.createdAt,
+  isSeen: conv.isSeen,
   sender: conv.sender,
   receiver: conv.receiver,
   post,
@@ -1670,6 +1671,28 @@ data: {
 
 return {
 message: 'Chat status updated successfully',
+updatedCount: result.count,
+};
+}
+
+async messageSeenUpdate(messageId: string, userId: string) {
+if (!messageId) throw new BadRequestException('Message ID required');
+if (!userId) throw new BadRequestException('User ID required');
+
+// Only the receiver can mark a message as seen
+const result = await this.prisma.conversation.updateMany({
+where: {
+  id: messageId,
+  receiverId: userId,
+  isSeen: 0,
+},
+data: {
+  isSeen: 1,
+},
+});
+
+return {
+message: 'Message seen updated successfully',
 updatedCount: result.count,
 };
 }
