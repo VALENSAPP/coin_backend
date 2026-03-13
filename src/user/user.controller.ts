@@ -69,6 +69,11 @@ export class RegisterDto {
   @IsEnum(RegistrationType)
   @IsNotEmpty()
   registrationType: RegistrationType;
+
+  @ApiProperty({ required: false, description: 'Referral code of the user who referred this new user' })
+  @IsOptional()
+  @IsString()
+  referrerCode?: string;
 }
 
 export class LoginDto {

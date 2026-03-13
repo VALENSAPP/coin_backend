@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { Gender } from './user.controller';
@@ -74,6 +74,18 @@ export class UserService {
     private readonly notificationService: NotificationService,
   ) { }
 
+  private async generateUniqueReferCode(): Promise<string> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const code = randomBytes(4).toString('hex').toUpperCase();
+      const existing = await this.prisma.user.findFirst({
+        where: { referCode: code },
+        select: { id: true },
+      });
+      if (!existing) return code;
+    }
+    throw new BadRequestException('Failed to generate referral code');
+  }
+
   async register(data: {
     email?: string;
     userName?: string;
@@ -85,6 +97,7 @@ export class UserService {
     walletAddress?: string;
     registrationType: RegistrationType;
     fcmToken?: string;
+    referrerCode?: string;
   }) {
     // Check if this is a Firebase Google registration request
     // if (data.idToken && data.registrationType === 'GOOGLE') {
@@ -192,6 +205,20 @@ export class UserService {
 
     let user;
     try {
+      const trimmedReferrerCode = data.referrerCode?.trim();
+      const referrer = trimmedReferrerCode
+        ? await this.prisma.user.findFirst({
+            where: { referCode: trimmedReferrerCode, isDeleted: 0 },
+          })
+        : null;
+
+      if (trimmedReferrerCode && !referrer) {
+        throw new BadRequestException('Invalid referral code');
+      }
+
+      const referCode = await this.generateUniqueReferCode();
+      const initialReferPoints = referrer ? 5 : 0;
+
       const userData: any = {
         email: data.email,
         password: passwordHash,
@@ -201,6 +228,8 @@ export class UserService {
         // walletPrivateKey: encryptedPrivateKey,
         // walletMnemonic: encryptedMnemonic,
         registrationType: data.registrationType,
+        referCode,
+        referPoints: initialReferPoints,
       };
       if (data.userName) {
         userData.userName = data.userName;
@@ -211,8 +240,28 @@ export class UserService {
       if (data.fcmToken) {
         userData.fcmToken = data.fcmToken;
       }
-      user = await this.prisma.user.create({
-        data: userData,
+      user = await this.prisma.$transaction(async (tx) => {
+        const createdUser = await tx.user.create({
+          data: userData,
+        });
+
+        if (referrer) {
+          await tx.user.update({
+            where: { id: referrer.id },
+            data: { referPoints: { increment: 10 } },
+          });
+
+          await tx.userReferral.create({
+            data: {
+              referrerId: referrer.id,
+              referredUserId: createdUser.id,
+              referrerPoints: 10,
+              referredUserPoints: 5,
+            },
+          });
+        }
+
+        return createdUser;
       });
     } catch (error: any) {
       // Handle Prisma unique constraint violations
@@ -1209,6 +1258,7 @@ export class UserService {
         // New user registration (Google) — Valens: do NOT create wallets.
         const firebaseUserId = decodedToken.uid;
         const userId = uuidv4();
+        const referCode = await this.generateUniqueReferCode();
 
         // const wallet = generateWallet();
         // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
@@ -1224,6 +1274,8 @@ export class UserService {
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
           verifyEmail: 1,
+          referCode,
+          referPoints: 0,
           // walletAddress: wallet.address,
           // walletPrivateKey: encryptedPrivateKey,
           // walletMnemonic: encryptedMnemonic,
@@ -1329,6 +1381,7 @@ export class UserService {
         // New user registration (Apple) — Valens: do NOT create wallets.
         const firebaseUserId = decodedToken.uid;
         const userId = uuidv4();
+        const referCode = await this.generateUniqueReferCode();
 
         // const wallet = generateWallet();
         // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
@@ -1344,6 +1397,8 @@ export class UserService {
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
           verifyEmail: 1,
+          referCode,
+          referPoints: 0,
           // walletAddress: wallet.address,
           // walletPrivateKey: encryptedPrivateKey,
           // walletMnemonic: encryptedMnemonic,
@@ -1427,6 +1482,7 @@ export class UserService {
 
       // If not found, create new user — Valens: do NOT create wallets.
       if (!existingUser) {
+        const referCode = await this.generateUniqueReferCode();
         // const wallet = generateWallet();
         // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
         // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
@@ -1441,6 +1497,8 @@ export class UserService {
             profile,
             registrationType: 'TWITTER',
             verifyEmail: 1,
+            referCode,
+            referPoints: 0,
             // walletAddress: wallet.address,
             // walletPrivateKey: encryptedPrivateKey,
             // walletMnemonic: encryptedMnemonic,

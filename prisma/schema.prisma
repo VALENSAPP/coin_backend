@@ -57,6 +57,8 @@ model User {
   social_media_links   Json?                  
   fcmToken             String?
   canAccessPlatform    String                 @default("false")
+  referCode            String?
+  referPoints          Float                  @default(0)
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")
@@ -93,6 +95,8 @@ model User {
   companyProfile       CompanyProfile?
   sentDigitalTransactions     digital_transaction[] @relation("Sender")
   receivedDigitalTransactions digital_transaction[] @relation("Receiver")
+  referredUsers UserReferral[] @relation("UserReferrer")
+  referredBy    UserReferral[] @relation("UserReferred")
 }
 
 model CompanyProfile {
@@ -530,6 +534,21 @@ model digital_transaction {
 
   @@index([senderId])
   @@index([receiverId])
+}
+
+model UserReferral {
+  id             String   @id @default(uuid())
+  referrerId     String
+  referredUserId String
+  referrerPoints Int?
+  referredUserPoints Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  referrer     User @relation("UserReferrer", fields: [referrerId], references: [id])
+  referredUser User @relation("UserReferred", fields: [referredUserId], references: [id])
+
+  @@unique([referrerId, referredUserId])
 }
 
 enum RegistrationType {

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "referCode" TEXT,
+ADD COLUMN     "referPoints" DOUBLE PRECISION NOT NULL DEFAULT 0;
