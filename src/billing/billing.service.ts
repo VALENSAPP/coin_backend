@@ -1061,7 +1061,11 @@ export class BillingService {
       const normalizedUsdt = ethers.getAddress(usdtAddress);
       const normalizedSenderWallet = ethers.getAddress(senderUser.walletAddress);
       const normalizedReceiverWallet = ethers.getAddress(receiverUser.walletAddress);
-      const transferTopic = this.usdtInterface.getEvent('Transfer').topicHash;
+      const transferEvent = this.usdtInterface.getEvent('Transfer');
+      if (!transferEvent) {
+        throw new BadRequestException('USDT Transfer event not found in ABI');
+      }
+      const transferTopic = transferEvent.topicHash;
 
       let matchedTransfer: { from: string; to: string; value: bigint } | null = null;
       for (const log of receipt.logs) {
@@ -1071,9 +1075,16 @@ export class BillingService {
         if (!log.topics || log.topics.length === 0 || log.topics[0] !== transferTopic) continue;
 
         const parsed = this.usdtInterface.parseLog({ topics: log.topics, data: log.data });
-        const from = ethers.getAddress(parsed.args.from as string);
-        const to = ethers.getAddress(parsed.args.to as string);
-        const value = parsed.args.value as bigint;
+        if (!parsed) continue;
+
+        const fromRaw = (parsed.args as any)?.from as string | undefined;
+        const toRaw = (parsed.args as any)?.to as string | undefined;
+        const valueRaw = (parsed.args as any)?.value as bigint | undefined;
+        if (!fromRaw || !toRaw || valueRaw === undefined || valueRaw === null) continue;
+
+        const from = ethers.getAddress(fromRaw);
+        const to = ethers.getAddress(toRaw);
+        const value = valueRaw;
 
         if (from !== normalizedSenderWallet) continue;
         if (to !== normalizedReceiverWallet) continue;
