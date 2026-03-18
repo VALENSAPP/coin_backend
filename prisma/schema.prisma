@@ -142,6 +142,7 @@ model Post {
   type         String?
   link         String?
   visibleTo    String?
+  postHide     postHide      @default(no)
   hides        HidePost[]
   user         User          @relation(fields: [userId], references: [id])
   comments     PostComment[]
@@ -606,4 +607,9 @@ enum UserSubscriptionStatus {
 enum FansSubscriptionStatus {
   ACTIVE
   STOP
+}
+
+enum postHide {
+  yes
+  no
 }

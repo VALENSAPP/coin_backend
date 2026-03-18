@@ -152,7 +152,7 @@ export class PostService {
     if (!userId) throw new BadRequestException('User ID required');
     const take = Math.min(Math.max(1, limit), 50);
     const skip = (Math.max(1, page) - 1) * take;
-    const whereClause: any = { userId, deletedAt: null };
+    const whereClause: any = { userId, deletedAt: null, postHide: 'no' };
     if (type === 'private') {
       whereClause.type = 'private';
     } else {
@@ -1322,19 +1322,68 @@ async deleteSharedPosts(shareIds: string[], userId: string) {
   return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
 }
 
+// async hidePost(postId: string, userId: string) {
+//   if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
+//   return this.prisma.hidePost.upsert({
+//     where: { postId_userId: { postId, userId } },
+//     update: {},
+//     create: { postId, userId },
+//   });
+// }
+
+
 async hidePost(postId: string, userId: string) {
-  if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
-  return this.prisma.hidePost.upsert({
-    where: { postId_userId: { postId, userId } },
-    update: {},
-    create: { postId, userId },
+  if (!postId || !userId) {
+    throw new BadRequestException('Post ID and User ID required');
+  }
+
+  return this.prisma.$transaction(async (tx) => {
+    // 1. Upsert hidePost
+    await tx.hidePost.upsert({
+      where: { postId_userId: { postId, userId } },
+      update: {},
+      create: { postId, userId },
+    });
+
+    // 2. Update post table
+    const updatedPost = await tx.post.update({
+      where: { id: postId },
+      data: { postHide: 'yes' }, 
+    });
+
+    return updatedPost;
   });
 }
 
+// async unhidePost(postId: string, userId: string) {
+//   if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
+//   await this.prisma.hidePost.deleteMany({ where: { postId, userId } });
+//   return { message: 'Post unhidden successfully' };
+// }
+
+
 async unhidePost(postId: string, userId: string) {
-  if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
-  await this.prisma.hidePost.deleteMany({ where: { postId, userId } });
-  return { message: 'Post unhidden successfully' };
+  if (!postId || !userId) {
+    throw new BadRequestException('Post ID and User ID required');
+  }
+
+  return this.prisma.$transaction(async (tx) => {
+    // 1. Remove hide entry
+    await tx.hidePost.deleteMany({
+      where: { postId, userId },
+    });
+
+    // 2. Update post table
+    const updatedPost = await tx.post.update({
+      where: { id: postId },
+      data: { postHide: 'no' }, 
+    });
+
+    return {
+      message: 'Post unhidden successfully',
+      data: updatedPost,
+    };
+  });
 }
 
 async getHidePost(userId: string) {
