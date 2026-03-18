@@ -1407,7 +1407,7 @@ async getHidePost(userId: string) {
       postHide: 'yes', // or "yes" if string
     },
     orderBy: {
-      createdAt: 'desc',
+      updatedAt: 'desc',
     },
   });
 
