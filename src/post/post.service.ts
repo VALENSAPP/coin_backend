@@ -1386,14 +1386,32 @@ async unhidePost(postId: string, userId: string) {
   });
 }
 
+// async getHidePost(userId: string) {
+//   if (!userId) throw new BadRequestException('User ID required');
+//   const hidden = await this.prisma.hidePost.findMany({
+//     where: { userId },
+//     orderBy: { createdAt: 'desc' },
+//     include: { post: true },
+//   });
+//   return hidden.map(h => h.post);
+// }
+
 async getHidePost(userId: string) {
-  if (!userId) throw new BadRequestException('User ID required');
-  const hidden = await this.prisma.hidePost.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-    include: { post: true },
+  if (!userId) {
+    throw new BadRequestException('User ID required');
+  }
+
+  const posts = await this.prisma.post.findMany({
+    where: {
+      userId: userId,
+      postHide: 'yes', // or "yes" if string
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
   });
-  return hidden.map(h => h.post);
+
+  return posts;
 }
 
 // Chat functionality using unified Conversation table
