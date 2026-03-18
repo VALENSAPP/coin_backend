@@ -1339,11 +1339,11 @@ async hidePost(postId: string, userId: string) {
 
   return this.prisma.$transaction(async (tx) => {
     // 1. Upsert hidePost
-    await tx.hidePost.upsert({
-      where: { postId_userId: { postId, userId } },
-      update: {},
-      create: { postId, userId },
-    });
+    // await tx.hidePost.upsert({
+    //   where: { postId_userId: { postId, userId } },
+    //   update: {},
+    //   create: { postId, userId },
+    // });
 
     // 2. Update post table
     const updatedPost = await tx.post.update({
@@ -1369,9 +1369,9 @@ async unhidePost(postId: string, userId: string) {
 
   return this.prisma.$transaction(async (tx) => {
     // 1. Remove hide entry
-    await tx.hidePost.deleteMany({
-      where: { postId, userId },
-    });
+    // await tx.hidePost.deleteMany({
+    //   where: { postId, userId },
+    // });
 
     // 2. Update post table
     const updatedPost = await tx.post.update({
