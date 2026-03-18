@@ -793,7 +793,7 @@ async getAllReel(viewerUserId?: string) {
     if (post.userId !== userId) throw new BadRequestException('Unauthorized');
     await this.prisma.post.update({
       where: { id: postId },
-      data: { deletedAt: new Date() },
+      data: { deletedAt: new Date(), isDelete: 'yes' },
     });
     return true;
   }
@@ -1404,7 +1404,8 @@ async getHidePost(userId: string) {
   const posts = await this.prisma.post.findMany({
     where: {
       userId: userId,
-      postHide: 'yes', // or "yes" if string
+      postHide: 'yes',
+      isDelete: 'no',
     },
     orderBy: {
       updatedAt: 'desc',

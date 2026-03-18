@@ -131,6 +131,7 @@ model Post {
   updatedAt    DateTime      @updatedAt
   userId       String
   deletedAt    DateTime?
+  isDelete     isdelete        @default(no)
   caption      String?
   hashtag      String[]
   location     String?
@@ -610,6 +611,11 @@ enum FansSubscriptionStatus {
 }
 
 enum postHide {
+  yes
+  no
+}
+
+enum isdelete {
   yes
   no
 }
