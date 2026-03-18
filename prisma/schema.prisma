@@ -526,6 +526,8 @@ model digital_transaction {
   receiverId String
   amount     Decimal  @db.Decimal(18, 8)
   txId       String   @unique
+  txType     String 
+  txValue    Decimal  @db.Decimal(18, 8)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

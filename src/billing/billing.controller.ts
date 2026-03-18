@@ -9,6 +9,7 @@ import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
 import { AddDigitalBadgeDto } from './dto/add-digital-badge.dto';
+import { VerifyUsdtTransactionDto } from './dto/verify-usdt-transaction.dto';
 
 
 export class RequestWithdrawalDto {
@@ -214,6 +215,24 @@ export class BillingController {
     const senderId = (req.user as any).userId;
     const result = await this.billingService.addDigitalBadge(senderId, dto);
     return { message: 'Digital badge added', data: result };
+  }
+
+  @Post('verify-usdt-transaction')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify USDT transaction on-chain and store it' })
+  @ApiBody({ type: VerifyUsdtTransactionDto })
+  async verifyUsdtTransaction(@Req() req: Request, @Body() dto: VerifyUsdtTransactionDto) {
+    try {
+      const authUserId = (req.user as any).userId;
+      const result = await this.billingService.verifyAndStoreUsdtTransaction(authUserId, dto);
+      return { success: true, data: result };
+    } catch (error: any) {
+      throw new BadRequestException({
+        success: false,
+        message: error?.message || 'Failed to verify transaction',
+      });
+    }
   }
 
   @Get('get-digital-badge')

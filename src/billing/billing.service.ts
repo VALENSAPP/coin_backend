@@ -3,11 +3,15 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import Stripe from 'stripe';
+import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class BillingService {
   private stripe: Stripe;
+  private readonly usdtInterface = new ethers.Interface([
+    'event Transfer(address indexed from, address indexed to, uint256 value)',
+  ]);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -16,6 +20,22 @@ export class BillingService {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
     });
+  }
+
+  private getRpcUrlForChain(chain: string): string {
+    const normalized = chain.toUpperCase();
+    const mapping: Record<string, string | undefined> = {
+      POLYGON: process.env.POLYGON_RPC_URL,
+    };
+    return mapping[normalized] || '';
+  }
+
+  private getUsdtAddressForChain(chain: string): string {
+    const normalized = chain.toUpperCase();
+    const mapping: Record<string, string | undefined> = {
+      POLYGON: process.env.USDT_ADDRESS_POLYGON || '0xc2132D05D31c914a87C6611C10748AaCB3b14dD6',
+    };
+    return mapping[normalized] || '';
   }
 
   async ensureStripeCustomer(userId: string) {
@@ -970,6 +990,8 @@ export class BillingService {
           receiverId: dto.receiverId,
           amount: dto.amount,
           txId: dto.txId,
+          txType: 'MANUAL',
+          txValue: dto.amount,
         },
       });
       return digitalBadge;
@@ -985,6 +1007,105 @@ export class BillingService {
     });
     const totalAmount = result._sum?.amount != null ? Number(result._sum.amount) : 0;
     return { totalAmount };
+  }
+
+  async verifyAndStoreUsdtTransaction(
+    authUserId: string,
+    dto: { senderId: string; receiverId: string; txHash: string; chain: string },
+  ) {
+    try {
+      const normalizedChain = dto.chain.toUpperCase();
+      const txHash = dto.txHash.toLowerCase();
+
+      if (dto.senderId !== authUserId) {
+        throw new BadRequestException('Sender ID mismatch');
+      }
+
+      const existing = await this.prisma.digital_transaction.findUnique({
+        where: { txId: txHash },
+      });
+      if (existing) {
+        throw new BadRequestException('Transaction already recorded');
+      }
+
+      const rpcUrl = this.getRpcUrlForChain(normalizedChain);
+      if (!rpcUrl) {
+        throw new BadRequestException('Only POLYGON is supported, or POLYGON RPC URL is missing');
+      }
+
+      const usdtAddress = this.getUsdtAddressForChain(normalizedChain);
+      if (!usdtAddress) {
+        throw new BadRequestException('USDT contract address not configured for chain');
+      }
+
+      const [senderUser, receiverUser] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: dto.senderId }, select: { walletAddress: true } }),
+        this.prisma.user.findUnique({ where: { id: dto.receiverId }, select: { walletAddress: true } }),
+      ]);
+      if (!senderUser?.walletAddress) {
+        throw new BadRequestException('Sender wallet address not configured');
+      }
+      if (!receiverUser?.walletAddress) {
+        throw new BadRequestException('Receiver wallet address not configured');
+      }
+
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const receipt = await provider.getTransactionReceipt(txHash);
+      if (!receipt) {
+        throw new BadRequestException('Transaction not found or not yet mined');
+      }
+      if (receipt.status !== 1) {
+        throw new BadRequestException('Transaction failed on-chain');
+      }
+
+      const normalizedUsdt = ethers.getAddress(usdtAddress);
+      const normalizedSenderWallet = ethers.getAddress(senderUser.walletAddress);
+      const normalizedReceiverWallet = ethers.getAddress(receiverUser.walletAddress);
+      const transferTopic = this.usdtInterface.getEvent('Transfer').topicHash;
+
+      let matchedTransfer: { from: string; to: string; value: bigint } | null = null;
+      for (const log of receipt.logs) {
+        if (!log.address) continue;
+        const logAddress = ethers.getAddress(log.address);
+        if (logAddress !== normalizedUsdt) continue;
+        if (!log.topics || log.topics.length === 0 || log.topics[0] !== transferTopic) continue;
+
+        const parsed = this.usdtInterface.parseLog({ topics: log.topics, data: log.data });
+        const from = ethers.getAddress(parsed.args.from as string);
+        const to = ethers.getAddress(parsed.args.to as string);
+        const value = parsed.args.value as bigint;
+
+        if (from !== normalizedSenderWallet) continue;
+        if (to !== normalizedReceiverWallet) continue;
+        matchedTransfer = { from, to, value };
+        break;
+      }
+
+      if (!matchedTransfer) {
+        throw new BadRequestException('USDT transfer between sender and receiver wallets not found in transaction logs');
+      }
+
+      const amount = ethers.formatUnits(matchedTransfer.value, 6);
+      const txValue = matchedTransfer.value.toString();
+
+      const saved = await this.prisma.digital_transaction.create({
+        data: {
+          senderId: dto.senderId,
+          receiverId: dto.receiverId,
+          txId: txHash,
+          txType: normalizedChain,
+          amount,
+          txValue,
+        },
+      });
+
+      return saved;
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(error?.message || 'Failed to verify transaction');
+    }
   }
 }
 

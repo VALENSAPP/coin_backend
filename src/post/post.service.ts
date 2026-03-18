@@ -1341,6 +1341,7 @@ async getHidePost(userId: string) {
   if (!userId) throw new BadRequestException('User ID required');
   const hidden = await this.prisma.hidePost.findMany({
     where: { userId },
+    orderBy: { createdAt: 'desc' },
     include: { post: true },
   });
   return hidden.map(h => h.post);
