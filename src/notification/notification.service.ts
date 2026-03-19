@@ -128,11 +128,20 @@ export class NotificationService {
     });
 
     return likes.map((like) => ({
-      type: 'like',
+      id: like.id,
+      userId,
+      title: 'Post Liked',
+      body: `${like.user?.displayName || like.user?.userName || 'Someone'} liked your post.`,
+      data: {
+        type: 'like',
+        likerId: like.user?.id,
+        postId: like.post?.id,
+      },
+      isRead: false,
       createdAt: like.createdAt,
+      updatedAt: like.createdAt,
       post: like.post,
       liker: like.user,
-      likeId: like.id,
     }));
   }
 
