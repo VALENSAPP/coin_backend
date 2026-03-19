@@ -145,6 +145,67 @@ export class NotificationService {
     }));
   }
 
+  // Mission donations on the current user's posts (computed, not stored in Notification table)
+  async getMissionDonationNotifications(userId: string, limit: number = 100): Promise<any[]> {
+    const donations = await this.prisma.donationData.findMany({
+      where: {
+        vendorId: userId,
+        status: 'completed',
+        action: 'missionDonation',
+      },
+      select: {
+        id: true,
+        userId: true,
+        vendorId: true,
+        postId: true,
+        amount: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(1, limit), 200),
+    });
+
+    const postIds = Array.from(new Set(donations.map((d) => d.postId).filter(Boolean))) as string[];
+    const donorIds = Array.from(new Set(donations.map((d) => d.userId)));
+
+    const [posts, donors] = await Promise.all([
+      postIds.length > 0
+        ? this.prisma.post.findMany({
+            where: { id: { in: postIds }, deletedAt: null },
+            select: { id: true, text: true, images: true, createdAt: true, type: true },
+          })
+        : Promise.resolve([]),
+      donorIds.length > 0
+        ? this.prisma.user.findMany({
+            where: { id: { in: donorIds } },
+            select: { id: true, userName: true, displayName: true, image: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const postMap = new Map(posts.map((p) => [p.id, p]));
+    const donorMap = new Map(donors.map((u) => [u.id, u]));
+
+    return donations.map((donation) => {
+      const donor = donorMap.get(donation.userId);
+      return {
+        id: donation.id,
+        userId,
+        title: 'Mission Donation',
+        body: `${donor?.displayName || donor?.userName || 'Someone'} donated $${donation.amount} to your post.`,
+        data: {
+          type: 'mission_donation',
+          donorId: donation.userId,
+          postId: donation.postId,
+          donationId: donation.id,
+        },
+        isRead: false,
+        createdAt: donation.createdAt,
+        updatedAt: donation.createdAt,
+      };
+    });
+  }
+
   async getNotificationById(notificationId: string): Promise<Notification | null> {
     return this.prisma.notification.findUnique({
       where: { id: notificationId },
