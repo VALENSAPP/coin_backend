@@ -21,7 +21,10 @@ export class NotificationController {
     if (!userId) throw new BadRequestException('User not authenticated');
     const notifications = await this.notificationService.getNotifications(userId);
     const likePostNotifications = await this.notificationService.getLikePostNotifications(userId);
-    return { notifications, likePostNotifications };
+    const combined = [...notifications, ...likePostNotifications].sort(
+      (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+    return { notifications: combined };
   }
 
   @Put('mark-as-read')
