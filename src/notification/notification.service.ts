@@ -188,6 +188,7 @@ export class NotificationService {
 
     return donations.map((donation) => {
       const donor = donorMap.get(donation.userId);
+      const post = donation.postId ? postMap.get(donation.postId) : undefined;
       return {
         id: donation.id,
         userId,
@@ -202,6 +203,57 @@ export class NotificationService {
         isRead: false,
         createdAt: donation.createdAt,
         updatedAt: donation.createdAt,
+        post,
+        donor,
+      };
+    });
+  }
+
+  // Pay-following payments received by the current user
+  async getPayFollowingNotifications(userId: string, limit: number = 100): Promise<any[]> {
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        receiverId: userId,
+        forPayment: 'following',
+        status: 'succeeded',
+      },
+      select: {
+        id: true,
+        userId: true, // payer
+        receiverId: true,
+        amount: true,
+        currency: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(1, limit), 200),
+    });
+
+    const payerIds = Array.from(new Set(payments.map((p) => p.userId)));
+    const payers = payerIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: payerIds } },
+          select: { id: true, userName: true, displayName: true, image: true },
+        })
+      : [];
+    const payerMap = new Map(payers.map((u) => [u.id, u]));
+
+    return payments.map((payment) => {
+      const payer = payerMap.get(payment.userId);
+      return {
+        id: payment.id,
+        userId,
+        title: 'Following Payment',
+        body: `${payer?.displayName || payer?.userName || 'Someone'} bought your private content subscription.`,
+        data: {
+          type: 'pay_following',
+          payerId: payment.userId,
+          receiverId: payment.receiverId,
+          paymentId: payment.id,
+        },
+        isRead: false,
+        createdAt: payment.createdAt,
+        updatedAt: payment.createdAt,
       };
     });
   }

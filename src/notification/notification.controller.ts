@@ -22,7 +22,8 @@ export class NotificationController {
     const notifications = await this.notificationService.getNotifications(userId);
     const likePostNotifications = await this.notificationService.getLikePostNotifications(userId);
     const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId);
-    const combined = [...notifications, ...likePostNotifications, ...missionDonationNotifications].sort(
+    const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId);
+    const combined = [...notifications, ...likePostNotifications, ...missionDonationNotifications, ...payFollowingNotifications].sort(
       (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
     return { notifications: combined };
