@@ -1351,6 +1351,9 @@ async hidePost(postId: string, userId: string) {
       data: { postHide: 'yes' }, 
     });
 
+    await tx.savePost.deleteMany({
+  where: { postId },
+});
     return updatedPost;
   });
 }
