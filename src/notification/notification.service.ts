@@ -95,6 +95,47 @@ export class NotificationService {
     });
   }
 
+  // Likes on the current user's posts (computed, not stored in Notification table)
+  async getLikePostNotifications(userId: string, limit: number = 100): Promise<any[]> {
+    const likes = await this.prisma.postLike.findMany({
+      where: {
+        post: {
+          userId,
+          deletedAt: null,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+        post: {
+          select: {
+            id: true,
+            text: true,
+            images: true,
+            createdAt: true,
+            type: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(Math.max(1, limit), 200),
+    });
+
+    return likes.map((like) => ({
+      type: 'like',
+      createdAt: like.createdAt,
+      post: like.post,
+      liker: like.user,
+      likeId: like.id,
+    }));
+  }
+
   async getNotificationById(notificationId: string): Promise<Notification | null> {
     return this.prisma.notification.findUnique({
       where: { id: notificationId },

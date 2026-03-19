@@ -19,7 +19,9 @@ export class NotificationController {
   async getNotifications(@Req() req: any) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
-    return this.notificationService.getNotifications(userId);
+    const notifications = await this.notificationService.getNotifications(userId);
+    const likePostNotifications = await this.notificationService.getLikePostNotifications(userId);
+    return { notifications, likePostNotifications };
   }
 
   @Put('mark-as-read')
