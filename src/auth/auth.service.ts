@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { UserService, RegistrationType } from '../user/user.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import admin from './firebase.config';
 import axios from 'axios';
@@ -15,45 +15,102 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
-  async validateUser(loginDto: any) {
-    // Use userService to validate user
-    return this.userService.validateUser(loginDto);
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
-  async login(loginDto: any) {
-    // Check if this is a Firebase Google sign-in request
-    // if (loginDto.idToken && loginDto.registrationType === 'GOOGLE') {
-    if (loginDto.googleId) {
-      return this.signInWithGoogle(loginDto.googleId);
+  private getIpAddress(req: any): string | undefined {
+    const forwarded = req?.headers?.['x-forwarded-for'];
+    if (Array.isArray(forwarded) && forwarded.length > 0) {
+      return forwarded[0];
     }
-
-     if (loginDto.appleId) {
-      return this.signInWithApple(loginDto.appleId);
+    if (typeof forwarded === 'string' && forwarded.length > 0) {
+      return forwarded.split(',')[0].trim();
     }
+    return req?.ip || req?.socket?.remoteAddress;
+  }
 
-    // Check if this is a Twitter access token login
-    if (loginDto.twitterId) {
-      return this.twitterLogin(loginDto.twitterId);
-    }
+  private buildSessionMeta(req: any, loginDto?: any) {
+    return {
+      userAgent: req?.headers?.['user-agent']?.toString(),
+      ipAddress: this.getIpAddress(req),
+      deviceId: loginDto?.deviceId,
+      deviceName: loginDto?.deviceName,
+      deviceType: loginDto?.deviceType,
+    };
+  }
 
-    const user = await this.validateUser(loginDto);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
-    const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
-    const access_token = this.jwtService.sign(payload);
+  private async createSession(userId: string, refreshToken: string, refreshTokenExpiresAt: Date, meta?: any) {
+    return this.prisma.userSession.create({
+      data: {
+        userId,
+        refreshTokenHash: this.hashToken(refreshToken),
+        refreshTokenExpiresAt,
+        lastActiveAt: new Date(),
+        userAgent: meta?.userAgent,
+        ipAddress: meta?.ipAddress,
+        deviceId: meta?.deviceId,
+        deviceName: meta?.deviceName,
+        deviceType: meta?.deviceType,
+      },
+    });
+  }
 
-    // Generate refresh token
+  private async issueTokensForUser(user: any, meta?: any) {
     const refreshToken = randomBytes(32).toString('hex');
     const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    // Store refresh token in database
+    const session = await this.createSession(user.id, refreshToken, refreshTokenExpiresAt, meta);
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      registrationType: user.registrationType,
+      sessionId: session.id,
+    };
+    const access_token = this.jwtService.sign(payload);
+
+    // Keep legacy fields for backward compatibility
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
         refreshToken,
         refreshTokenExpiresAt,
-        canAccessPlatform: 'false',
       },
     });
+
+    return {
+      access_token,
+      refresh_token: refreshToken,
+      session_id: session.id,
+    };
+  }
+
+  async validateUser(loginDto: any) {
+    // Use userService to validate user
+    return this.userService.validateUser(loginDto);
+  }
+
+  async login(loginDto: any, req?: any) {
+    // Check if this is a Firebase Google sign-in request
+    // if (loginDto.idToken && loginDto.registrationType === 'GOOGLE') {
+    if (loginDto.googleId) {
+      return this.signInWithGoogle(loginDto.googleId, req, loginDto);
+    }
+
+     if (loginDto.appleId) {
+      return this.signInWithApple(loginDto.appleId, req, loginDto);
+    }
+
+    // Check if this is a Twitter access token login
+    if (loginDto.twitterId) {
+      return this.twitterLogin(loginDto.twitterId, req, loginDto);
+    }
+
+    const user = await this.validateUser(loginDto);
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+    const meta = this.buildSessionMeta(req, loginDto);
+    const tokens = await this.issueTokensForUser(user, meta);
 
     // Save login history
     await this.prisma.loginHistory.create({
@@ -62,10 +119,15 @@ export class AuthService {
       },
     });
 
+    // Preserve existing behavior: mark access as false on normal login
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { canAccessPlatform: 'false' },
+    });
+
     return {
-      access_token,
-      refresh_token: refreshToken,
-      ...user
+      ...tokens,
+      ...user,
     };
   }
 
@@ -90,45 +152,89 @@ export class AuthService {
     };
   }
 
-  async refreshToken(refreshToken: string) {
-    // Find user with valid refresh token
-    const user = await this.prisma.user.findFirst({
+  async refreshToken(refreshToken: string, req?: any) {
+    const now = new Date();
+    const tokenHash = this.hashToken(refreshToken);
+
+    let session = await this.prisma.userSession.findFirst({
       where: {
-        refreshToken,
-        refreshTokenExpiresAt: {
-          gt: new Date(),
-        },
+        refreshTokenHash: tokenHash,
+        refreshTokenExpiresAt: { gt: now },
+        revokedAt: null,
       },
+      include: { user: true },
     });
 
-    if (!user) {
+    // Legacy fallback
+    if (!session) {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          refreshToken,
+          refreshTokenExpiresAt: { gt: now },
+        },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+
+      session = await this.prisma.userSession.create({
+        data: {
+          userId: user.id,
+          refreshTokenHash: tokenHash,
+          refreshTokenExpiresAt: user.refreshTokenExpiresAt ?? now,
+          lastActiveAt: now,
+        },
+        include: { user: true },
+      });
+    }
+
+    if (!session.user || session.revokedAt) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    // Generate new access token
-    const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
-    const access_token = this.jwtService.sign(payload);
-
-    // Optionally generate new refresh token (token rotation)
+    // Rotate refresh token
     const newRefreshToken = randomBytes(32).toString('hex');
     const newRefreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const meta = this.buildSessionMeta(req);
 
-    // Update refresh token in database
+    await this.prisma.userSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: this.hashToken(newRefreshToken),
+        refreshTokenExpiresAt: newRefreshTokenExpiresAt,
+        lastActiveAt: now,
+        userAgent: meta.userAgent ?? session.userAgent,
+        ipAddress: meta.ipAddress ?? session.ipAddress,
+      },
+    });
+
+    // Keep legacy fields for backward compatibility
     await this.prisma.user.update({
-      where: { id: user.id },
+      where: { id: session.user.id },
       data: {
         refreshToken: newRefreshToken,
         refreshTokenExpiresAt: newRefreshTokenExpiresAt,
       },
     });
 
+    // Generate new access token
+    const payload = {
+      sub: session.user.id,
+      email: session.user.email,
+      registrationType: session.user.registrationType,
+      sessionId: session.id,
+    };
+    const access_token = this.jwtService.sign(payload);
+
     return {
       access_token,
       refresh_token: newRefreshToken,
+      session_id: session.id,
     };
   }
 
-  async signInWithGoogle(idToken: string) {
+  async signInWithGoogle(idToken: string, req?: any, loginDto?: any) {
       try {
         // Validate idToken input
         if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -166,21 +272,8 @@ export class AuthService {
             throw new BadRequestException('Please verify your email before signing in.');
           }
   
-          // Generate tokens
-         const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
-   const access_token = this.jwtService.sign(payload);
-  
-          // Store refresh token
-          const refreshTokenHash = randomBytes(32).toString('hex');
-          const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-  
-          await this.prisma.user.update({
-            where: { id: existingUser.id },
-            data: {
-              refreshToken: refreshTokenHash,
-              refreshTokenExpiresAt,
-            },
-          });
+          const meta = this.buildSessionMeta(req, loginDto);
+          const tokens = await this.issueTokensForUser(existingUser, meta);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -190,8 +283,7 @@ export class AuthService {
           });
 
           return {
-            access_token: access_token,
-            refresh_token: refreshTokenHash,
+            ...tokens,
             ...existingUser
           };
         } else {
@@ -215,21 +307,8 @@ export class AuthService {
             data: userData,
           });
   
-          // Generate tokens
-          const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
-    const access_token = this.jwtService.sign(payload);
-  
-          // Store refresh token
-          const refreshTokenHash = randomBytes(32).toString('hex');
-          const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-  
-          await this.prisma.user.update({
-            where: { id: newUser.id },
-            data: {
-              refreshToken: refreshTokenHash,
-              refreshTokenExpiresAt,
-            },
-          });
+          const meta = this.buildSessionMeta(req, loginDto);
+          const tokens = await this.issueTokensForUser(newUser, meta);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -239,8 +318,7 @@ export class AuthService {
           });
 
           return {
-            access_token: access_token,
-            refresh_token: refreshTokenHash,
+            ...tokens,
             ...newUser
           };
         }
@@ -254,7 +332,7 @@ export class AuthService {
       }
     }
 
-    async signInWithApple(idToken: string) {
+    async signInWithApple(idToken: string, req?: any, loginDto?: any) {
       try {
         // Validate idToken input
         if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -292,21 +370,8 @@ export class AuthService {
             throw new BadRequestException('Please verify your email before signing in.');
           }
   
-          // Generate tokens
-         const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
-   const access_token = this.jwtService.sign(payload);
-  
-          // Store refresh token
-          const refreshTokenHash = randomBytes(32).toString('hex');
-          const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-  
-          await this.prisma.user.update({
-            where: { id: existingUser.id },
-            data: {
-              refreshToken: refreshTokenHash,
-              refreshTokenExpiresAt,
-            },
-          });
+          const meta = this.buildSessionMeta(req, loginDto);
+          const tokens = await this.issueTokensForUser(existingUser, meta);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -316,8 +381,7 @@ export class AuthService {
           });
 
           return {
-            access_token: access_token,
-            refresh_token: refreshTokenHash,
+            ...tokens,
             ...existingUser
           };
         } else {
@@ -341,21 +405,8 @@ export class AuthService {
             data: userData,
           });
 
-          // Generate tokens
-          const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
-    const access_token = this.jwtService.sign(payload);
-
-          // Store refresh token
-          const refreshTokenHash = randomBytes(32).toString('hex');
-          const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-          await this.prisma.user.update({
-            where: { id: newUser.id },
-            data: {
-              refreshToken: refreshTokenHash,
-              refreshTokenExpiresAt,
-            },
-          });
+          const meta = this.buildSessionMeta(req, loginDto);
+          const tokens = await this.issueTokensForUser(newUser, meta);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -365,8 +416,7 @@ export class AuthService {
           });
 
           return {
-            access_token: access_token,
-            refresh_token: refreshTokenHash,
+            ...tokens,
             ...newUser
           };
         }
@@ -379,7 +429,7 @@ export class AuthService {
         };
       }
     }
-  async twitterLogin(accessToken: string) {
+  async twitterLogin(accessToken: string, req?: any, loginDto?: any) {
     try {
       if (!accessToken) {
         throw new BadRequestException('Missing Twitter access token');
@@ -432,24 +482,8 @@ export class AuthService {
         existingUser = newUser;
       }
 
-      // Generate tokens
-      const payload = {
-        sub: existingUser.id,
-        email: existingUser.email,
-        registrationType: existingUser.registrationType,
-      };
-      const access_token = this.jwtService.sign(payload);
-
-      const refreshTokenHash = randomBytes(32).toString('hex');
-      const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-      await this.prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          refreshToken: refreshTokenHash,
-          refreshTokenExpiresAt,
-        },
-      });
+      const meta = this.buildSessionMeta(req, loginDto);
+      const tokens = await this.issueTokensForUser(existingUser, meta);
 
       // Save login history
       await this.prisma.loginHistory.create({
@@ -459,13 +493,64 @@ export class AuthService {
       });
 
       return {
-        access_token,
-        refresh_token: refreshTokenHash,
+        ...tokens,
         ...existingUser,
       };
     } catch (error) {
       console.error('Twitter login error:', error.response?.data || error.message);
       throw new BadRequestException('Twitter login failed');
     }
+  }
+
+  async listSessions(userId: string, currentSessionId?: string) {
+    const sessions = await this.prisma.userSession.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        refreshTokenExpiresAt: { gt: new Date() },
+      },
+      orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return {
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        deviceName: s.deviceName,
+        deviceType: s.deviceType,
+        deviceId: s.deviceId,
+        userAgent: s.userAgent,
+        ipAddress: s.ipAddress,
+        lastActiveAt: s.lastActiveAt,
+        createdAt: s.createdAt,
+        isCurrent: currentSessionId ? s.id === currentSessionId : false,
+      })),
+    };
+  }
+
+  async logoutCurrentSession(userId: string, sessionId?: string) {
+    if (!sessionId) {
+      throw new BadRequestException('Session id not found in token');
+    }
+    await this.prisma.userSession.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { message: 'Logged out from current session' };
+  }
+
+  async logoutSession(userId: string, sessionId: string) {
+    await this.prisma.userSession.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { message: 'Session logged out successfully' };
+  }
+
+  async logoutAllSessions(userId: string) {
+    await this.prisma.userSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { message: 'All sessions logged out successfully' };
   }
 }

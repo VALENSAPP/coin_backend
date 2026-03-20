@@ -28,8 +28,13 @@ async validate(payload: any) {
     throw new UnauthorizedException('Invalid credentials');
   }
 
-  console.log('Authenticated user:', { userId: payload.sub, email: payload.email });
+  console.log('Authenticated user:', { userId: payload.sub, email: payload.email, sessionId: payload.sessionId });
 
-  return { userId: payload.sub, email: payload.email, registrationType: payload.registrationType };
+  return {
+    userId: payload.sub,
+    email: payload.email,
+    registrationType: payload.registrationType,
+    sessionId: payload.sessionId,
+  };
 }
 }

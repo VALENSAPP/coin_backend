@@ -2,7 +2,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { Gender } from './user.controller';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import { Express } from 'express';
 import * as AWS from 'aws-sdk';
 import { v4 as uuidv4, validate as uuidValidate } from 'uuid';
@@ -73,6 +73,50 @@ export class UserService {
     private readonly kycService: KycService,
     private readonly notificationService: NotificationService,
   ) { }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private async createSession(userId: string, refreshToken: string, refreshTokenExpiresAt: Date) {
+    return this.prisma.userSession.create({
+      data: {
+        userId,
+        refreshTokenHash: this.hashToken(refreshToken),
+        refreshTokenExpiresAt,
+        lastActiveAt: new Date(),
+      },
+    });
+  }
+
+  private async issueTokensForUser(user: any) {
+    const refreshToken = randomBytes(32).toString('hex');
+    const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
+
+    const session = await this.createSession(user.id, refreshToken, refreshTokenExpiresAt);
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      registrationType: user.registrationType,
+      sessionId: session.id,
+    };
+    const access_token = this.jwtService.sign(payload);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        refreshToken,
+        refreshTokenExpiresAt,
+      },
+    });
+
+    return {
+      access_token,
+      refresh_token: refreshToken,
+      session_id: session.id,
+    };
+  }
 
   private async generateUniqueReferCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -1173,24 +1217,9 @@ export class UserService {
       data: { isDeleted: 0 },
     });
 
-    // Generate tokens
-    const payload = { sub: updatedUser.id, email: updatedUser.email, registrationType: updatedUser.registrationType };
-    const access_token = this.jwtService.sign(payload);
-
-    const refreshTokenHash = randomBytes(32).toString('hex');
-    const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-    await this.prisma.user.update({
-      where: { id: updatedUser.id },
-      data: {
-        refreshToken: refreshTokenHash,
-        refreshTokenExpiresAt,
-      },
-    });
-
+    const tokens = await this.issueTokensForUser(updatedUser);
     return {
-      access_token: access_token,
-      refresh_token: refreshTokenHash,
+      ...tokens,
       ...updatedUser
     };
   }
@@ -1233,25 +1262,9 @@ export class UserService {
           throw new BadRequestException('Please verify your email before signing in.');
         }
 
-        // Generate tokens
-        const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
-        const access_token = this.jwtService.sign(payload);
-
-        // Store refresh token
-        const refreshTokenHash = randomBytes(32).toString('hex');
-        const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-        await this.prisma.user.update({
-          where: { id: existingUser.id },
-          data: {
-            refreshToken: refreshTokenHash,
-            refreshTokenExpiresAt,
-          },
-        });
-
+        const tokens = await this.issueTokensForUser(existingUser);
         return {
-          access_token: access_token,
-          refresh_token: refreshTokenHash,
+          ...tokens,
           ...existingUser,
         };
       } else {
@@ -1286,25 +1299,9 @@ export class UserService {
           data: userData,
         });
 
-        // Generate tokens
-        const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
-        const access_token = this.jwtService.sign(payload);
-
-        // Store refresh token
-        const refreshTokenHash = randomBytes(32).toString('hex');
-        const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-        await this.prisma.user.update({
-          where: { id: newUser.id },
-          data: {
-            refreshToken: refreshTokenHash,
-            refreshTokenExpiresAt,
-          },
-        });
-
+        const tokens = await this.issueTokensForUser(newUser);
         return {
-          access_token: access_token,
-          refresh_token: refreshTokenHash,
+          ...tokens,
           ...newUser,
         };
       }
@@ -1356,25 +1353,9 @@ export class UserService {
           throw new BadRequestException('Please verify your email before signing in.');
         }
 
-        // Generate tokens
-        const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
-        const access_token = this.jwtService.sign(payload);
-
-        // Store refresh token
-        const refreshTokenHash = randomBytes(32).toString('hex');
-        const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-        await this.prisma.user.update({
-          where: { id: existingUser.id },
-          data: {
-            refreshToken: refreshTokenHash,
-            refreshTokenExpiresAt,
-          },
-        });
-
+        const tokens = await this.issueTokensForUser(existingUser);
         return {
-          access_token: access_token,
-          refresh_token: refreshTokenHash,
+          ...tokens,
           ...existingUser,
         };
       } else {
@@ -1409,27 +1390,10 @@ export class UserService {
           data: userData,
         });
 
-        // Generate tokens
-        const payload = { sub: newUser.id, email: newUser.email, registrationType: newUser.registrationType };
-        const access_token = this.jwtService.sign(payload);
-
-        // Store refresh token
-        const refreshTokenHash = randomBytes(32).toString('hex');
-        const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-        await this.prisma.user.update({
-          where: { id: newUser.id },
-          data: {
-            refreshToken: refreshTokenHash,
-            refreshTokenExpiresAt,
-          },
-        });
-
+        const tokens = await this.issueTokensForUser(newUser);
         return {
-          access_token: access_token,
-          refresh_token: refreshTokenHash,
+          ...tokens,
           ...newUser,
-
         };
       }
     } catch (error) {
@@ -1507,29 +1471,9 @@ export class UserService {
         existingUser = newUser;
       }
 
-      // Generate tokens
-      const payload = {
-        sub: existingUser.id,
-        email: existingUser.email,
-        registrationType: existingUser.registrationType,
-      };
-      const access_token = this.jwtService.sign(payload);
-
-      const refreshTokenHash = randomBytes(32).toString('hex');
-      const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
-
-      await this.prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          refreshToken: refreshTokenHash,
-          refreshTokenExpiresAt,
-        },
-      });
-
-
+      const tokens = await this.issueTokensForUser(existingUser);
       return {
-        access_token,
-        refresh_token: refreshTokenHash,
+        ...tokens,
         ...existingUser,
       };
     } catch (error) {
