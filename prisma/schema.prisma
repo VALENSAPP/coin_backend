@@ -76,6 +76,7 @@ model User {
   sharedPosts          PostShare[]            @relation("SharedBy")
   savedPosts           SavePost[]
   stories              Story[]
+  storyHighlights      StoryHighlight[]
   StoryComment         StoryComment[]
   storyLike            StoryLike[]
   sentConversations    Conversation[]         @relation("ConversationSender")
@@ -252,8 +253,35 @@ model Story {
   user      User      @relation(fields: [userId], references: [id])
   comment   StoryComment[]
   storyLike      StoryLike[]
+  highlightItems StoryHighlightItem[]
 
   @@index([userId])
+}
+
+model StoryHighlight {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  coverImage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     StoryHighlightItem[]
+
+  @@index([userId])
+}
+
+model StoryHighlightItem {
+  id          String   @id @default(uuid())
+  highlightId String
+  storyId     String
+  position    Int?
+  createdAt   DateTime @default(now())
+  highlight   StoryHighlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  story       Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([highlightId, storyId])
+  @@index([storyId])
 }
 
 model Payment {

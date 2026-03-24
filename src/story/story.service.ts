@@ -153,6 +153,152 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
     }
   }
 
+  async createHighlight(userId: string, title?: string, coverImageFile?: Express.Multer.File, storyIds?: string[]) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!title || title.trim() === '') throw new BadRequestException('Title required');
+
+    const cleanTitle = title.trim();
+    const cleanCover = coverImageFile ? await uploadImageToS3(coverImageFile, 'story-highlights') : null;
+    const uniqueStoryIds = Array.from(new Set((storyIds || []).filter(Boolean)));
+
+    if (uniqueStoryIds.length > 0) {
+      await this.ensureStoriesOwnedByUser(userId, uniqueStoryIds);
+    }
+
+    const highlight = await this.prisma.storyHighlight.create({
+      data: {
+        userId,
+        title: cleanTitle,
+        coverImage: cleanCover,
+        items: uniqueStoryIds.length > 0 ? {
+          createMany: {
+            data: uniqueStoryIds.map((id, index) => ({
+              storyId: id,
+              position: index,
+            })),
+          },
+        } : undefined,
+      },
+      include: {
+        items: true,
+      },
+    });
+
+    return highlight;
+  }
+
+  async updateHighlight(userId: string, highlightId?: string, title?: string, coverImageFile?: Express.Multer.File) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!highlightId) throw new BadRequestException('Highlight ID required');
+
+    const highlight = await this.prisma.storyHighlight.findFirst({
+      where: { id: highlightId, userId },
+    });
+    if (!highlight) throw new NotFoundException('Highlight not found');
+
+    const data: { title?: string; coverImage?: string | null } = {};
+    if (title !== undefined) {
+      if (title.trim() === '') throw new BadRequestException('Title cannot be empty');
+      data.title = title.trim();
+    }
+    if (coverImageFile) {
+      data.coverImage = await uploadImageToS3(coverImageFile, 'story-highlights');
+    }
+
+    return this.prisma.storyHighlight.update({
+      where: { id: highlightId },
+      data,
+    });
+  }
+
+  async addStoryToHighlight(userId: string, highlightId?: string, storyId?: string, position?: number) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!highlightId) throw new BadRequestException('Highlight ID required');
+    if (!storyId) throw new BadRequestException('Story ID required');
+
+    const highlight = await this.prisma.storyHighlight.findFirst({
+      where: { id: highlightId, userId },
+    });
+    if (!highlight) throw new NotFoundException('Highlight not found');
+
+    await this.ensureStoriesOwnedByUser(userId, [storyId]);
+
+    const existing = await this.prisma.storyHighlightItem.findFirst({
+      where: { highlightId, storyId },
+    });
+    if (existing) {
+      throw new BadRequestException('Story already in highlight');
+    }
+
+    const item = await this.prisma.storyHighlightItem.create({
+      data: {
+        highlightId,
+        storyId,
+        position: typeof position === 'number' ? position : null,
+      },
+    });
+
+    return item;
+  }
+
+  async removeStoryFromHighlight(userId: string, highlightId?: string, storyId?: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!highlightId) throw new BadRequestException('Highlight ID required');
+    if (!storyId) throw new BadRequestException('Story ID required');
+
+    const highlight = await this.prisma.storyHighlight.findFirst({
+      where: { id: highlightId, userId },
+    });
+    if (!highlight) throw new NotFoundException('Highlight not found');
+
+    await this.prisma.storyHighlightItem.deleteMany({
+      where: { highlightId, storyId },
+    });
+
+    return { message: 'Story removed from highlight' };
+  }
+
+  async listHighlights(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    return this.prisma.storyHighlight.findMany({
+      where: { userId },
+      include: { _count: { select: { items: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getHighlight(highlightId?: string) {
+    if (!highlightId) throw new BadRequestException('Highlight ID required');
+    const highlight = await this.prisma.storyHighlight.findUnique({
+      where: { id: highlightId },
+      include: {
+        items: {
+          include: { story: true },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        },
+        user: true,
+      },
+    });
+    if (!highlight) throw new NotFoundException('Highlight not found');
+    return highlight;
+  }
+
+  private async ensureStoriesOwnedByUser(userId: string, storyIds: string[]) {
+    const stories = await this.prisma.story.findMany({
+      where: { id: { in: storyIds }, userId },
+      select: { id: true, createdAt: true, deletedAt: true },
+    });
+
+    if (stories.length !== storyIds.length) {
+      throw new BadRequestException('One or more stories not found');
+    }
+
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const manuallyDeleted = stories.find(s => s.deletedAt && s.createdAt >= cutoff);
+    if (manuallyDeleted) {
+      throw new BadRequestException('Cannot add deleted story to highlight');
+    }
+  }
 }
 
 

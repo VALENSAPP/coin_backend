@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
 import { StoryService } from './story.service';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -105,6 +105,152 @@ export class StoryController {
       ) {
         const userId = (req.user as any).userId;
         return this.storyService.storyLikeByUser(storyId, userId);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Post('highlight/create')
+      @UseInterceptors(FileInterceptor('coverImage'))
+      @ApiConsumes('multipart/form-data')
+      @ApiOperation({ summary: 'Create a story highlight' })
+      @ApiBody({
+        schema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Highlight title' },
+            coverImage: { type: 'string', format: 'binary', description: 'Optional cover image file' },
+            storyIds: { type: 'array', items: { type: 'string' }, description: 'Optional list of story IDs to add' },
+          },
+          required: ['title'],
+        },
+      })
+      async createHighlight(
+        @Req() req: Request,
+        @Body('title') title: string,
+        @UploadedFile() coverImage?: Express.Multer.File,
+        @Body('storyIds') storyIds?: string[] | string,
+      ) {
+        const userId = (req.user as any).userId;
+        const normalizedStoryIds = this.normalizeStoryIds(storyIds);
+        return this.storyService.createHighlight(userId, title, coverImage, normalizedStoryIds);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Post('highlight/update')
+      @UseInterceptors(FileInterceptor('coverImage'))
+      @ApiConsumes('multipart/form-data')
+      @ApiOperation({ summary: 'Update highlight title or cover' })
+      @ApiBody({
+        schema: {
+          type: 'object',
+          properties: {
+            highlightId: { type: 'string', description: 'Highlight ID' },
+            title: { type: 'string', description: 'Updated title (optional)' },
+            coverImage: { type: 'string', format: 'binary', description: 'Updated cover image file (optional)' },
+          },
+          required: ['highlightId'],
+        },
+      })
+      async updateHighlight(
+        @Req() req: Request,
+        @Body('highlightId') highlightId: string,
+        @Body('title') title?: string,
+        @UploadedFile() coverImage?: Express.Multer.File,
+      ) {
+        const userId = (req.user as any).userId;
+        return this.storyService.updateHighlight(userId, highlightId, title, coverImage);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Post('highlight/add-story')
+      @ApiOperation({ summary: 'Add a story to highlight' })
+      @ApiBody({
+        schema: {
+          type: 'object',
+          properties: {
+            highlightId: { type: 'string', description: 'Highlight ID' },
+            storyId: { type: 'string', description: 'Story ID to add' },
+            position: { type: 'number', description: 'Optional order position' },
+          },
+          required: ['highlightId', 'storyId'],
+        },
+      })
+      async addStoryToHighlight(
+        @Req() req: Request,
+        @Body('highlightId') highlightId: string,
+        @Body('storyId') storyId: string,
+        @Body('position') position?: number,
+      ) {
+        const userId = (req.user as any).userId;
+        return this.storyService.addStoryToHighlight(userId, highlightId, storyId, position);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Post('highlight/remove-story')
+      @ApiOperation({ summary: 'Remove a story from highlight' })
+      @ApiBody({
+        schema: {
+          type: 'object',
+          properties: {
+            highlightId: { type: 'string', description: 'Highlight ID' },
+            storyId: { type: 'string', description: 'Story ID to remove' },
+          },
+          required: ['highlightId', 'storyId'],
+        },
+      })
+      async removeStoryFromHighlight(
+        @Req() req: Request,
+        @Body('highlightId') highlightId: string,
+        @Body('storyId') storyId: string,
+      ) {
+        const userId = (req.user as any).userId;
+        return this.storyService.removeStoryFromHighlight(userId, highlightId, storyId);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Get('highlight/list')
+      @ApiOperation({ summary: 'List highlights for authenticated user' })
+      async listHighlights(@Req() req: Request) {
+        const userId = (req.user as any).userId;
+        return this.storyService.listHighlights(userId);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Get('highlight/by-user')
+      @ApiQuery({ name: 'userId', type: 'string', required: true })
+      @ApiOperation({ summary: 'List highlights by userId' })
+      async listHighlightsByUser(@Query('userId') userId: string) {
+        return this.storyService.listHighlights(userId);
+      }
+
+      @UseGuards(AuthGuard('jwt'))
+      @ApiBearerAuth()
+      @Get('highlight/get')
+      @ApiQuery({ name: 'highlightId', type: 'string', required: true })
+      @ApiOperation({ summary: 'Get a highlight with stories' })
+      async getHighlight(@Query('highlightId') highlightId: string) {
+        return this.storyService.getHighlight(highlightId);
+      }
+
+      private normalizeStoryIds(storyIds?: string[] | string): string[] | undefined {
+        if (!storyIds) return undefined;
+        if (Array.isArray(storyIds)) return storyIds;
+        const raw = storyIds.trim();
+        if (raw === '') return [];
+        if (raw.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [raw];
+          } catch {
+            return [raw];
+          }
+        }
+        return raw.split(',').map(s => s.trim()).filter(Boolean);
       }
 }
 
