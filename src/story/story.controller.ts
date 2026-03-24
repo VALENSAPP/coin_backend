@@ -42,9 +42,10 @@ export class StoryController {
   @ApiBearerAuth()
   @Get('by-user')
   @ApiQuery({ name: 'userId', type: 'string', required: true })
+  @ApiQuery({ name: 'time', type: 'string', required: false, description: "Use 'all' to fetch all stories; otherwise last 24 hours" })
   @ApiOperation({ summary: 'View stories uploaded by a user' })
-  async viewUserStory(@Query('userId') userId: string) {
-    return this.storyService.viewUserStory(userId);
+  async viewUserStory(@Query('userId') userId: string, @Query('time') time?: string) {
+    return this.storyService.viewUserStory(userId, time);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -60,10 +61,11 @@ export class StoryController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('get')
+  @ApiQuery({ name: 'time', type: 'string', required: false, description: "Use 'all' to fetch all stories; otherwise last 24 hours" })
   @ApiOperation({ summary: 'Get following story' })
-  async followingStory(@Req() req: Request) {
+  async followingStory(@Req() req: Request, @Query('time') time?: string) {
     const userId = (req.user as any)?.userId;
-    return this.storyService.followingStory(userId);
+    return this.storyService.followingStory(userId, time);
   }
 
     @UseGuards(AuthGuard('jwt'))

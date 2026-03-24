@@ -21,10 +21,16 @@ export class StoryService {
     });
   }
 
-  async viewUserStory(targetUserId: string) {
+  async viewUserStory(targetUserId: string, time?: string) {
     if (!targetUserId) throw new BadRequestException('User ID required');
+    const isAll = (time || '').toLowerCase() === 'all';
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const stories = await this.prisma.story.findMany({
-      where: { userId: targetUserId, deletedAt: null },
+      where: {
+        userId: targetUserId,
+        deletedAt: null,
+        ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
+      },
       orderBy: { createdAt: 'desc' },
     });
     return stories;
@@ -42,8 +48,10 @@ export class StoryService {
     return { message: 'Story deleted' };
   }
 
-  async followingStory(userId: string) {
+  async followingStory(userId: string, time?: string) {
   if (!userId) throw new BadRequestException('User ID required');
+  const isAll = (time || '').toLowerCase() === 'all';
+  const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   // Find who this user is following
   const followings = await this.prisma.followerAndFollowing.findMany({
@@ -62,6 +70,7 @@ export class StoryService {
     where: {
       userId: { in: followingUserIds },
       deletedAt: null,
+      ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
     },
     include: {
       user: true, // optional: to return story owner details
