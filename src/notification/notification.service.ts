@@ -104,7 +104,10 @@ export class NotificationService {
           deletedAt: null,
         },
       },
-      include: {
+      select: {
+        id: true,
+        createdAt: true,
+        isReadByOwner: true,
         user: {
           select: {
             id: true,
@@ -132,16 +135,16 @@ export class NotificationService {
       userId,
       title: 'Post Liked',
       body: `${like.user?.displayName || like.user?.userName || 'Someone'} liked your post.`,
-      data: {
-        type: 'like',
-        likerId: like.user?.id,
-        postId: like.post?.id,
-      },
-      isRead: false,
-      createdAt: like.createdAt,
-      updatedAt: like.createdAt,
-      post: like.post,
-      liker: like.user,
+        data: {
+          type: 'like',
+          likerId: like.user?.id,
+          postId: like.post?.id,
+        },
+        isRead: !!(like as any).isReadByOwner,
+        createdAt: like.createdAt,
+        updatedAt: like.createdAt,
+        post: like.post,
+        liker: like.user,
     }));
   }
 
@@ -160,6 +163,7 @@ export class NotificationService {
         postId: true,
         amount: true,
         createdAt: true,
+        isReadByOwner: true,
       },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(1, limit), 200),
@@ -200,7 +204,7 @@ export class NotificationService {
           postId: donation.postId,
           donationId: donation.id,
         },
-        isRead: false,
+        isRead: !!(donation as any).isReadByOwner,
         createdAt: donation.createdAt,
         updatedAt: donation.createdAt,
         post,
@@ -224,6 +228,7 @@ export class NotificationService {
         amount: true,
         currency: true,
         createdAt: true,
+        isReadByOwner: true,
       },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(1, limit), 200),
@@ -251,7 +256,7 @@ export class NotificationService {
           receiverId: payment.receiverId,
           paymentId: payment.id,
         },
-        isRead: false,
+        isRead: !!(payment as any).isReadByOwner,
         createdAt: payment.createdAt,
         updatedAt: payment.createdAt,
       };
@@ -264,20 +269,81 @@ export class NotificationService {
     });
   }
 
-  async markNotificationAsRead(notificationIds: string[]): Promise<void> {
+  async markNotificationAsRead(userId: string, notificationIds: string[]): Promise<{ total: number }> {
     if (!notificationIds || notificationIds.length === 0) {
-      return;
+      return { total: 0 };
     }
-    
-    await this.prisma.notification.updateMany({
-      where: { id: { in: notificationIds } },
-      data: { isRead: true },
-    });
+
+    const [notificationIdsFound, likeIds, donationIds, paymentIds] = await Promise.all([
+      this.prisma.notification.findMany({
+        where: { id: { in: notificationIds }, userId },
+        select: { id: true },
+      }),
+      this.prisma.postLike.findMany({
+        where: { id: { in: notificationIds }, post: { userId, deletedAt: null } },
+        select: { id: true },
+      }),
+      this.prisma.donationData.findMany({
+        where: { id: { in: notificationIds }, vendorId: userId },
+        select: { id: true },
+      }),
+      this.prisma.payment.findMany({
+        where: { id: { in: notificationIds }, receiverId: userId, forPayment: 'following', status: 'succeeded' },
+        select: { id: true },
+      }),
+    ]);
+
+    const notifIds = notificationIdsFound.map((n) => n.id);
+    const likeIdList = likeIds.map((l) => l.id);
+    const donationIdList = donationIds.map((d) => d.id);
+    const paymentIdList = paymentIds.map((p) => p.id);
+
+    const [notifUpdate, likeUpdate, donationUpdate, paymentUpdate] = await Promise.all([
+      notifIds.length
+        ? this.prisma.notification.updateMany({
+            where: { id: { in: notifIds }, userId },
+            data: { isRead: true },
+          })
+        : Promise.resolve({ count: 0 }),
+      likeIdList.length
+        ? this.prisma.postLike.updateMany({
+            where: { id: { in: likeIdList } },
+            data: { isReadByOwner: true },
+          })
+        : Promise.resolve({ count: 0 }),
+      donationIdList.length
+        ? this.prisma.donationData.updateMany({
+            where: { id: { in: donationIdList } },
+            data: { isReadByOwner: true },
+          })
+        : Promise.resolve({ count: 0 }),
+      paymentIdList.length
+        ? this.prisma.payment.updateMany({
+            where: { id: { in: paymentIdList } },
+            data: { isReadByOwner: true },
+          })
+        : Promise.resolve({ count: 0 }),
+    ]);
+
+    return { total: notifUpdate.count + likeUpdate.count + donationUpdate.count + paymentUpdate.count };
   }
 
   async getUnreadNotificationCount(userId: string): Promise<number> {
-    return this.prisma.notification.count({
-      where: { userId, isRead: false },
-    });
+    const [notifCount, likeCount, donationCount, paymentCount] = await Promise.all([
+      this.prisma.notification.count({
+        where: { userId, isRead: false },
+      }),
+      this.prisma.postLike.count({
+        where: { post: { userId, deletedAt: null }, isReadByOwner: false },
+      }),
+      this.prisma.donationData.count({
+        where: { vendorId: userId, status: 'completed', action: 'missionDonation', isReadByOwner: false },
+      }),
+      this.prisma.payment.count({
+        where: { receiverId: userId, forPayment: 'following', status: 'succeeded', isReadByOwner: false },
+      }),
+    ]);
+
+    return notifCount + likeCount + donationCount + paymentCount;
   }
 }

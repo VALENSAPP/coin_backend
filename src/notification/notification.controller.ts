@@ -2,15 +2,11 @@ import { Controller, Get, Put, UseGuards, Req, BadRequestException, Body } from 
 import { NotificationService } from './notification.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiBody } from '@nestjs/swagger';
-import { PrismaService } from '../prisma/prisma.service';
 
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationController {
-  constructor(
-    private readonly notificationService: NotificationService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly notificationService: NotificationService) {}
 
   // protect route with JWT like your post APIs
   @Get()
@@ -53,24 +49,8 @@ export class NotificationController {
       throw new BadRequestException('notificationIds array is required and must not be empty');
     }
 
-    // Verify all notifications belong to the user before marking as read
-    const notifications = await this.prisma.notification.findMany({
-      where: { id: { in: body.notificationIds } },
-      select: { id: true, userId: true },
-    });
-
-    // Check if all requested notifications exist and belong to the user
-    if (notifications.length !== body.notificationIds.length) {
-      throw new BadRequestException('Some notifications not found');
-    }
-
-    const invalidNotifications = notifications.filter((notif: { id: string; userId: string }) => notif.userId !== userId);
-    if (invalidNotifications.length > 0) {
-      throw new BadRequestException('Some notifications not found or access denied');
-    }
-
-    await this.notificationService.markNotificationAsRead(body.notificationIds);
-    return { message: 'Notifications marked as read', count: body.notificationIds.length };
+    const result = await this.notificationService.markNotificationAsRead(userId, body.notificationIds);
+    return { message: 'Notifications marked as read', count: result.total };
   }
 
   @Get('unread-count')

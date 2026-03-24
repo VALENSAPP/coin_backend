@@ -157,6 +157,7 @@ model PostLike {
   id        String   @id @default(uuid())
   postId    String
   userId    String
+  isReadByOwner Boolean @default(false)
   createdAt DateTime @default(now())
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -263,6 +264,7 @@ model Payment {
   currency              String
   status                String
   forPayment            String    @default("subscription") // "subscription" or "following"
+  isReadByOwner         Boolean   @default(false)
   stripeInvoiceId       String?
   stripePaymentIntentId String?
   createdAt             DateTime  @default(now())
@@ -328,6 +330,7 @@ model DonationData {
   amount                Float     // Donation amount in USD
   currency              String    @default("USD")
   status                String    @default("pending") // pending, completed, failed
+  isReadByOwner         Boolean   @default(false)
   stripePaymentIntentId String?
   stripeCheckoutSessionId String?
   purchaseTokenPrice    Float?    @default(0)
