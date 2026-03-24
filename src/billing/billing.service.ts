@@ -1038,29 +1038,17 @@ export class BillingService {
         throw new BadRequestException('USDT contract address not configured for chain');
       }
 
-      const [senderUser, receiverUser] = await Promise.all([
-        this.prisma.user.findUnique({ where: { id: dto.senderId }, select: { walletAddress: true } }),
-        this.prisma.user.findUnique({ where: { id: dto.receiverId }, select: { walletAddress: true } }),
-      ]);
-      if (!senderUser?.walletAddress) {
-        throw new BadRequestException('Sender wallet address not configured');
-      }
-      if (!receiverUser?.walletAddress) {
-        throw new BadRequestException('Receiver wallet address not configured');
-      }
-
       const provider = new ethers.JsonRpcProvider(rpcUrl);
       const receipt = await provider.getTransactionReceipt(txHash);
       if (!receipt) {
         throw new BadRequestException('Transaction not found or not yet mined');
       }
+      
       if (receipt.status !== 1) {
         throw new BadRequestException('Transaction failed on-chain');
       }
 
       const normalizedUsdt = ethers.getAddress(usdtAddress);
-      const normalizedSenderWallet = ethers.getAddress(senderUser.walletAddress);
-      const normalizedReceiverWallet = ethers.getAddress(receiverUser.walletAddress);
       const transferEvent = this.usdtInterface.getEvent('Transfer');
       if (!transferEvent) {
         throw new BadRequestException('USDT Transfer event not found in ABI');
@@ -1085,15 +1073,12 @@ export class BillingService {
         const from = ethers.getAddress(fromRaw);
         const to = ethers.getAddress(toRaw);
         const value = valueRaw;
-
-        if (from !== normalizedSenderWallet) continue;
-        if (to !== normalizedReceiverWallet) continue;
         matchedTransfer = { from, to, value };
         break;
       }
 
       if (!matchedTransfer) {
-        throw new BadRequestException('USDT transfer between sender and receiver wallets not found in transaction logs');
+        throw new BadRequestException('USDT transfer not found in transaction logs');
       }
 
       const amount = ethers.formatUnits(matchedTransfer.value, 6);
