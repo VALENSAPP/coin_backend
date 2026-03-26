@@ -263,6 +263,52 @@ export class NotificationService {
     });
   }
 
+  async sendBattleInvite(invitedUserId: string, battleId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      invitedUserId,
+      'Battle Invitation',
+      'You have been invited to a Battle. Review the forecast and choose your side.',
+      { type: 'battle_invite', battleId },
+    );
+  }
+
+  async sendBattleStarted(userId: string, battleId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      'Battle Started',
+      'Your head-to-head battle is now live.',
+      { type: 'battle_started', battleId },
+    );
+  }
+
+  async sendBattleDeclined(userId: string, battleId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      'Battle Declined',
+      'The invited user declined your battle invite.',
+      { type: 'battle_declined', battleId },
+    );
+  }
+
+  async sendBattleResult(userIds: string[], battleId: string): Promise<void> {
+    if (userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      'Battle Result',
+      'Your battle has ended. Check the results.',
+      { type: 'battle_result', battleId },
+    );
+  }
+
+  async sendBattleVictory(userId: string, battleId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      'Victory',
+      'You won the battle.',
+      { type: 'battle_victory', battleId },
+    );
+  }
+
   async getNotificationById(notificationId: string): Promise<Notification | null> {
     return this.prisma.notification.findUnique({
       where: { id: notificationId },

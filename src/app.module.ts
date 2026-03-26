@@ -13,6 +13,7 @@ import { CompanyProfileModule } from './company-profile/company-profile.module';
 import { SumsubVerificationModule } from './sumsub-verification/sumsub-verification.module';
 import { SumsubUserVerificationModule } from './sumsub-user_verification/sumsub-user_verification.module';
 import { NotificationModule } from './notification/notification.module';
+import { BattleModule } from './battle/battle.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -32,6 +33,7 @@ import { AppService } from './app.service';
     SumsubVerificationModule,
     SumsubUserVerificationModule,
     NotificationModule,
+    BattleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

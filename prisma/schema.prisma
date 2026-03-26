@@ -99,6 +99,18 @@ model User {
   receivedDigitalTransactions digital_transaction[] @relation("Receiver")
   referredUsers UserReferral[] @relation("UserReferrer")
   referredBy    UserReferral[] @relation("UserReferred")
+  battlesCreated Battle[] @relation("BattleCreator")
+  battlesWon     Battle[] @relation("BattleWinner")
+  battleInvitesSent BattleInvite[] @relation("BattleInviter")
+  battleInvitesReceived BattleInvite[] @relation("BattleInvited")
+  battleParticipants BattleParticipant[]
+  battlePredictions  BattlePrediction[]
+  battleComments     BattleComment[]
+  battleCommentLikes BattleCommentLike[]
+  battleVotes        BattleVote[]
+  battleRewards      BattleReward[]
+  battleActivities   BattleActivity[]
+  battleAchievements BattleAchievement[]
 }
 
 model CompanyProfile {
@@ -608,6 +620,194 @@ model UserReferral {
   @@unique([referrerId, referredUserId])
 }
 
+model Battle {
+  id               String        @id @default(uuid())
+  creatorId        String
+  format           BattleFormat
+  status           BattleStatus  @default(DRAFT)
+  question         String
+  options          String[]      @default([])
+  startTime        DateTime?
+  endTime          DateTime
+  resolutionMethod String?
+  isPublic         Boolean       @default(true)
+  stakeAmount      Float?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  liveAt           DateTime?
+  closedAt         DateTime?
+  resolvedAt       DateTime?
+  winningSide      String?
+  correctSide      String?
+  winnerUserId     String?
+
+  creator      User              @relation("BattleCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  winner       User?             @relation("BattleWinner", fields: [winnerUserId], references: [id])
+  invites      BattleInvite[]
+  participants BattleParticipant[]
+  predictions  BattlePrediction[]
+  comments     BattleComment[]
+  votes        BattleVote[]
+  rewards      BattleReward[]
+  activities   BattleActivity[]
+  achievements BattleAchievement[]
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([format])
+}
+
+model BattleInvite {
+  id            String             @id @default(uuid())
+  battleId      String
+  inviterId     String
+  invitedUserId String
+  status        BattleInviteStatus @default(PENDING)
+  createdAt     DateTime           @default(now())
+  respondedAt   DateTime?
+
+  battle   Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  inviter  User   @relation("BattleInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invited  User   @relation("BattleInvited", fields: [invitedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, invitedUserId])
+  @@index([inviterId])
+  @@index([invitedUserId])
+}
+
+model BattleParticipant {
+  id          String   @id @default(uuid())
+  battleId    String
+  userId      String
+  side        String?
+  joinedAt    DateTime @default(now())
+  score       Int      @default(0)
+  likesCount  Int      @default(0)
+  votePoints  Int      @default(0)
+  isWinner    Boolean  @default(false)
+
+  battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([battleId])
+  @@index([userId])
+}
+
+model BattlePrediction {
+  id            String   @id @default(uuid())
+  battleId      String
+  userId        String
+  side          String
+  justification String
+  sourceUrl     String?
+  createdAt     DateTime @default(now())
+
+  battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([battleId])
+  @@index([userId])
+}
+
+model BattleComment {
+  id        String   @id @default(uuid())
+  battleId  String
+  userId    String
+  comment   String
+  images    String[] @default([])
+  parentId  String?
+  createdAt DateTime @default(now())
+
+  battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent BattleComment? @relation("BattleCommentThread", fields: [parentId], references: [id])
+  replies BattleComment[] @relation("BattleCommentThread")
+  likes  BattleCommentLike[]
+
+  @@index([battleId])
+  @@index([userId])
+}
+
+model BattleCommentLike {
+  id        String   @id @default(uuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment BattleComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+}
+
+model BattleVote {
+  id        String   @id @default(uuid())
+  battleId  String
+  userId    String
+  side      String
+  createdAt DateTime @default(now())
+
+  battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([battleId])
+  @@index([userId])
+}
+
+model BattleReward {
+  id           String   @id @default(uuid())
+  battleId     String
+  userId       String
+  rank         Int?
+  rewardPoints Float?
+  rewardType   String?  @default("CRED")
+  createdAt    DateTime @default(now())
+
+  battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([battleId])
+  @@index([userId])
+}
+
+model BattleAchievement {
+  id          String   @id @default(uuid())
+  userId      String
+  battleId    String?
+  code        String
+  title       String
+  description String?
+  unlockedAt  DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  battle Battle? @relation(fields: [battleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([battleId])
+  @@index([code])
+}
+
+model BattleActivity {
+  id        String   @id @default(uuid())
+  userId    String
+  battleId  String?
+  type      String
+  data      Json?
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  battle Battle? @relation(fields: [battleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([battleId])
+  @@index([type])
+}
+
 enum RegistrationType {
   NORMAL
   GOOGLE
@@ -671,4 +871,25 @@ enum postHide {
 enum isdelete {
   yes
   no
+}
+
+enum BattleFormat {
+  POLL
+  HEAD_TO_HEAD
+}
+
+enum BattleStatus {
+  DRAFT
+  PENDING_INVITE
+  LIVE
+  CLOSED
+  RESOLVED
+  CANCELED
+}
+
+enum BattleInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
 }
