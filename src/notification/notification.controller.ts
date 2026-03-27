@@ -1,7 +1,7 @@
-import { Controller, Get, Put, UseGuards, Req, BadRequestException, Body } from '@nestjs/common';
+import { Controller, Get, Put, UseGuards, Req, BadRequestException, Body, Query } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiBody, ApiQuery } from '@nestjs/swagger';
 
 @ApiTags('notifications')
 @Controller('notifications')
@@ -23,6 +23,21 @@ export class NotificationController {
       (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
     return { notifications: combined };
+  }
+
+  @Get('battle')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiQuery({ name: 'limit', required: false, type: 'number' })
+  async getBattleNotifications(@Req() req: any, @Query('limit') limit?: string) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    if (!userId) throw new BadRequestException('User not authenticated');
+    const parsedLimit = limit ? Number(limit) : undefined;
+    const notifications = await this.notificationService.getBattleNotifications(
+      userId,
+      Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    );
+    return { notifications };
   }
 
   @Put('mark-as-read')

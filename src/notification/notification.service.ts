@@ -95,6 +95,52 @@ export class NotificationService {
     });
   }
 
+  async getBattleNotifications(userId: string, limit: number = 100): Promise<any[]> {
+    const notifications = await this.getNotifications(userId, limit);
+    const battleNotifs = notifications.filter((n) => {
+      const type = (n as any)?.data?.type;
+      return typeof type === 'string' && type.startsWith('battle_');
+    });
+
+    const battleIds = Array.from(
+      new Set(
+        battleNotifs
+          .map((n) => (n as any)?.data?.battleId as string | undefined)
+          .filter(Boolean),
+      ),
+    ) as string[];
+
+    const battles = battleIds.length
+      ? await this.prisma.battle.findMany({
+          where: { id: { in: battleIds } },
+          select: {
+            id: true,
+            question: true,
+            format: true,
+            status: true,
+            options: true,
+            startTime: true,
+            endTime: true,
+            isPublic: true,
+            creatorId: true,
+            liveAt: true,
+            closedAt: true,
+            resolvedAt: true,
+            winningSide: true,
+            correctSide: true,
+            winnerUserId: true,
+          },
+        })
+      : [];
+
+    const battleMap = new Map(battles.map((b) => [b.id, b]));
+
+    return battleNotifs.map((n) => ({
+      ...n,
+      battle: battleMap.get((n as any)?.data?.battleId),
+    }));
+  }
+
   // Likes on the current user's posts (computed, not stored in Notification table)
   async getLikePostNotifications(userId: string, limit: number = 100): Promise<any[]> {
     const likes = await this.prisma.postLike.findMany({
@@ -306,6 +352,26 @@ export class NotificationService {
       'Victory',
       'You won the battle.',
       { type: 'battle_victory', battleId },
+    );
+  }
+
+  async sendBattleCreatedToFollowers(userIds: string[], battleId: string, question: string): Promise<void> {
+    if (userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      'New Battle',
+      `New battle: ${question}`,
+      { type: 'battle_new', battleId },
+    );
+  }
+
+  async sendBattleClosedToFollowers(userIds: string[], battleId: string): Promise<void> {
+    if (userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      'Battle Closed',
+      'A battle you follow has ended. Check the results.',
+      { type: 'battle_closed', battleId },
     );
   }
 

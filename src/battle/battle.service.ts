@@ -74,6 +74,15 @@ export class BattleService {
       return created;
     });
 
+    if (!isHeadToHead) {
+      const followerIds = await this.getFollowerIds(userId);
+      await this.notificationService.sendBattleCreatedToFollowers(
+        followerIds,
+        battle.id,
+        battle.question,
+      );
+    }
+
     if (isHeadToHead && dto.invitedUserId) {
       await this.notificationService.sendBattleInvite(dto.invitedUserId, battle.id);
     }
@@ -407,6 +416,29 @@ export class BattleService {
     return this.resolveDuelBattle(battle.id);
   }
 
+  async closeExpiredBattles() {
+    const now = new Date();
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        status: 'LIVE',
+        endTime: { lte: now },
+      },
+      select: { id: true },
+    });
+
+    if (battles.length === 0) return { closed: 0 };
+
+    const result = await this.prisma.battle.updateMany({
+      where: {
+        id: { in: battles.map((b) => b.id) },
+        status: 'LIVE',
+      },
+      data: { status: 'CLOSED', closedAt: now },
+    });
+
+    return { closed: result.count };
+  }
+
   private async resolvePollBattle(battleId: string, correctSide: string | null) {
     if (!correctSide) throw new BadRequestException('Correct side required to resolve poll');
 
@@ -506,6 +538,9 @@ export class BattleService {
       await this.notificationService.sendBattleVictory(winner.userId, battleId);
     }
 
+    const followerIds = await this.getFollowerIds(battle.creatorId);
+    await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
+
     return { battleId, winnerUserId: winner?.userId || null };
   }
 
@@ -597,6 +632,17 @@ export class BattleService {
       await this.notificationService.sendBattleVictory(winner.userId, battleId);
     }
 
+    const followerIds = await this.getFollowerIds(battle.creatorId);
+    await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
+
     return { battleId, winnerUserId: winner?.userId || null };
+  }
+
+  private async getFollowerIds(userId: string): Promise<string[]> {
+    const followers = await this.prisma.followerAndFollowing.findMany({
+      where: { followingId: userId, status: 'ACCEPTED' },
+      select: { followerId: true },
+    });
+    return followers.map((f) => f.followerId);
   }
 }
