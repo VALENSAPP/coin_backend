@@ -15,6 +15,7 @@ export class BattleCleanupService {
   // Runs every minute to resolve closed head-to-head battles
   @Cron('*/1 * * * *')
   async resolveClosedHeadToHeadBattles() {
+    console.log('Resolving closed head-to-head battles...');
     await this.battleService.resolveClosedHeadToHeadBattles();
   }
 }
