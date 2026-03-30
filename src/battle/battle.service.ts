@@ -439,6 +439,25 @@ export class BattleService {
     return { closed: result.count };
   }
 
+  async resolveClosedHeadToHeadBattles() {
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        status: 'CLOSED',
+        format: 'HEAD_TO_HEAD',
+        resolvedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (battles.length === 0) return { resolved: 0 };
+
+    for (const battle of battles) {
+      await this.resolveDuelBattle(battle.id);
+    }
+
+    return { resolved: battles.length };
+  }
+
   private async resolvePollBattle(battleId: string, correctSide: string | null) {
     if (!correctSide) throw new BadRequestException('Correct side required to resolve poll');
 

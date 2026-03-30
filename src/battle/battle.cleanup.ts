@@ -11,4 +11,10 @@ export class BattleCleanupService {
   async closeExpiredBattles() {
     await this.battleService.closeExpiredBattles();
   }
+
+  // Runs every minute to resolve closed head-to-head battles
+  @Cron('*/1 * * * *')
+  async resolveClosedHeadToHeadBattles() {
+    await this.battleService.resolveClosedHeadToHeadBattles();
+  }
 }
