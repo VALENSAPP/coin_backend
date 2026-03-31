@@ -18,4 +18,11 @@ export class BattleCleanupService {
     console.log('Resolving closed head-to-head battles...');
     await this.battleService.resolveClosedHeadToHeadBattles();
   }
+
+  // Runs every minute to resolve closed poll battles (majority wins, likes tie-break)
+  @Cron('*/1 * * * *')
+  async resolveClosedPollBattles() {
+    console.log('Resolving closed poll battles...');
+    await this.battleService.resolveClosedPollBattles();
+  }
 }

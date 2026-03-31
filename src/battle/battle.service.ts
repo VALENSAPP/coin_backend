@@ -354,6 +354,58 @@ export class BattleService {
     });
   }
 
+  async getBattlePointsByUser(userId: string, status?: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const parsedStatus = this.parseBattleStatus(status);
+
+    const participants = await this.prisma.battleParticipant.findMany({
+      where: {
+        userId,
+        ...(parsedStatus ? { battle: { status: parsedStatus } } : {}),
+      },
+      include: {
+        battle: true,
+      },
+      orderBy: { joinedAt: 'desc' },
+    });
+
+    const items = participants.map((p) => ({
+      battleId: p.battleId,
+      format: p.battle.format,
+      status: p.battle.status,
+      question: p.battle.question,
+      side: p.side,
+      score: p.score,
+      likesCount: p.likesCount,
+      votePoints: p.votePoints,
+      isWinner: p.isWinner,
+      resolvedAt: p.battle.resolvedAt,
+      winningSide: p.battle.winningSide,
+      correctSide: p.battle.correctSide,
+    }));
+
+    const totals = items.reduce(
+      (acc, item) => {
+        acc.totalScore += item.score || 0;
+        acc.totalLikesCount += item.likesCount || 0;
+        acc.totalVotePoints += item.votePoints || 0;
+        acc.totalBattles += 1;
+        acc.totalWins += item.isWinner ? 1 : 0;
+        return acc;
+      },
+      {
+        totalScore: 0,
+        totalLikesCount: 0,
+        totalVotePoints: 0,
+        totalBattles: 0,
+        totalWins: 0,
+      },
+    );
+
+    return { userId, totals, items };
+  }
+
   private parseBattleStatus(status?: string): BattleStatus | undefined {
     if (!status) return undefined;
     const normalized = status.trim().toUpperCase();
@@ -456,6 +508,67 @@ export class BattleService {
     }
 
     return { resolved: battles.length };
+  }
+
+  async resolveClosedPollBattles() {
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        status: 'CLOSED',
+        format: 'POLL',
+        resolvedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (battles.length === 0) return { resolved: 0 };
+
+    let resolvedCount = 0;
+    for (const battle of battles) {
+      const predictions = await this.prisma.battlePrediction.findMany({
+        where: { battleId: battle.id },
+      });
+
+      if (predictions.length === 0) continue;
+
+      const sideCounts = new Map<string, number>();
+      predictions.forEach((p) => sideCounts.set(p.side, (sideCounts.get(p.side) || 0) + 1));
+
+      const maxCount = Math.max(...Array.from(sideCounts.values()));
+      let candidateSides = Array.from(sideCounts.entries())
+        .filter(([_, count]) => count === maxCount)
+        .map(([side]) => side);
+
+      let correctSide = candidateSides[0];
+
+      if (candidateSides.length > 1) {
+        const commentLikes = await this.prisma.battleCommentLike.findMany({
+          where: { comment: { battleId: battle.id } },
+          include: { comment: true },
+        });
+
+        const likesByUser = new Map<string, number>();
+        commentLikes.forEach((like) => {
+          const ownerId = like.comment.userId;
+          likesByUser.set(ownerId, (likesByUser.get(ownerId) || 0) + 1);
+        });
+
+        const likesBySide = new Map<string, number>();
+        predictions.forEach((p) => {
+          const likes = likesByUser.get(p.userId) || 0;
+          likesBySide.set(p.side, (likesBySide.get(p.side) || 0) + likes);
+        });
+
+        const maxLikes = Math.max(...candidateSides.map((side) => likesBySide.get(side) || 0));
+        candidateSides = candidateSides.filter((side) => (likesBySide.get(side) || 0) === maxLikes);
+
+        correctSide = candidateSides.sort()[0];
+      }
+
+      await this.resolvePollBattle(battle.id, correctSide);
+      resolvedCount += 1;
+    }
+
+    return { resolved: resolvedCount };
   }
 
   private async resolvePollBattle(battleId: string, correctSide: string | null) {

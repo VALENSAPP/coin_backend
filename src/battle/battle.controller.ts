@@ -145,6 +145,16 @@ export class BattleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('points')
+  @ApiQuery({ name: 'userId', required: true, type: 'string' })
+  @ApiQuery({ name: 'status', required: false, type: 'string' })
+  @ApiOperation({ summary: 'Get battle points for a user' })
+  async getBattlePointsByUser(@Query('userId') userId: string, @Query('status') status?: string) {
+    return this.battleService.getBattlePointsByUser(userId, status);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Get('get')
   @ApiQuery({ name: 'battleId', required: true, type: 'string' })
   @ApiOperation({ summary: 'Get battle details' })
