@@ -259,6 +259,7 @@ model Story {
   userId    String
   media     String[]
   caption   String?
+  storyMeta Json?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

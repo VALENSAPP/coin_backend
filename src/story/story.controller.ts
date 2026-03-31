@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
 import { StoryService } from './story.service';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { AnyFilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -13,18 +13,21 @@ export class StoryController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('upload')
-  @UseInterceptors(FilesInterceptor('media'))
+  @UseInterceptors(AnyFilesInterceptor())
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
         caption: { type: 'string' },
+        storyMeta: { type: 'string', description: 'JSON string for story metadata (clips, audio, trims, etc.)' },
         media: {
           type: 'array',
           items: { type: 'string', format: 'binary' },
           description: 'Array of image/video files',
         },
+        audio_0: { type: 'string', format: 'binary', description: 'Optional audio file for clip 0' },
+        audio_1: { type: 'string', format: 'binary', description: 'Optional audio file for clip 1' },
       },
     },
   })
@@ -32,10 +35,11 @@ export class StoryController {
   async uploadStory(
     @Req() req: Request,
     @Body('caption') caption: string,
+    @Body('storyMeta') storyMeta?: string,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     const userId = (req.user as any)?.userId;
-    return this.storyService.uploadStory(userId, files, caption);
+    return this.storyService.uploadStory(userId, files, caption, storyMeta);
   }
 
   @UseGuards(AuthGuard('jwt'))

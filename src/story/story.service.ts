@@ -1,22 +1,64 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { uploadImageToS3 } from '../common/s3.util';
+import { uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
 
 @Injectable()
 export class StoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async uploadStory(userId: string, files?: Express.Multer.File[], caption?: string) {
+  async uploadStory(userId: string, files?: Express.Multer.File[], caption?: string, storyMeta?: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!files || files.length === 0) throw new BadRequestException('At least one media file is required');
 
-    const urls = await Promise.all(files.map(file => uploadImageToS3(file, 'story-media')));
+    const mediaFiles = files.filter(f => f.fieldname === 'media');
+    const audioFiles = files.filter(f => f.fieldname.startsWith('audio_'));
+    if (mediaFiles.length === 0) throw new BadRequestException('At least one media file is required');
+
+    let parsedStoryMeta: any = null;
+    if (storyMeta && storyMeta.trim() !== '') {
+      try {
+        parsedStoryMeta = JSON.parse(storyMeta);
+      } catch {
+        throw new BadRequestException('storyMeta must be valid JSON');
+      }
+    }
+
+    if (audioFiles.length > 0 && !parsedStoryMeta) {
+      throw new BadRequestException('storyMeta is required when audio files are uploaded');
+    }
+
+    const urls = await Promise.all(mediaFiles.map(file => uploadImageToS3(file, 'story-media')));
+
+    if (parsedStoryMeta && Array.isArray(parsedStoryMeta.clips)) {
+      const audioByIndex = new Map<number, Express.Multer.File>();
+      for (const file of audioFiles) {
+        const rawIndex = file.fieldname.replace('audio_', '');
+        const index = Number(rawIndex);
+        if (!Number.isInteger(index) || index < 0) {
+          throw new BadRequestException(`Invalid audio field name: ${file.fieldname}`);
+        }
+        audioByIndex.set(index, file);
+      }
+
+      for (let i = 0; i < parsedStoryMeta.clips.length; i += 1) {
+        const clip = parsedStoryMeta.clips[i];
+        const clipIndex = Number.isInteger(clip?.index) ? clip.index : i;
+        const audioFile = audioByIndex.get(clipIndex);
+        if (audioFile) {
+          const audioUrl = await uploadFileToS3(audioFile, 'story-audio');
+          clip.audioUrl = audioUrl;
+        }
+      }
+    } else if (audioFiles.length > 0) {
+      throw new BadRequestException('storyMeta.clips must be an array when audio files are uploaded');
+    }
 
     return this.prisma.story.create({
       data: {
         userId,
         media: urls,
         caption: caption && caption.trim() !== '' ? caption : null,
+        storyMeta: parsedStoryMeta,
       },
     });
   }
