@@ -433,7 +433,19 @@ export class BattleService {
       },
     });
     if (!battle) throw new NotFoundException('Battle not found');
-        return battle;
+
+    const predictionCountsRaw = await this.prisma.battlePrediction.groupBy({
+      by: ['side'],
+      where: { battleId },
+      _count: { _all: true },
+    });
+
+    const predictionCounts = predictionCountsRaw.reduce<Record<string, number>>((acc, row) => {
+      acc[row.side] = row._count._all;
+      return acc;
+    }, {});
+
+    return { ...battle, predictionCounts };
    
   }
 
