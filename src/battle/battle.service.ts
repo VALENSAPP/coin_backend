@@ -433,27 +433,8 @@ export class BattleService {
       },
     });
     if (!battle) throw new NotFoundException('Battle not found');
-    if (battle.format !== 'POLL') return battle;
-
-    const voteCounts = new Map<string, number>();
-    if (battle.predictions.length > 0) {
-      battle.predictions.forEach((prediction) => {
-        voteCounts.set(prediction.side, (voteCounts.get(prediction.side) || 0) + 1);
-      });
-    } else {
-      battle.participants.forEach((participant) => {
-        if (!participant.side) return;
-        voteCounts.set(participant.side, (voteCounts.get(participant.side) || 0) + 1);
-      });
-    }
-
-    const options = battle.options && battle.options.length > 0 ? battle.options : [];
-    const optionVoteCounts = options.map((option) => ({
-      option,
-      count: voteCounts.get(option) || 0,
-    }));
-
-    return { ...battle, optionVoteCounts };
+        return battle;
+   
   }
 
   async closeBattle(dto: BattleCloseDto) {
