@@ -450,12 +450,12 @@ export class BattleService {
       commentById.set(comment.id, { ...comment, replies: [] });
     });
 
-    const commentThreads: any[] = [];
+    const nestedComments: any[] = [];
     commentById.forEach((comment) => {
       if (comment.parentId && commentById.has(comment.parentId)) {
         commentById.get(comment.parentId).replies.push(comment);
       } else {
-        commentThreads.push(comment);
+        nestedComments.push(comment);
       }
     });
 
@@ -468,9 +468,9 @@ export class BattleService {
       });
     };
 
-    sortByCreatedAtDesc(commentThreads);
+    sortByCreatedAtDesc(nestedComments);
 
-    return { ...battle, predictionCounts, commentThreads };
+    return { ...battle, predictionCounts, comments: nestedComments };
    
   }
 
