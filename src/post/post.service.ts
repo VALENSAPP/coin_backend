@@ -977,7 +977,7 @@ async getAllReel(viewerUserId?: string) {
   }
 
   // Add a comment to a post
-  async commentOnPost(postId: string, userId: string, comment: string) {
+  async commentOnPost(postId: string, userId: string, comment: string, parentCommentId?: string) {
     if (!postId) throw new BadRequestException('Post ID required');
     if (!userId) throw new BadRequestException('User ID required');
     if (!comment || comment.trim() === '') throw new BadRequestException('Comment required');
@@ -986,8 +986,15 @@ async getAllReel(viewerUserId?: string) {
       where: { id: postId, deletedAt: null },
     });
     if (!post) throw new BadRequestException('Post not found');
+
+    if (parentCommentId) {
+      const parent = await this.prisma.postComment.findUnique({ where: { id: parentCommentId } });
+      if (!parent || parent.postId !== postId) throw new BadRequestException('Parent comment not found');
+      if (parent.parentId) throw new BadRequestException('Replies cannot have subcomments');
+    }
+
     return this.prisma.postComment.create({
-      data: { postId, userId, comment },
+      data: { postId, userId, comment, parentId: parentCommentId || null },
     });
   }
 
@@ -1024,15 +1031,43 @@ async getAllReel(viewerUserId?: string) {
       },
     });
     const commentCount = await this.prisma.postComment.count({ where: { postId } });
-    return {
-      comments: comments.map((c: any) => ({
+
+    const commentById = new Map<string, any>();
+    comments.forEach((c: any) => {
+      commentById.set(c.id, {
         id: c.id,
         comment: c.comment,
         createdAt: c.createdAt,
         userId: c.userId,
         displayName: c.user.displayName,
         image: c.user.image,
-      })),
+        replies: [],
+        parentId: c.parentId || null,
+      });
+    });
+
+    const nestedComments: any[] = [];
+    commentById.forEach((c) => {
+      if (c.parentId && commentById.has(c.parentId)) {
+        commentById.get(c.parentId).replies.push(c);
+      } else {
+        nestedComments.push(c);
+      }
+    });
+
+    const sortByCreatedAtDesc = (items: any[]) => {
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      items.forEach((item) => {
+        if (Array.isArray(item.replies) && item.replies.length) {
+          sortByCreatedAtDesc(item.replies);
+        }
+      });
+    };
+
+    sortByCreatedAtDesc(nestedComments);
+
+    return {
+      comments: nestedComments,
       commentCount,
     };
   }

@@ -210,7 +210,7 @@ export class PostController {
   @ApiBody({ type: CommentOnPostDto })
   async commentOnPost(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: CommentOnPostDto) {
     const userId = (req.user as any).userId;
-    return this.postService.commentOnPost(dto.postId, userId, dto.comment);
+    return this.postService.commentOnPost(dto.postId, userId, dto.comment, dto.parentCommentId);
   }
 
   @UseGuards(AuthGuard('jwt'))

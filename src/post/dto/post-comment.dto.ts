@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CommentOnPostDto {
   @ApiProperty({ example: 'post-uuid', description: 'ID of the post to comment on' })
@@ -11,6 +11,11 @@ export class CommentOnPostDto {
   @IsString()
   @IsNotEmpty()
   comment: string;
+
+  @ApiPropertyOptional({ example: 'comment-uuid', description: 'Parent comment ID for a reply' })
+  @IsOptional()
+  @IsString()
+  parentCommentId?: string;
 }
 
 export class GetCommentListOnPostDto {
