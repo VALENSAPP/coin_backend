@@ -6,10 +6,17 @@ import { BattleCommentDto, BattleCommentLikeDto, BattleCloseDto, BattleInviteDto
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
 
-const PREDICTION_POINTS = 100;
-const LIKE_POINTS = 2;
-const MINORITY_BONUS = 50;
-const DUEL_BONUS = 50;
+const BASE_JOIN_POINTS = 5;
+const ARGUMENT_POINTS = 10;
+const ENGAGEMENT_POINT_PER_LIKE = 2;
+const MAX_ENGAGEMENT_POINTS = 20;
+const TIMING_BONUS_MAX = 10;
+const UNDERDOG_BONUS = 8;
+const OPINION_WIN_BONUS = 15;
+const OPINION_LOSE_PENALTY = 5;
+const PREDICTION_WIN_BONUS = 25;
+const PREDICTION_LOSE_PENALTY = 10;
+const ARGUMENT_MIN_LENGTH = 10;
 
 @Injectable()
 export class BattleService {
@@ -359,16 +366,19 @@ export class BattleService {
 
     const parsedStatus = this.parseBattleStatus(status);
 
-    const participants = await this.prisma.battleParticipant.findMany({
-      where: {
-        userId,
-        ...(parsedStatus ? { battle: { status: parsedStatus } } : {}),
-      },
-      include: {
-        battle: true,
-      },
-      orderBy: { joinedAt: 'desc' },
-    });
+    const [participants, stats] = await Promise.all([
+      this.prisma.battleParticipant.findMany({
+        where: {
+          userId,
+          ...(parsedStatus ? { battle: { status: parsedStatus } } : {}),
+        },
+        include: {
+          battle: true,
+        },
+        orderBy: { joinedAt: 'desc' },
+      }),
+      this.prisma.userBattleStats.findUnique({ where: { userId } }),
+    ]);
 
     const items = participants.map((p) => ({
       battleId: p.battleId,
@@ -377,6 +387,14 @@ export class BattleService {
       question: p.battle.question,
       side: p.side,
       score: p.score,
+      baseJoinPoints: p.baseJoinPoints,
+      argumentPoints: p.argumentPoints,
+      engagementPoints: p.engagementPoints,
+      timingBonus: p.timingBonus,
+      underdogBonus: p.underdogBonus,
+      winnerBonus: p.winnerBonus,
+      loserPenalty: p.loserPenalty,
+      argumentSubmitted: p.argumentSubmitted,
       likesCount: p.likesCount,
       votePoints: p.votePoints,
       isWinner: p.isWinner,
@@ -385,25 +403,42 @@ export class BattleService {
       correctSide: p.battle.correctSide,
     }));
 
-    const totals = items.reduce(
-      (acc, item) => {
-        acc.totalScore += item.score || 0;
-        acc.totalLikesCount += item.likesCount || 0;
-        acc.totalVotePoints += item.votePoints || 0;
-        acc.totalBattles += 1;
-        acc.totalWins += item.isWinner ? 1 : 0;
-        return acc;
-      },
-      {
-        totalScore: 0,
-        totalLikesCount: 0,
-        totalVotePoints: 0,
-        totalBattles: 0,
-        totalWins: 0,
-      },
+    const totals = stats || {
+      totalBattlePoints: 0,
+      totalBattlesJoined: 0,
+      totalBattlesWon: 0,
+      totalPredictionsCorrect: 0,
+      totalPredictionsWrong: 0,
+      totalArgumentsSubmitted: 0,
+      totalArgumentLikes: 0,
+    };
+
+    const predictionTotal = totals.totalPredictionsCorrect + totals.totalPredictionsWrong;
+    const predictionAccuracyPercent = predictionTotal > 0
+      ? Math.round((totals.totalPredictionsCorrect / predictionTotal) * 100)
+      : 0;
+
+    const argumentQualityScore = totals.totalArgumentsSubmitted > 0
+      ? Math.min(100, Math.round((totals.totalArgumentLikes / totals.totalArgumentsSubmitted) * 10))
+      : 0;
+
+    const credibilityScore = Math.round(
+      totals.totalBattlePoints * 0.4
+      + predictionAccuracyPercent * 0.4
+      + argumentQualityScore * 0.2,
     );
 
-    return { userId, totals, items };
+    const level = this.getBattleLevel(totals.totalBattlePoints);
+
+    return {
+      userId,
+      totals,
+      predictionAccuracyPercent,
+      argumentQualityScore,
+      credibilityScore,
+      level,
+      items,
+    };
   }
 
   private parseBattleStatus(status?: string): BattleStatus | undefined {
@@ -612,13 +647,18 @@ export class BattleService {
   private async resolvePollBattle(battleId: string, correctSide: string | null) {
     if (!correctSide) throw new BadRequestException('Correct side required to resolve poll');
 
-    const [battle, predictions, commentLikes] = await Promise.all([
+    const [battle, predictions, commentLikes, comments, participants] = await Promise.all([
       this.prisma.battle.findUnique({ where: { id: battleId } }),
       this.prisma.battlePrediction.findMany({ where: { battleId } }),
       this.prisma.battleCommentLike.findMany({
         where: { comment: { battleId } },
         include: { comment: true },
       }),
+      this.prisma.battleComment.findMany({
+        where: { battleId },
+        select: { userId: true, comment: true },
+      }),
+      this.prisma.battleParticipant.findMany({ where: { battleId } }),
     ]);
 
     if (!battle) throw new NotFoundException('Battle not found');
@@ -626,12 +666,7 @@ export class BattleService {
     const sideCounts = new Map<string, number>();
     predictions.forEach((p) => sideCounts.set(p.side, (sideCounts.get(p.side) || 0) + 1));
 
-    const counts = Array.from(sideCounts.values());
-    const minCount = counts.length ? Math.min(...counts) : 0;
-    const maxCount = counts.length ? Math.max(...counts) : 0;
-    const minoritySides = Array.from(sideCounts.entries())
-      .filter(([_, count]) => count === minCount && minCount < maxCount)
-      .map(([side]) => side);
+    const underdogSide = this.getUnderdogSide(sideCounts);
 
     const likesByUser = new Map<string, number>();
     commentLikes.forEach((like) => {
@@ -639,37 +674,128 @@ export class BattleService {
       likesByUser.set(ownerId, (likesByUser.get(ownerId) || 0) + 1);
     });
 
+    const argumentByUser = new Map<string, boolean>();
+    comments.forEach((comment) => {
+      const isValid = comment.comment.trim().length >= ARGUMENT_MIN_LENGTH;
+      if (!isValid) return;
+      argumentByUser.set(comment.userId, true);
+    });
+
+    const joinedAtByUser = new Map<string, Date>();
+    const existingParticipantByUser = new Map<string, typeof participants[number]>();
+    participants.forEach((p) => {
+      joinedAtByUser.set(p.userId, p.joinedAt);
+      existingParticipantByUser.set(p.userId, p);
+    });
+
+    const startTime = battle.startTime || battle.liveAt || battle.createdAt;
+    const endTime = battle.endTime || battle.closedAt || new Date();
+
     const scored = predictions.map((prediction) => {
       const likes = likesByUser.get(prediction.userId) || 0;
-      const isCorrect = prediction.side === correctSide;
-      const minorityBonus = isCorrect && minoritySides.includes(prediction.side) ? MINORITY_BONUS : 0;
-      const score = (isCorrect ? PREDICTION_POINTS : 0) + likes * LIKE_POINTS + minorityBonus;
+      const argumentSubmitted = argumentByUser.get(prediction.userId) || false;
+      const argumentPoints = argumentSubmitted ? ARGUMENT_POINTS : 0;
+      const engagementPoints = Math.min(MAX_ENGAGEMENT_POINTS, likes * ENGAGEMENT_POINT_PER_LIKE);
+      const joinedAt = joinedAtByUser.get(prediction.userId) || prediction.createdAt;
+      const timingBonus = this.getTimingBonus(joinedAt, startTime, endTime);
+      const userWon = prediction.side === correctSide;
+      const underdogBonus = underdogSide && prediction.side === underdogSide && userWon ? UNDERDOG_BONUS : 0;
+      const winnerBonus = userWon ? PREDICTION_WIN_BONUS : 0;
+      const loserPenalty = userWon ? 0 : PREDICTION_LOSE_PENALTY;
+      const score = Math.max(
+        0,
+        BASE_JOIN_POINTS
+        + argumentPoints
+        + engagementPoints
+        + timingBonus
+        + underdogBonus
+        + winnerBonus
+        - loserPenalty,
+      );
 
       return {
         userId: prediction.userId,
+        side: prediction.side,
         score,
         likes,
+        argumentSubmitted,
+        argumentPoints,
+        engagementPoints,
+        timingBonus,
+        underdogBonus,
+        winnerBonus,
+        loserPenalty,
+        userWon,
       };
     });
 
-    scored.sort((a, b) => b.score - a.score || b.likes - a.likes);
+    scored.sort((a, b) => b.score - a.score || b.engagementPoints - a.engagementPoints || b.likes - a.likes);
 
     const winner = scored[0];
 
     await this.prisma.$transaction(async (tx) => {
       for (const entry of scored) {
+        const existing = existingParticipantByUser.get(entry.userId);
         await tx.battleParticipant.upsert({
           where: { battleId_userId: { battleId, userId: entry.userId } },
-          update: { score: entry.score, likesCount: entry.likes, votePoints: 0, isWinner: winner?.userId === entry.userId },
+          update: {
+            score: entry.score,
+            baseJoinPoints: BASE_JOIN_POINTS,
+            argumentPoints: entry.argumentPoints,
+            engagementPoints: entry.engagementPoints,
+            timingBonus: entry.timingBonus,
+            underdogBonus: entry.underdogBonus,
+            winnerBonus: entry.winnerBonus,
+            loserPenalty: entry.loserPenalty,
+            argumentSubmitted: entry.argumentSubmitted,
+            likesCount: entry.likes,
+            votePoints: 0,
+            isWinner: winner?.userId === entry.userId,
+            awardedAt: new Date(),
+          },
           create: {
             battleId,
             userId: entry.userId,
             score: entry.score,
+            baseJoinPoints: BASE_JOIN_POINTS,
+            argumentPoints: entry.argumentPoints,
+            engagementPoints: entry.engagementPoints,
+            timingBonus: entry.timingBonus,
+            underdogBonus: entry.underdogBonus,
+            winnerBonus: entry.winnerBonus,
+            loserPenalty: entry.loserPenalty,
+            argumentSubmitted: entry.argumentSubmitted,
             likesCount: entry.likes,
             votePoints: 0,
             isWinner: winner?.userId === entry.userId,
+            awardedAt: new Date(),
           },
         });
+
+        if (!existing?.awardedAt) {
+          await tx.userBattleStats.upsert({
+            where: { userId: entry.userId },
+            update: {
+              totalBattlePoints: { increment: entry.score },
+              totalBattlesJoined: { increment: 1 },
+              totalBattlesWon: { increment: entry.userWon ? 1 : 0 },
+              totalPredictionsCorrect: { increment: entry.userWon ? 1 : 0 },
+              totalPredictionsWrong: { increment: entry.userWon ? 0 : 1 },
+              totalArgumentsSubmitted: { increment: entry.argumentSubmitted ? 1 : 0 },
+              totalArgumentLikes: { increment: entry.likes },
+            },
+            create: {
+              userId: entry.userId,
+              totalBattlePoints: entry.score,
+              totalBattlesJoined: 1,
+              totalBattlesWon: entry.userWon ? 1 : 0,
+              totalPredictionsCorrect: entry.userWon ? 1 : 0,
+              totalPredictionsWrong: entry.userWon ? 0 : 1,
+              totalArgumentsSubmitted: entry.argumentSubmitted ? 1 : 0,
+              totalArgumentLikes: entry.likes,
+            },
+          });
+        }
       }
 
       await tx.battleReward.deleteMany({ where: { battleId } });
@@ -715,7 +841,7 @@ export class BattleService {
   }
 
   private async resolveDuelBattle(battleId: string) {
-    const [battle, participants, votes, commentLikes] = await Promise.all([
+    const [battle, participants, votes, commentLikes, comments] = await Promise.all([
       this.prisma.battle.findUnique({ where: { id: battleId } }),
       this.prisma.battleParticipant.findMany({ where: { battleId } }),
       this.prisma.battleVote.findMany({ where: { battleId } }),
@@ -723,11 +849,18 @@ export class BattleService {
         where: { comment: { battleId } },
         include: { comment: true },
       }),
+      this.prisma.battleComment.findMany({
+        where: { battleId },
+        select: { userId: true, comment: true },
+      }),
     ]);
 
     if (!battle) throw new NotFoundException('Battle not found');
 
     const voteCounts = new Map<string, number>();
+    participants.forEach((p) => {
+      if (!voteCounts.has(p.side || '')) voteCounts.set(p.side || '', 0);
+    });
     votes.forEach((v) => voteCounts.set(v.side, (voteCounts.get(v.side) || 0) + 1));
 
     const likesByUser = new Map<string, number>();
@@ -736,36 +869,151 @@ export class BattleService {
       likesByUser.set(ownerId, (likesByUser.get(ownerId) || 0) + 1);
     });
 
-    const scored = participants.map((p) => {
-      const votePoints = voteCounts.get(p.side || '') || 0;
+    const argumentByUser = new Map<string, boolean>();
+    comments.forEach((comment) => {
+      const isValid = comment.comment.trim().length >= ARGUMENT_MIN_LENGTH;
+      if (!isValid) return;
+      argumentByUser.set(comment.userId, true);
+    });
+
+    const underdogSide = this.getUnderdogSide(voteCounts);
+
+    const likesBySide = new Map<string, number>();
+    participants.forEach((p) => {
       const likes = likesByUser.get(p.userId) || 0;
-      const score = votePoints + likes * LIKE_POINTS + DUEL_BONUS;
+      likesBySide.set(p.side || '', (likesBySide.get(p.side || '') || 0) + likes);
+    });
+
+    let winningSide: string | null = null;
+    if (voteCounts.size > 0) {
+      const sides = Array.from(voteCounts.keys()).sort();
+      const maxVotes = Math.max(...Array.from(voteCounts.values()));
+      let candidates = sides.filter((side) => (voteCounts.get(side) || 0) === maxVotes);
+
+      if (candidates.length > 1) {
+        const maxLikes = Math.max(...candidates.map((side) => likesBySide.get(side) || 0));
+        candidates = candidates.filter((side) => (likesBySide.get(side) || 0) === maxLikes);
+      }
+
+      winningSide = candidates.sort()[0] || null;
+    } else if (likesBySide.size > 0) {
+      const sides = Array.from(likesBySide.keys()).sort();
+      const maxLikes = Math.max(...Array.from(likesBySide.values()));
+      const candidates = sides.filter((side) => (likesBySide.get(side) || 0) === maxLikes);
+      winningSide = candidates.sort()[0] || null;
+    } else if (participants.length > 0) {
+      winningSide = participants[0].side || null;
+    }
+
+    const startTime = battle.startTime || battle.liveAt || battle.createdAt;
+    const endTime = battle.endTime || battle.closedAt || new Date();
+
+    const scored = participants.map((p) => {
+      const likes = likesByUser.get(p.userId) || 0;
+      const argumentSubmitted = argumentByUser.get(p.userId) || false;
+      const argumentPoints = argumentSubmitted ? ARGUMENT_POINTS : 0;
+      const engagementPoints = Math.min(MAX_ENGAGEMENT_POINTS, likes * ENGAGEMENT_POINT_PER_LIKE);
+      const timingBonus = this.getTimingBonus(p.joinedAt, startTime, endTime);
+      const userWon = !!winningSide && p.side === winningSide;
+      const underdogBonus = underdogSide && p.side === underdogSide && userWon ? UNDERDOG_BONUS : 0;
+      const winnerBonus = userWon ? OPINION_WIN_BONUS : 0;
+      const loserPenalty = userWon ? 0 : OPINION_LOSE_PENALTY;
+      const votePoints = voteCounts.get(p.side || '') || 0;
+      const score = Math.max(
+        0,
+        BASE_JOIN_POINTS
+        + argumentPoints
+        + engagementPoints
+        + timingBonus
+        + underdogBonus
+        + winnerBonus
+        - loserPenalty,
+      );
 
       return {
         userId: p.userId,
         side: p.side || '',
         score,
-        votePoints,
         likes,
+        votePoints,
+        argumentSubmitted,
+        argumentPoints,
+        engagementPoints,
+        timingBonus,
+        underdogBonus,
+        winnerBonus,
+        loserPenalty,
+        userWon,
       };
     });
 
-    scored.sort((a, b) => b.score - a.score || b.votePoints - a.votePoints || b.likes - a.likes);
+    scored.sort((a, b) => b.score - a.score || b.engagementPoints - a.engagementPoints || b.likes - a.likes);
 
-    const winner = scored[0];
-    const winnerSide = winner?.side || null;
+    const winner = scored.find((entry) => entry.side === winningSide) || scored[0];
+    const winnerSide = winningSide || winner?.side || null;
 
     await this.prisma.$transaction(async (tx) => {
       for (const entry of scored) {
-        await tx.battleParticipant.updateMany({
-          where: { battleId, userId: entry.userId },
-          data: {
+        const existing = participants.find((p) => p.userId === entry.userId);
+        await tx.battleParticipant.upsert({
+          where: { battleId_userId: { battleId, userId: entry.userId } },
+          update: {
             score: entry.score,
+            baseJoinPoints: BASE_JOIN_POINTS,
+            argumentPoints: entry.argumentPoints,
+            engagementPoints: entry.engagementPoints,
+            timingBonus: entry.timingBonus,
+            underdogBonus: entry.underdogBonus,
+            winnerBonus: entry.winnerBonus,
+            loserPenalty: entry.loserPenalty,
+            argumentSubmitted: entry.argumentSubmitted,
             likesCount: entry.likes,
             votePoints: entry.votePoints,
             isWinner: winner?.userId === entry.userId,
+            awardedAt: new Date(),
+          },
+          create: {
+            battleId,
+            userId: entry.userId,
+            side: entry.side,
+            score: entry.score,
+            baseJoinPoints: BASE_JOIN_POINTS,
+            argumentPoints: entry.argumentPoints,
+            engagementPoints: entry.engagementPoints,
+            timingBonus: entry.timingBonus,
+            underdogBonus: entry.underdogBonus,
+            winnerBonus: entry.winnerBonus,
+            loserPenalty: entry.loserPenalty,
+            argumentSubmitted: entry.argumentSubmitted,
+            likesCount: entry.likes,
+            votePoints: entry.votePoints,
+            isWinner: winner?.userId === entry.userId,
+            awardedAt: new Date(),
           },
         });
+
+        if (!existing?.awardedAt) {
+          await tx.userBattleStats.upsert({
+            where: { userId: entry.userId },
+            update: {
+              totalBattlePoints: { increment: entry.score },
+              totalBattlesJoined: { increment: 1 },
+              totalBattlesWon: { increment: entry.userWon ? 1 : 0 },
+              totalArgumentsSubmitted: { increment: entry.argumentSubmitted ? 1 : 0 },
+              totalArgumentLikes: { increment: entry.likes },
+            },
+            create: {
+              userId: entry.userId,
+              totalBattlePoints: entry.score,
+              totalBattlesJoined: 1,
+              totalBattlesWon: entry.userWon ? 1 : 0,
+              totalPredictionsCorrect: 0,
+              totalPredictionsWrong: 0,
+              totalArgumentsSubmitted: entry.argumentSubmitted ? 1 : 0,
+              totalArgumentLikes: entry.likes,
+            },
+          });
+        }
       }
 
       await tx.battleReward.deleteMany({ where: { battleId } });
@@ -806,6 +1054,41 @@ export class BattleService {
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
 
     return { battleId, winnerUserId: winner?.userId || null };
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private getTimingBonus(joinedAt: Date, startTime?: Date | null, endTime?: Date | null): number {
+    if (!startTime || !endTime) return 0;
+    const totalDuration = endTime.getTime() - startTime.getTime();
+    if (totalDuration <= 0) return 0;
+    const elapsed = joinedAt.getTime() - startTime.getTime();
+    const ratio = this.clamp(elapsed / totalDuration, 0, 1);
+    return Math.round(TIMING_BONUS_MAX * (1 - ratio));
+  }
+
+  private getUnderdogSide(counts: Map<string, number>): string | null {
+    if (counts.size === 0) return null;
+    const values = Array.from(counts.values());
+    const minCount = Math.min(...values);
+    const maxCount = Math.max(...values);
+    if (minCount === maxCount) return null;
+    const candidates = Array.from(counts.entries())
+      .filter(([_, count]) => count === minCount)
+      .map(([side]) => side)
+      .sort();
+    return candidates[0] || null;
+  }
+
+  private getBattleLevel(points: number): string {
+    if (points >= 3000) return 'Oracle';
+    if (points >= 1500) return 'Expert';
+    if (points >= 700) return 'Analyst';
+    if (points >= 300) return 'Strategist';
+    if (points >= 100) return 'Challenger';
+    return 'Rookie';
   }
 
   private async getFollowerIds(userId: string): Promise<string[]> {

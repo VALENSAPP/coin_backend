@@ -111,6 +111,7 @@ model User {
   battleRewards      BattleReward[]
   battleActivities   BattleActivity[]
   battleAchievements BattleAchievement[]
+  battleStats        UserBattleStats?
 }
 
 model CompanyProfile {
@@ -687,15 +688,42 @@ model BattleParticipant {
   side        String?
   joinedAt    DateTime @default(now())
   score       Int      @default(0)
+  baseJoinPoints   Int  @default(0)
+  argumentPoints   Int  @default(0)
+  engagementPoints Int  @default(0)
+  timingBonus      Int  @default(0)
+  underdogBonus    Int  @default(0)
+  winnerBonus      Int  @default(0)
+  loserPenalty     Int  @default(0)
+  argumentSubmitted Boolean @default(false)
   likesCount  Int      @default(0)
   votePoints  Int      @default(0)
   isWinner    Boolean  @default(false)
+  awardedAt   DateTime?
 
   battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([battleId, userId])
   @@index([battleId])
+  @@index([userId])
+}
+
+model UserBattleStats {
+  id                     String   @id @default(uuid())
+  userId                 String   @unique
+  totalBattlePoints      Int      @default(0)
+  totalBattlesJoined     Int      @default(0)
+  totalBattlesWon        Int      @default(0)
+  totalPredictionsCorrect Int     @default(0)
+  totalPredictionsWrong  Int      @default(0)
+  totalArgumentsSubmitted Int     @default(0)
+  totalArgumentLikes     Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
