@@ -4,7 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
-import { BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 
 @ApiTags('battle')
@@ -176,5 +176,13 @@ export class BattleController {
   @ApiOperation({ summary: 'Resolve battle (internal/cron)' })
   async resolveBattle(@Body() dto: BattleCloseDto) {
     return this.battleService.resolveBattle(dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('rebuild-stats')
+  @ApiOperation({ summary: 'Rebuild battle stats from participation (internal)' })
+  async rebuildStats(@Body() dto: BattleRebuildStatsDto) {
+    return this.battleService.rebuildBattleStats(dto?.userId);
   }
 }

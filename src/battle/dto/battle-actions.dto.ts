@@ -93,3 +93,10 @@ export class BattleCloseDto {
   @IsString()
   winningSide?: string;
 }
+
+export class BattleRebuildStatsDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  userId?: string;
+}

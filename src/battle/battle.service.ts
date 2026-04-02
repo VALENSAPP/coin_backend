@@ -662,6 +662,9 @@ export class BattleService {
     ]);
 
     if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.resolvedAt) {
+      return { battleId, winnerUserId: battle.winnerUserId || null };
+    }
 
     const sideCounts = new Map<string, number>();
     predictions.forEach((p) => sideCounts.set(p.side, (sideCounts.get(p.side) || 0) + 1));
@@ -732,8 +735,24 @@ export class BattleService {
     scored.sort((a, b) => b.score - a.score || b.engagementPoints - a.engagementPoints || b.likes - a.likes);
 
     const winner = scored[0];
+    let didResolve = false;
 
     await this.prisma.$transaction(async (tx) => {
+      const resolved = await tx.battle.updateMany({
+        where: { id: battleId, resolvedAt: null },
+        data: {
+          status: 'RESOLVED',
+          resolvedAt: new Date(),
+          closedAt: new Date(),
+          correctSide,
+          winningSide: correctSide,
+          winnerUserId: winner?.userId || null,
+        },
+      });
+
+      if (resolved.count === 0) return;
+      didResolve = true;
+
       for (const entry of scored) {
         const existing = existingParticipantByUser.get(entry.userId);
         await tx.battleParticipant.upsert({
@@ -811,19 +830,11 @@ export class BattleService {
           },
         });
       }
-
-      await tx.battle.update({
-        where: { id: battleId },
-        data: {
-          status: 'RESOLVED',
-          resolvedAt: new Date(),
-          closedAt: new Date(),
-          correctSide,
-          winningSide: correctSide,
-          winnerUserId: winner?.userId || null,
-        },
-      });
     });
+
+    if (!didResolve) {
+      return { battleId, winnerUserId: battle.winnerUserId || null };
+    }
 
     const participantIds = scored.map((s) => s.userId);
     if (participantIds.length) {
@@ -856,6 +867,9 @@ export class BattleService {
     ]);
 
     if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.resolvedAt) {
+      return { battleId, winnerUserId: battle.winnerUserId || null };
+    }
 
     const voteCounts = new Map<string, number>();
     participants.forEach((p) => {
@@ -951,8 +965,23 @@ export class BattleService {
 
     const winner = scored.find((entry) => entry.side === winningSide) || scored[0];
     const winnerSide = winningSide || winner?.side || null;
+    let didResolve = false;
 
     await this.prisma.$transaction(async (tx) => {
+      const resolved = await tx.battle.updateMany({
+        where: { id: battleId, resolvedAt: null },
+        data: {
+          status: 'RESOLVED',
+          resolvedAt: new Date(),
+          closedAt: new Date(),
+          winningSide: winnerSide,
+          winnerUserId: winner?.userId || null,
+        },
+      });
+
+      if (resolved.count === 0) return;
+      didResolve = true;
+
       for (const entry of scored) {
         const existing = participants.find((p) => p.userId === entry.userId);
         await tx.battleParticipant.upsert({
@@ -1028,18 +1057,11 @@ export class BattleService {
           },
         });
       }
-
-      await tx.battle.update({
-        where: { id: battleId },
-        data: {
-          status: 'RESOLVED',
-          resolvedAt: new Date(),
-          closedAt: new Date(),
-          winningSide: winnerSide,
-          winnerUserId: winner?.userId || null,
-        },
-      });
     });
+
+    if (!didResolve) {
+      return { battleId, winnerUserId: battle.winnerUserId || null };
+    }
 
     const participantIds = scored.map((s) => s.userId);
     if (participantIds.length) {
@@ -1089,6 +1111,86 @@ export class BattleService {
     if (points >= 300) return 'Strategist';
     if (points >= 100) return 'Challenger';
     return 'Rookie';
+  }
+
+  async rebuildBattleStats(userId?: string) {
+    const participants = await this.prisma.battleParticipant.findMany({
+      where: {
+        awardedAt: { not: null },
+        ...(userId ? { userId } : {}),
+        battle: { status: 'RESOLVED' },
+      },
+      include: {
+        battle: true,
+      },
+    });
+
+    if (participants.length === 0) {
+      return { rebuiltUsers: 0 };
+    }
+
+    const byUser = new Map<string, {
+      totalBattlePoints: number;
+      totalBattlesJoined: number;
+      totalBattlesWon: number;
+      totalPredictionsCorrect: number;
+      totalPredictionsWrong: number;
+      totalArgumentsSubmitted: number;
+      totalArgumentLikes: number;
+    }>();
+
+    participants.forEach((p) => {
+      const stats = byUser.get(p.userId) || {
+        totalBattlePoints: 0,
+        totalBattlesJoined: 0,
+        totalBattlesWon: 0,
+        totalPredictionsCorrect: 0,
+        totalPredictionsWrong: 0,
+        totalArgumentsSubmitted: 0,
+        totalArgumentLikes: 0,
+      };
+
+      stats.totalBattlePoints += p.score || 0;
+      stats.totalBattlesJoined += 1;
+      stats.totalBattlesWon += p.isWinner ? 1 : 0;
+      if (p.battle.format === 'POLL') {
+        if (p.isWinner) stats.totalPredictionsCorrect += 1;
+        else stats.totalPredictionsWrong += 1;
+      }
+      if (p.argumentSubmitted) stats.totalArgumentsSubmitted += 1;
+      stats.totalArgumentLikes += p.likesCount || 0;
+
+      byUser.set(p.userId, stats);
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const [uid, stats] of byUser.entries()) {
+        await tx.userBattleStats.upsert({
+          where: { userId: uid },
+          update: {
+            totalBattlePoints: stats.totalBattlePoints,
+            totalBattlesJoined: stats.totalBattlesJoined,
+            totalBattlesWon: stats.totalBattlesWon,
+            totalPredictionsCorrect: stats.totalPredictionsCorrect,
+            totalPredictionsWrong: stats.totalPredictionsWrong,
+            totalArgumentsSubmitted: stats.totalArgumentsSubmitted,
+            totalArgumentLikes: stats.totalArgumentLikes,
+          },
+          create: {
+            userId: uid,
+            totalBattlePoints: stats.totalBattlePoints,
+            totalBattlesJoined: stats.totalBattlesJoined,
+            totalBattlesWon: stats.totalBattlesWon,
+            totalPredictionsCorrect: stats.totalPredictionsCorrect,
+            totalPredictionsWrong: stats.totalPredictionsWrong,
+            totalArgumentsSubmitted: stats.totalArgumentsSubmitted,
+            totalArgumentLikes: stats.totalArgumentLikes,
+          },
+        });
+      }
+    });
+
+    return { rebuiltUsers: byUser.size };
   }
 
   private async getFollowerIds(userId: string): Promise<string[]> {
