@@ -445,7 +445,32 @@ export class BattleService {
       return acc;
     }, {});
 
-    return { ...battle, predictionCounts };
+    const commentById = new Map<string, any>();
+    battle.comments.forEach((comment) => {
+      commentById.set(comment.id, { ...comment, replies: [] });
+    });
+
+    const commentThreads: any[] = [];
+    commentById.forEach((comment) => {
+      if (comment.parentId && commentById.has(comment.parentId)) {
+        commentById.get(comment.parentId).replies.push(comment);
+      } else {
+        commentThreads.push(comment);
+      }
+    });
+
+    const sortByCreatedAtDesc = (items: any[]) => {
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      items.forEach((item) => {
+        if (Array.isArray(item.replies) && item.replies.length) {
+          sortByCreatedAtDesc(item.replies);
+        }
+      });
+    };
+
+    sortByCreatedAtDesc(commentThreads);
+
+    return { ...battle, predictionCounts, commentThreads };
    
   }
 
