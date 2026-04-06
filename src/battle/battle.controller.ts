@@ -164,6 +164,15 @@ export class BattleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('winner')
+  @ApiQuery({ name: 'battleId', required: true, type: 'string' })
+  @ApiOperation({ summary: 'Get battle winner and points' })
+  async getBattleWinner(@Query('battleId') battleId: string) {
+    return this.battleService.getBattleWinnerPoints(battleId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Post('close')
   @ApiOperation({ summary: 'Close battle (internal/cron)' })
   async closeBattle(@Body() dto: BattleCloseDto) {

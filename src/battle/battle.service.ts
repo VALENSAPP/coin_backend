@@ -441,6 +441,39 @@ export class BattleService {
     };
   }
 
+  async getBattleWinnerPoints(battleId: string) {
+    if (!battleId) throw new BadRequestException('Battle ID required');
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: { id: true, winnerUserId: true, status: true, resolvedAt: true },
+    });
+    if (!battle) throw new NotFoundException('Battle not found');
+
+    if (!battle.winnerUserId) {
+      return {
+        battleId: battle.id,
+        winnerUserId: null,
+        points: null,
+        status: battle.status,
+        resolvedAt: battle.resolvedAt,
+      };
+    }
+
+    const participant = await this.prisma.battleParticipant.findUnique({
+      where: { battleId_userId: { battleId: battle.id, userId: battle.winnerUserId } },
+      select: { score: true },
+    });
+
+    return {
+      battleId: battle.id,
+      winnerUserId: battle.winnerUserId,
+      points: participant?.score ?? null,
+      status: battle.status,
+      resolvedAt: battle.resolvedAt,
+    };
+  }
+
   private parseBattleStatus(status?: string): BattleStatus | undefined {
     if (!status) return undefined;
     const normalized = status.trim().toUpperCase();
