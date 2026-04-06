@@ -151,6 +151,7 @@ model Post {
   hashtag      String[]
   location     String?
   music        String?
+  youtubeMusicMeta Json?
   taggedPeople String[]
   raiseAmount  Float?
   start_time   DateTime?

@@ -10,7 +10,7 @@ import { endWith } from 'rxjs';
 export class PostService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, link?: string, visibleTo?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date) {
+  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, youtubeMusicMeta?: any, link?: string, visibleTo?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
 
@@ -62,6 +62,7 @@ export class PostService {
         caption: caption?.trim() || null,
         location: location?.trim() || null,
         music: music?.trim() || null,
+        youtubeMusicMeta: youtubeMusicMeta ?? null,
         link: link?.trim() || null,
         visibleTo: visibleTo?.trim() || null,
         hashtag: hashtag?.filter(Boolean) || [],
@@ -231,6 +232,7 @@ export class PostService {
     hashtag: post.hashtag,
     location: post.location,
     music: post.music,
+    youtubeMusicMeta: post.youtubeMusicMeta,
     taggedPeople: post.taggedPeople,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
@@ -323,6 +325,7 @@ export class PostService {
     hashtag: post.hashtag,
     location: post.location,
     music: post.music,
+    youtubeMusicMeta: post.youtubeMusicMeta,
     taggedPeople: post.taggedPeople,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
@@ -429,6 +432,7 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
     hashtag: post.hashtag,
     location: post.location,
     music: post.music,
+    youtubeMusicMeta: post.youtubeMusicMeta,
     taggedPeople: post.taggedPeople,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
@@ -563,6 +567,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         hashtag: post.hashtag,
         location: post.location,
         music: post.music,
+        youtubeMusicMeta: post.youtubeMusicMeta,
         taggedPeople: post.taggedPeople,
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
@@ -663,6 +668,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       hashtag: post.hashtag,
       location: post.location,
       music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
       taggedPeople: post.taggedPeople,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
@@ -765,6 +771,7 @@ async getAllReel(viewerUserId?: string) {
     hashtag: post.hashtag,
     location: post.location,
     music: post.music,
+    youtubeMusicMeta: post.youtubeMusicMeta,
     taggedPeople: post.taggedPeople,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
@@ -851,6 +858,10 @@ async getAllReel(viewerUserId?: string) {
     } else if (updateData.music === '') {
       // If empty string is explicitly sent, set to null
       updateFields.music = null;
+    }
+
+    if (updateData.youtubeMusicMeta !== undefined) {
+      updateFields.youtubeMusicMeta = updateData.youtubeMusicMeta === '' ? null : updateData.youtubeMusicMeta;
     }
     
     // Only update taggedPeople if it's provided and not empty array
@@ -1153,6 +1164,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       hashtag: post.hashtag,
       location: post.location,
       music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
       taggedPeople: post.taggedPeople,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
@@ -1306,6 +1318,7 @@ async getSharedPostList(userId: string) {
         hashtag: post.hashtag,
         location: post.location,
         music: post.music,
+        youtubeMusicMeta: post.youtubeMusicMeta,
         taggedPeople: post.taggedPeople,
         createdAt: post.createdAt,
         updatedAt: post.updatedAt,
@@ -1714,6 +1727,7 @@ async getConversationWithUser(userId: string, otherUserId: string) {
             hashtag: p.hashtag,
             location: p.location,
             music: p.music,
+            youtubeMusicMeta: p.youtubeMusicMeta,
             taggedPeople: p.taggedPeople,
             createdAt: p.createdAt,
             updatedAt: p.updatedAt,

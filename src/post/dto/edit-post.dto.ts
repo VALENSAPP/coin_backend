@@ -33,6 +33,21 @@ export class EditPostDto {
   @IsString()
   music?: string;
 
+  @ApiProperty({ description: 'YouTube Music metadata (JSON)', required: false, type: 'object' })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
+  youtubeMusicMeta?: any;
+
   @ApiProperty({ description: 'Tagged people user IDs', required: false, isArray: true, type: String })
   @IsOptional()
   @Transform(({ value }: { value: any }) => {

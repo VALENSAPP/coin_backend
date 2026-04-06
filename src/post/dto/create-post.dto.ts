@@ -43,6 +43,21 @@ export class CreatePostDto {
   @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
   music?: string;
 
+  @ApiProperty({ description: 'YouTube Music metadata (JSON)', required: false, type: 'object' })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  })
+  youtubeMusicMeta?: any;
+
   @ApiProperty({ description: 'Link for the post', required: false })
   @IsOptional()
   @IsString()
