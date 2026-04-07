@@ -805,6 +805,53 @@ async getAllReel(viewerUserId?: string) {
     return true;
   }
 
+  async reportPost(postId: string, userId: string, reason?: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!post) throw new BadRequestException('Post not found');
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.postReport.create({
+          data: {
+            postId,
+            userId,
+            reason: reason && reason.trim() !== '' ? reason.trim() : null,
+          },
+        });
+
+        const reportCount = await tx.postReport.count({ where: { postId } });
+        let deleted = false;
+
+        if (reportCount >= 100) {
+          await tx.post.update({
+            where: { id: postId },
+            data: { deletedAt: new Date(), isDelete: 'yes' },
+          });
+          deleted = true;
+        }
+
+        return {
+          message: deleted ? 'Post deleted due to reports' : 'Post reported',
+          reportCount,
+          deleted,
+        };
+      });
+    } catch (error) {
+      const isUniqueViolation = (error as Prisma.PrismaClientKnownRequestError)?.code === 'P2002';
+      if (isUniqueViolation) {
+        const reportCount = await this.prisma.postReport.count({ where: { postId } });
+        return { message: 'Post already reported', reportCount, deleted: false };
+      }
+      throw error;
+    }
+  }
+
   async editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]) {
     // Check if post exists and belongs to user
     const post = await this.prisma.post.findUnique({ where: { id: postId } });

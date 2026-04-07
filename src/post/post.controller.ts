@@ -7,6 +7,7 @@ import { DeletePostDto } from './dto/delete-post.dto';
 import { EditPostDto } from './dto/edit-post.dto';
 import { SharePostDto, DeleteSharedPostDto } from './dto/share-post.dto';
 import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
+import { PostReportDto } from './dto/post-report.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
@@ -195,6 +196,19 @@ export class PostController {
   ) {
     const userId = (req.user as any).userId;
     return this.postService.postLikeByUser(body.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('report')
+  @ApiOperation({ summary: 'Report a post' })
+  @ApiBody({ type: PostReportDto })
+  async reportPost(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) dto: PostReportDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.reportPost(dto.postId, userId, dto.reason);
   }
 
   @UseGuards(AuthGuard('jwt'))
