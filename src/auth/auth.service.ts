@@ -15,6 +15,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
   ) {}
 
+  private readonly locationNameCache = new Map<string, string>();
+
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
@@ -39,6 +41,58 @@ export class AuthService {
       deviceType: loginDto?.deviceType,
       location: loginDto?.location,
     };
+  }
+
+  private parseLatLng(location?: string): { lat: number; lng: number } | null {
+    if (!location) return null;
+    const parts = location.split(',').map((p) => p.trim());
+    if (parts.length !== 2) return null;
+    const lat = Number(parts[0]);
+    const lng = Number(parts[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng };
+  }
+
+  private async reverseGeocode(lat: number, lng: number): Promise<string | null> {
+    try {
+      const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+        params: {
+          format: 'jsonv2',
+          lat,
+          lon: lng,
+          zoom: 16,
+          addressdetails: 0,
+        },
+        headers: {
+          'User-Agent': process.env.NOMINATIM_USER_AGENT || 'new_valens/1.0',
+        },
+        timeout: 4000,
+      });
+
+      const name = response?.data?.display_name;
+      return typeof name === 'string' && name.trim() ? name.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getLocationName(location?: string): Promise<string | null> {
+    if (!location) return null;
+    const cached = this.locationNameCache.get(location);
+    if (cached) return cached;
+
+    const coords = this.parseLatLng(location);
+    if (!coords) {
+      this.locationNameCache.set(location, location);
+      return location;
+    }
+
+    const name = await this.reverseGeocode(coords.lat, coords.lng);
+    if (name) {
+      this.locationNameCache.set(location, name);
+      return name;
+    }
+    return null;
   }
 
   private async createSession(userId: string, refreshToken: string, refreshTokenExpiresAt: Date, meta?: any) {
@@ -520,19 +574,27 @@ export class AuthService {
       orderBy: [{ lastActiveAt: 'desc' }, { createdAt: 'desc' }],
     });
 
+    const sessionDtos = await Promise.all(
+      sessions.map(async (s) => {
+        const locationName = await this.getLocationName(s.location || undefined);
+        return {
+          id: s.id,
+          deviceName: s.deviceName,
+          deviceType: s.deviceType,
+          deviceId: s.deviceId,
+          userAgent: s.userAgent,
+          ipAddress: s.ipAddress,
+          location: s.location,
+          locationName,
+          lastActiveAt: s.lastActiveAt,
+          createdAt: s.createdAt,
+          isCurrent: currentSessionId ? s.id === currentSessionId : false,
+        };
+      }),
+    );
+
     return {
-      sessions: sessions.map((s) => ({
-        id: s.id,
-        deviceName: s.deviceName,
-        deviceType: s.deviceType,
-        deviceId: s.deviceId,
-        userAgent: s.userAgent,
-        ipAddress: s.ipAddress,
-        location: s.location,
-        lastActiveAt: s.lastActiveAt,
-        createdAt: s.createdAt,
-        isCurrent: currentSessionId ? s.id === currentSessionId : false,
-      })),
+      sessions: sessionDtos,
     };
   }
 
