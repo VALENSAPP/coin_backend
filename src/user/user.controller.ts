@@ -65,6 +65,11 @@ export class RegisterDto {
   @IsString()
   walletAddress?: string;
 
+  @ApiProperty({ required: false, description: 'Client-reported location (e.g., city/country or lat,lng)' })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
   @ApiProperty({ enum: RegistrationType, required: true })
   @IsEnum(RegistrationType)
   @IsNotEmpty()

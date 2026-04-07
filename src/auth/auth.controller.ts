@@ -82,6 +82,11 @@ export class LoginDto {
   @IsOptional()
   @IsString()
   deviceType?: string;
+
+  @ApiProperty({ required: false, description: 'Client-reported location (e.g., city/country or lat,lng)' })
+  @IsOptional()
+  @IsString()
+  location?: string;
 }
 
 

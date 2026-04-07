@@ -553,6 +553,7 @@ model LoginHistory {
   id        String   @id @default(uuid())
   userId    String
   loginDate DateTime @default(now())
+  location  String?
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
@@ -565,6 +566,7 @@ model UserSession {
   refreshTokenExpiresAt  DateTime
   userAgent              String?
   ipAddress              String?
+  location               String?
   deviceName             String?
   deviceType             String?
   deviceId               String?

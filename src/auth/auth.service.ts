@@ -37,6 +37,7 @@ export class AuthService {
       deviceId: loginDto?.deviceId,
       deviceName: loginDto?.deviceName,
       deviceType: loginDto?.deviceType,
+      location: loginDto?.location,
     };
   }
 
@@ -49,6 +50,7 @@ export class AuthService {
         lastActiveAt: new Date(),
         userAgent: meta?.userAgent,
         ipAddress: meta?.ipAddress,
+        location: meta?.location,
         deviceId: meta?.deviceId,
         deviceName: meta?.deviceName,
         deviceType: meta?.deviceType,
@@ -116,6 +118,7 @@ export class AuthService {
     await this.prisma.loginHistory.create({
       data: {
         userId: user.id,
+        location: meta?.location,
       },
     });
 
@@ -279,6 +282,7 @@ export class AuthService {
           await this.prisma.loginHistory.create({
             data: {
               userId: existingUser.id,
+              location: meta?.location,
             },
           });
 
@@ -314,6 +318,7 @@ export class AuthService {
           await this.prisma.loginHistory.create({
             data: {
               userId: newUser.id,
+              location: meta?.location,
             },
           });
 
@@ -377,6 +382,7 @@ export class AuthService {
           await this.prisma.loginHistory.create({
             data: {
               userId: existingUser.id,
+              location: meta?.location,
             },
           });
 
@@ -412,6 +418,7 @@ export class AuthService {
           await this.prisma.loginHistory.create({
             data: {
               userId: newUser.id,
+              location: meta?.location,
             },
           });
 
@@ -489,6 +496,7 @@ export class AuthService {
       await this.prisma.loginHistory.create({
         data: {
           userId: existingUser.id,
+          location: meta?.location,
         },
       });
 
@@ -520,6 +528,7 @@ export class AuthService {
         deviceId: s.deviceId,
         userAgent: s.userAgent,
         ipAddress: s.ipAddress,
+        location: s.location,
         lastActiveAt: s.lastActiveAt,
         createdAt: s.createdAt,
         isCurrent: currentSessionId ? s.id === currentSessionId : false,
