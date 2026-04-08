@@ -113,6 +113,7 @@ model User {
   battleActivities   BattleActivity[]
   battleAchievements BattleAchievement[]
   battleStats        UserBattleStats?
+  deviceAccounts     DeviceAccount[]
 }
 
 model CompanyProfile {
@@ -579,6 +580,23 @@ model UserSession {
   @@index([userId])
   @@index([refreshTokenHash])
   @@index([refreshTokenExpiresAt])
+}
+
+model DeviceAccount {
+  id          String   @id @default(uuid())
+  userId      String
+  deviceId    String
+  isPrimary   Boolean  @default(false)
+  addedAt     DateTime @default(now())
+  lastLoginAt DateTime @default(now())
+  removedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, userId])
+  @@index([deviceId])
+  @@index([userId])
+  @@index([removedAt])
 }
 
 model ChatBox {

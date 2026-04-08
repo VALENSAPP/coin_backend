@@ -27,6 +27,37 @@ export class LogoutSessionDto {
   sessionId: string;
 }
 
+export class DeviceAccountsDto {
+  @ApiProperty({ required: true, description: 'Device identifier from client' })
+  @IsString()
+  @IsNotEmpty()
+  deviceId: string;
+}
+
+export class SwitchAccountDto {
+  @ApiProperty({ required: true, description: 'Refresh token for the target account' })
+  @IsString()
+  @IsNotEmpty()
+  refreshToken: string;
+
+  @ApiProperty({ required: true, description: 'Device identifier from client' })
+  @IsString()
+  @IsNotEmpty()
+  deviceId: string;
+}
+
+export class RemoveAccountDto {
+  @ApiProperty({ required: true, description: 'Device identifier from client' })
+  @IsString()
+  @IsNotEmpty()
+  deviceId: string;
+
+  @ApiProperty({ required: true, description: 'User id to remove from this device' })
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+}
+
 export class LoginDto {
   @ApiProperty({ required: false })
   @IsOptional()
@@ -173,4 +204,31 @@ export class AuthController {
     return this.authService.logoutAllSessions(userId);
   }
 
+  @Post('device-accounts')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List accounts saved on this device' })
+  async listDeviceAccounts(@Request() req: any, @Body() body: DeviceAccountsDto) {
+    const userId = req.user.userId;
+    return this.authService.listDeviceAccounts(userId, body.deviceId);
+  }
+
+  @Post('switch')
+  @ApiOperation({ summary: 'Switch to another account using refresh token' })
+  async switchAccount(@Body() body: SwitchAccountDto, @Request() req: any) {
+    const result = await this.authService.switchAccount(body.refreshToken, body.deviceId, req);
+    return {
+      message: 'Switched account successfully',
+      ...result,
+    };
+  }
+
+  @Post('remove-account')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove an account from this device' })
+  async removeAccount(@Request() req: any, @Body() body: RemoveAccountDto) {
+    const currentUserId = req.user.userId;
+    return this.authService.removeDeviceAccount(currentUserId, body.deviceId, body.userId);
+  }
 }

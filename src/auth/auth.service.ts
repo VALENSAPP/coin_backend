@@ -112,6 +112,35 @@ export class AuthService {
     });
   }
 
+  private async upsertDeviceAccount(userId: string, deviceId?: string) {
+    if (!deviceId) return;
+
+    const existing = await this.prisma.deviceAccount.findFirst({
+      where: { userId, deviceId },
+    });
+
+    if (existing) {
+      await this.prisma.deviceAccount.update({
+        where: { id: existing.id },
+        data: { lastLoginAt: new Date(), removedAt: null },
+      });
+      return;
+    }
+
+    const activeCount = await this.prisma.deviceAccount.count({
+      where: { deviceId, removedAt: null },
+    });
+
+    await this.prisma.deviceAccount.create({
+      data: {
+        userId,
+        deviceId,
+        isPrimary: activeCount === 0,
+        lastLoginAt: new Date(),
+      },
+    });
+  }
+
   private async issueTokensForUser(user: any, meta?: any) {
     const refreshToken = randomBytes(32).toString('hex');
     const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -167,6 +196,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Invalid credentials');
     const meta = this.buildSessionMeta(req, loginDto);
     const tokens = await this.issueTokensForUser(user, meta);
+    await this.upsertDeviceAccount(user.id, meta?.deviceId);
 
     // Save login history
     await this.prisma.loginHistory.create({
@@ -331,6 +361,7 @@ export class AuthService {
   
           const meta = this.buildSessionMeta(req, loginDto);
           const tokens = await this.issueTokensForUser(existingUser, meta);
+          await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -367,6 +398,7 @@ export class AuthService {
   
           const meta = this.buildSessionMeta(req, loginDto);
           const tokens = await this.issueTokensForUser(newUser, meta);
+          await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -545,6 +577,7 @@ export class AuthService {
 
       const meta = this.buildSessionMeta(req, loginDto);
       const tokens = await this.issueTokensForUser(existingUser, meta);
+      await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
 
       // Save login history
       await this.prisma.loginHistory.create({
@@ -623,5 +656,159 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return { message: 'All sessions logged out successfully' };
+  }
+
+  async listDeviceAccounts(currentUserId: string, deviceId: string) {
+    if (!deviceId?.trim()) throw new BadRequestException('Device id is required');
+
+    const hasAccess = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId, userId: currentUserId, removedAt: null },
+    });
+    if (!hasAccess) {
+      throw new UnauthorizedException('Device not authorized for this user');
+    }
+
+    const accounts = await this.prisma.deviceAccount.findMany({
+      where: { deviceId, removedAt: null },
+      orderBy: [{ lastLoginAt: 'desc' }, { addedAt: 'desc' }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            email: true,
+            image: true,
+            profile: true,
+            isDeleted: true,
+          },
+        },
+      },
+    });
+
+    return {
+      deviceId,
+      accounts: accounts
+        .filter((a) => a.user?.isDeleted !== 1)
+        .map((a) => ({
+          id: a.user.id,
+          displayName: a.user.displayName,
+          userName: a.user.userName,
+          email: a.user.email,
+          image: a.user.image,
+          profile: a.user.profile,
+          isPrimary: a.isPrimary,
+          addedAt: a.addedAt,
+          lastLoginAt: a.lastLoginAt,
+          isCurrent: a.user.id === currentUserId,
+        })),
+    };
+  }
+
+  async switchAccount(refreshToken: string, deviceId: string, req?: any) {
+    if (!refreshToken?.trim()) throw new UnauthorizedException('Invalid refresh token');
+    if (!deviceId?.trim()) throw new BadRequestException('Device id is required');
+
+    const now = new Date();
+    const tokenHash = this.hashToken(refreshToken);
+    const session = await this.prisma.userSession.findFirst({
+      where: {
+        refreshTokenHash: tokenHash,
+        refreshTokenExpiresAt: { gt: now },
+        revokedAt: null,
+      },
+      include: { user: true },
+    });
+
+    if (!session || !session.user) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    if (session.user.isDeleted === 1) {
+      throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
+    }
+
+    const deviceAccount = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId, userId: session.user.id, removedAt: null },
+    });
+    if (!deviceAccount) {
+      throw new UnauthorizedException('Account not available on this device');
+    }
+
+    const newRefreshToken = randomBytes(32).toString('hex');
+    const newRefreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const meta = this.buildSessionMeta(req, { deviceId });
+
+    await this.prisma.userSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: this.hashToken(newRefreshToken),
+        refreshTokenExpiresAt: newRefreshTokenExpiresAt,
+        lastActiveAt: now,
+        userAgent: meta.userAgent ?? session.userAgent,
+        ipAddress: meta.ipAddress ?? session.ipAddress,
+        location: meta.location ?? session.location,
+        deviceId: deviceId,
+        deviceName: meta.deviceName ?? session.deviceName,
+        deviceType: meta.deviceType ?? session.deviceType,
+      },
+    });
+
+    await this.prisma.user.update({
+      where: { id: session.user.id },
+      data: {
+        refreshToken: newRefreshToken,
+        refreshTokenExpiresAt: newRefreshTokenExpiresAt,
+      },
+    });
+
+    await this.prisma.deviceAccount.update({
+      where: { id: deviceAccount.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const payload = {
+      sub: session.user.id,
+      email: session.user.email,
+      registrationType: session.user.registrationType,
+      sessionId: session.id,
+    };
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      access_token,
+      refresh_token: newRefreshToken,
+      session_id: session.id,
+    };
+  }
+
+  async removeDeviceAccount(currentUserId: string, deviceId: string, targetUserId: string) {
+    if (!deviceId?.trim()) throw new BadRequestException('Device id is required');
+    if (!targetUserId?.trim()) throw new BadRequestException('User id is required');
+
+    const hasAccess = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId, userId: currentUserId, removedAt: null },
+    });
+    if (!hasAccess) {
+      throw new UnauthorizedException('Device not authorized for this user');
+    }
+
+    const existing = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId, userId: targetUserId, removedAt: null },
+    });
+    if (!existing) {
+      throw new BadRequestException('Account not found on this device');
+    }
+
+    await this.prisma.deviceAccount.update({
+      where: { id: existing.id },
+      data: { removedAt: new Date(), isPrimary: false },
+    });
+
+    await this.prisma.userSession.updateMany({
+      where: { userId: targetUserId, deviceId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    return { message: 'Account removed from device' };
   }
 }
