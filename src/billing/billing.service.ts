@@ -248,7 +248,7 @@ export class BillingService {
       },
     });
 
-    // Update user hits to 7 per month for subscription
+    // Increment user hits by 5 for subscription
     const postHit = await this.prisma.postHit.findFirst({
       where: { userId: user.id },
     });
@@ -256,13 +256,13 @@ export class BillingService {
     if (postHit) {
       await this.prisma.postHit.update({
         where: { id: postHit.id },
-        data: { hitLeft: 2 },
+        data: { hitLeft: { increment: 5 } },
       });
     } else {
       await this.prisma.postHit.create({
         data: {
           userId: user.id,
-          hitLeft: 7,
+          hitLeft: 5,
         },
       });
     }
