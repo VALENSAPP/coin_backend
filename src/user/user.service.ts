@@ -1712,4 +1712,14 @@ export class UserService {
 
     return { message: 'Wallet address updated successfully' };
   }
+
+  async getReferPoints(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { referPoints: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    return { referPoints: user.referPoints ?? 0 };
+  }
 }

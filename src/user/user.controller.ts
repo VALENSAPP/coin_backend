@@ -672,6 +672,15 @@ export class UserController {
     return result;
   }
 
+  @Get('refer-points')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get referral points for the authenticated user' })
+  async getReferPoints(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.getReferPoints(userId);
+  }
+
   @Post('profileStatusSet')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
