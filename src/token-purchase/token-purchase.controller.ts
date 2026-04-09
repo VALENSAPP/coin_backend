@@ -381,6 +381,19 @@ export class TokenPurchaseController {
     return this.tokenPurchaseService.missionPostDonation(userId, dto);
   }
 
+  @Get('mission-donation/received')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get total received mission donations and latest transactions',
+    description: 'Returns total amount (USD) and latest completed mission donation transactions for the authenticated user.'
+  })
+  async getMissionDonationReceived(@Req() req: Request, @Query('page') page?: string) {
+    const userId = (req.user as any).userId;
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.tokenPurchaseService.getMissionDonationReceivedSummary(userId, pageNum, 10);
+  }
+
   @Post('post-donation-total')
   @ApiOperation({
     summary: 'Get total donation amount for a post',

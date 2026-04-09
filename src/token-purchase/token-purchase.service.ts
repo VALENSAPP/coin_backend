@@ -561,6 +561,35 @@ export class TokenPurchaseService {
     }
   }
 
+  async getMissionDonationReceivedSummary(vendorId: string, page: number = 1, pageSize: number = 10) {
+    const safePage = Math.max(1, page || 1);
+    const safePageSize = Math.min(Math.max(1, pageSize || 10), 50);
+    const skip = (safePage - 1) * safePageSize;
+    const where = {
+      vendorId,
+      status: 'completed',
+      action: 'missionDonation',
+    } as const;
+
+    const [sumResult, transactions] = await Promise.all([
+      this.prisma.donationData.aggregate({
+        where,
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: safePageSize,
+      }),
+    ]);
+
+    return {
+      totalAmount: sumResult._sum.amount ?? 0,
+      transactions,
+    };
+  }
+
   async missionPostDonation(userId: string, dto: MissionDonationDto): Promise<DonationResponseDto> {
     try {
       // Validate payer exists
