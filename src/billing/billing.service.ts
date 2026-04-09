@@ -1038,6 +1038,15 @@ export class BillingService {
     return { totalAmount };
   }
 
+  async getUsdtTransfersReceived(receiverId: string, limit: number = 50) {
+    const take = Math.min(Math.max(1, limit), 100);
+    return this.prisma.digital_transaction.findMany({
+      where: { receiverId },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+  }
+
   async verifyAndStoreUsdtTransaction(
     authUserId: string,
     dto: { senderId: string; receiverId: string; txHash: string; chain: string },

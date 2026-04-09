@@ -254,4 +254,16 @@ export class BillingController {
     const userId = (req.user as any).userId;
     return this.billingService.getDigitalBadge(userId);
   }
+
+  @Get('usdt-transfers/received')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get USDT transfers received by current user' })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  async getUsdtTransfersReceived(@Req() req: Request, @Query('limit') limit?: string) {
+    const userId = (req.user as any).userId;
+    const limitNum = Math.min(Math.max(1, parseInt(limit || '50', 10) || 50), 100);
+    const transactions = await this.billingService.getUsdtTransfersReceived(userId, limitNum);
+    return { transactions };
+  }
 }
