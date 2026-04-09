@@ -35,15 +35,15 @@ export class DeviceAccountsDto {
 }
 
 export class SwitchAccountDto {
-  @ApiProperty({ required: true, description: 'Refresh token for the target account' })
-  @IsString()
-  @IsNotEmpty()
-  refreshToken: string;
-
   @ApiProperty({ required: true, description: 'Device identifier from client' })
   @IsString()
   @IsNotEmpty()
   deviceId: string;
+
+  @ApiProperty({ required: true, description: 'Target user id to switch to' })
+  @IsString()
+  @IsNotEmpty()
+  targetUserId: string;
 }
 
 export class RemoveAccountDto {
@@ -214,9 +214,12 @@ export class AuthController {
   }
 
   @Post('switch')
-  @ApiOperation({ summary: 'Switch to another account using refresh token' })
-  async switchAccount(@Body() body: SwitchAccountDto, @Request() req: any) {
-    const result = await this.authService.switchAccount(body.refreshToken, body.deviceId, req);
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Switch to another account using access token' })
+  async switchAccount(@Request() req: any, @Body() body: SwitchAccountDto) {
+    const currentUserId = req.user.userId;
+    const result = await this.authService.switchAccount(currentUserId, body.deviceId, body.targetUserId, req);
     return {
       message: 'Switched account successfully',
       ...result,

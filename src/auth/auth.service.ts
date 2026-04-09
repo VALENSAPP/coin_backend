@@ -705,80 +705,44 @@ export class AuthService {
     };
   }
 
-  async switchAccount(refreshToken: string, deviceId: string, req?: any) {
-    if (!refreshToken?.trim()) throw new UnauthorizedException('Invalid refresh token');
+  async switchAccount(currentUserId: string, deviceId: string, targetUserId: string, req?: any) {
+    if (!currentUserId?.trim()) throw new UnauthorizedException('Invalid user');
     if (!deviceId?.trim()) throw new BadRequestException('Device id is required');
+    if (!targetUserId?.trim()) throw new BadRequestException('Target user id is required');
 
-    const now = new Date();
-    const tokenHash = this.hashToken(refreshToken);
-    const session = await this.prisma.userSession.findFirst({
-      where: {
-        refreshTokenHash: tokenHash,
-        refreshTokenExpiresAt: { gt: now },
-        revokedAt: null,
-      },
-      include: { user: true },
+    const currentDeviceAccount = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId, userId: currentUserId, removedAt: null },
     });
-
-    if (!session || !session.user) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+    if (!currentDeviceAccount) {
+      throw new UnauthorizedException('Device not authorized for this user');
     }
-    if (session.user.isDeleted === 1) {
+
+    const targetUser = await this.prisma.user.findFirst({
+      where: { id: targetUserId },
+    });
+    if (!targetUser) {
+      throw new BadRequestException('Target account not found');
+    }
+    if (targetUser.isDeleted === 1) {
       throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
     }
 
-    const deviceAccount = await this.prisma.deviceAccount.findFirst({
-      where: { deviceId, userId: session.user.id, removedAt: null },
+    const targetDeviceAccount = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId, userId: targetUserId, removedAt: null },
     });
-    if (!deviceAccount) {
+    if (!targetDeviceAccount) {
       throw new UnauthorizedException('Account not available on this device');
     }
 
-    const newRefreshToken = randomBytes(32).toString('hex');
-    const newRefreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const meta = this.buildSessionMeta(req, { deviceId });
-
-    await this.prisma.userSession.update({
-      where: { id: session.id },
-      data: {
-        refreshTokenHash: this.hashToken(newRefreshToken),
-        refreshTokenExpiresAt: newRefreshTokenExpiresAt,
-        lastActiveAt: now,
-        userAgent: meta.userAgent ?? session.userAgent,
-        ipAddress: meta.ipAddress ?? session.ipAddress,
-        location: meta.location ?? session.location,
-        deviceId: deviceId,
-        deviceName: meta.deviceName ?? session.deviceName,
-        deviceType: meta.deviceType ?? session.deviceType,
-      },
-    });
-
-    await this.prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        refreshToken: newRefreshToken,
-        refreshTokenExpiresAt: newRefreshTokenExpiresAt,
-      },
-    });
+    const tokens = await this.issueTokensForUser(targetUser, meta);
 
     await this.prisma.deviceAccount.update({
-      where: { id: deviceAccount.id },
+      where: { id: targetDeviceAccount.id },
       data: { lastLoginAt: new Date() },
     });
 
-    const payload = {
-      sub: session.user.id,
-      email: session.user.email,
-      registrationType: session.user.registrationType,
-      sessionId: session.id,
-    };
-    const access_token = this.jwtService.sign(payload);
-
-    return {
-      access_token,
-      refresh_token: newRefreshToken,
-      session_id: session.id,
-    };
+    return tokens;
   }
 
   async removeDeviceAccount(currentUserId: string, deviceId: string, targetUserId: string) {
