@@ -266,4 +266,13 @@ export class BillingController {
     const transactions = await this.billingService.getUsdtTransfersReceived(userId, limitNum);
     return { transactions };
   }
+
+  @Get('received-totals')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get totals for received mission donations, pay-following, and USDT transfers' })
+  async getReceivedTotals(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getReceivedTotals(userId);
+  }
 }

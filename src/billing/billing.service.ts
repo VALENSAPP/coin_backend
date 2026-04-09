@@ -1047,6 +1047,37 @@ export class BillingService {
     });
   }
 
+  async getReceivedTotals(userId: string) {
+    const [payFollowingSum, missionDonationSum, usdtSum] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: 'missionDonation',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: { receiverId: userId },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return {
+      payFollowingTotal: Number(payFollowingSum._sum.amount ?? 0),
+      missionDonationTotal: Number(missionDonationSum._sum.amount ?? 0),
+      usdtTransfersTotal: Number(usdtSum._sum.amount ?? 0),
+    };
+  }
+
   async verifyAndStoreUsdtTransaction(
     authUserId: string,
     dto: { senderId: string; receiverId: string; txHash: string; chain: string },
