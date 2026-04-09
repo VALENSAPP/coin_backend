@@ -413,6 +413,35 @@ export class BillingService {
     });
   }
 
+  async getPayFollowingReceivedSummary(receiverId: string, page: number = 1, pageSize: number = 10) {
+    const safePage = Math.max(1, page || 1);
+    const safePageSize = Math.min(Math.max(1, pageSize || 10), 50);
+    const skip = (safePage - 1) * safePageSize;
+    const where = {
+      receiverId,
+      forPayment: 'following',
+      status: 'succeeded',
+    } as const;
+
+    const [sumResult, transactions] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where,
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: safePageSize,
+      }),
+    ]);
+
+    return {
+      totalAmount: sumResult._sum.amount ?? 0,
+      transactions,
+    };
+  }
+
   /**
    * Get fan subscription status: whether the current user (payer) has an active pay-following
    * to the given receiver (creator). Uses latest succeeded payment and periodEnd.

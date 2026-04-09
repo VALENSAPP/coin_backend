@@ -67,6 +67,17 @@ export class BillingController {
     return { url: session.url };
   }
 
+  @Get('pay-following/received')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get total received pay-following amount and latest transactions' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  async getPayFollowingReceived(@Req() req: Request, @Query('page') page?: string) {
+    const userId = (req.user as any).userId;
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    return this.billingService.getPayFollowingReceivedSummary(userId, pageNum, 10);
+  }
+
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
