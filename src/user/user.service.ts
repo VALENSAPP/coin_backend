@@ -1789,4 +1789,32 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
     return { referPoints: user.referPoints ?? 0 };
   }
+
+  async getTotalPlatformPointsSummary(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const [user, stats] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { totalPlatformPoints: true, referPoints: true },
+      }),
+      this.prisma.userBattleStats.findUnique({
+        where: { userId },
+        select: { totalBattlePoints: true },
+      }),
+    ]);
+
+    if (!user) throw new BadRequestException('User not found');
+
+    const totalPlatformPoints = user.totalPlatformPoints ?? 0;
+    const referPoints = user.referPoints ?? 0;
+    const totalBattlePoints = stats?.totalBattlePoints ?? 0;
+
+    return {
+      totalPlatformPoints,
+      totalBattlePoints,
+      referPoints,
+      used:  totalBattlePoints + referPoints - totalPlatformPoints,
+    };
+  }
 }

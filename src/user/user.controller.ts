@@ -698,6 +698,15 @@ export class UserController {
     return this.userService.getReferPoints(userId);
   }
 
+  @Get('totalplatfrompoints')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get total platform points summary for authenticated user' })
+  async getTotalPlatformPoints(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.getTotalPlatformPointsSummary(userId);
+  }
+
   @Post('profileStatusSet')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
