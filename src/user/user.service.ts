@@ -327,6 +327,7 @@ export class UserService {
         registrationType: data.registrationType,
         referCode,
         referPoints: initialReferPoints,
+        totalPlatformPoints: initialReferPoints,
       };
       if (data.userName) {
         userData.userName = data.userName;
@@ -345,7 +346,10 @@ export class UserService {
         if (referrer) {
           await tx.user.update({
             where: { id: referrer.id },
-            data: { referPoints: { increment: 10 } },
+            data: {
+              referPoints: { increment: 10 },
+              totalPlatformPoints: { increment: 10 },
+            },
           });
 
           await tx.userReferral.create({
@@ -1345,6 +1349,7 @@ export class UserService {
           verifyEmail: 1,
           referCode,
           referPoints: 0,
+          totalPlatformPoints: 0,
           // walletAddress: wallet.address,
           // walletPrivateKey: encryptedPrivateKey,
           // walletMnemonic: encryptedMnemonic,
@@ -1438,6 +1443,7 @@ export class UserService {
           verifyEmail: 1,
           referCode,
           referPoints: 0,
+          totalPlatformPoints: 0,
           // walletAddress: wallet.address,
           // walletPrivateKey: encryptedPrivateKey,
           // walletMnemonic: encryptedMnemonic,
@@ -1522,6 +1528,7 @@ export class UserService {
             verifyEmail: 1,
             referCode,
             referPoints: 0,
+            totalPlatformPoints: 0,
             // walletAddress: wallet.address,
             // walletPrivateKey: encryptedPrivateKey,
             // walletMnemonic: encryptedMnemonic,

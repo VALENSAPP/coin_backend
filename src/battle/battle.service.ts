@@ -847,6 +847,10 @@ export class BattleService {
               totalArgumentLikes: entry.likes,
             },
           });
+          await tx.user.update({
+            where: { id: entry.userId },
+            data: { totalPlatformPoints: { increment: entry.score } },
+          });
         }
       }
 
@@ -1075,6 +1079,10 @@ export class BattleService {
               totalArgumentLikes: entry.likes,
             },
           });
+          await tx.user.update({
+            where: { id: entry.userId },
+            data: { totalPlatformPoints: { increment: entry.score } },
+          });
         }
       }
 
@@ -1197,6 +1205,13 @@ export class BattleService {
     });
 
     await this.prisma.$transaction(async (tx) => {
+      const userIds = Array.from(byUser.keys());
+      const users = await tx.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, referPoints: true },
+      });
+      const referPointsByUser = new Map(users.map((u) => [u.id, u.referPoints ?? 0]));
+
       for (const [uid, stats] of byUser.entries()) {
         await tx.userBattleStats.upsert({
           where: { userId: uid },
@@ -1219,6 +1234,11 @@ export class BattleService {
             totalArgumentsSubmitted: stats.totalArgumentsSubmitted,
             totalArgumentLikes: stats.totalArgumentLikes,
           },
+        });
+        const referPoints = referPointsByUser.get(uid) ?? 0;
+        await tx.user.update({
+          where: { id: uid },
+          data: { totalPlatformPoints: referPoints + stats.totalBattlePoints },
         });
       }
     });

@@ -59,6 +59,7 @@ model User {
   canAccessPlatform    String                 @default("false")
   referCode            String?
   referPoints          Float                  @default(0)
+  totalPlatformPoints  Float                  @default(0)
   blockedBy            BlockedUser[]          @relation("Blocked")
   blockedUsers         BlockedUser[]          @relation("Blocker")
   followings           FollowerAndFollowing[] @relation("Follower")
