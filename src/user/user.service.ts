@@ -78,22 +78,26 @@ export class UserService {
     return createHash('sha256').update(token).digest('hex');
   }
 
-  private async createSession(userId: string, refreshToken: string, refreshTokenExpiresAt: Date) {
+  private async createSession(userId: string, refreshToken: string, refreshTokenExpiresAt: Date, meta?: any) {
     return this.prisma.userSession.create({
       data: {
         userId,
         refreshTokenHash: this.hashToken(refreshToken),
         refreshTokenExpiresAt,
         lastActiveAt: new Date(),
+        deviceId: meta?.deviceId,
+        deviceName: meta?.deviceName,
+        deviceType: meta?.deviceType,
+        location: meta?.location,
       },
     });
   }
 
-  private async issueTokensForUser(user: any) {
+  private async issueTokensForUser(user: any, meta?: any) {
     const refreshToken = randomBytes(32).toString('hex');
     const refreshTokenExpiresAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000); // 5 days
 
-    const session = await this.createSession(user.id, refreshToken, refreshTokenExpiresAt);
+    const session = await this.createSession(user.id, refreshToken, refreshTokenExpiresAt, meta);
 
     const payload = {
       sub: user.id,
@@ -116,6 +120,49 @@ export class UserService {
       refresh_token: refreshToken,
       session_id: session.id,
     };
+  }
+
+  private buildSessionMetaFromRegister(data: {
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: string;
+    location?: string;
+  }) {
+    return {
+      deviceId: data?.deviceId,
+      deviceName: data?.deviceName,
+      deviceType: data?.deviceType,
+      location: data?.location,
+    };
+  }
+
+  private async upsertDeviceAccount(userId: string, deviceId?: string) {
+    if (!deviceId) return;
+
+    const existing = await this.prisma.deviceAccount.findFirst({
+      where: { userId, deviceId },
+    });
+
+    if (existing) {
+      await this.prisma.deviceAccount.update({
+        where: { id: existing.id },
+        data: { lastLoginAt: new Date(), removedAt: null },
+      });
+      return;
+    }
+
+    const activeCount = await this.prisma.deviceAccount.count({
+      where: { deviceId, removedAt: null },
+    });
+
+    await this.prisma.deviceAccount.create({
+      data: {
+        userId,
+        deviceId,
+        isPrimary: activeCount === 0,
+        lastLoginAt: new Date(),
+      },
+    });
   }
 
   private async generateUniqueReferCode(): Promise<string> {
@@ -142,19 +189,23 @@ export class UserService {
     registrationType: RegistrationType;
     fcmToken?: string;
     referrerCode?: string;
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: string;
+    location?: string;
   }) {
     // Check if this is a Firebase Google registration request
     // if (data.idToken && data.registrationType === 'GOOGLE') {
     if (data.googleId) {
-      return this.signInWithGoogle(data.googleId);
+      return this.signInWithGoogle(data.googleId, this.buildSessionMetaFromRegister(data));
     }
 
     if (data.appleId) {
-      return this.signInWithApple(data.appleId);
+      return this.signInWithApple(data.appleId, this.buildSessionMetaFromRegister(data));
     }
 
     if (data.twitterId) {
-      return this.twitterLogin(data.twitterId);
+      return this.twitterLogin(data.twitterId, this.buildSessionMetaFromRegister(data));
     }
     // Validate username is required for NORMAL registration
     if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
@@ -171,9 +222,11 @@ export class UserService {
         },
       });
       if (existingUser) {
-        const payload = { sub: existingUser.id, email: existingUser.email, registrationType: existingUser.registrationType };
+        const meta = this.buildSessionMetaFromRegister(data);
+        await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
+        const tokens = await this.issueTokensForUser(existingUser, meta);
         return {
-          access_token: this.jwtService.sign(payload),
+          ...tokens,
           user: existingUser,
         };
       }
@@ -326,9 +379,11 @@ export class UserService {
       throw error;
     }
 
-    const payload = { sub: user.id, email: user.email, registrationType: user.registrationType };
+    const meta = this.buildSessionMetaFromRegister(data);
+    const tokens = await this.issueTokensForUser(user, meta);
+    await this.upsertDeviceAccount(user.id, meta?.deviceId);
     return {
-      access_token: this.jwtService.sign(payload),
+      ...tokens,
       user,
     };
   }
@@ -1224,7 +1279,7 @@ export class UserService {
     };
   }
 
-  async signInWithGoogle(idToken: string) {
+  async signInWithGoogle(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string }) {
     try {
       // Validate idToken input
       if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -1262,7 +1317,8 @@ export class UserService {
           throw new BadRequestException('Please verify your email before signing in.');
         }
 
-        const tokens = await this.issueTokensForUser(existingUser);
+        const tokens = await this.issueTokensForUser(existingUser, meta);
+        await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
         return {
           ...tokens,
           ...existingUser,
@@ -1299,7 +1355,8 @@ export class UserService {
           data: userData,
         });
 
-        const tokens = await this.issueTokensForUser(newUser);
+        const tokens = await this.issueTokensForUser(newUser, meta);
+        await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
         return {
           ...tokens,
           ...newUser,
@@ -1315,7 +1372,7 @@ export class UserService {
     }
   }
 
-  async signInWithApple(idToken: string) {
+  async signInWithApple(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string }) {
     try {
       // Validate idToken input
       if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -1353,7 +1410,8 @@ export class UserService {
           throw new BadRequestException('Please verify your email before signing in.');
         }
 
-        const tokens = await this.issueTokensForUser(existingUser);
+        const tokens = await this.issueTokensForUser(existingUser, meta);
+        await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
         return {
           ...tokens,
           ...existingUser,
@@ -1390,7 +1448,8 @@ export class UserService {
           data: userData,
         });
 
-        const tokens = await this.issueTokensForUser(newUser);
+        const tokens = await this.issueTokensForUser(newUser, meta);
+        await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
         return {
           ...tokens,
           ...newUser,
@@ -1406,7 +1465,7 @@ export class UserService {
     }
   }
 
-  async twitterLogin(accessToken: string) {
+  async twitterLogin(accessToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string }) {
     try {
       if (!accessToken) {
         throw new BadRequestException('Missing Twitter access token');
@@ -1471,7 +1530,8 @@ export class UserService {
         existingUser = newUser;
       }
 
-      const tokens = await this.issueTokensForUser(existingUser);
+      const tokens = await this.issueTokensForUser(existingUser, meta);
+      await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
       return {
         ...tokens,
         ...existingUser,

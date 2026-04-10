@@ -79,6 +79,23 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   referrerCode?: string;
+
+  @ApiProperty({ required: false, description: 'Device identifier from client (stable per device if possible)' })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @ApiProperty({ required: false, description: 'Friendly device name (e.g., iPhone 15, Pixel 8)' })
+  @IsOptional()
+  @IsString()
+  deviceName?: string;
+
+  @ApiProperty({ required: false, description: 'Device type (e.g., ios, android, web)' })
+  @IsOptional()
+  @IsString()
+  deviceType?: string;
+
+  // location already defined above
 }
 
 export class LoginDto {
