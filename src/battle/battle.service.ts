@@ -41,7 +41,24 @@ export class BattleService {
     const status = isHeadToHead ? 'PENDING_INVITE' : 'LIVE';
     const liveAt = status === 'LIVE' ? new Date() : null;
 
+    const stakeAmount = dto.stake ?? 0;
+
     const battle = await this.prisma.$transaction(async (tx) => {
+      if (stakeAmount > 0) {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true, totalPlatformPoints: true },
+        });
+        if (!user) throw new NotFoundException('User not found');
+        if ((user.totalPlatformPoints ?? 0) < stakeAmount) {
+          throw new BadRequestException('Insufficient platform points');
+        }
+        await tx.user.update({
+          where: { id: userId },
+          data: { totalPlatformPoints: { decrement: stakeAmount } },
+        });
+      }
+
       const created = await tx.battle.create({
         data: {
           creatorId: userId,
@@ -172,14 +189,26 @@ export class BattleService {
     });
     if (!invite) throw new NotFoundException('Invite not found');
 
-    const updatedInvite = await this.prisma.battleInvite.update({
-      where: { id: invite.id },
-      data: { status: 'DECLINED', respondedAt: new Date() },
-    });
+    const [updatedInvite] = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.battleInvite.update({
+        where: { id: invite.id },
+        data: { status: 'DECLINED', respondedAt: new Date() },
+      });
 
-    await this.prisma.battle.update({
-      where: { id: dto.battleId },
-      data: { status: 'CANCELED' },
+      await tx.battle.update({
+        where: { id: dto.battleId },
+        data: { status: 'CANCELED' },
+      });
+
+      const stakeAmount = invite.battle.stakeAmount ?? 0;
+      if (stakeAmount > 0) {
+        await tx.user.update({
+          where: { id: invite.battle.creatorId },
+          data: { totalPlatformPoints: { increment: stakeAmount } },
+        });
+      }
+
+      return [updated] as const;
     });
 
     await this.notificationService.sendBattleDeclined(invite.battle.creatorId, dto.battleId);
@@ -769,6 +798,7 @@ export class BattleService {
 
     const winner = scored[0];
     let didResolve = false;
+    const stakeAmount = battle.stakeAmount ?? 0;
 
     await this.prisma.$transaction(async (tx) => {
       const resolved = await tx.battle.updateMany({
@@ -788,10 +818,12 @@ export class BattleService {
 
       for (const entry of scored) {
         const existing = existingParticipantByUser.get(entry.userId);
+        const stakeWon = winner?.userId === entry.userId ? stakeAmount : 0;
         await tx.battleParticipant.upsert({
           where: { battleId_userId: { battleId, userId: entry.userId } },
           update: {
             score: entry.score,
+            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -809,6 +841,7 @@ export class BattleService {
             battleId,
             userId: entry.userId,
             score: entry.score,
+            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -829,6 +862,7 @@ export class BattleService {
             where: { userId: entry.userId },
             update: {
               totalBattlePoints: { increment: entry.score },
+              totalStakeWon: { increment: stakeWon },
               totalBattlesJoined: { increment: 1 },
               totalBattlesWon: { increment: entry.userWon ? 1 : 0 },
               totalPredictionsCorrect: { increment: entry.userWon ? 1 : 0 },
@@ -839,6 +873,7 @@ export class BattleService {
             create: {
               userId: entry.userId,
               totalBattlePoints: entry.score,
+              totalStakeWon: stakeWon,
               totalBattlesJoined: 1,
               totalBattlesWon: entry.userWon ? 1 : 0,
               totalPredictionsCorrect: entry.userWon ? 1 : 0,
@@ -852,6 +887,13 @@ export class BattleService {
             data: { totalPlatformPoints: { increment: entry.score } },
           });
         }
+      }
+
+      if (stakeAmount > 0 && winner?.userId) {
+        await tx.user.update({
+          where: { id: winner.userId },
+          data: { totalPlatformPoints: { increment: stakeAmount } },
+        });
       }
 
       await tx.battleReward.deleteMany({ where: { battleId } });
@@ -1003,6 +1045,7 @@ export class BattleService {
     const winner = scored.find((entry) => entry.side === winningSide) || scored[0];
     const winnerSide = winningSide || winner?.side || null;
     let didResolve = false;
+    const stakeAmount = battle.stakeAmount ?? 0;
 
     await this.prisma.$transaction(async (tx) => {
       const resolved = await tx.battle.updateMany({
@@ -1021,10 +1064,12 @@ export class BattleService {
 
       for (const entry of scored) {
         const existing = participants.find((p) => p.userId === entry.userId);
+        const stakeWon = winner?.userId === entry.userId ? stakeAmount : 0;
         await tx.battleParticipant.upsert({
           where: { battleId_userId: { battleId, userId: entry.userId } },
           update: {
             score: entry.score,
+            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -1043,6 +1088,7 @@ export class BattleService {
             userId: entry.userId,
             side: entry.side,
             score: entry.score,
+            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -1063,6 +1109,7 @@ export class BattleService {
             where: { userId: entry.userId },
             update: {
               totalBattlePoints: { increment: entry.score },
+              totalStakeWon: { increment: stakeWon },
               totalBattlesJoined: { increment: 1 },
               totalBattlesWon: { increment: entry.userWon ? 1 : 0 },
               totalArgumentsSubmitted: { increment: entry.argumentSubmitted ? 1 : 0 },
@@ -1071,6 +1118,7 @@ export class BattleService {
             create: {
               userId: entry.userId,
               totalBattlePoints: entry.score,
+              totalStakeWon: stakeWon,
               totalBattlesJoined: 1,
               totalBattlesWon: entry.userWon ? 1 : 0,
               totalPredictionsCorrect: 0,
@@ -1084,6 +1132,13 @@ export class BattleService {
             data: { totalPlatformPoints: { increment: entry.score } },
           });
         }
+      }
+
+      if (stakeAmount > 0 && winner?.userId) {
+        await tx.user.update({
+          where: { id: winner.userId },
+          data: { totalPlatformPoints: { increment: stakeAmount } },
+        });
       }
 
       await tx.battleReward.deleteMany({ where: { battleId } });
@@ -1172,6 +1227,7 @@ export class BattleService {
 
     const byUser = new Map<string, {
       totalBattlePoints: number;
+      totalStakeWon: number;
       totalBattlesJoined: number;
       totalBattlesWon: number;
       totalPredictionsCorrect: number;
@@ -1183,6 +1239,7 @@ export class BattleService {
     participants.forEach((p) => {
       const stats = byUser.get(p.userId) || {
         totalBattlePoints: 0,
+        totalStakeWon: 0,
         totalBattlesJoined: 0,
         totalBattlesWon: 0,
         totalPredictionsCorrect: 0,
@@ -1192,6 +1249,7 @@ export class BattleService {
       };
 
       stats.totalBattlePoints += p.score || 0;
+      stats.totalStakeWon += p.stakeWon || 0;
       stats.totalBattlesJoined += 1;
       stats.totalBattlesWon += p.isWinner ? 1 : 0;
       if (p.battle.format === 'POLL') {
@@ -1217,6 +1275,7 @@ export class BattleService {
           where: { userId: uid },
           update: {
             totalBattlePoints: stats.totalBattlePoints,
+            totalStakeWon: stats.totalStakeWon,
             totalBattlesJoined: stats.totalBattlesJoined,
             totalBattlesWon: stats.totalBattlesWon,
             totalPredictionsCorrect: stats.totalPredictionsCorrect,
@@ -1227,6 +1286,7 @@ export class BattleService {
           create: {
             userId: uid,
             totalBattlePoints: stats.totalBattlePoints,
+            totalStakeWon: stats.totalStakeWon,
             totalBattlesJoined: stats.totalBattlesJoined,
             totalBattlesWon: stats.totalBattlesWon,
             totalPredictionsCorrect: stats.totalPredictionsCorrect,
@@ -1238,7 +1298,7 @@ export class BattleService {
         const referPoints = referPointsByUser.get(uid) ?? 0;
         await tx.user.update({
           where: { id: uid },
-          data: { totalPlatformPoints: referPoints + stats.totalBattlePoints },
+          data: { totalPlatformPoints: referPoints + stats.totalBattlePoints + stats.totalStakeWon },
         });
       }
     });

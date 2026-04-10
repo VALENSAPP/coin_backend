@@ -727,6 +727,7 @@ model BattleParticipant {
   side        String?
   joinedAt    DateTime @default(now())
   score       Int      @default(0)
+  stakeWon    Float    @default(0)
   baseJoinPoints   Int  @default(0)
   argumentPoints   Int  @default(0)
   engagementPoints Int  @default(0)
@@ -752,6 +753,7 @@ model UserBattleStats {
   id                     String   @id @default(uuid())
   userId                 String   @unique
   totalBattlePoints      Int      @default(0)
+  totalStakeWon          Float    @default(0)
   totalBattlesJoined     Int      @default(0)
   totalBattlesWon        Int      @default(0)
   totalPredictionsCorrect Int     @default(0)
