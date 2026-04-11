@@ -1295,23 +1295,8 @@ async sharePostToUser(mediaId: string, mediaType: string, conversationType: stri
     }
   }
 
-  // Check if a share conversation already exists between these two users for this media in this chat
-  let conversation = await this.prisma.conversation.findFirst({
-    where: {
-      chatId: chatBox.id,
-      mediaId,
-      type: 'MEDIA',
-      mediaType: mediaType as any,
-    },
-  });
-
-  if (conversation) {
-    // Already shared, return existing conversation info
-    return { message: 'Media already shared between these users', conversationId: conversation.id };
-  }
-
-  // Create the conversation record for media share
-  conversation = await this.prisma.conversation.create({
+  // Always create a new conversation record for media share
+  const conversation = await this.prisma.conversation.create({
     data: {
       type: 'MEDIA',
       senderId: sharedUserId,
