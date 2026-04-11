@@ -823,7 +823,6 @@ export class BattleService {
           where: { battleId_userId: { battleId, userId: entry.userId } },
           update: {
             score: entry.score,
-            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -841,7 +840,6 @@ export class BattleService {
             battleId,
             userId: entry.userId,
             score: entry.score,
-            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -858,11 +856,11 @@ export class BattleService {
         });
 
         if (!existing?.awardedAt) {
+          const totalBattleIncrement = entry.score + stakeWon;
           await tx.userBattleStats.upsert({
             where: { userId: entry.userId },
             update: {
-              totalBattlePoints: { increment: entry.score },
-              totalStakeWon: { increment: stakeWon },
+              totalBattlePoints: { increment: totalBattleIncrement },
               totalBattlesJoined: { increment: 1 },
               totalBattlesWon: { increment: entry.userWon ? 1 : 0 },
               totalPredictionsCorrect: { increment: entry.userWon ? 1 : 0 },
@@ -872,8 +870,7 @@ export class BattleService {
             },
             create: {
               userId: entry.userId,
-              totalBattlePoints: entry.score,
-              totalStakeWon: stakeWon,
+              totalBattlePoints: totalBattleIncrement,
               totalBattlesJoined: 1,
               totalBattlesWon: entry.userWon ? 1 : 0,
               totalPredictionsCorrect: entry.userWon ? 1 : 0,
@@ -1069,7 +1066,6 @@ export class BattleService {
           where: { battleId_userId: { battleId, userId: entry.userId } },
           update: {
             score: entry.score,
-            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -1088,7 +1084,6 @@ export class BattleService {
             userId: entry.userId,
             side: entry.side,
             score: entry.score,
-            stakeWon,
             baseJoinPoints: BASE_JOIN_POINTS,
             argumentPoints: entry.argumentPoints,
             engagementPoints: entry.engagementPoints,
@@ -1105,11 +1100,11 @@ export class BattleService {
         });
 
         if (!existing?.awardedAt) {
+          const totalBattleIncrement = entry.score + stakeWon;
           await tx.userBattleStats.upsert({
             where: { userId: entry.userId },
             update: {
-              totalBattlePoints: { increment: entry.score },
-              totalStakeWon: { increment: stakeWon },
+              totalBattlePoints: { increment: totalBattleIncrement },
               totalBattlesJoined: { increment: 1 },
               totalBattlesWon: { increment: entry.userWon ? 1 : 0 },
               totalArgumentsSubmitted: { increment: entry.argumentSubmitted ? 1 : 0 },
@@ -1117,8 +1112,7 @@ export class BattleService {
             },
             create: {
               userId: entry.userId,
-              totalBattlePoints: entry.score,
-              totalStakeWon: stakeWon,
+              totalBattlePoints: totalBattleIncrement,
               totalBattlesJoined: 1,
               totalBattlesWon: entry.userWon ? 1 : 0,
               totalPredictionsCorrect: 0,
@@ -1227,7 +1221,6 @@ export class BattleService {
 
     const byUser = new Map<string, {
       totalBattlePoints: number;
-      totalStakeWon: number;
       totalBattlesJoined: number;
       totalBattlesWon: number;
       totalPredictionsCorrect: number;
@@ -1239,7 +1232,6 @@ export class BattleService {
     participants.forEach((p) => {
       const stats = byUser.get(p.userId) || {
         totalBattlePoints: 0,
-        totalStakeWon: 0,
         totalBattlesJoined: 0,
         totalBattlesWon: 0,
         totalPredictionsCorrect: 0,
@@ -1248,8 +1240,8 @@ export class BattleService {
         totalArgumentLikes: 0,
       };
 
-      stats.totalBattlePoints += p.score || 0;
-      stats.totalStakeWon += p.stakeWon || 0;
+      const stakeWon = p.isWinner ? (p.battle.stakeAmount ?? 0) : 0;
+      stats.totalBattlePoints += (p.score || 0) + stakeWon;
       stats.totalBattlesJoined += 1;
       stats.totalBattlesWon += p.isWinner ? 1 : 0;
       if (p.battle.format === 'POLL') {
@@ -1275,7 +1267,6 @@ export class BattleService {
           where: { userId: uid },
           update: {
             totalBattlePoints: stats.totalBattlePoints,
-            totalStakeWon: stats.totalStakeWon,
             totalBattlesJoined: stats.totalBattlesJoined,
             totalBattlesWon: stats.totalBattlesWon,
             totalPredictionsCorrect: stats.totalPredictionsCorrect,
@@ -1286,7 +1277,6 @@ export class BattleService {
           create: {
             userId: uid,
             totalBattlePoints: stats.totalBattlePoints,
-            totalStakeWon: stats.totalStakeWon,
             totalBattlesJoined: stats.totalBattlesJoined,
             totalBattlesWon: stats.totalBattlesWon,
             totalPredictionsCorrect: stats.totalPredictionsCorrect,
@@ -1298,7 +1288,7 @@ export class BattleService {
         const referPoints = referPointsByUser.get(uid) ?? 0;
         await tx.user.update({
           where: { id: uid },
-          data: { totalPlatformPoints: referPoints + stats.totalBattlePoints + stats.totalStakeWon },
+          data: { totalPlatformPoints: referPoints + stats.totalBattlePoints },
         });
       }
     });
