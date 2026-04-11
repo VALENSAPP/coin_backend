@@ -32,7 +32,7 @@ model User {
   bio                  String?
   displayName          String?                @unique
   userName             String?
-  profile              String?                @db.VarChar(255)
+  profile              String?                @db.VarChar(255) @default("user")
   // DEPRECATED per Valens requirements: Valens does not create wallets or control private keys.
   walletMnemonic       String?
   walletPrivateKey     String?
