@@ -1325,6 +1325,48 @@ async sharePostToUser(mediaId: string, mediaType: string, conversationType: stri
   return { message: 'Media shared successfully', conversationId: conversation.id };
 }
 
+async sharePostToUsers(
+  mediaId: string,
+  mediaType: string,
+  conversationType: string,
+  sharedUserId: string,
+  receiverUserId: string[],
+) {
+  if (!Array.isArray(receiverUserId) || receiverUserId.length === 0) {
+    throw new BadRequestException('Receiver user IDs required');
+  }
+
+  const uniqueReceiverIds = Array.from(new Set(receiverUserId.filter(Boolean)));
+  if (uniqueReceiverIds.length === 0) {
+    throw new BadRequestException('Receiver user IDs required');
+  }
+
+  const results: Array<{ receiverUserId: string; message?: string; conversationId?: string; error?: string }> = [];
+
+  for (const receiverUserId of uniqueReceiverIds) {
+    try {
+      const res = await this.sharePostToUser(
+        mediaId,
+        mediaType,
+        conversationType,
+        sharedUserId,
+        receiverUserId,
+      );
+      results.push({ receiverUserId, ...res });
+    } catch (error) {
+      results.push({
+        receiverUserId,
+        error: (error as Error)?.message || 'Failed to share media',
+      });
+    }
+  }
+
+  return {
+    message: 'Share operation completed',
+    results,
+  };
+}
+
 async getSharedPostList(userId: string) {
   if (!userId) throw new BadRequestException('User ID required');
 

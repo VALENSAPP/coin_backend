@@ -315,7 +315,11 @@ async editComment(
   @ApiOperation({ summary: 'Share media to user' })
    @ApiBody({ type: SharePostDto })
   async sharePostToUser(@Body() body: SharePostDto) {
-    return this.postService.sharePostToUser(
+    if (!body.receiverUserId || body.receiverUserId.length === 0) {
+      throw new BadRequestException('receiverUserId is required');
+    }
+
+    return this.postService.sharePostToUsers(
       body.mediaId,
       body.mediaType,
       body.conversationType,
