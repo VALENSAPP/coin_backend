@@ -1426,6 +1426,7 @@ export class UserService {
         const firebaseUserId = decodedToken.uid;
         const userId = uuidv4();
         const referCode = await this.generateUniqueReferCode();
+        const emailUserName = email ? email.split('@')[0] : undefined;
 
         // const wallet = generateWallet();
         // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
@@ -1436,7 +1437,7 @@ export class UserService {
           id: userId,
           firebaseUserId,
           email,
-          userName: decodedToken.name || 'Unknown User',
+          userName: decodedToken.name || emailUserName || 'Unknown User',
           profile: decodedToken.picture || null,
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
