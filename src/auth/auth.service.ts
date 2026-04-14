@@ -334,7 +334,7 @@ export class AuthService {
   
         // Verify Firebase ID token
         const decodedToken = await admin.auth().verifyIdToken(idToken);
-        const email = decodedToken.email;
+      const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
         const provider = decodedToken.firebase?.sign_in_provider;
   
         // Determine login type based on email domain
@@ -436,7 +436,7 @@ export class AuthService {
   
         // Verify Firebase ID token
         const decodedToken = await admin.auth().verifyIdToken(idToken);
-        const email = decodedToken.email;
+      const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
         const provider = decodedToken.firebase?.sign_in_provider;
   
         // Determine login type based on email domain
@@ -541,7 +541,7 @@ export class AuthService {
       }
 
       const twitterId = twitterUser.id;
-      const email = twitterUser.email || null;
+      const email = twitterUser.email ? twitterUser.email.trim().toLowerCase() : null;
       const userName = twitterUser.name || twitterUser.username;
       const profile = twitterUser.profile_image_url || null;
 

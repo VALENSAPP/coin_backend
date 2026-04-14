@@ -194,18 +194,19 @@ export class UserService {
     deviceType?: string;
     location?: string;
   }) {
+    const normalizedEmail = data.email ? data.email.trim().toLowerCase() : undefined;
     // Check if this is a Firebase Google registration request
     // if (data.idToken && data.registrationType === 'GOOGLE') {
     if (data.googleId) {
-      return this.signInWithGoogle(data.googleId, this.buildSessionMetaFromRegister(data));
+      return this.signInWithGoogle(data.googleId, this.buildSessionMetaFromRegister({ ...data, email: normalizedEmail }));
     }
 
     if (data.appleId) {
-      return this.signInWithApple(data.appleId, this.buildSessionMetaFromRegister(data));
+      return this.signInWithApple(data.appleId, this.buildSessionMetaFromRegister({ ...data, email: normalizedEmail }));
     }
 
     if (data.twitterId) {
-      return this.twitterLogin(data.twitterId, this.buildSessionMetaFromRegister(data));
+      return this.twitterLogin(data.twitterId, this.buildSessionMetaFromRegister({ ...data, email: normalizedEmail }));
     }
     // Validate username is required for NORMAL registration
     if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
@@ -233,9 +234,9 @@ export class UserService {
       // If not found, proceed to registration as usual
     }
     // Check for existing user by unique fields (exclude soft-deleted)
-    if (data.email) {
+    if (normalizedEmail) {
       const existingUser = await this.prisma.user.findFirst({
-        where: { email: data.email, userName: data.userName },
+        where: { email: normalizedEmail, userName: data.userName },
       });
       if (existingUser) {
         if (existingUser.deletedAt === null) {
@@ -291,7 +292,7 @@ export class UserService {
     }
     let passwordHash = undefined;
     if (data.registrationType === 'NORMAL') {
-      if (!data.email || !data.password) throw new BadRequestException('Email and password required');
+      if (!normalizedEmail || !data.password) throw new BadRequestException('Email and password required');
       passwordHash = await bcrypt.hash(data.password, 10);
     }
     // Valens: do NOT create wallets. Store only user-provided walletAddress when they connect (e.g. MetaMask).
@@ -317,7 +318,7 @@ export class UserService {
       const initialReferPoints = referrer ? 5 : 0;
 
       const userData: any = {
-        email: data.email,
+        email: normalizedEmail,
         password: passwordHash,
         googleId: data.googleId,
         twitterId: data.twitterId,
@@ -1297,7 +1298,7 @@ export class UserService {
 
       // Verify Firebase ID token
       const decodedToken = await admin.auth().verifyIdToken(idToken);
-      const email = decodedToken.email;
+      const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
       const provider = decodedToken.firebase?.sign_in_provider;
 
       // Determine login type based on email domain
@@ -1391,7 +1392,7 @@ export class UserService {
 
       // Verify Firebase ID token
       const decodedToken = await admin.auth().verifyIdToken(idToken);
-      const email = decodedToken.email;
+      const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
       const provider = decodedToken.firebase?.sign_in_provider;
 
       // Determine login type based on email domain
@@ -1492,7 +1493,7 @@ export class UserService {
       }
 
       const twitterId = twitterUser.id;
-      const email = twitterUser.email || null;
+      const email = twitterUser.email ? twitterUser.email.trim().toLowerCase() : null;
       const userName = twitterUser.name || twitterUser.username;
       const profile = twitterUser.profile_image_url || null;
 
