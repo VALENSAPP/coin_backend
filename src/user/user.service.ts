@@ -403,7 +403,8 @@ export class UserService {
     let user = null;
     if (data.registrationType === 'NORMAL') {
       if (!data.email || !data.password) throw new BadRequestException('Email and password required');
-      user = await this.prisma.user.findUnique({ where: { email: data.email } });
+      const normalizedEmail = data.email.trim().toLowerCase();
+      user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
       if (!user || !user.password || !(await bcrypt.compare(data.password, user.password))) {
         throw new BadRequestException('Invalid credentials');
       }
