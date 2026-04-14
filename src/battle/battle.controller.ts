@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
 import { BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
@@ -15,10 +15,53 @@ export class BattleController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('create')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        format: { type: 'string', enum: ['POLL', 'HEAD_TO_HEAD'] },
+        question: { type: 'string' },
+        options: { type: 'array', items: { type: 'string' } },
+        startTime: { type: 'string' },
+        endTime: { type: 'string' },
+        stake: { type: 'number' },
+        isPublic: { type: 'boolean' },
+        invitedUserId: { type: 'string' },
+        resolutionMethod: { type: 'string' },
+        image: { type: 'string', format: 'binary' },
+      },
+      required: ['format', 'question', 'endTime'],
+    },
+  })
   @ApiOperation({ summary: 'Create a new battle (poll or head-to-head)' })
-  async createBattle(@Req() req: Request, @Body() dto: CreateBattleDto) {
+  async createBattle(
+    @Req() req: Request,
+    @Body() dto: CreateBattleDto,
+    @UploadedFile() image?: Express.Multer.File,
+  ) {
     const userId = (req.user as any)?.userId;
-    return this.battleService.createBattle(userId, dto);
+    const normalizedDto: any = { ...dto };
+    if (typeof normalizedDto.options === 'string') {
+      try {
+        const parsed = JSON.parse(normalizedDto.options);
+        normalizedDto.options = Array.isArray(parsed) ? parsed : [String(parsed)];
+      } catch {
+        normalizedDto.options = normalizedDto.options
+          .split(',')
+          .map((value: string) => value.trim())
+          .filter(Boolean);
+      }
+    }
+    if (typeof normalizedDto.stake === 'string') {
+      const parsedStake = Number(normalizedDto.stake);
+      normalizedDto.stake = Number.isFinite(parsedStake) ? parsedStake : normalizedDto.stake;
+    }
+    if (typeof normalizedDto.isPublic === 'string') {
+      normalizedDto.isPublic = normalizedDto.isPublic.toLowerCase() === 'true';
+    }
+    return this.battleService.createBattle(userId, normalizedDto, image);
   }
 
   @UseGuards(AuthGuard('jwt'))

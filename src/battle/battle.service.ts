@@ -25,7 +25,7 @@ export class BattleService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async createBattle(userId: string, dto: CreateBattleDto) {
+  async createBattle(userId: string, dto: CreateBattleDto, imageFile?: Express.Multer.File) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!dto?.question || dto.question.trim() === '') throw new BadRequestException('Question required');
     if (!dto?.endTime) throw new BadRequestException('End time required');
@@ -42,6 +42,8 @@ export class BattleService {
     const liveAt = status === 'LIVE' ? new Date() : null;
 
     const stakeAmount = dto.stake ?? 0;
+
+    const imageUrl = imageFile ? await uploadImageToS3(imageFile, 'battle-images') : null;
 
     const battle = await this.prisma.$transaction(async (tx) => {
       if (stakeAmount > 0) {
@@ -72,6 +74,7 @@ export class BattleService {
           isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
           stakeAmount: dto.stake ?? null,
           liveAt,
+          image: imageUrl,
         },
       });
 

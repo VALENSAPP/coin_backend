@@ -677,6 +677,7 @@ model Battle {
   resolutionMethod String?
   isPublic         Boolean       @default(true)
   stakeAmount      Float?
+  image            String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   liveAt           DateTime?
