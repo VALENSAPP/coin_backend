@@ -198,15 +198,15 @@ export class UserService {
     // Check if this is a Firebase Google registration request
     // if (data.idToken && data.registrationType === 'GOOGLE') {
     if (data.googleId) {
-      return this.signInWithGoogle(data.googleId, this.buildSessionMetaFromRegister({ ...data, email: normalizedEmail }));
+      return this.signInWithGoogle(data.googleId, this.buildSessionMetaFromRegister(data));
     }
 
     if (data.appleId) {
-      return this.signInWithApple(data.appleId, this.buildSessionMetaFromRegister({ ...data, email: normalizedEmail }));
+      return this.signInWithApple(data.appleId, this.buildSessionMetaFromRegister(data));
     }
 
     if (data.twitterId) {
-      return this.twitterLogin(data.twitterId, this.buildSessionMetaFromRegister({ ...data, email: normalizedEmail }));
+      return this.twitterLogin(data.twitterId, this.buildSessionMetaFromRegister(data));
     }
     // Validate username is required for NORMAL registration
     if (data.registrationType === 'NORMAL' && (!data.userName || data.userName.trim() === '')) {
