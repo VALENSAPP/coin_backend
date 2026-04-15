@@ -672,6 +672,7 @@ model Battle {
   status           BattleStatus  @default(DRAFT)
   question         String
   options          String[]      @default([])
+  optionImages     String[]      @default([])
   startTime        DateTime?
   endTime          DateTime
   resolutionMethod String?

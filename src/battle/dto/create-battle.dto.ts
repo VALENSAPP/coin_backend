@@ -21,6 +21,17 @@ export class CreateBattleDto {
   @IsString({ each: true })
   options?: string[];
 
+  @ApiPropertyOptional({ type: [String], description: 'Existing option image URLs, aligned with options by index' })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  optionImages?: string[];
+
+  @ApiPropertyOptional({ type: [Number], description: 'Indexes for uploaded optionImages files, aligned with file order' })
+  @IsOptional()
+  @IsArray()
+  optionImageIndexes?: number[];
+
   @ApiPropertyOptional({ description: 'ISO date string' })
   @IsOptional()
   @IsString()

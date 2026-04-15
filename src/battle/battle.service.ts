@@ -25,7 +25,12 @@ export class BattleService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async createBattle(userId: string, dto: CreateBattleDto, imageFile?: Express.Multer.File) {
+  async createBattle(
+    userId: string,
+    dto: CreateBattleDto,
+    imageFile?: Express.Multer.File,
+    optionImageFiles: Express.Multer.File[] = [],
+  ) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!dto?.question || dto.question.trim() === '') throw new BadRequestException('Question required');
     if (!dto?.endTime) throw new BadRequestException('End time required');
@@ -44,6 +49,10 @@ export class BattleService {
     const stakeAmount = dto.stake ?? 0;
 
     const imageUrl = imageFile ? await uploadImageToS3(imageFile, 'battle-images') : null;
+    const uploadedOptionImages = optionImageFiles.length
+      ? await Promise.all(optionImageFiles.map((file) => uploadImageToS3(file, 'battle-option-images')))
+      : [];
+    const optionImages = this.buildOptionImages(dto.options || [], uploadedOptionImages, dto.optionImageIndexes, dto.optionImages);
 
     const battle = await this.prisma.$transaction(async (tx) => {
       if (stakeAmount > 0) {
@@ -68,6 +77,7 @@ export class BattleService {
           status,
           question: dto.question.trim(),
           options: dto.options || [],
+          optionImages,
           startTime: startTime || null,
           endTime,
           resolutionMethod: dto.resolutionMethod || null,
@@ -115,6 +125,36 @@ export class BattleService {
     }
 
     return battle;
+  }
+
+  private buildOptionImages(
+    options: string[],
+    uploadedOptionImages: string[],
+    optionImageIndexes?: number[],
+    existingOptionImages: string[] = [],
+  ) {
+    if (uploadedOptionImages.length === 0) {
+      if (existingOptionImages.length > options.length) {
+        throw new BadRequestException('Option images cannot be more than options');
+      }
+      return existingOptionImages;
+    }
+
+    if (optionImageIndexes?.length && optionImageIndexes.length !== uploadedOptionImages.length) {
+      throw new BadRequestException('Option image indexes must match uploaded option images');
+    }
+
+    const optionImages = Array(options.length).fill('');
+
+    uploadedOptionImages.forEach((url, fileIndex) => {
+      const optionIndex = optionImageIndexes?.length ? optionImageIndexes[fileIndex] : fileIndex;
+      if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) {
+        throw new BadRequestException('Invalid option image index');
+      }
+      optionImages[optionIndex] = url;
+    });
+
+    return optionImages;
   }
 
   async inviteToBattle(userId: string, dto: BattleInviteDto) {

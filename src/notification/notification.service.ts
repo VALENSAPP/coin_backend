@@ -119,6 +119,7 @@ export class NotificationService {
             format: true,
             status: true,
             options: true,
+            optionImages: true,
             startTime: true,
             endTime: true,
             isPublic: true,

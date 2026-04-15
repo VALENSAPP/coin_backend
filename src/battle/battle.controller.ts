@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
 import { BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
@@ -15,7 +15,10 @@ export class BattleController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('create')
-  @UseInterceptors(FileInterceptor('image'))
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'image', maxCount: 1 },
+    { name: 'optionImages', maxCount: 20 },
+  ]))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -31,6 +34,16 @@ export class BattleController {
         invitedUserId: { type: 'string' },
         resolutionMethod: { type: 'string' },
         image: { type: 'string', format: 'binary' },
+        optionImages: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Option image files. By default, file order maps to option order.',
+        },
+        optionImageIndexes: {
+          type: 'array',
+          items: { type: 'number' },
+          description: 'Optional indexes for optionImages files, for sparse option images.',
+        },
       },
       required: ['format', 'question', 'endTime'],
     },
@@ -39,7 +52,10 @@ export class BattleController {
   async createBattle(
     @Req() req: Request,
     @Body() dto: CreateBattleDto,
-    @UploadedFile() image?: Express.Multer.File,
+    @UploadedFiles() files?: {
+      image?: Express.Multer.File[];
+      optionImages?: Express.Multer.File[];
+    },
   ) {
     const userId = (req.user as any)?.userId;
     const normalizedDto: any = { ...dto };
@@ -54,6 +70,35 @@ export class BattleController {
           .filter(Boolean);
       }
     }
+    if (typeof normalizedDto.optionImageIndexes === 'string') {
+      try {
+        const parsed = JSON.parse(normalizedDto.optionImageIndexes);
+        normalizedDto.optionImageIndexes = Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        normalizedDto.optionImageIndexes = normalizedDto.optionImageIndexes
+          .split(',')
+          .filter((value: string) => value.trim() !== '')
+          .map((value: string) => Number(value.trim()))
+          .filter((value: number) => Number.isInteger(value));
+      }
+    }
+    if (Array.isArray(normalizedDto.optionImageIndexes)) {
+      normalizedDto.optionImageIndexes = normalizedDto.optionImageIndexes
+        .filter((value: string | number) => String(value).trim() !== '')
+        .map((value: string | number) => Number(value))
+        .filter((value: number) => Number.isInteger(value));
+    }
+    if (typeof normalizedDto.optionImages === 'string') {
+      try {
+        const parsed = JSON.parse(normalizedDto.optionImages);
+        normalizedDto.optionImages = Array.isArray(parsed) ? parsed : [String(parsed)];
+      } catch {
+        normalizedDto.optionImages = normalizedDto.optionImages
+          .split(',')
+          .map((value: string) => value.trim())
+          .filter(Boolean);
+      }
+    }
     if (typeof normalizedDto.stake === 'string') {
       const parsedStake = Number(normalizedDto.stake);
       normalizedDto.stake = Number.isFinite(parsedStake) ? parsedStake : normalizedDto.stake;
@@ -61,7 +106,12 @@ export class BattleController {
     if (typeof normalizedDto.isPublic === 'string') {
       normalizedDto.isPublic = normalizedDto.isPublic.toLowerCase() === 'true';
     }
-    return this.battleService.createBattle(userId, normalizedDto, image);
+    return this.battleService.createBattle(
+      userId,
+      normalizedDto,
+      files?.image?.[0],
+      files?.optionImages || [],
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
