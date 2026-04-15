@@ -544,6 +544,19 @@ export class UserController {
     return this.userService.getFollowersList(userId);
   }
 
+  @Get('followers-graph')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get follower count graph data for a user' })
+  @ApiQuery({ name: 'userId', type: 'string', required: true, description: 'User ID to get follower graph for' })
+  @ApiQuery({ name: 'range', type: 'string', required: false, enum: ['daily', 'weekly'], description: 'daily = last 24 hours, weekly = last 7 days' })
+  async getFollowersGraph(
+    @Query('userId') userId: string,
+    @Query('range') range?: 'daily' | 'weekly',
+  ) {
+    return this.userService.getFollowersGraph(userId, range || 'weekly');
+  }
+
   @Get('following/:userId')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

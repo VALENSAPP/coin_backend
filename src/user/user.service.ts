@@ -774,6 +774,84 @@ export class UserService {
     });
   }
 
+  async getFollowersGraph(userId: string, range: 'daily' | 'weekly' = 'weekly') {
+    if (!userId) throw new BadRequestException('User ID required');
+    const normalizedRange = range === 'daily' ? 'daily' : 'weekly';
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+
+    const now = new Date();
+    const isDaily = normalizedRange === 'daily';
+    const bucketCount = isDaily ? 24 : 7;
+    const bucketMs = isDaily ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const startDate = new Date(now.getTime() - (bucketCount - 1) * bucketMs);
+
+    if (!isDaily) {
+      startDate.setHours(0, 0, 0, 0);
+    } else {
+      startDate.setMinutes(0, 0, 0);
+    }
+
+    const [totalFollowers, followersBeforeRange, followersInRange] = await Promise.all([
+      this.prisma.followerAndFollowing.count({
+        where: { followingId: userId, status: 'ACCEPTED' },
+      }),
+      this.prisma.followerAndFollowing.count({
+        where: {
+          followingId: userId,
+          status: 'ACCEPTED',
+          createdAt: { lt: startDate },
+        },
+      }),
+      this.prisma.followerAndFollowing.findMany({
+        where: {
+          followingId: userId,
+          status: 'ACCEPTED',
+          createdAt: { gte: startDate, lte: now },
+        },
+        select: { createdAt: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      const bucketStart = new Date(startDate.getTime() + index * bucketMs);
+      return {
+        label: isDaily
+          ? bucketStart.toISOString().slice(11, 16)
+          : bucketStart.toISOString().slice(0, 10),
+        date: bucketStart.toISOString(),
+        newFollowers: 0,
+        followers: followersBeforeRange,
+      };
+    });
+
+    for (const follow of followersInRange) {
+      const bucketIndex = Math.min(
+        bucketCount - 1,
+        Math.max(0, Math.floor((follow.createdAt.getTime() - startDate.getTime()) / bucketMs)),
+      );
+      buckets[bucketIndex].newFollowers += 1;
+    }
+
+    let runningTotal = followersBeforeRange;
+    for (const bucket of buckets) {
+      runningTotal += bucket.newFollowers;
+      bucket.followers = runningTotal;
+    }
+
+    return {
+      userId,
+      range: normalizedRange,
+      totalFollowers,
+      points: buckets,
+    };
+  }
+
   // Valens: display follower/following only; no token addresses or pricing.
   async getFollowingList(userId: string) {
     return this.prisma.followerAndFollowing.findMany({
