@@ -386,7 +386,7 @@ export class TokenPurchaseController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get total received mission donations and latest transactions',
-    description: 'Returns total amount (USD) and latest completed mission donation transactions for the authenticated user.'
+    description: 'Returns total amount (USD), active mission/support post count, and latest completed mission donation transactions for the authenticated user.'
   })
   async getMissionDonationReceived(@Req() req: Request, @Query('page') page?: string) {
     const userId = (req.user as any).userId;

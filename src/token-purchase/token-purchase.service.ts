@@ -571,7 +571,9 @@ export class TokenPurchaseService {
       action: 'missionDonation',
     } as const;
 
-    const [sumResult, transactions] = await Promise.all([
+    const now = new Date();
+
+    const [sumResult, transactions, activePostCount] = await Promise.all([
       this.prisma.donationData.aggregate({
         where,
         _sum: { amount: true },
@@ -582,10 +584,22 @@ export class TokenPurchaseService {
         skip,
         take: safePageSize,
       }),
+      this.prisma.post.count({
+        where: {
+          userId: vendorId,
+          deletedAt: null,
+          isDelete: 'no',
+          postHide: 'no',
+          type: { in: ['crowdfunding', 'support'] },
+          start_time: { lte: now },
+          end_time: { gte: now },
+        },
+      }),
     ]);
 
     return {
       totalAmount: sumResult._sum.amount ?? 0,
+      activePostCount,
       transactions,
     };
   }
