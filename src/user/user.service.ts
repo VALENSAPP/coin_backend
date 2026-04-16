@@ -127,12 +127,16 @@ export class UserService {
     deviceName?: string;
     deviceType?: string;
     location?: string;
+    userName?: string;
+    profile?: string;
   }) {
     return {
       deviceId: data?.deviceId,
       deviceName: data?.deviceName,
       deviceType: data?.deviceType,
       location: data?.location,
+      userName: data?.userName,
+      profile: data?.profile,
     };
   }
 
@@ -1363,7 +1367,7 @@ export class UserService {
     };
   }
 
-  async signInWithGoogle(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string }) {
+  async signInWithGoogle(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; userName?: string; profile?: string }) {
     try {
       // Validate idToken input
       if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -1422,8 +1426,8 @@ export class UserService {
           id: userId,
           firebaseUserId,
           email,
-          userName: decodedToken.name || 'Unknown User',
-          profile: decodedToken.picture || null,
+          userName: meta?.userName || decodedToken.name || 'Unknown User',
+          profile: meta?.profile || decodedToken.picture || null,
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
           verifyEmail: 1,
@@ -1451,13 +1455,13 @@ export class UserService {
       console.error('Firebase auth error:', error);
       return {
         error: true,
-        msg: error.message || 'Token verification failed',
+        msg: (error instanceof Error ? error.message : typeof error === 'object' && error && 'message' in error ? (error as any).message : 'Token verification failed'),
         body: [error],
       };
     }
   }
 
-  async signInWithApple(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string }) {
+  async signInWithApple(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; userName?: string; profile?: string }) {
     try {
       // Validate idToken input
       if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -1517,8 +1521,8 @@ export class UserService {
           id: userId,
           firebaseUserId,
           email,
-          userName: decodedToken.name || emailUserName || 'Unknown User',
-          profile: decodedToken.picture || null,
+          userName: meta?.userName || decodedToken.name || emailUserName || 'Unknown User',
+          profile: meta?.profile || decodedToken.picture || null,
           googleId: provider === 'google.com' ? firebaseUserId : null,
           registrationType: loginType,
           verifyEmail: 1,
@@ -1546,13 +1550,13 @@ export class UserService {
       console.error('Firebase auth error:', error);
       return {
         error: true,
-        msg: error.message || 'Token verification failed',
+        msg: (error instanceof Error ? error.message : typeof error === 'object' && error && 'message' in error ? (error as any).message : 'Token verification failed'),
         body: [error],
       };
     }
   }
 
-  async twitterLogin(accessToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string }) {
+  async twitterLogin(accessToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; userName?: string; profile?: string }) {
     try {
       if (!accessToken) {
         throw new BadRequestException('Missing Twitter access token');
@@ -1572,8 +1576,8 @@ export class UserService {
 
       const twitterId = twitterUser.id;
       const email = twitterUser.email ? twitterUser.email.trim().toLowerCase() : null;
-      const userName = twitterUser.name || twitterUser.username;
-      const profile = twitterUser.profile_image_url || null;
+      const userName = meta?.userName || twitterUser.name || twitterUser.username;
+      const profile = meta?.profile || twitterUser.profile_image_url || null;
 
       // Check if user already exists
       let existingUser = await this.prisma.user.findFirst({
@@ -1625,7 +1629,13 @@ export class UserService {
         ...existingUser,
       };
     } catch (error) {
-      console.error('Twitter login error:', error.response?.data || error.message);
+      if (typeof error === 'object' && error && 'response' in error && error.response && 'data' in error.response) {
+        console.error('Twitter login error:', (error as any).response.data);
+      } else if (error instanceof Error) {
+        console.error('Twitter login error:', error.message);
+      } else {
+        console.error('Twitter login error:', error);
+      }
       throw new BadRequestException('Twitter login failed');
     }
   }

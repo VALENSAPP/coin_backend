@@ -384,8 +384,8 @@ export class AuthService {
             id: userId,
             firebaseUserId,
             email,
-            userName: decodedToken.name || 'Unknown User',
-            profile: decodedToken.picture || null,
+            userName:loginDto?.userName || decodedToken.name || 'Unknown User',
+            profile: loginDto?.profile || null,
             googleId: provider === 'google.com' ? firebaseUserId : null,
             registrationType: loginType,
             verifyEmail: 1, // Firebase users are verified
@@ -417,7 +417,7 @@ export class AuthService {
         console.error('Firebase auth error:', error);
         return {
           error: true,
-          msg: error.message || 'Token verification failed',
+                    msg: error.message || 'Token verification failed',
           body: [error],
         };
       }
@@ -485,8 +485,8 @@ export class AuthService {
             id: userId,
             firebaseUserId,
             email,
-            userName: decodedToken.name || 'Unknown User',
-            profile: decodedToken.picture || null,
+            userName: loginDto?.userName || decodedToken.name || 'Unknown User',
+            profile: loginDto?.profile || null,
             googleId: provider === 'google.com' ? firebaseUserId : null,
             registrationType: loginType,
             verifyEmail: 1, // Firebase users are verified
@@ -542,8 +542,8 @@ export class AuthService {
 
       const twitterId = twitterUser.id;
       const email = twitterUser.email ? twitterUser.email.trim().toLowerCase() : null;
-      const userName = twitterUser.name || twitterUser.username;
-      const profile = twitterUser.profile_image_url || null;
+      const userName = loginDto?.userName || twitterUser.name || twitterUser.username;
+      const profile = loginDto?.profile || null;
 
       // Check if user already exists
       let existingUser = await this.prisma.user.findFirst({
@@ -592,7 +592,13 @@ export class AuthService {
         ...existingUser,
       };
     } catch (error) {
-      console.error('Twitter login error:', error.response?.data || error.message);
+      if (typeof error === 'object' && error && 'response' in error && error.response && 'data' in error.response) {
+        console.error('Twitter login error:', (error as any).response.data);
+      } else if (error instanceof Error) {
+        console.error('Twitter login error:', error.message);
+      } else {
+        console.error('Twitter login error:', error);
+      }
       throw new BadRequestException('Twitter login failed');
     }
   }
