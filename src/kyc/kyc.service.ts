@@ -12,6 +12,60 @@ export class KycService {
 
   constructor(private prisma: PrismaService) {}
 
+  private firstNonEmptyString(values: any[]): string | null {
+    for (const value of values) {
+      if (typeof value === 'string' && value.trim() !== '') {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private extractDeclineReason(payload: any): string {
+    if (!payload) return 'Unknown reason';
+
+    const verification = payload.verification || payload;
+    const decision = verification?.decision || payload?.decision;
+
+    const directReason = this.firstNonEmptyString([
+      decision?.reason,
+      decision?.label,
+      verification?.reason,
+      payload?.reason,
+      verification?.message,
+      payload?.message,
+      verification?.code,
+      decision?.code,
+      payload?.code,
+    ]);
+    if (directReason) return directReason;
+
+    const reasonArray = Array.isArray(decision?.reasons) ? decision.reasons : [];
+    for (const item of reasonArray) {
+      const fromArray = this.firstNonEmptyString([
+        item?.reason,
+        item?.label,
+        item?.message,
+        item?.code,
+      ]);
+      if (fromArray) return fromArray;
+    }
+
+    const checksArray = Array.isArray(decision?.checks) ? decision.checks : [];
+    for (const check of checksArray) {
+      const fromChecks = this.firstNonEmptyString([
+        check?.reason,
+        check?.label,
+        check?.message,
+        check?.code,
+        check?.status,
+      ]);
+      if (fromChecks) return fromChecks;
+    }
+
+    return 'Unknown reason';
+  }
+
   /**
    * Create Veriff session for a user with manual first and last name
    */
@@ -173,11 +227,11 @@ export class KycService {
         try {
           const decisionResponse = await axios.get(`${this.veriffBase}/v1/sessions/${sessionId}/decision`, { headers });
           const decisionData = decisionResponse.data;
-          reason = decisionData?.verification?.decision?.reason || decisionData?.reason || 'Unknown reason';
+          reason = this.extractDeclineReason(decisionData);
           console.log(`📋 Fetched decline reason for ${sessionId}: ${reason}`);
         } catch (decisionError) {
           console.warn(`Could not fetch decision for declined session ${sessionId}:`, decisionError.message);
-          reason = 'Reason not available';
+          reason = this.extractDeclineReason(verificationData);
         }
       }
 
