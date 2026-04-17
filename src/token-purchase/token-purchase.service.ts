@@ -51,6 +51,75 @@ export class TokenPurchaseService {
     return user.stripeAccountId;
   }
 
+  private async getMissionPostOrThrow(postId: string, vendorId: string) {
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id: postId,
+        userId: vendorId,
+        deletedAt: null,
+        isDelete: 'no',
+        postHide: 'no',
+        type: { in: ['crowdfunding', 'support'] },
+      },
+      select: {
+        id: true,
+        start_time: true,
+        end_time: true,
+      },
+    });
+
+    if (!post) {
+      throw new BadRequestException('Mission post not found for this vendor');
+    }
+
+    if (!post.start_time || !post.end_time) {
+      throw new BadRequestException('Mission post timeline is not configured correctly');
+    }
+
+    return post;
+  }
+
+  private async closeMissionPostIfGoalReached(postId: string) {
+    const now = new Date();
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id: postId,
+        deletedAt: null,
+        isDelete: 'no',
+        postHide: 'no',
+        type: { in: ['crowdfunding', 'support'] },
+        end_time: { gt: now },
+        raiseAmount: { not: null },
+      },
+      select: {
+        id: true,
+        raiseAmount: true,
+      },
+    });
+
+    if (!post || post.raiseAmount == null) return;
+
+    const totalResult = await this.prisma.donationData.aggregate({
+      where: {
+        postId,
+        action: 'missionDonation',
+        status: 'completed',
+      },
+      _sum: { amount: true },
+    });
+
+    const totalRaised = totalResult._sum.amount ?? 0;
+    if (totalRaised < post.raiseAmount) return;
+
+    await this.prisma.post.updateMany({
+      where: {
+        id: post.id,
+        end_time: { gt: now },
+      },
+      data: { end_time: now },
+    });
+  }
+
   /** @deprecated Valens does not display token amounts/prices or tie engagement to token activity. */
   async getTotalTokenData(userId: string) {
     return [];
@@ -531,6 +600,18 @@ export class TokenPurchaseService {
         return;
       }
 
+      const donation = await this.prisma.donationData.findFirst({
+        where: {
+          stripeCheckoutSessionId: session.id,
+          action: 'missionDonation',
+          status: 'completed',
+        },
+        select: { postId: true },
+      });
+      if (donation?.postId) {
+        await this.closeMissionPostIfGoalReached(donation.postId);
+      }
+
       this.logger.log(`Mission donation for session ${session.id} completed successfully`);
     } catch (error) {
       this.logger.error('Error handling mission donation payment:', error);
@@ -614,6 +695,16 @@ export class TokenPurchaseService {
 // console.log('Mission donation - payer user:', user, 'note:', dto.note);
       if (!user) {
         throw new BadRequestException('User not found');
+      }
+
+      // Keep donation checks simple: allow only during active mission window.
+      const missionPost = await this.getMissionPostOrThrow(dto.postId, dto.vendorId);
+      const now = new Date();
+      if (missionPost.start_time! > now) {
+        throw new BadRequestException('Mission has not started yet');
+      }
+      if (missionPost.end_time! <= now) {
+        throw new BadRequestException('Mission is closed because deadline has passed');
       }
 
       // Vendor (recipient of 95%) must exist and have Stripe Connect ready
