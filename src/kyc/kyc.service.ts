@@ -301,6 +301,29 @@ export class KycService {
   // }
 
   /**
+   * Auto-decline stale KYC records:
+   * If status is PENDING for more than 48 hours, mark as DECLINED.
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async autoDeclineStalePendingKyc() {
+    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+    const result = await this.prisma.kyc.updateMany({
+      where: {
+        status: 'PENDING',
+        createdAt: { lte: cutoff },
+      },
+      data: {
+        status: 'DECLINED',
+      },
+    });
+
+    if (result.count > 0) {
+      console.log(`⏱️ Auto-declined ${result.count} stale PENDING KYC records (older than 48h).`);
+    }
+  }
+
+  /**
    * Sync all pending/submitted KYC records with Veriff
    */
   async syncAllPendingKyc() {
