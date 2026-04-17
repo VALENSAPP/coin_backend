@@ -76,6 +76,11 @@ export class BattleVoteDto {
   @ApiProperty()
   @IsString()
   side!: string;
+
+  @ApiPropertyOptional({ description: 'Optional comment to post along with vote' })
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
 
 export class BattleCloseDto {

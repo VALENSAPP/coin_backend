@@ -390,10 +390,33 @@ export class BattleService {
     if (battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Vote only applies to head-to-head');
     if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
 
-    return this.prisma.battleVote.upsert({
-      where: { battleId_userId: { battleId: dto.battleId, userId } },
-      update: { side: dto.side },
-      create: { battleId: dto.battleId, userId, side: dto.side },
+    const normalizedComment = dto.comment?.trim();
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingVote = await tx.battleVote.findUnique({
+        where: { battleId_userId: { battleId: dto.battleId, userId } },
+      });
+      if (existingVote) {
+        throw new BadRequestException('You can vote only once in a battle');
+      }
+
+      const vote = await tx.battleVote.create({
+        data: { battleId: dto.battleId, userId, side: dto.side },
+      });
+
+      let comment = null as any;
+      if (normalizedComment) {
+        comment = await tx.battleComment.create({
+          data: {
+            battleId: dto.battleId,
+            userId,
+            comment: normalizedComment,
+            images: [],
+          },
+        });
+      }
+
+      return { vote, comment };
     });
   }
 
