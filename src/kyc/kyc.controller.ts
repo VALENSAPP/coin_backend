@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Param, Get, Req } from '@nestjs/common';
+import { Controller, Post, Body, Param, Get, Req, Query, Res } from '@nestjs/common';
 import { KycService } from './kyc.service';
 import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { VeriffWebhookDto } from './dto/webhook.dto';
+import { Response } from 'express';
 
 @ApiTags('KYC')
 @Controller('kyc')
@@ -97,5 +98,27 @@ async handleWebhook(@Req() req: any) {
   @ApiResponse({ status: 200, description: 'All pending KYC records synced successfully' })
   async syncAllPending() {
     return this.kycService.syncAllPendingKyc();
+  }
+
+  @Get('callback')
+  async veriffCallback(@Query('userId') userId: string, @Res() res: Response) {
+    let status = 'PENDING';
+
+    if (userId) {
+      try {
+        const synced = await this.kycService.syncKycStatus(userId);
+        status = (synced as any)?.status || status;
+      } catch {
+        const latest = await this.kycService.getKycStatus(userId);
+        status = (latest as any)?.status || status;
+      }
+    }
+
+    const normalized = (status || 'PENDING').toUpperCase();
+    if (normalized === 'APPROVED' || normalized === 'SUBMITTED') {
+      return res.redirect('/veriff.html');
+    }
+
+    return res.redirect('/veriff-incomplete.html');
   }
 }

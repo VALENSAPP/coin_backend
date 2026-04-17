@@ -38,7 +38,7 @@ export class KycService {
             person: personDetails,
             document: { type: documentType },
             vendorData: userId,
-            callback: `${process.env.BASE_URL}/veriff.html`,
+            callback: `${process.env.BASE_URL}/kyc/callback?userId=${encodeURIComponent(userId)}`,
           },
         },
         {
