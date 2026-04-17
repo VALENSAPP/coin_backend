@@ -1072,9 +1072,12 @@ export class BillingService {
     ]);
 
     return {
-
+      payFollowingTotal: Number(payFollowingSum._sum.amount ?? 0),
+      missionDonationTotal: Number(missionDonationSum._sum.amount ?? 0),
+      usdtTransfersTotal: Number(usdtSum._sum.amount ?? 0),
     totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
 
+      
     };
   }
 
