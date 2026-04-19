@@ -12,7 +12,7 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto } from './dto/post-comment.dto';
+import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto, ReactOnCommentDto } from './dto/post-comment.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatStatusUpdateDto } from './dto/chat-status-update.dto';
 import { HideChatDto } from './dto/hide-chat.dto';
@@ -254,10 +254,24 @@ async editComment(
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Post('comment/reaction')
+  @ApiOperation({ summary: 'Like, dislike, or remove reaction on a comment/reply' })
+  @ApiBody({ type: ReactOnCommentDto })
+  async reactOnComment(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) dto: ReactOnCommentDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.reactOnComment(dto.commentId, userId, dto.reaction);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Get('comment/list')
   @ApiQuery({ name: 'postId', type: String, required: true })
-  async getCommentListOnPost(@Query(new ValidationPipe({ whitelist: true })) dto: GetCommentListOnPostDto) {
-    return this.postService.getCommentListOnPost(dto.postId);
+  async getCommentListOnPost(@Req() req: Request, @Query(new ValidationPipe({ whitelist: true })) dto: GetCommentListOnPostDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.getCommentListOnPost(dto.postId, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))

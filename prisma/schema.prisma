@@ -73,6 +73,7 @@ model User {
   posts                Post[]
   postReports          PostReport[]
   postComments         PostComment[]
+  postCommentReactions PostCommentReaction[]
   postLikes            PostLike[]
   receivedPosts        PostShare[]            @relation("ReceivedBy")
   sharedPosts          PostShare[]            @relation("SharedBy")
@@ -195,10 +196,26 @@ model PostComment {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent    PostComment? @relation("PostCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
   replies   PostComment[] @relation("PostCommentThread")
+  reactions PostCommentReaction[]
 
   @@index([postId])
   @@index([userId])
   @@index([parentId])
+}
+
+model PostCommentReaction {
+  id        String       @id @default(uuid())
+  commentId String
+  userId    String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  comment   PostComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
 }
 
 model SavePost {
@@ -968,4 +985,9 @@ enum BattleInviteStatus {
   ACCEPTED
   DECLINED
   CANCELED
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
 }

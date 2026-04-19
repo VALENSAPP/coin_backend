@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CommentOnPostDto {
@@ -32,4 +32,17 @@ export class CommentDeleteDto {
   @IsString()
   @IsNotEmpty()
   commentId: string;
+}
+
+export class ReactOnCommentDto {
+  @ApiProperty({ example: 'comment-uuid', description: 'ID of the comment or reply to react on' })
+  @IsString()
+  @IsNotEmpty()
+  commentId: string;
+
+  @ApiProperty({ example: 'LIKE', enum: ['LIKE', 'DISLIKE', 'NONE'] })
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(['LIKE', 'DISLIKE', 'NONE'])
+  reaction: 'LIKE' | 'DISLIKE' | 'NONE';
 }

@@ -1056,7 +1056,7 @@ async getAllReel(viewerUserId?: string) {
     });
   }
 
-  async editComment(commentId: string, userId: string, newComment: string) {
+async editComment(commentId: string, userId: string, newComment: string) {
   if (!commentId) throw new BadRequestException('Comment ID required');
   if (!userId) throw new BadRequestException('User ID required');
   if (!newComment || newComment.trim() === '') throw new BadRequestException('New comment text required');
@@ -1073,8 +1073,82 @@ async getAllReel(viewerUserId?: string) {
   });
 }
 
+  async reactOnComment(commentId: string, userId: string, reaction: 'LIKE' | 'DISLIKE' | 'NONE') {
+    if (!commentId) throw new BadRequestException('Comment ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!reaction) throw new BadRequestException('Reaction required');
+
+    const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
+    if (!comment) throw new BadRequestException('Comment not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.postCommentReaction.findUnique({
+        where: {
+          commentId_userId: {
+            commentId,
+            userId,
+          },
+        },
+      });
+
+      if (reaction === 'NONE') {
+        if (existing) {
+          await tx.postCommentReaction.delete({
+            where: {
+              commentId_userId: {
+                commentId,
+                userId,
+              },
+            },
+          });
+        }
+        return;
+      }
+
+      if (!existing) {
+        await tx.postCommentReaction.create({
+          data: {
+            commentId,
+            userId,
+            type: reaction,
+          },
+        });
+        return;
+      }
+
+      if (existing.type !== reaction) {
+        await tx.postCommentReaction.update({
+          where: {
+            commentId_userId: {
+              commentId,
+              userId,
+            },
+          },
+          data: { type: reaction },
+        });
+      }
+    });
+
+    const [likeCount, dislikeCount, viewerReaction] = await Promise.all([
+      this.prisma.postCommentReaction.count({ where: { commentId, type: 'LIKE' } }),
+      this.prisma.postCommentReaction.count({ where: { commentId, type: 'DISLIKE' } }),
+      this.prisma.postCommentReaction.findUnique({
+        where: { commentId_userId: { commentId, userId } },
+        select: { type: true },
+      }),
+    ]);
+
+    return {
+      message: reaction === 'NONE' ? 'Reaction removed successfully' : 'Reaction updated successfully',
+      commentId,
+      userReaction: viewerReaction?.type || 'NONE',
+      likeCount,
+      dislikeCount,
+    };
+  }
+
   // Get comments for a post
-  async getCommentListOnPost(postId: string) {
+  async getCommentListOnPost(postId: string, viewerUserId?: string) {
     if (!postId) throw new BadRequestException('Post ID required');
     // Check if post exists
     const post = await this.prisma.post.findUnique({
@@ -1089,9 +1163,43 @@ async getAllReel(viewerUserId?: string) {
       },
     });
     const commentCount = await this.prisma.postComment.count({ where: { postId } });
+    const commentIds = comments.map((c: any) => c.id);
+
+    const [reactionCounts, viewerReactions] = await Promise.all([
+      commentIds.length
+        ? this.prisma.postCommentReaction.groupBy({
+            by: ['commentId', 'type'],
+            where: { commentId: { in: commentIds } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([] as any[]),
+      viewerUserId && commentIds.length
+        ? this.prisma.postCommentReaction.findMany({
+            where: { commentId: { in: commentIds }, userId: viewerUserId },
+            select: { commentId: true, type: true },
+          })
+        : Promise.resolve([] as any[]),
+    ]);
+
+    const reactionCountMap = new Map<string, { likeCount: number; dislikeCount: number }>();
+    reactionCounts.forEach((row: any) => {
+      const current = reactionCountMap.get(row.commentId) || { likeCount: 0, dislikeCount: 0 };
+      if (row.type === 'LIKE') {
+        current.likeCount = row._count?._all || 0;
+      } else if (row.type === 'DISLIKE') {
+        current.dislikeCount = row._count?._all || 0;
+      }
+      reactionCountMap.set(row.commentId, current);
+    });
+
+    const viewerReactionMap = new Map<string, 'LIKE' | 'DISLIKE'>();
+    viewerReactions.forEach((row: any) => {
+      viewerReactionMap.set(row.commentId, row.type);
+    });
 
     const commentById = new Map<string, any>();
     comments.forEach((c: any) => {
+      const reactionCounts = reactionCountMap.get(c.id) || { likeCount: 0, dislikeCount: 0 };
       commentById.set(c.id, {
         id: c.id,
         comment: c.comment,
@@ -1099,6 +1207,9 @@ async getAllReel(viewerUserId?: string) {
         userId: c.userId,
         displayName: c.user.displayName,
         image: c.user.image,
+        likeCount: reactionCounts.likeCount,
+        dislikeCount: reactionCounts.dislikeCount,
+        userReaction: viewerReactionMap.get(c.id) || 'NONE',
         replies: [],
         parentId: c.parentId || null,
       });
