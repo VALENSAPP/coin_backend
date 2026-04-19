@@ -597,16 +597,37 @@ export class BattleService {
     });
     if (!battle) throw new NotFoundException('Battle not found');
 
-    const predictionCountsRaw = await this.prisma.battlePrediction.groupBy({
-      by: ['side'],
-      where: { battleId },
-      _count: { _all: true },
-    });
+    const [predictionCountsRaw, voteCountsRaw] = await Promise.all([
+      battle.format === 'POLL'
+        ? this.prisma.battlePrediction.groupBy({
+            by: ['side'],
+            where: { battleId },
+            _count: { _all: true },
+          })
+        : Promise.resolve([] as Array<{ side: string; _count: { _all: number } }>),
+      battle.format === 'HEAD_TO_HEAD'
+        ? this.prisma.battleVote.groupBy({
+            by: ['side'],
+            where: { battleId },
+            _count: { _all: true },
+          })
+        : Promise.resolve([] as Array<{ side: string; _count: { _all: number } }>),
+    ]);
 
     const predictionCounts = predictionCountsRaw.reduce<Record<string, number>>((acc, row) => {
       acc[row.side] = row._count._all;
       return acc;
     }, {});
+
+    const voteCounts = voteCountsRaw.reduce<Record<string, number>>((acc, row) => {
+      acc[row.side] = row._count._all;
+      return acc;
+    }, {});
+
+    // Keep backward compatibility for clients already reading predictionCounts.
+    // For head-to-head battles, mirror vote counts into predictionCounts.
+    const effectivePredictionCounts =
+      battle.format === 'HEAD_TO_HEAD' ? voteCounts : predictionCounts;
 
     const commentById = new Map<string, any>();
     battle.comments.forEach((comment) => {
@@ -633,7 +654,12 @@ export class BattleService {
 
     sortByCreatedAtDesc(nestedComments);
 
-    return { ...battle, predictionCounts, comments: nestedComments };
+    return {
+      ...battle,
+      predictionCounts: effectivePredictionCounts,
+      voteCounts,
+      comments: nestedComments,
+    };
    
   }
 
