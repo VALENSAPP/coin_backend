@@ -146,6 +146,7 @@ export class NotificationService {
   async getLikePostNotifications(userId: string, limit: number = 100): Promise<any[]> {
     const likes = await this.prisma.postLike.findMany({
       where: {
+        userId: { not: userId },
         post: {
           userId,
           deletedAt: null,
@@ -447,7 +448,7 @@ export class NotificationService {
         where: { userId, isRead: false },
       }),
       this.prisma.postLike.count({
-        where: { post: { userId, deletedAt: null }, isReadByOwner: false },
+        where: { userId: { not: userId }, post: { userId, deletedAt: null }, isReadByOwner: false },
       }),
       this.prisma.donationData.count({
         where: { vendorId: userId, status: 'completed', action: 'missionDonation', isReadByOwner: false },
