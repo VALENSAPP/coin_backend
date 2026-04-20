@@ -17,6 +17,13 @@ const OPINION_LOSE_PENALTY = 5;
 const PREDICTION_WIN_BONUS = 25;
 const PREDICTION_LOSE_PENALTY = 10;
 const ARGUMENT_MIN_LENGTH = 10;
+const BATTLE_PUBLIC_USER_SELECT = {
+  id: true,
+  displayName: true,
+  userName: true,
+  image: true,
+  profile: true,
+} as const;
 
 @Injectable()
 export class BattleService {
@@ -422,17 +429,47 @@ export class BattleService {
 
   async exploreBattles(userId: string, status?: string) {
     const parsedStatus = this.parseBattleStatus(status) || BattleStatus.LIVE;
-    return this.prisma.battle.findMany({
+    const battles = await this.prisma.battle.findMany({
       where: {
         status: parsedStatus,
         isPublic: true,
       },
       include: {
         creator: true,
+        participants: {
+          include: {
+            user: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
+        invites: {
+          include: {
+            invited: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
         _count: { select: { participants: true, comments: true, votes: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
+    });
+
+    return battles.map((battle) => {
+      if (battle.format !== 'HEAD_TO_HEAD') {
+        const { participants, invites, ...rest } = battle;
+        return { ...rest, opponent: null };
+      }
+
+      const participantOpponent = battle.participants
+        .map((participant) => participant.user)
+        .find((participantUser) => participantUser.id !== battle.creatorId);
+
+      const invitedOpponent = battle.invites
+        .map((invite) => invite.invited)
+        .find((invitedUser) => invitedUser.id !== battle.creatorId);
+
+      const opponent = participantOpponent || invitedOpponent || null;
+      const { participants, invites, ...rest } = battle;
+      return { ...rest, opponent };
     });
   }
 
