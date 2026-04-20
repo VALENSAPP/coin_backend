@@ -217,6 +217,157 @@ export class UserService {
       throw new BadRequestException('Username is required');
     }
 
+    if (data.registrationType === 'NORMAL') {
+      if (!normalizedEmail || !data.password) {
+        throw new BadRequestException('Email and password required');
+      }
+      const normalizedUserName = data.userName!.trim();
+
+      const existingUserByEmail = await this.prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (existingUserByEmail) {
+        if (existingUserByEmail.deletedAt !== null) {
+          throw new BadRequestException('Email previously registered. Please contact support for account recovery.');
+        }
+
+        if (existingUserByEmail.isDeleted === 1) {
+          throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
+        }
+
+        if (existingUserByEmail.verifyEmail === 1) {
+          throw new BadRequestException('Email already registered');
+        }
+
+        if (existingUserByEmail.userName !== normalizedUserName) {
+          const userNameTaken = await this.prisma.user.findFirst({
+            where: {
+              userName: normalizedUserName,
+              deletedAt: null,
+              id: { not: existingUserByEmail.id },
+            },
+            select: { id: true },
+          });
+          if (userNameTaken) {
+            throw new BadRequestException('Username already taken');
+          }
+        }
+
+        const passwordHash = await bcrypt.hash(data.password, 10);
+        const updatedUser = await this.prisma.user.update({
+          where: { id: existingUserByEmail.id },
+          data: {
+            password: passwordHash,
+            userName: normalizedUserName,
+            ...(data.profile ? { profile: data.profile } : {}),
+            ...(data.fcmToken ? { fcmToken: data.fcmToken } : {}),
+            registrationType: 'NORMAL',
+          },
+        });
+
+        await this.sendEmailOtp(normalizedEmail);
+        const meta = this.buildSessionMetaFromRegister(data);
+        await this.upsertDeviceAccount(updatedUser.id, meta?.deviceId);
+        const tokens = await this.issueTokensForUser(updatedUser, meta);
+        return {
+          ...tokens,
+          user: updatedUser,
+        };
+      }
+
+      const existingUserName = await this.prisma.user.findFirst({
+        where: { userName: normalizedUserName, deletedAt: null },
+        select: { id: true },
+      });
+      if (existingUserName) {
+        throw new BadRequestException('Username already taken');
+      }
+
+      const passwordHash = await bcrypt.hash(data.password, 10);
+      let user;
+
+      try {
+        const trimmedReferrerCode = data.referrerCode?.trim();
+        const referrer = trimmedReferrerCode
+          ? await this.prisma.user.findFirst({
+              where: { referCode: trimmedReferrerCode, isDeleted: 0 },
+            })
+          : null;
+
+        if (trimmedReferrerCode && !referrer) {
+          throw new BadRequestException('Invalid referral code');
+        }
+
+        const referCode = await this.generateUniqueReferCode();
+        const initialReferPoints = referrer ? 5 : 0;
+
+        const userData: any = {
+          email: normalizedEmail,
+          password: passwordHash,
+          registrationType: 'NORMAL',
+          referCode,
+          referPoints: initialReferPoints,
+          totalPlatformPoints: initialReferPoints,
+          userName: normalizedUserName,
+        };
+
+        if (data.profile) {
+          userData.profile = data.profile;
+        }
+        if (data.fcmToken) {
+          userData.fcmToken = data.fcmToken;
+        }
+
+        user = await this.prisma.$transaction(async (tx) => {
+          const createdUser = await tx.user.create({
+            data: userData,
+          });
+
+          if (referrer) {
+            await tx.user.update({
+              where: { id: referrer.id },
+              data: {
+                referPoints: { increment: 10 },
+                totalPlatformPoints: { increment: 10 },
+              },
+            });
+
+            await tx.userReferral.create({
+              data: {
+                referrerId: referrer.id,
+                referredUserId: createdUser.id,
+                referrerPoints: 10,
+                referredUserPoints: 5,
+              },
+            });
+          }
+
+          return createdUser;
+        });
+      } catch (error: any) {
+        if (error.code === 'P2002') {
+          const field = error.meta?.target?.[0];
+          if (field === 'email') {
+            throw new BadRequestException('Email already registered');
+          } else if (field === 'userName') {
+            throw new BadRequestException('Username already taken');
+          }
+          throw new BadRequestException(`Unique constraint violation on field: ${field}`);
+        }
+        throw error;
+      }
+
+      await this.sendEmailOtp(normalizedEmail);
+      const meta = this.buildSessionMetaFromRegister(data);
+      const tokens = await this.issueTokensForUser(user, meta);
+      await this.upsertDeviceAccount(user.id, meta?.deviceId);
+      return {
+        ...tokens,
+        user,
+      };
+    }
+
     // Special case: If all of twitterId, walletAddress, and googleId are present
     if (data.walletAddress) {
       const existingUser = await this.prisma.user.findFirst({
@@ -294,11 +445,7 @@ export class UserService {
         throw new BadRequestException('Username already taken');
       }
     }
-    let passwordHash = undefined;
-    if (data.registrationType === 'NORMAL') {
-      if (!normalizedEmail || !data.password) throw new BadRequestException('Email and password required');
-      passwordHash = await bcrypt.hash(data.password, 10);
-    }
+    const passwordHash = undefined;
     // Valens: do NOT create wallets. Store only user-provided walletAddress when they connect (e.g. MetaMask).
     // const wallet = generateWallet();
     // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
@@ -410,7 +557,13 @@ export class UserService {
       if (!data.email || !data.password) throw new BadRequestException('Email and password required');
       const normalizedEmail = data.email.trim().toLowerCase();
       user = await this.prisma.user.findUnique({ where: { email: normalizedEmail } });
-      if (!user || !user.password || !(await bcrypt.compare(data.password, user.password))) {
+      if (!user) {
+        throw new BadRequestException('User not registered');
+      }
+      if (user.verifyEmail !== 1) {
+        throw new BadRequestException('User not registered. Please verify your email first.');
+      }
+      if (!user.password || !(await bcrypt.compare(data.password, user.password))) {
         throw new BadRequestException('Invalid credentials');
       }
     } else if (data.registrationType === 'GOOGLE' && data.googleId) {
