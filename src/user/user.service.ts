@@ -698,6 +698,7 @@ export class UserService {
     googleId?: string;
     twitterId?: string;
     phoneNumber?: string;
+    displayName?: string;
   }) {
     const where: any = { deletedAt: null };
 
@@ -719,7 +720,9 @@ export class UserService {
       if (query.phoneNumber) {
         orConditions.push({ phoneNumber: { contains: query.phoneNumber, mode: 'insensitive' } });
       }
-
+      if (query.displayName) {
+        orConditions.push({ displayName: { contains: query.displayName, mode: 'insensitive' } });
+      }
       if (orConditions.length > 0) {
         where.OR = orConditions;
       }

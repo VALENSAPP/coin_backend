@@ -327,6 +327,15 @@ export class GetAllUsersDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string;
+
+  @ApiProperty({
+    description: 'Search by displayName',
+    required: false,
+    example: 'user1'
+  })
+  @IsOptional()
+  @IsString()
+  displayName?: string;
 }
 
 export class ProfileStatusSetDto {
@@ -585,6 +594,7 @@ export class UserController {
   @ApiQuery({ name: 'googleId', type: String, required: false, description: 'Search by googleId' })
   @ApiQuery({ name: 'twitterId', type: String, required: false, description: 'Search by twitterId' })
   @ApiQuery({ name: 'phoneNumber', type: String, required: false, description: 'Search by phoneNumber' })
+  @ApiQuery({ name: 'displayName', type: String, required: false, description: 'Search by displayName' })
   async getAllUsers(@Query() query: GetAllUsersDto) {
     const users = await this.userService.getAllUsers(query);
     return { users };
