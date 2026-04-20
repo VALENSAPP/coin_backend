@@ -645,6 +645,7 @@ export class AuthService {
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await this.clearFcmTokenForUser(userId);
     return { message: 'Logged out from current session' };
   }
 
@@ -653,6 +654,7 @@ export class AuthService {
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await this.clearFcmTokenForUser(userId);
     return { message: 'Session logged out successfully' };
   }
 
@@ -661,7 +663,15 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await this.clearFcmTokenForUser(userId);
     return { message: 'All sessions logged out successfully' };
+  }
+
+  private async clearFcmTokenForUser(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { fcmToken: null },
+    });
   }
 
   async listDeviceAccounts(currentUserId: string, deviceId: string) {
