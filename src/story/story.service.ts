@@ -73,7 +73,7 @@ export class StoryService {
         deletedAt: null,
         ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
     return stories;
   }
@@ -117,7 +117,7 @@ export class StoryService {
     include: {
       user: true, // optional: to return story owner details
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
   });
 }
 
