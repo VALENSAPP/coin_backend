@@ -266,7 +266,6 @@ export class UserService {
           },
         });
 
-        await this.sendEmailOtp(normalizedEmail);
         const meta = this.buildSessionMetaFromRegister(data);
         await this.upsertDeviceAccount(updatedUser.id, meta?.deviceId);
         const tokens = await this.issueTokensForUser(updatedUser, meta);
@@ -358,7 +357,6 @@ export class UserService {
         throw error;
       }
 
-      await this.sendEmailOtp(normalizedEmail);
       const meta = this.buildSessionMetaFromRegister(data);
       const tokens = await this.issueTokensForUser(user, meta);
       await this.upsertDeviceAccount(user.id, meta?.deviceId);
