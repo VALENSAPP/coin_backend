@@ -115,8 +115,12 @@ async handleWebhook(@Req() req: any) {
     }
 
     const normalized = (status || 'PENDING').toUpperCase();
-    if (normalized === 'APPROVED' || normalized === 'SUBMITTED') {
+    if (normalized === 'APPROVED') {
       return res.redirect('/veriff.html');
+    }
+
+    else if (normalized === 'SUBMITTED') {
+      return res.redirect('/veriff-submitted.html');
     }
 
     return res.redirect('/veriff-incomplete.html');
