@@ -1,7 +1,8 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { uploadImageToS3 } from '../common/s3.util';
+import { uploadBufferToS3, uploadImageToS3 } from '../common/s3.util';
 import { Prisma } from '@prisma/client';
+import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { profile } from 'console';
 import { start } from 'repl';
 import { endWith } from 'rxjs';
@@ -10,7 +11,24 @@ import { endWith } from 'rxjs';
 export class PostService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createPost(userId: string, text?: string, images?: string[], files?: Express.Multer.File[], caption?: string, hashtag?: string[], location?: string, music?: string, youtubeMusicMeta?: any, link?: string, visibleTo?: string, taggedPeople?: string[], type?: string, raiseAmount?: number, start_time?: Date, end_time?: Date) {
+  async createPost(
+    userId: string,
+    text?: string,
+    images?: string[],
+    files?: Express.Multer.File[],
+    caption?: string,
+    hashtag?: string[],
+    location?: string,
+    music?: string,
+    youtubeMusicMeta?: any,
+    link?: string,
+    visibleTo?: string,
+    taggedPeople?: string[],
+    type?: string,
+    raiseAmount?: number,
+    start_time?: Date,
+    end_time?: Date,
+  ) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
 
@@ -42,17 +60,43 @@ export class PostService {
       }
 
       let imageUrls: string[] = images || [];
+      let thumbnailUrls: string[] = [];
       
       // Upload files to S3 and collect URLs
       if (files && files.length > 0) {
         try {
-          const uploadedUrls = await Promise.all(
-            files.map(f => uploadImageToS3(f, 'post-images'))
+          const uploadedResults = await Promise.all(
+            files.map(async (file) => {
+              const mediaUrl = await uploadImageToS3(file, 'post-images');
+              let thumbnailUrl: string;
+
+              try {
+                const thumbnailFile = await generateThumbnailForMedia(file);
+                thumbnailUrl = await uploadBufferToS3(
+                  thumbnailFile.buffer,
+                  thumbnailFile.originalname,
+                  thumbnailFile.mimetype,
+                  'post-thumbnails',
+                );
+              } catch (thumbnailError) {
+                if (file.mimetype?.startsWith('video/')) {
+                  // Fallback: keep post creation successful even if ffmpeg is unavailable.
+                  // Frontend can still use video URL when dedicated thumbnail is missing.
+                  console.warn('Video thumbnail generation failed, using media URL as fallback:', thumbnailError);
+                  thumbnailUrl = mediaUrl;
+                } else {
+                  throw thumbnailError;
+                }
+              }
+
+              return { mediaUrl, thumbnailUrl };
+            }),
           );
-          imageUrls = imageUrls.concat(uploadedUrls);
+          imageUrls = imageUrls.concat(uploadedResults.map((result) => result.mediaUrl));
+          thumbnailUrls = thumbnailUrls.concat(uploadedResults.map((result) => result.thumbnailUrl));
         } catch (uploadError) {
-          console.error('S3 Upload error:', uploadError);
-          throw new BadRequestException('Failed to upload images');
+          console.error('Media upload/thumbnail generation error:', uploadError);
+          throw new BadRequestException('Failed to upload media or generate thumbnails');
         }
       }
 
@@ -101,6 +145,7 @@ export class PostService {
             userId,
             ...processedData,
             images: imageUrls,
+            thumbnails: thumbnailUrls,
             type,
           },
         });
@@ -228,6 +273,7 @@ export class PostService {
     id: post.id,
     text: post.text,
     images: post.images,
+    thumbnails: post.thumbnails,
     caption: post.caption,
     hashtag: post.hashtag,
     location: post.location,
@@ -321,6 +367,7 @@ export class PostService {
     id: post.id,
     text: post.text,
     images: post.images,
+    thumbnails: post.thumbnails,
     caption: post.caption,
     hashtag: post.hashtag,
     location: post.location,
@@ -428,6 +475,7 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
     id: post.id,
     text: post.text,
     images: post.images,
+    thumbnails: post.thumbnails,
     caption: post.caption,
     hashtag: post.hashtag,
     location: post.location,
@@ -563,6 +611,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         id: post.id,
         text: post.text,
         images: post.images,
+        thumbnails: post.thumbnails,
         caption: post.caption,
         hashtag: post.hashtag,
         location: post.location,
@@ -664,6 +713,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       id: post.id,
       text: post.text,
       images: post.images,
+      thumbnails: post.thumbnails,
       caption: post.caption,
       hashtag: post.hashtag,
       location: post.location,
@@ -767,6 +817,7 @@ async getAllReel(viewerUserId?: string) {
     id: post.id,
     text: post.text,
     images: post.images,
+    thumbnails: post.thumbnails,
     caption: post.caption,
     hashtag: post.hashtag,
     location: post.location,
@@ -1318,6 +1369,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       id: post.id,
       text: post.text,
       images: post.images,
+      thumbnails: post.thumbnails,
       caption: post.caption,
       hashtag: post.hashtag,
       location: post.location,
@@ -1499,6 +1551,7 @@ async getSharedPostList(userId: string) {
         id: post.id,
         text: post.text,
         images: post.images,
+        thumbnails: post.thumbnails,
         caption: post.caption,
         hashtag: post.hashtag,
         location: post.location,
@@ -1908,6 +1961,7 @@ async getConversationWithUser(userId: string, otherUserId: string) {
             id: p.id,
             text: p.text,
             images: p.images,
+            thumbnails: p.thumbnails,
             caption: p.caption,
             hashtag: p.hashtag,
             location: p.location,
@@ -1936,6 +1990,7 @@ async getConversationWithUser(userId: string, otherUserId: string) {
             id: s.id,
             caption: s.caption,
             media: s.media,
+            thumbnails: s.thumbnails,
             createdAt: s.createdAt,
             updatedAt: s.updatedAt,
             userId: s.userId,

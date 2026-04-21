@@ -146,6 +146,7 @@ model Post {
   id           String        @id @default(uuid())
   text         String?
   images       String[]
+  thumbnails   String[]      @default([])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   userId       String
@@ -300,6 +301,7 @@ model Story {
   id        String    @id @default(uuid())
   userId    String
   media     String[]
+  thumbnails String[] @default([])
   caption   String?
   storyMeta Json?
   createdAt DateTime  @default(now())

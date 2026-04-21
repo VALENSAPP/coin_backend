@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
+import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
+import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 
 @Injectable()
 export class StoryService {
@@ -27,7 +28,32 @@ export class StoryService {
       throw new BadRequestException('storyMeta is required when audio files are uploaded');
     }
 
-    const urls = await Promise.all(mediaFiles.map(file => uploadImageToS3(file, 'story-media')));
+    const uploadedMedia = await Promise.all(
+      mediaFiles.map(async (file) => {
+        const mediaUrl = await uploadImageToS3(file, 'story-media');
+        let thumbnailUrl: string;
+        try {
+          const thumbnailFile = await generateThumbnailForMedia(file);
+          thumbnailUrl = await uploadBufferToS3(
+            thumbnailFile.buffer,
+            thumbnailFile.originalname,
+            thumbnailFile.mimetype,
+            'story-thumbnails',
+          );
+        } catch (thumbnailError) {
+          if (file.mimetype?.startsWith('video/')) {
+            console.warn('Story video thumbnail generation failed, using media URL as fallback:', thumbnailError);
+            thumbnailUrl = mediaUrl;
+          } else {
+            throw thumbnailError;
+          }
+        }
+        return { mediaUrl, thumbnailUrl };
+      }),
+    );
+
+    const urls = uploadedMedia.map((item) => item.mediaUrl);
+    const thumbnailUrls = uploadedMedia.map((item) => item.thumbnailUrl);
 
     if (parsedStoryMeta && Array.isArray(parsedStoryMeta.clips)) {
       const audioByIndex = new Map<number, Express.Multer.File>();
@@ -57,6 +83,7 @@ export class StoryService {
       data: {
         userId,
         media: urls,
+        thumbnails: thumbnailUrls,
         caption: caption && caption.trim() !== '' ? caption : null,
         storyMeta: parsedStoryMeta,
       },

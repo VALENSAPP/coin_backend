@@ -1,0 +1,1 @@
+ALTER TABLE "Story" ADD COLUMN "thumbnails" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

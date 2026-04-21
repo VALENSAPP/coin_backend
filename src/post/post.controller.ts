@@ -43,7 +43,7 @@ export class PostController {
         images: {
           type: 'array',
           items: { type: 'string', format: 'binary' },
-          description: 'Array of image files',
+          description: 'Array of image/video files',
         },
         type: { type: 'string', description: 'Type of post (normal or crowdfunding)' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },

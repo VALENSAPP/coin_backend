@@ -86,7 +86,7 @@ export class CreatePostDto {
   })
   taggedPeople?: string[];
 
-  @ApiProperty({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true })
+  @ApiProperty({ description: 'Array of image/video files', required: false, type: 'string', format: 'binary', isArray: true })
   @IsOptional()
   @Transform(({ value }: { value: any }) => {
     if (value === '' || value === null || value === undefined) return [];
