@@ -163,11 +163,11 @@ export class PostController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('getMissionpost')
-  @ApiQuery({ name: 'status', required: false, type: 'string', description: "Filter by status: 'live' | 'end' | 'all' (default 'all')" })
+  @ApiQuery({ name: 'status', required: false, type: 'string', description: "Filter by status: 'active' | 'completed' | 'all' (default 'all')" })
   async getMissionpost(@Req() req: Request, @Query('status') status?: string) {
     const userId = (req.user as any)?.userId;
     const normalized = (status || 'all').toString().trim().toLowerCase();
-    const parsedStatus = (normalized === 'live' || normalized === 'end' || normalized === 'all') ? (normalized as any) : 'all';
+    const parsedStatus = (normalized === 'active' || normalized === 'completed' || normalized === 'all') ? (normalized as any) : 'all';
     return this.postService.getMissionpost(userId, parsedStatus);
   }
 

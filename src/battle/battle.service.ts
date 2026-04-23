@@ -456,7 +456,7 @@ export class BattleService {
     const pollBattleIds = battles.filter((b) => b.format === 'POLL').map((b) => b.id);
     const headToHeadBattleIds = battles.filter((b) => b.format === 'HEAD_TO_HEAD').map((b) => b.id);
 
-    const [predictionCountsRaw, voteCountsRaw] = await Promise.all([
+    const [pollCountsRaw, headToHeadVoteCountsRaw] = await Promise.all([
       pollBattleIds.length
         ? this.prisma.battlePrediction.groupBy({
             by: ['battleId', 'side'],
@@ -473,14 +473,14 @@ export class BattleService {
         : Promise.resolve([] as Array<{ battleId: string; side: string; _count: { _all: number } }>),
     ]);
 
-    const predictionCountsByBattle = predictionCountsRaw.reduce<Map<string, Record<string, number>>>((acc, row) => {
+    const pollCountsByBattle = pollCountsRaw.reduce<Map<string, Record<string, number>>>((acc, row) => {
       const existing = acc.get(row.battleId) || {};
       existing[row.side] = row._count._all;
       acc.set(row.battleId, existing);
       return acc;
     }, new Map());
 
-    const voteCountsByBattle = voteCountsRaw.reduce<Map<string, Record<string, number>>>((acc, row) => {
+    const headToHeadVoteCountsByBattle = headToHeadVoteCountsRaw.reduce<Map<string, Record<string, number>>>((acc, row) => {
       const existing = acc.get(row.battleId) || {};
       existing[row.side] = row._count._all;
       acc.set(row.battleId, existing);
@@ -488,17 +488,14 @@ export class BattleService {
     }, new Map());
 
     return battles.map((battle) => {
-      const predictionCounts = predictionCountsByBattle.get(battle.id) || {};
-      const voteCounts = voteCountsByBattle.get(battle.id) || {};
-
-      // Keep backward compatibility for clients already reading predictionCounts.
-      // For head-to-head battles, mirror vote counts into predictionCounts.
-      const effectivePredictionCounts =
-        battle.format === 'HEAD_TO_HEAD' ? voteCounts : predictionCounts;
+      const voteCounts =
+        battle.format === 'HEAD_TO_HEAD'
+          ? (headToHeadVoteCountsByBattle.get(battle.id) || {})
+          : (pollCountsByBattle.get(battle.id) || {});
 
       if (battle.format !== 'HEAD_TO_HEAD') {
         const { participants, invites, ...rest } = battle;
-        return { ...rest, opponent: null, predictionCounts: effectivePredictionCounts, voteCounts };
+        return { ...rest, opponent: null, voteCounts };
       }
 
       const participantOpponent = battle.participants
@@ -511,7 +508,7 @@ export class BattleService {
 
       const opponent = participantOpponent || invitedOpponent || null;
       const { participants, invites, ...rest } = battle;
-      return { ...rest, opponent, predictionCounts: effectivePredictionCounts, voteCounts };
+      return { ...rest, opponent, voteCounts };
     });
   }
 

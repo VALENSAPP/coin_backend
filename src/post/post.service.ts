@@ -304,7 +304,7 @@ export class PostService {
   }));
   }
 
-  async getMissionpost(userId: string, status: 'live' | 'end' | 'all' = 'all') {
+  async getMissionpost(userId: string, status: 'active' | 'completed' | 'all' = 'all') {
     if (!userId) throw new BadRequestException('User ID required');
 
     const now = new Date();
@@ -317,11 +317,11 @@ export class PostService {
       type: { in: ['mission-post', 'crowdfunding', 'support'] },
     };
 
-    // "live" means mission window not ended yet (end_time > now).
-    // "end" means ended (end_time <= now).
-    if (status === 'live') {
+    // "active" means mission window not ended yet (end_time > now).
+    // "completed" means ended (end_time <= now).
+    if (status === 'active') {
       whereClause.end_time = { gt: now };
-    } else if (status === 'end') {
+    } else if (status === 'completed') {
       whereClause.end_time = { lte: now };
     }
 
