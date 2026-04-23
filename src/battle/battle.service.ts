@@ -453,10 +453,52 @@ export class BattleService {
       take: 50,
     });
 
+    const pollBattleIds = battles.filter((b) => b.format === 'POLL').map((b) => b.id);
+    const headToHeadBattleIds = battles.filter((b) => b.format === 'HEAD_TO_HEAD').map((b) => b.id);
+
+    const [predictionCountsRaw, voteCountsRaw] = await Promise.all([
+      pollBattleIds.length
+        ? this.prisma.battlePrediction.groupBy({
+            by: ['battleId', 'side'],
+            where: { battleId: { in: pollBattleIds } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([] as Array<{ battleId: string; side: string; _count: { _all: number } }>),
+      headToHeadBattleIds.length
+        ? this.prisma.battleVote.groupBy({
+            by: ['battleId', 'side'],
+            where: { battleId: { in: headToHeadBattleIds } },
+            _count: { _all: true },
+          })
+        : Promise.resolve([] as Array<{ battleId: string; side: string; _count: { _all: number } }>),
+    ]);
+
+    const predictionCountsByBattle = predictionCountsRaw.reduce<Map<string, Record<string, number>>>((acc, row) => {
+      const existing = acc.get(row.battleId) || {};
+      existing[row.side] = row._count._all;
+      acc.set(row.battleId, existing);
+      return acc;
+    }, new Map());
+
+    const voteCountsByBattle = voteCountsRaw.reduce<Map<string, Record<string, number>>>((acc, row) => {
+      const existing = acc.get(row.battleId) || {};
+      existing[row.side] = row._count._all;
+      acc.set(row.battleId, existing);
+      return acc;
+    }, new Map());
+
     return battles.map((battle) => {
+      const predictionCounts = predictionCountsByBattle.get(battle.id) || {};
+      const voteCounts = voteCountsByBattle.get(battle.id) || {};
+
+      // Keep backward compatibility for clients already reading predictionCounts.
+      // For head-to-head battles, mirror vote counts into predictionCounts.
+      const effectivePredictionCounts =
+        battle.format === 'HEAD_TO_HEAD' ? voteCounts : predictionCounts;
+
       if (battle.format !== 'HEAD_TO_HEAD') {
         const { participants, invites, ...rest } = battle;
-        return { ...rest, opponent: null };
+        return { ...rest, opponent: null, predictionCounts: effectivePredictionCounts, voteCounts };
       }
 
       const participantOpponent = battle.participants
@@ -469,7 +511,7 @@ export class BattleService {
 
       const opponent = participantOpponent || invitedOpponent || null;
       const { participants, invites, ...rest } = battle;
-      return { ...rest, opponent };
+      return { ...rest, opponent, predictionCounts: effectivePredictionCounts, voteCounts };
     });
   }
 
