@@ -304,6 +304,104 @@ export class PostService {
   }));
   }
 
+  async getMissionpost(userId: string, status: 'live' | 'end' | 'all' = 'all') {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const now = new Date();
+
+    const whereClause: Prisma.PostWhereInput = {
+      userId,
+      deletedAt: null,
+      isDelete: 'no' as any,
+      postHide: 'no' as any,
+      type: { in: ['mission-post', 'crowdfunding', 'support'] },
+    };
+
+    // "live" means mission window not ended yet (end_time > now).
+    // "end" means ended (end_time <= now).
+    if (status === 'live') {
+      whereClause.end_time = { gt: now };
+    } else if (status === 'end') {
+      whereClause.end_time = { lte: now };
+    }
+
+    const posts = await this.prisma.post.findMany({
+      where: whereClause,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+            profileStatus: true,
+            profile: true,
+            tokenBalance: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+      },
+    });
+
+    const postIds = posts.map((p) => p.id);
+    const [saved, liked] = await Promise.all([
+      postIds.length
+        ? this.prisma.savePost.findMany({
+            where: { userId, postId: { in: postIds } },
+            select: { postId: true },
+          })
+        : Promise.resolve([] as Array<{ postId: string }>),
+      postIds.length
+        ? this.prisma.postLike.findMany({
+            where: { userId, postId: { in: postIds } },
+            select: { postId: true },
+          })
+        : Promise.resolve([] as Array<{ postId: string }>),
+    ]);
+
+    const savedSet = new Set(saved.map((s) => s.postId));
+    const likedSet = new Set(liked.map((l) => l.postId));
+
+    return posts.map((post) => ({
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      tokenBalance: post.user?.tokenBalance || 0,
+      profileStatus: post.user?.profileStatus || null,
+      profile: post.user?.profile || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      shareCount: post._count.shares,
+      isSaved: savedSet.has(post.id),
+      isLike: likedSet.has(post.id),
+      isFollow: false,
+      type: post.type,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      start_time: post.start_time,
+      end_time: post.end_time,
+      raiseAmount: post.raiseAmount,
+    }));
+  }
+
   async getPostById(postId: string, viewerId: string) {
   if (!postId) throw new BadRequestException('Post ID required');
 
