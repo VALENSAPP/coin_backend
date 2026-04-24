@@ -442,6 +442,144 @@ export class BillingService {
     };
   }
 
+  async getSubscriptionEarningGraph(receiverId: string, interval: 'daily' | 'weekly' | 'monthly' = 'daily') {
+    const now = new Date();
+
+    const formatDayKey = (d: Date) => {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    const addUtcDays = (d: Date, days: number) => {
+      const copy = new Date(d);
+      copy.setUTCDate(copy.getUTCDate() + days);
+      return copy;
+    };
+
+    const startOfUtcDay = (d: Date) =>
+      new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+
+    const startOfUtcWeekMonday = (d: Date) => {
+      const dayStart = startOfUtcDay(d);
+      const dow = dayStart.getUTCDay(); // 0=Sun..6=Sat
+      const daysSinceMonday = (dow + 6) % 7;
+      return addUtcDays(dayStart, -daysSinceMonday);
+    };
+
+    const startOfUtcMonth = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+
+    const addUtcMonths = (d: Date, months: number) => {
+      const copy = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+      copy.setUTCMonth(copy.getUTCMonth() + months);
+      return copy;
+    };
+
+    if (interval === 'daily') {
+      const days = 30;
+      const endDay = startOfUtcDay(now);
+      const startDay = addUtcDays(endDay, -(days - 1));
+
+      const rows = await this.prisma.$queryRaw<Array<{ bucket: Date; amount: bigint }>>`
+        SELECT date_trunc('day', "createdAt") AS bucket,
+               COALESCE(SUM("amount"), 0)::bigint AS amount
+        FROM "Payment"
+        WHERE "receiverId" = ${receiverId}
+          AND "forPayment" = 'following'
+          AND "status" = 'succeeded'
+          AND "createdAt" >= ${startDay}
+        GROUP BY bucket
+        ORDER BY bucket ASC
+      `;
+
+      const amountByDay = new Map<string, number>(
+        rows.map((r) => [formatDayKey(new Date(r.bucket)), Number(r.amount)]),
+      );
+
+      const points = Array.from({ length: days }, (_, i) => {
+        const dayDate = addUtcDays(startDay, i);
+        const day = formatDayKey(dayDate);
+        return { day, amount: amountByDay.get(day) ?? 0 };
+      });
+
+      const totalAmount = points.reduce((sum, p) => sum + (p.amount || 0), 0);
+      return { interval, totalAmount, points };
+    }
+
+    if (interval === 'weekly') {
+      const weeks = 12;
+      const endWeekStart = startOfUtcWeekMonday(now);
+      const startWeekStart = addUtcDays(endWeekStart, -7 * (weeks - 1));
+
+      const rows = await this.prisma.$queryRaw<Array<{ bucket: Date; amount: bigint }>>`
+        SELECT date_trunc('week', "createdAt") AS bucket,
+               COALESCE(SUM("amount"), 0)::bigint AS amount
+        FROM "Payment"
+        WHERE "receiverId" = ${receiverId}
+          AND "forPayment" = 'following'
+          AND "status" = 'succeeded'
+          AND "createdAt" >= ${startWeekStart}
+        GROUP BY bucket
+        ORDER BY bucket ASC
+      `;
+
+      const amountByWeekStart = new Map<string, number>(
+        rows.map((r) => [formatDayKey(new Date(r.bucket)), Number(r.amount)]),
+      );
+
+      const points = Array.from({ length: weeks }, (_, i) => {
+        const weekStartDate = addUtcDays(startWeekStart, i * 7);
+        const weekStart = formatDayKey(weekStartDate);
+        const weekEnd = formatDayKey(addUtcDays(weekStartDate, 6));
+        return {
+          weekStart,
+          weekEnd,
+          amount: amountByWeekStart.get(weekStart) ?? 0,
+        };
+      });
+
+      const totalAmount = points.reduce((sum, p) => sum + (p.amount || 0), 0);
+      return { interval, totalAmount, points };
+    }
+
+    // monthly
+    const months = 12;
+    const endMonthStart = startOfUtcMonth(now);
+    const startMonthStart = addUtcMonths(endMonthStart, -(months - 1));
+
+    const rows = await this.prisma.$queryRaw<Array<{ bucket: Date; amount: bigint }>>`
+      SELECT date_trunc('month', "createdAt") AS bucket,
+             COALESCE(SUM("amount"), 0)::bigint AS amount
+      FROM "Payment"
+      WHERE "receiverId" = ${receiverId}
+        AND "forPayment" = 'following'
+        AND "status" = 'succeeded'
+        AND "createdAt" >= ${startMonthStart}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `;
+
+    const formatMonthKey = (d: Date) => {
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      return `${y}-${m}`;
+    };
+
+    const amountByMonth = new Map<string, number>(
+      rows.map((r) => [formatMonthKey(new Date(r.bucket)), Number(r.amount)]),
+    );
+
+    const points = Array.from({ length: months }, (_, i) => {
+      const monthStartDate = addUtcMonths(startMonthStart, i);
+      const month = formatMonthKey(monthStartDate);
+      return { month, amount: amountByMonth.get(month) ?? 0 };
+    });
+
+    const totalAmount = points.reduce((sum, p) => sum + (p.amount || 0), 0);
+    return { interval, totalAmount, points };
+  }
+
   /**
    * Get fan subscription status: whether the current user (payer) has an active pay-following
    * to the given receiver (creator). Uses latest succeeded payment and periodEnd.
