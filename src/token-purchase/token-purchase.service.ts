@@ -649,7 +649,8 @@ export class TokenPurchaseService {
     const where = {
       vendorId,
       status: 'completed',
-      action: 'missionDonation',
+      action: { in: ['missionDonation', 'donate'] },
+
     } as const;
 
     const now = new Date();
