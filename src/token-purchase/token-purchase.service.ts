@@ -650,8 +650,7 @@ export class TokenPurchaseService {
       vendorId,
       status: 'completed',
       action: { in: ['missionDonation', 'donate'] },
-
-    } as const;
+    };
 
     const now = new Date();
 
@@ -680,7 +679,7 @@ export class TokenPurchaseService {
     ]);
 
     return {
-      totalAmount: sumResult._sum.amount ?? 0,
+      totalAmount: sumResult._sum?.amount ?? 0,
       activePostCount,
       transactions,
     };
