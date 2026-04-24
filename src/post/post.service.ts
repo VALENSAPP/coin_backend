@@ -308,6 +308,7 @@ export class PostService {
     if (!userId) throw new BadRequestException('User ID required');
 
     const now = new Date();
+    const PLATFORM_FEE_PERCENT = 0.05;
 
     const whereClause: Prisma.PostWhereInput = {
       userId,
@@ -349,7 +350,7 @@ export class PostService {
     });
 
     const postIds = posts.map((p) => p.id);
-    const [saved, liked] = await Promise.all([
+    const [saved, liked, donationSums] = await Promise.all([
       postIds.length
         ? this.prisma.savePost.findMany({
             where: { userId, postId: { in: postIds } },
@@ -362,10 +363,26 @@ export class PostService {
             select: { postId: true },
           })
         : Promise.resolve([] as Array<{ postId: string }>),
+      postIds.length
+        ? this.prisma.donationData.groupBy({
+            by: ['postId'],
+            where: {
+              postId: { in: postIds },
+              action: 'missionDonation',
+              status: 'completed',
+            },
+            _sum: { amount: true },
+          })
+        : Promise.resolve([] as Array<{ postId: string | null; _sum: { amount: number | null } }>),
     ]);
 
     const savedSet = new Set(saved.map((s) => s.postId));
     const likedSet = new Set(liked.map((l) => l.postId));
+    const totalEarningByPostId = new Map<string, number>(
+      donationSums
+        .filter((d) => !!d.postId)
+        .map((d) => [d.postId as string, Number(d._sum.amount ?? 0)]),
+    );
 
     return posts.map((post) => ({
       id: post.id,
@@ -399,6 +416,16 @@ export class PostService {
       start_time: post.start_time,
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
+      earning: (() => {
+        const total = totalEarningByPostId.get(post.id) ?? 0;
+        const platformFees = total * PLATFORM_FEE_PERCENT;
+        const userEarning = total - platformFees;
+        return {
+          total,
+          platformFees,
+          userEarning,
+        };
+      })(),
     }));
   }
 
