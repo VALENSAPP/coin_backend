@@ -40,6 +40,23 @@ export class NotificationService {
         body,
       },
       data: data || {},
+      apns: {
+        headers: {
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
+      android: {
+        priority: 'high' as const,
+        notification: {
+          sound: 'default',
+        },
+      },
     };
 
     try {
@@ -77,6 +94,23 @@ export class NotificationService {
         body,
       },
       data: data || {},
+      apns: {
+        headers: {
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
+      android: {
+        priority: 'high' as const,
+        notification: {
+          sound: 'default',
+        },
+      },
     };
 
     try {
