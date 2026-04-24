@@ -350,7 +350,7 @@ export class PostService {
     });
 
     const postIds = posts.map((p) => p.id);
-    const [saved, liked, donationSums] = await Promise.all([
+    const [saved, liked, donationSums, donationUniqueUsers] = await Promise.all([
       postIds.length
         ? this.prisma.savePost.findMany({
             where: { userId, postId: { in: postIds } },
@@ -374,6 +374,16 @@ export class PostService {
             _sum: { amount: true },
           })
         : Promise.resolve([] as Array<{ postId: string | null; _sum: { amount: number | null } }>),
+      postIds.length
+        ? this.prisma.donationData.groupBy({
+            by: ['postId', 'userId'],
+            where: {
+              postId: { in: postIds },
+              action: 'missionDonation',
+              status: 'completed',
+            },
+          })
+        : Promise.resolve([] as Array<{ postId: string | null; userId: string }>),
     ]);
 
     const savedSet = new Set(saved.map((s) => s.postId));
@@ -383,6 +393,11 @@ export class PostService {
         .filter((d) => !!d.postId)
         .map((d) => [d.postId as string, Number(d._sum.amount ?? 0)]),
     );
+    const requestUsersByPostId = new Map<string, number>();
+    for (const row of donationUniqueUsers) {
+      if (!row.postId) continue;
+      requestUsersByPostId.set(row.postId, (requestUsersByPostId.get(row.postId) ?? 0) + 1);
+    }
 
     return posts.map((post) => ({
       id: post.id,
@@ -420,10 +435,12 @@ export class PostService {
         const total = totalEarningByPostId.get(post.id) ?? 0;
         const platformFees = total * PLATFORM_FEE_PERCENT;
         const userEarning = total - platformFees;
+        const requestusers = requestUsersByPostId.get(post.id) ?? 0;
         return {
           total,
           platformFees,
           userEarning,
+          requestusers,
         };
       })(),
     }));
