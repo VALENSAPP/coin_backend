@@ -368,7 +368,7 @@ export class PostService {
             by: ['postId'],
             where: {
               postId: { in: postIds },
-              action: 'missionDonation',
+              action: { in: ['missionDonation', 'donate'] },
               status: 'completed',
             },
             _sum: { amount: true },
@@ -379,7 +379,7 @@ export class PostService {
             by: ['postId', 'userId'],
             where: {
               postId: { in: postIds },
-              action: 'missionDonation',
+              action: { in: ['missionDonation', 'donate'] },
               status: 'completed',
             },
           })
