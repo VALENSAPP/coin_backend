@@ -6,10 +6,14 @@ import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { profile } from 'console';
 import { start } from 'repl';
 import { endWith } from 'rxjs';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class PostService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async createPost(
     userId: string,
@@ -127,7 +131,7 @@ export class PostService {
         throw new BadRequestException('Invalid end_time');
       }
 
-      return await this.prisma.$transaction(async (tx) => {
+      const createdPost = await this.prisma.$transaction(async (tx) => {
         // For crowdfunding, decrement hit
         if (type === 'crowdfunding' || type === 'support') {
           const postHit = await tx.postHit.findFirst({ where: { userId } });
@@ -152,6 +156,39 @@ export class PostService {
       }, {
         timeout: 15000 // Increased timeout
       });
+
+      const taggedIds = Array.from(
+        new Set((processedData.taggedPeople || []).map((id) => String(id).trim()).filter(Boolean)),
+      ).filter((id) => id !== userId);
+
+      if (taggedIds.length > 0) {
+        const [author, taggedUsers] = await Promise.all([
+          this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { displayName: true, userName: true },
+          }),
+          this.prisma.user.findMany({
+            where: { id: { in: taggedIds } },
+            select: { id: true },
+          }),
+        ]);
+
+        const authorName = author?.displayName || author?.userName || 'Someone';
+        const validTaggedUserIds = taggedUsers.map((u) => u.id);
+
+        await Promise.all(
+          validTaggedUserIds.map((taggedUserId) =>
+            this.notificationService.sendNotificationToUser(
+              taggedUserId,
+              'Tagged in a post',
+              `${authorName} tagged you in a post.`,
+              { type: 'post_tag', postId: createdPost.id, taggerId: userId },
+            ),
+          ),
+        );
+      }
+
+      return createdPost;
 
     } catch (error) {
       console.error('Create post error:', error);
