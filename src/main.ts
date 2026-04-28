@@ -7,6 +7,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { Server, Socket } from 'socket.io';
 import { PostService } from './post/post.service';
+import { createRateLimitMiddleware } from './common/rate-limit.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -18,9 +19,25 @@ async function bootstrap() {
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/kyc/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/sumsub-verification/webhook', bodyParser.raw({ type: '*/*' }));
-app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
+ app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
   app.use(bodyParser.json({ limit: '5mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));
+
+  // Rate limit auth endpoints (basic brute-force protection)
+  app.use(
+    '/auth/login',
+    createRateLimitMiddleware({
+      windowMs: 15 * 60 * 1000,
+      max: 30,
+    }),
+  );
+  app.use(
+    '/auth/refresh',
+    createRateLimitMiddleware({
+      windowMs: 15 * 60 * 1000,
+      max: 60,
+    }),
+  );
 
   // Serve static files from the public directory
   app.useStaticAssets(join(__dirname, '..', 'public'));
