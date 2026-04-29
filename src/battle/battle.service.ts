@@ -771,6 +771,62 @@ export class BattleService {
     return this.resolveDuelBattle(battle.id);
   }
 
+  async cancelExpiredPendingInvites() {
+    const now = new Date();
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        format: 'HEAD_TO_HEAD',
+        status: 'PENDING_INVITE',
+        endTime: { lte: now },
+        invites: { some: { status: 'PENDING' } },
+      },
+      select: {
+        id: true,
+        creatorId: true,
+        stakeAmount: true,
+        invites: {
+          where: { status: 'PENDING' },
+          select: {
+            id: true,
+            invited: { select: { userName: true, displayName: true } },
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (battles.length === 0) return { canceled: 0 };
+
+    for (const battle of battles) {
+      const invite = battle.invites[0];
+      const invitedUserName = invite?.invited?.userName || invite?.invited?.displayName || 'the invited user';
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.battleInvite.updateMany({
+          where: { battleId: battle.id, status: 'PENDING' },
+          data: { status: 'CANCELED', respondedAt: now },
+        });
+
+        await tx.battle.updateMany({
+          where: { id: battle.id, status: 'PENDING_INVITE' },
+          data: { status: 'CANCELED' },
+        });
+
+        const stakeAmount = battle.stakeAmount ?? 0;
+        if (stakeAmount > 0) {
+          await tx.user.update({
+            where: { id: battle.creatorId },
+            data: { totalPlatformPoints: { increment: stakeAmount } },
+          });
+        }
+      });
+
+      await this.notificationService.sendBattleInviteExpired(battle.creatorId, battle.id, invitedUserName);
+    }
+
+    return { canceled: battles.length };
+  }
+
   async closeExpiredBattles() {
     const now = new Date();
     const battles = await this.prisma.battle.findMany({

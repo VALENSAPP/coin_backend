@@ -6,6 +6,12 @@ import { BattleService } from './battle.service';
 export class BattleCleanupService {
   constructor(private readonly battleService: BattleService) {}
 
+  // Runs every minute to cancel expired head-to-head invites (not accepted in time)
+  @Cron('*/1 * * * *')
+  async cancelExpiredPendingInvites() {
+    await this.battleService.cancelExpiredPendingInvites();
+  }
+
   // Runs every minute to close battles whose endTime has passed
   @Cron('*/1 * * * *')
   async closeExpiredBattles() {

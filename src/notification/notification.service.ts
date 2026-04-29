@@ -372,6 +372,16 @@ export class NotificationService {
     );
   }
 
+  async sendBattleInviteExpired(userId: string, battleId: string, invitedUserName: string): Promise<void> {
+    const safeName = invitedUserName?.trim() || 'the invited user';
+    return this.sendNotificationToUser(
+      userId,
+      'Battle Invite Expired',
+      `Your battle was not accepted by ${safeName}.`,
+      { type: 'battle_invite_expired', battleId, invitedUserName: safeName },
+    );
+  }
+
   async sendBattleResult(userIds: string[], battleId: string): Promise<void> {
     if (userIds.length === 0) return;
     return this.sendNotificationToMultipleUsers(
