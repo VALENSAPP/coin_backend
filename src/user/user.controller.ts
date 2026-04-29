@@ -437,6 +437,18 @@ export class UserController {
     return { message: 'Profile updated', user };
   }
 
+  @Patch('first-log/after-kyc')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update first_log after KYC',
+    description: 'If kyc=true and first_log=true, set first_log=false. Otherwise no-op.',
+  })
+  async updateFirstLogAfterKyc(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.updateFirstLogAfterKyc(userId);
+  }
+
   @Post('forgot-password')
   @ApiOperation({ summary: 'Send OTP to email for password reset' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {

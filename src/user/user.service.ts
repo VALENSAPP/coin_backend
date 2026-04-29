@@ -74,6 +74,33 @@ export class UserService {
     private readonly notificationService: NotificationService,
   ) { }
 
+  async updateFirstLogAfterKyc(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, kyc: true, first_log: true },
+    });
+
+    if (!user) throw new BadRequestException('User not found');
+
+    if (!user.kyc) {
+      return { updated: false, reason: 'kyc_false', first_log: user.first_log };
+    }
+
+    if (!user.first_log) {
+      return { updated: false, reason: 'already_false', first_log: user.first_log };
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { first_log: false },
+      select: { id: true, kyc: true, first_log: true },
+    });
+
+    return { updated: true, reason: 'updated', first_log: updatedUser.first_log };
+  }
+
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }

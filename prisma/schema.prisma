@@ -45,6 +45,7 @@ model User {
   // DEPRECATED per Valens requirements: No internal balances or credits; revenue from software/Stripe only.
   tokenBalance         Float                  @default(0)
   kyc                  Boolean                @default(false)
+  first_log                  Boolean          @default(true)
   stripeAccountId      String?
   stripeBankAccountId  String?
   refreshToken         String?
