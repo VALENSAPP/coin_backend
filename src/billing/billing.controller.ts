@@ -289,4 +289,21 @@ export class BillingController {
     const userId = (req.user as any).userId;
     return this.billingService.getReceivedTotals(userId);
   }
+
+  @Get('received-transactions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get received transactions (combined) sorted by createdAt desc with pagination' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  async getReceivedTransactions(
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const userId = (req.user as any).userId;
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit || '10', 10) || 10), 50);
+    return this.billingService.getReceivedTransactions(userId, pageNum, limitNum);
+  }
 }

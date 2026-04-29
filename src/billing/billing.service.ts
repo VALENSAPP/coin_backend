@@ -1199,7 +1199,7 @@ export class BillingService {
         where: {
           vendorId: userId,
           status: 'completed',
-          action: 'missionDonation',
+          action: { in: ['missionDonation', 'donate'] },
         },
         _sum: { amount: true },
       }),
@@ -1214,6 +1214,76 @@ export class BillingService {
     totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
 
       
+    };
+  }
+
+  async getReceivedTransactions(userId: string, page: number = 1, limit: number = 10) {
+    const safePage = Math.max(1, page || 1);
+    const safeLimit = Math.min(Math.max(1, limit || 10), 50);
+    const takePerSource = safePage * safeLimit;
+
+    const [payments, donations, usdtTransfers, totalPayments, totalDonations, totalUsdtTransfers] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.donationData.findMany({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.digital_transaction.findMany({
+        where: { receiverId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.payment.count({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+      }),
+      this.prisma.donationData.count({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
+      this.prisma.digital_transaction.count({
+        where: { receiverId: userId },
+      }),
+    ]);
+
+    const combined = [
+      ...payments.map((p) => ({ ...p, typeTransaction: 'payFollowing' })),
+      ...donations.map((d) => ({ ...d, typeTransaction: 'donation' })),
+      ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt' })),
+    ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const start = (safePage - 1) * safeLimit;
+    const end = start + safeLimit;
+    const transactions = combined.slice(start, end);
+
+    const totalItems = totalPayments + totalDonations + totalUsdtTransfers;
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+
+    return {
+      page: safePage,
+      limit: safeLimit,
+      totalItems,
+      totalPages,
+      transactions,
     };
   }
 
