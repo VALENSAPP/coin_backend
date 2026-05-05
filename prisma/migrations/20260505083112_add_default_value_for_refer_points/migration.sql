@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "referPoints" SET DEFAULT 1000,
+ALTER COLUMN "totalPlatformPoints" SET DEFAULT 1000;
