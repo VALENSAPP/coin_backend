@@ -231,6 +231,34 @@ export class PostService {
     return { message: 'Post unsaved successfully' };
   }
 
+  async pinPost(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const post = await this.prisma.post.findUnique({ where: { id: postId, deletedAt: null } });
+    if (!post) throw new BadRequestException('Post not found');
+
+    // Upsert & bump pinnedAt so newest pin appears first.
+    await this.prisma.pinnedPost.upsert({
+      where: { postId_userId: { postId, userId } },
+      create: { postId, userId, pinnedAt: new Date() },
+      update: { pinnedAt: new Date() },
+    });
+
+    return { message: 'Post pinned successfully' };
+  }
+
+  async unpinPost(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    await this.prisma.pinnedPost.delete({
+      where: { postId_userId: { postId, userId } },
+    }).catch(() => undefined);
+
+    return { message: 'Post unpinned successfully' };
+  }
+
   async getPostByUserId(userId: string, viewerUserId?: string, page: number = 1, limit: number = 20, type: 'normal' | 'private' = 'normal') {
     if (!userId) throw new BadRequestException('User ID required');
     const take = Math.min(Math.max(1, limit), 50);
@@ -241,21 +269,17 @@ export class PostService {
     } else {
       whereClause.type = { not: 'private' };
     }
-    const posts = await this.prisma.post.findMany({
-      where: whereClause,
-      orderBy: { createdAt: 'desc' },
-      take,
-      skip,
-      include: {
-        user: {
-          select: {
-            displayName: true,
-            image: true,
-            profileStatus: true,
-            profile: true,
-            tokenBalance: true,
-          },
+
+    const postInclude = {
+      user: {
+        select: {
+          displayName: true,
+          image: true,
+          profileStatus: true,
+          profile: true,
+          tokenBalance: true,
         },
+      },
       _count: {
         select: {
           likes: true,      // from Post model
@@ -263,8 +287,36 @@ export class PostService {
           shares: true,
         },
       },
+    } as const;
+
+    // Pinned posts first (newer pins appear at the top), then other posts.
+    // To keep old pagination behavior, only prepend pinned posts on page 1.
+    const pinnedIdSet = new Set<string>();
+    let pinnedPosts: any[] = [];
+
+    if (viewerUserId && page === 1) {
+      const pinned = await this.prisma.pinnedPost.findMany({
+        where: { userId: viewerUserId, post: whereClause },
+        orderBy: { pinnedAt: 'desc' },
+        select: { postId: true, post: { include: postInclude } },
+      });
+
+      pinnedPosts = pinned.map((p) => p.post).filter(Boolean);
+      pinnedPosts.forEach((p: any) => pinnedIdSet.add(p.id));
     }
-  });
+
+    const otherPosts = await this.prisma.post.findMany({
+      where: {
+        ...whereClause,
+        ...(pinnedIdSet.size ? { id: { notIn: Array.from(pinnedIdSet) } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip,
+      include: postInclude,
+    });
+
+    const posts = [...pinnedPosts, ...otherPosts];
     // Fetch saved flags for the viewer
     let savedSet: Set<string> = new Set();
   let likedSet: Set<string> = new Set();
@@ -332,6 +384,7 @@ export class PostService {
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
     shareCount: post._count.shares,
     isFollow: !!followMap[post.userId],
+    pinned: pinnedIdSet.has(post.id),
     type:post.type,
     link:post.link,
     visibleTo: (post as any).visibleTo,
@@ -582,30 +635,56 @@ export class PostService {
 async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
   const take = Math.min(Math.max(1, limit), 50);
   const skip = (Math.max(1, page) - 1) * take;
-  const posts = await this.prisma.post.findMany({
-    where: { deletedAt: null, type:{ not: 'private' } },
+
+  const postWhere = { deletedAt: null, type: { not: 'private' } };
+  const postInclude = {
+    user: {
+      select: {
+        displayName: true,
+        image: true,
+        profile: true,
+        profileStatus: true,
+        tokenBalance: true,
+      },
+    },
+    _count: {
+      select: {
+        likes: true,      // from Post model
+        comments: true,   // from Post model
+        shares: true,
+      },
+    },
+  } as const;
+
+  // Pinned posts first (newer pins appear at the top), then other posts.
+  const pinnedIdSet = new Set<string>();
+  let pinnedPosts: any[] = [];
+
+  if (viewerUserId) {
+    const pinned = await this.prisma.pinnedPost.findMany({
+      where: { userId: viewerUserId, post: postWhere },
+      orderBy: { pinnedAt: 'desc' },
+      select: { postId: true, post: { include: postInclude } },
+    });
+
+    pinnedPosts = pinned.map((p) => p.post).filter(Boolean);
+    pinnedPosts.forEach((p: any) => pinnedIdSet.add(p.id));
+  }
+
+  const otherPosts = await this.prisma.post.findMany({
+    where: {
+      ...postWhere,
+      ...(pinnedIdSet.size ? { id: { notIn: Array.from(pinnedIdSet) } } : {}),
+    },
     take,
     skip,
     orderBy: { createdAt: 'desc' },
-    include: {
-      user: {
-        select: {
-          displayName: true,
-          image: true,
-          profile: true,
-          profileStatus: true,
-          tokenBalance: true,
-        },
-      },
-      _count: {
-        select: {
-          likes: true,      // from Post model
-          comments: true,   // from Post model
-          shares: true,
-        },
-      },
-    },
+    include: postInclude,
   });
+
+  // Keep existing mixed ordering for non-pinned posts, but never shuffle pinned posts.
+  otherPosts.sort(() => Math.random() - 0.5);
+  const posts = [...pinnedPosts, ...otherPosts];
 
   let savedSet: Set<string> = new Set();
   let likedSet: Set<string> = new Set();
@@ -647,8 +726,7 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
     }
   }
 
-  // Shuffle posts randomly for mixed up ordering
-  posts.sort(() => Math.random() - 0.5);
+  // Note: We do not shuffle the combined array so pinned posts stay on top.
 
   return posts.map(post => ({
     id: post.id,
@@ -677,6 +755,7 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
     isLike: likedSet.has(post.id), // ✅ true if viewer liked
     isFollow: !!followMap[post.userId],
     isHide: hiddenSet.has(post.id),
+    isPinned: pinnedIdSet.has(post.id),
     type:post.type,
     link:post.link,
     visibleTo: (post as any).visibleTo,

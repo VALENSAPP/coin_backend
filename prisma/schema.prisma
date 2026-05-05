@@ -79,6 +79,7 @@ model User {
   receivedPosts        PostShare[]            @relation("ReceivedBy")
   sharedPosts          PostShare[]            @relation("SharedBy")
   savedPosts           SavePost[]
+  pinnedPosts          PinnedPost[]
   stories              Story[]
   storyHighlights      StoryHighlight[]
   StoryComment         StoryComment[]
@@ -173,6 +174,21 @@ model Post {
   likes        PostLike[]
   shares       PostShare[]
   saves        SavePost[]
+  pinnedBy     PinnedPost[]
+}
+
+model PinnedPost {
+  id       String   @id @default(uuid())
+  postId   String
+  userId   String
+  pinnedAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, pinnedAt])
+  @@index([postId])
 }
 
 model PostLike {

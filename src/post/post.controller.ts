@@ -16,6 +16,7 @@ import { CommentOnPostDto, GetCommentListOnPostDto, CommentDeleteDto, ReactOnCom
 import { SendMessageDto } from './dto/send-message.dto';
 import { ChatStatusUpdateDto } from './dto/chat-status-update.dto';
 import { HideChatDto } from './dto/hide-chat.dto';
+import { PinPostDto, UnpinPostDto } from './dto/pin-post.dto';
 import { log } from 'console';
 
 @Controller('post')
@@ -207,6 +208,32 @@ export class PostController {
   ) {
     const userId = (req.user as any).userId;
     return this.postService.postLikeByUser(body.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('pin')
+  @ApiOperation({ summary: 'Pin a post (newer pins appear first)' })
+  @ApiBody({ type: PinPostDto })
+  async pinPost(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) body: PinPostDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.pinPost(body.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('unpin')
+  @ApiOperation({ summary: 'Unpin a post' })
+  @ApiBody({ type: UnpinPostDto })
+  async unpinPost(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) body: UnpinPostDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.unpinPost(body.postId, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
