@@ -326,15 +326,15 @@ export class UserService {
         }
 
         const referCode = await this.generateUniqueReferCode();
-        const initialReferPoints = referrer ? 5 : 0;
+        // const initialReferPoints = 1000 + (referrer ? 500 : 0);
 
         const userData: any = {
           email: normalizedEmail,
           password: passwordHash,
           registrationType: 'NORMAL',
           referCode,
-          referPoints: initialReferPoints,
-          totalPlatformPoints: initialReferPoints,
+          // referPoints: initialReferPoints,
+          // totalPlatformPoints: initialReferPoints,
           userName: normalizedUserName,
         };
 
@@ -354,8 +354,8 @@ export class UserService {
             await tx.user.update({
               where: { id: referrer.id },
               data: {
-                referPoints: { increment: 10 },
-                totalPlatformPoints: { increment: 10 },
+                referPoints: { increment: 500 },
+                totalPlatformPoints: { increment: 500 },
               },
             });
 
@@ -363,8 +363,8 @@ export class UserService {
               data: {
                 referrerId: referrer.id,
                 referredUserId: createdUser.id,
-                referrerPoints: 10,
-                referredUserPoints: 5,
+                referrerPoints: 500,
+                referredUserPoints: 500,
               },
             });
           }
@@ -491,7 +491,7 @@ export class UserService {
       }
 
       const referCode = await this.generateUniqueReferCode();
-      const initialReferPoints = referrer ? 500 : 0;
+      // const initialReferPoints = referrer ? 500 : 0;
 
       const userData: any = {
         email: normalizedEmail,
@@ -503,8 +503,8 @@ export class UserService {
         // walletMnemonic: encryptedMnemonic,
         registrationType: data.registrationType,
         referCode,
-        referPoints: initialReferPoints,
-        totalPlatformPoints: initialReferPoints,
+        // referPoints: initialReferPoints,
+        // totalPlatformPoints: initialReferPoints,
       };
       if (data.userName) {
         userData.userName = data.userName;
