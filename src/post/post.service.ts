@@ -238,11 +238,40 @@ export class PostService {
     const post = await this.prisma.post.findUnique({ where: { id: postId, deletedAt: null } });
     if (!post) throw new BadRequestException('Post not found');
 
-    // Upsert & bump pinnedAt so newest pin appears first.
-    await this.prisma.pinnedPost.upsert({
-      where: { postId_userId: { postId, userId } },
-      create: { postId, userId, pinnedAt: new Date() },
-      update: { pinnedAt: new Date() },
+    const now = new Date();
+    const MAX_PINNED_POSTS = 3;
+
+    await this.prisma.$transaction(async (tx) => {
+      // If already pinned, just bump pinnedAt so it appears first.
+      const existingPin = await tx.pinnedPost.findUnique({
+        where: { postId_userId: { postId, userId } },
+        select: { id: true },
+      });
+
+      if (existingPin) {
+        await tx.pinnedPost.update({
+          where: { postId_userId: { postId, userId } },
+          data: { pinnedAt: now },
+        });
+        return;
+      }
+
+      // Enforce max pins: if pinning a 4th, remove the oldest pin first.
+      const pinnedCount = await tx.pinnedPost.count({ where: { userId } });
+      if (pinnedCount >= MAX_PINNED_POSTS) {
+        const oldestPin = await tx.pinnedPost.findFirst({
+          where: { userId },
+          orderBy: { pinnedAt: 'asc' },
+          select: { id: true },
+        });
+        if (oldestPin) {
+          await tx.pinnedPost.delete({ where: { id: oldestPin.id } });
+        }
+      }
+
+      await tx.pinnedPost.create({
+        data: { postId, userId, pinnedAt: now },
+      });
     });
 
     return { message: 'Post pinned successfully' };
