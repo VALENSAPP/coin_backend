@@ -32,6 +32,27 @@ export class BattleService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  private async getBattleEngagedUserIds(battleId: string, creatorId?: string | null): Promise<string[]> {
+    const [participants, votes, comments, predictions] = await Promise.all([
+      this.prisma.battleParticipant.findMany({ where: { battleId }, select: { userId: true } }),
+      this.prisma.battleVote.findMany({ where: { battleId }, select: { userId: true } }),
+      this.prisma.battleComment.findMany({ where: { battleId }, select: { userId: true } }),
+      this.prisma.battlePrediction.findMany({ where: { battleId }, select: { userId: true } }),
+    ]);
+
+    return Array.from(
+      new Set(
+        [
+          creatorId || undefined,
+          ...participants.map((p) => p.userId),
+          ...votes.map((v) => v.userId),
+          ...comments.map((c) => c.userId),
+          ...predictions.map((p) => p.userId),
+        ].filter(Boolean) as string[],
+      ),
+    );
+  }
+
   async notifyBattlesClosingSoon(): Promise<{ processed: number }> {
     const now = new Date();
     const upper = new Date(now.getTime() + 2 * 60 * 60 * 1000);
@@ -1355,6 +1376,9 @@ export class BattleService {
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
 
+    const engagedUserIds = await this.getBattleEngagedUserIds(battleId, battle.creatorId);
+    await this.notificationService.sendBattleCompleted(engagedUserIds, battleId);
+
     return { battleId, winnerUserId: winner?.userId || null };
   }
 
@@ -1595,6 +1619,9 @@ export class BattleService {
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
+
+    const engagedUserIds = await this.getBattleEngagedUserIds(battleId, battle.creatorId);
+    await this.notificationService.sendBattleCompleted(engagedUserIds, battleId);
 
     return { battleId, winnerUserId: winner?.userId || null };
   }

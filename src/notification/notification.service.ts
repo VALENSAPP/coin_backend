@@ -397,6 +397,16 @@ export class NotificationService {
     );
   }
 
+  async sendBattleCompleted(userIds: string[], battleId: string): Promise<void> {
+    if (!userIds || userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      '🏆 Battle Completed',
+      'See the final outcome and accuracy result for your Battle.',
+      { type: 'battle_completed', battleId },
+    );
+  }
+
   async sendBattleDeclined(userId: string, battleId: string): Promise<void> {
     return this.sendNotificationToUser(
       userId,
