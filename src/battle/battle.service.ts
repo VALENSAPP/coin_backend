@@ -1370,9 +1370,13 @@ export class BattleService {
     }
 
     const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
+    if (victoryUserIds.length === 0 && winner?.userId) {
+      victoryUserIds.push(winner.userId);
+    }
     await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
 
-    const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !s.userWon).map((s) => s.userId)));
+    const victoryUserIdSet = new Set(victoryUserIds);
+    const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !victoryUserIdSet.has(s.userId)).map((s) => s.userId)));
     await this.notificationService.sendBattleForecastMissed(forecastMissedUserIds, battleId);
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
@@ -1616,9 +1620,13 @@ export class BattleService {
     }
 
     const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
+    if (victoryUserIds.length === 0 && winner?.userId) {
+      victoryUserIds.push(winner.userId);
+    }
     await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
 
-    const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !s.userWon).map((s) => s.userId)));
+    const victoryUserIdSet = new Set(victoryUserIds);
+    const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !victoryUserIdSet.has(s.userId)).map((s) => s.userId)));
     await this.notificationService.sendBattleForecastMissed(forecastMissedUserIds, battleId);
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
