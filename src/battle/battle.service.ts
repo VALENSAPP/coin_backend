@@ -600,17 +600,12 @@ export class BattleService {
     if (!userId) throw new BadRequestException('User ID required');
     if (!dto?.battleId || !dto?.side) throw new BadRequestException('Battle ID and side required');
 
-    const battle = await this.prisma.battle.findUnique({
-      where: { id: dto.battleId },
-      include: { participants: true },
-    });
+    const battle = await this.prisma.battle.findUnique({ where: { id: dto.battleId } });
     if (!battle) throw new NotFoundException('Battle not found');
     if (battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Vote only applies to head-to-head');
     if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
 
     const normalizedComment = dto.comment?.trim();
-    const normalizedSide = this.normalizeDuelSide(dto.side, battle.participants);
-    if (!normalizedSide) throw new BadRequestException('Invalid side');
 
     const result = await this.prisma.$transaction(async (tx) => {
       const existingVote = await tx.battleVote.findUnique({
@@ -621,7 +616,7 @@ export class BattleService {
       }
 
       const vote = await tx.battleVote.create({
-        data: { battleId: dto.battleId, userId, side: normalizedSide },
+        data: { battleId: dto.battleId, userId, side: dto.side },
       });
 
       let comment = null as any;
@@ -1413,11 +1408,7 @@ export class BattleService {
     participants.forEach((p) => {
       if (!voteCounts.has(p.side || '')) voteCounts.set(p.side || '', 0);
     });
-    votes.forEach((v) => {
-      const side = this.normalizeDuelSide(v.side, participants);
-      if (!side) return;
-      voteCounts.set(side, (voteCounts.get(side) || 0) + 1);
-    });
+    votes.forEach((v) => voteCounts.set(v.side, (voteCounts.get(v.side) || 0) + 1));
 
     const likesByUser = new Map<string, number>();
     commentLikes.forEach((like) => {
@@ -1663,19 +1654,6 @@ export class BattleService {
       .map(([side]) => side)
       .sort();
     return candidates[0] || null;
-  }
-
-  private normalizeDuelSide(side: string | null | undefined, participants: Array<{ userId: string; side: string | null }>): string | null {
-    const safeSide = side?.trim();
-    if (!safeSide) return null;
-
-    const participantSides = new Set(participants.map((participant) => participant.side).filter(Boolean) as string[]);
-    if (participantSides.has(safeSide)) {
-      return safeSide;
-    }
-
-    const participant = participants.find((entry) => entry.userId === safeSide);
-    return participant?.side || null;
   }
 
   private getBattleLevel(points: number): string {
