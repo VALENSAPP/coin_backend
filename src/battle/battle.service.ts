@@ -278,11 +278,29 @@ export class BattleService {
     if (battle.format !== 'POLL') throw new BadRequestException('Join only applies to poll battles');
     if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
 
-    return this.prisma.battleParticipant.upsert({
+    const existing = await this.prisma.battleParticipant.findUnique({
+      where: { battleId_userId: { battleId: dto.battleId, userId } },
+      select: { id: true },
+    });
+
+    const participant = await this.prisma.battleParticipant.upsert({
       where: { battleId_userId: { battleId: dto.battleId, userId } },
       update: { side: dto.side || null },
       create: { battleId: dto.battleId, userId, side: dto.side || null },
     });
+
+    // Notify the battle creator when new participants join (batched by 5 to avoid spam).
+    if (!existing) {
+      const totalParticipants = await this.prisma.battleParticipant.count({
+        where: { battleId: dto.battleId },
+      });
+
+      if (totalParticipants > 0 && totalParticipants % 5 === 0) {
+        await this.notificationService.sendBattleNewParticipants([battle.creatorId], dto.battleId, 5);
+      }
+    }
+
+    return participant;
   }
 
   async submitPrediction(userId: string, dto: BattlePredictionDto) {
@@ -402,7 +420,7 @@ export class BattleService {
 
     const normalizedComment = dto.comment?.trim();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const existingVote = await tx.battleVote.findUnique({
         where: { battleId_userId: { battleId: dto.battleId, userId } },
       });
@@ -428,6 +446,25 @@ export class BattleService {
 
       return { vote, comment };
     });
+
+    // Notify both head-to-head participants when the community joins (batched by 5 votes).
+    try {
+      const [participantUserIds, totalVotes] = await Promise.all([
+        this.prisma.battleParticipant
+          .findMany({ where: { battleId: dto.battleId }, select: { userId: true } })
+          .then((rows) => rows.map((row) => row.userId)),
+        this.prisma.battleVote.count({ where: { battleId: dto.battleId } }),
+      ]);
+
+      const uniqueParticipantUserIds = Array.from(new Set(participantUserIds));
+      if (uniqueParticipantUserIds.length > 0 && totalVotes > 0 && totalVotes % 5 === 0) {
+        await this.notificationService.sendBattleNewParticipants(uniqueParticipantUserIds, dto.battleId, 5);
+      }
+    } catch {
+      // Best-effort: don't block the vote flow if notification fails.
+    }
+
+    return result;
   }
 
   async exploreBattles(userId: string, status?: string) {

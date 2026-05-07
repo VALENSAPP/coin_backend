@@ -363,6 +363,18 @@ export class NotificationService {
     );
   }
 
+  async sendBattleNewParticipants(userIds: string[], battleId: string, newCount: number): Promise<void> {
+    if (!userIds || userIds.length === 0) return;
+    const safeNewCount = Number.isFinite(newCount) && newCount > 0 ? Math.floor(newCount) : 1;
+
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      '👥 New Participants!',
+      `${safeNewCount} new participants joined your Battle. See which side the community is backing.`,
+      { type: 'battle_participant_joined', battleId, newCount: String(safeNewCount) },
+    );
+  }
+
   async sendBattleDeclined(userId: string, battleId: string): Promise<void> {
     return this.sendNotificationToUser(
       userId,
