@@ -355,15 +355,65 @@ export class BattleService {
     if (!battle) throw new NotFoundException('Battle not found');
     if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
 
-    return this.prisma.battleComment.create({
-      data: {
-        battleId: dto.battleId,
-        userId,
-        comment: dto.comment,
-        parentId: dto.parentCommentId || null,
-        images: [],
-      },
+    const existingParticipant = await this.prisma.battleParticipant.findUnique({
+      where: { battleId_userId: { battleId: dto.battleId, userId } },
+      select: { id: true },
     });
+
+    const comment = await this.prisma.$transaction(async (tx) => {
+      if (!existingParticipant) {
+        await tx.battleParticipant.upsert({
+          where: { battleId_userId: { battleId: dto.battleId, userId } },
+          update: {},
+          create: { battleId: dto.battleId, userId, side: null },
+        });
+      }
+
+      return tx.battleComment.create({
+        data: {
+          battleId: dto.battleId,
+          userId,
+          comment: dto.comment,
+          parentId: dto.parentCommentId || null,
+          images: [],
+        },
+      });
+    });
+
+    // Treat first comment as "join" and notify in batches of 5 (best-effort).
+    if (!existingParticipant) {
+      try {
+        if (battle.format === 'HEAD_TO_HEAD') {
+          const mainParticipants = await this.prisma.battleParticipant.findMany({
+            where: { battleId: dto.battleId, side: { in: ['A', 'B'] } },
+            select: { userId: true },
+          });
+          const mainUserIds = Array.from(new Set(mainParticipants.map((p) => p.userId)));
+
+          const communityCount = await this.prisma.battleParticipant.count({
+            where: {
+              battleId: dto.battleId,
+              userId: mainUserIds.length ? { notIn: mainUserIds } : undefined,
+            } as any,
+          });
+
+          if (mainUserIds.length > 0 && communityCount > 0 && communityCount % 5 === 0) {
+            await this.notificationService.sendBattleNewParticipants(mainUserIds, dto.battleId, 5);
+          }
+        } else if (battle.format === 'POLL') {
+          const communityCount = await this.prisma.battleParticipant.count({
+            where: { battleId: dto.battleId, userId: { not: battle.creatorId } },
+          });
+          if (communityCount > 0 && communityCount % 5 === 0) {
+            await this.notificationService.sendBattleNewParticipants([battle.creatorId], dto.battleId, 5);
+          }
+        }
+      } catch {
+        // Best-effort: don't block comment flow if notification fails.
+      }
+    }
+
+    return comment;
   }
 
   async addCommentWithImages(userId: string, dto: BattleCommentDto, files?: Express.Multer.File[]) {
@@ -381,15 +431,65 @@ export class BattleService {
       ? await Promise.all(files.map(file => uploadImageToS3(file, 'battle-comments')))
       : [];
 
-    return this.prisma.battleComment.create({
-      data: {
-        battleId: dto.battleId,
-        userId,
-        comment: dto.comment || '',
-        parentId: dto.parentCommentId || null,
-        images,
-      },
+    const existingParticipant = await this.prisma.battleParticipant.findUnique({
+      where: { battleId_userId: { battleId: dto.battleId, userId } },
+      select: { id: true },
     });
+
+    const comment = await this.prisma.$transaction(async (tx) => {
+      if (!existingParticipant) {
+        await tx.battleParticipant.upsert({
+          where: { battleId_userId: { battleId: dto.battleId, userId } },
+          update: {},
+          create: { battleId: dto.battleId, userId, side: null },
+        });
+      }
+
+      return tx.battleComment.create({
+        data: {
+          battleId: dto.battleId,
+          userId,
+          comment: dto.comment || '',
+          parentId: dto.parentCommentId || null,
+          images,
+        },
+      });
+    });
+
+    // Treat first comment as "join" and notify in batches of 5 (best-effort).
+    if (!existingParticipant) {
+      try {
+        if (battle.format === 'HEAD_TO_HEAD') {
+          const mainParticipants = await this.prisma.battleParticipant.findMany({
+            where: { battleId: dto.battleId, side: { in: ['A', 'B'] } },
+            select: { userId: true },
+          });
+          const mainUserIds = Array.from(new Set(mainParticipants.map((p) => p.userId)));
+
+          const communityCount = await this.prisma.battleParticipant.count({
+            where: {
+              battleId: dto.battleId,
+              userId: mainUserIds.length ? { notIn: mainUserIds } : undefined,
+            } as any,
+          });
+
+          if (mainUserIds.length > 0 && communityCount > 0 && communityCount % 5 === 0) {
+            await this.notificationService.sendBattleNewParticipants(mainUserIds, dto.battleId, 5);
+          }
+        } else if (battle.format === 'POLL') {
+          const communityCount = await this.prisma.battleParticipant.count({
+            where: { battleId: dto.battleId, userId: { not: battle.creatorId } },
+          });
+          if (communityCount > 0 && communityCount % 5 === 0) {
+            await this.notificationService.sendBattleNewParticipants([battle.creatorId], dto.battleId, 5);
+          }
+        }
+      } catch {
+        // Best-effort: don't block comment flow if notification fails.
+      }
+    }
+
+    return comment;
   }
 
   async likeComment(userId: string, dto: BattleCommentLikeDto) {
