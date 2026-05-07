@@ -1251,6 +1251,7 @@ export class BattleService {
     const winner = scored[0];
     let didResolve = false;
     const stakeAmount = battle.stakeAmount ?? 0;
+    const leaderboardClimbedUserIds = new Set<string>();
 
     await this.prisma.$transaction(async (tx) => {
       const resolved = await tx.battle.updateMany({
@@ -1309,6 +1310,16 @@ export class BattleService {
 
         if (!existing?.awardedAt) {
           const totalBattleIncrement = entry.score + stakeWon;
+          const previousStats = await tx.userBattleStats.findUnique({
+            where: { userId: entry.userId },
+            select: { totalBattlePoints: true },
+          });
+          const previousBattlePoints = previousStats?.totalBattlePoints ?? 0;
+          const nextBattlePoints = previousBattlePoints + totalBattleIncrement;
+          if (this.didBattleLevelIncrease(previousBattlePoints, nextBattlePoints)) {
+            leaderboardClimbedUserIds.add(entry.userId);
+          }
+
           await tx.userBattleStats.upsert({
             where: { userId: entry.userId },
             update: {
@@ -1363,6 +1374,8 @@ export class BattleService {
     if (!didResolve) {
       return { battleId, winnerUserId: battle.winnerUserId || null };
     }
+
+    await this.notificationService.sendBattleLeaderboardClimbed(Array.from(leaderboardClimbedUserIds), battleId);
 
     const participantIds = scored.map((s) => s.userId);
     if (participantIds.length) {
@@ -1504,6 +1517,7 @@ export class BattleService {
     const winnerSide = winningSide || winner?.side || null;
     let didResolve = false;
     const stakeAmount = battle.stakeAmount ?? 0;
+    const leaderboardClimbedUserIds = new Set<string>();
 
     await this.prisma.$transaction(async (tx) => {
       const resolved = await tx.battle.updateMany({
@@ -1562,6 +1576,16 @@ export class BattleService {
 
         if (!existing?.awardedAt) {
           const totalBattleIncrement = entry.score + stakeWon;
+          const previousStats = await tx.userBattleStats.findUnique({
+            where: { userId: entry.userId },
+            select: { totalBattlePoints: true },
+          });
+          const previousBattlePoints = previousStats?.totalBattlePoints ?? 0;
+          const nextBattlePoints = previousBattlePoints + totalBattleIncrement;
+          if (this.didBattleLevelIncrease(previousBattlePoints, nextBattlePoints)) {
+            leaderboardClimbedUserIds.add(entry.userId);
+          }
+
           await tx.userBattleStats.upsert({
             where: { userId: entry.userId },
             update: {
@@ -1613,6 +1637,8 @@ export class BattleService {
     if (!didResolve) {
       return { battleId, winnerUserId: battle.winnerUserId || null };
     }
+
+    await this.notificationService.sendBattleLeaderboardClimbed(Array.from(leaderboardClimbedUserIds), battleId);
 
     const participantIds = scored.map((s) => s.userId);
     if (participantIds.length) {
@@ -1671,6 +1697,15 @@ export class BattleService {
     if (points >= 300) return 'Strategist';
     if (points >= 100) return 'Challenger';
     return 'Rookie';
+  }
+
+  private getBattleLevelRank(points: number): number {
+    const level = this.getBattleLevel(points);
+    return ['Rookie', 'Challenger', 'Strategist', 'Analyst', 'Expert', 'Oracle'].indexOf(level);
+  }
+
+  private didBattleLevelIncrease(previousPoints: number, nextPoints: number): boolean {
+    return this.getBattleLevelRank(nextPoints) > this.getBattleLevelRank(previousPoints);
   }
 
   async rebuildBattleStats(userId?: string) {

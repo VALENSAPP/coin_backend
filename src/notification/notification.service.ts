@@ -126,7 +126,7 @@ export class NotificationService {
     };
 
     try {
-      const response = await admin.messaging().sendMulticast(message);
+      const response = await admin.messaging().sendEachForMulticast(message);
       console.log('Successfully sent messages:', response);
     } catch (error) {
       console.error('Error sending messages:', error);
@@ -453,6 +453,16 @@ export class NotificationService {
       '📊 Battle Result Updated',
       'The outcome did not match your forecast. Review your accuracy.',
       { type: 'battle_forecast_missed', battleId },
+    );
+  }
+
+  async sendBattleLeaderboardClimbed(userIds: string[], battleId: string): Promise<void> {
+    if (!userIds || userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      '🚀 You moved up the leaderboard!',
+      'See your new global ranking as a Forecaster on Valens.',
+      { type: 'battle_leaderboard_climbed', battleId },
     );
   }
 
