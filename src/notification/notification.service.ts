@@ -387,6 +387,16 @@ export class NotificationService {
     );
   }
 
+  async sendBattleClosingSoon(userIds: string[], battleId: string): Promise<void> {
+    if (!userIds || userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      '⏳ Battle Closing Soon',
+      'Final votes are coming in. See the current outcome before time runs out.',
+      { type: 'battle_closing_soon', battleId },
+    );
+  }
+
   async sendBattleDeclined(userId: string, battleId: string): Promise<void> {
     return this.sendNotificationToUser(
       userId,

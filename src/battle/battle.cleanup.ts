@@ -15,6 +15,8 @@ export class BattleCleanupService {
   // Runs every minute to close battles whose endTime has passed
   @Cron('*/1 * * * *')
   async closeExpiredBattles() {
+    // Notify when a battle has ~2 hours remaining.
+    await this.battleService.notifyBattlesClosingSoon();
     await this.battleService.closeExpiredBattles();
   }
 

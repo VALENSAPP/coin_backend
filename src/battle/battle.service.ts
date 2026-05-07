@@ -32,6 +32,70 @@ export class BattleService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  async notifyBattlesClosingSoon(): Promise<{ processed: number }> {
+    const now = new Date();
+    const upper = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    const lower = new Date(upper.getTime() - 60 * 1000);
+
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        status: 'LIVE',
+        endTime: {
+          gt: lower,
+          lte: upper,
+        },
+      },
+      select: { id: true, creatorId: true },
+      take: 200,
+    });
+
+    for (const battle of battles) {
+      try {
+        const [participants, votes, comments, predictions] = await Promise.all([
+          this.prisma.battleParticipant.findMany({ where: { battleId: battle.id }, select: { userId: true } }),
+          this.prisma.battleVote.findMany({ where: { battleId: battle.id }, select: { userId: true } }),
+          this.prisma.battleComment.findMany({ where: { battleId: battle.id }, select: { userId: true } }),
+          this.prisma.battlePrediction.findMany({ where: { battleId: battle.id }, select: { userId: true } }),
+        ]);
+
+        const recipientUserIds = Array.from(
+          new Set([
+            battle.creatorId,
+            ...participants.map((p) => p.userId),
+            ...votes.map((v) => v.userId),
+            ...comments.map((c) => c.userId),
+            ...predictions.map((p) => p.userId),
+          ].filter(Boolean)),
+        );
+
+        if (recipientUserIds.length === 0) continue;
+
+        // De-dupe: skip users who already received this battle closing notification.
+        const alreadySent = await this.prisma.notification.findMany({
+          where: {
+            userId: { in: recipientUserIds },
+            AND: [
+              { data: { path: ['type'], equals: 'battle_closing_soon' } as any },
+              { data: { path: ['battleId'], equals: battle.id } as any },
+            ],
+          } as any,
+          select: { userId: true },
+          take: recipientUserIds.length,
+        });
+
+        const sentSet = new Set(alreadySent.map((n) => n.userId));
+        const toSend = recipientUserIds.filter((id) => !sentSet.has(id));
+        if (toSend.length === 0) continue;
+
+        await this.notificationService.sendBattleClosingSoon(toSend, battle.id);
+      } catch (error) {
+        console.error('Failed to send battle closing soon notifications:', error);
+      }
+    }
+
+    return { processed: battles.length };
+  }
+
   async createBattle(
     userId: string,
     dto: CreateBattleDto,
