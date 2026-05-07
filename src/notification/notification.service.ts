@@ -73,6 +73,18 @@ export class NotificationService {
     body: string,
     data?: Record<string, string>,
   ): Promise<void> {
+    // Save notifications to database (even if some users don't have FCM tokens)
+    if (userIds?.length) {
+      await this.prisma.notification.createMany({
+        data: userIds.map((userId) => ({
+          userId,
+          title,
+          body,
+          data: data || {},
+        })),
+      });
+    }
+
     const users = await this.prisma.user.findMany({
       where: { id: { in: userIds } },
       select: { id: true, fcmToken: true },

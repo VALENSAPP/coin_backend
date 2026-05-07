@@ -408,8 +408,9 @@ export class BattleService {
             await this.notificationService.sendBattleNewParticipants([battle.creatorId], dto.battleId, 5);
           }
         }
-      } catch {
+      } catch (error) {
         // Best-effort: don't block comment flow if notification fails.
+        console.error('Failed to send new participants notification (comment join):', error);
       }
     }
 
@@ -484,8 +485,9 @@ export class BattleService {
             await this.notificationService.sendBattleNewParticipants([battle.creatorId], dto.battleId, 5);
           }
         }
-      } catch {
+      } catch (error) {
         // Best-effort: don't block comment flow if notification fails.
+        console.error('Failed to send new participants notification (comment join with images):', error);
       }
     }
 
@@ -560,8 +562,9 @@ export class BattleService {
       if (uniqueParticipantUserIds.length > 0 && totalVotes > 0 && totalVotes % 5 === 0) {
         await this.notificationService.sendBattleNewParticipants(uniqueParticipantUserIds, dto.battleId, 5);
       }
-    } catch {
+    } catch (error) {
       // Best-effort: don't block the vote flow if notification fails.
+      console.error('Failed to send new participants notification (vote join):', error);
     }
 
     return result;
