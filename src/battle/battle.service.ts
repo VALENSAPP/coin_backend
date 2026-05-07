@@ -1369,9 +1369,8 @@ export class BattleService {
       await this.notificationService.sendBattleResult(participantIds, battleId);
     }
 
-    if (winner?.userId) {
-      await this.notificationService.sendBattleVictory(winner.userId, battleId);
-    }
+    const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
+    await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
@@ -1613,9 +1612,8 @@ export class BattleService {
       await this.notificationService.sendBattleResult(participantIds, battleId);
     }
 
-    if (winner?.userId) {
-      await this.notificationService.sendBattleVictory(winner.userId, battleId);
-    }
+    const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
+    await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);

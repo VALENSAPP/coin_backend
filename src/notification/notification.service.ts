@@ -436,11 +436,12 @@ export class NotificationService {
     );
   }
 
-  async sendBattleVictory(userId: string, battleId: string): Promise<void> {
-    return this.sendNotificationToUser(
-      userId,
-      'Victory',
-      'You won the battle.',
+  async sendBattleVictory(userIds: string[], battleId: string): Promise<void> {
+    if (!userIds || userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      '🎉 Victory! Your side won!',
+      'Your credibility score has increased. Check your updated achievements.',
       { type: 'battle_victory', battleId },
     );
   }
