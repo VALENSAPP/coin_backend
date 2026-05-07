@@ -357,8 +357,8 @@ export class NotificationService {
   async sendBattleStarted(userId: string, battleId: string): Promise<void> {
     return this.sendNotificationToUser(
       userId,
-      'Battle Started',
-      'Your head-to-head battle is now live.',
+      '⚔️ Battle Started',
+      'The debate is live. See who joins your side.',
       { type: 'battle_started', battleId },
     );
   }

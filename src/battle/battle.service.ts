@@ -224,7 +224,10 @@ export class BattleService {
       return [updated, updatedBattle] as const;
     });
 
-    await this.notificationService.sendBattleStarted(invite.battle.creatorId, dto.battleId);
+    await Promise.all([
+      this.notificationService.sendBattleStarted(invite.battle.creatorId, dto.battleId),
+      this.notificationService.sendBattleStarted(userId, dto.battleId),
+    ]);
 
     return { invite: updatedInvite, battle };
   }
