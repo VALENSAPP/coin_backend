@@ -446,6 +446,16 @@ export class NotificationService {
     );
   }
 
+  async sendBattleForecastMissed(userIds: string[], battleId: string): Promise<void> {
+    if (!userIds || userIds.length === 0) return;
+    return this.sendNotificationToMultipleUsers(
+      userIds,
+      '📊 Battle Result Updated',
+      'The outcome did not match your forecast. Review your accuracy.',
+      { type: 'battle_forecast_missed', battleId },
+    );
+  }
+
   async sendBattleCreatedToFollowers(userIds: string[], battleId: string, question: string): Promise<void> {
     if (userIds.length === 0) return;
     return this.sendNotificationToMultipleUsers(

@@ -1372,6 +1372,9 @@ export class BattleService {
     const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
     await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
 
+    const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !s.userWon).map((s) => s.userId)));
+    await this.notificationService.sendBattleForecastMissed(forecastMissedUserIds, battleId);
+
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
 
@@ -1614,6 +1617,9 @@ export class BattleService {
 
     const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
     await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
+
+    const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !s.userWon).map((s) => s.userId)));
+    await this.notificationService.sendBattleForecastMissed(forecastMissedUserIds, battleId);
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
