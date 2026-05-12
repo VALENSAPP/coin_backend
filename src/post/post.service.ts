@@ -323,9 +323,9 @@ export class PostService {
     const pinnedIdSet = new Set<string>();
     let pinnedPosts: any[] = [];
 
-    if (viewerUserId && page === 1) {
+    if (page === 1) {
       const pinned = await this.prisma.pinnedPost.findMany({
-        where: { userId: viewerUserId, post: whereClause },
+        where: { userId, post: whereClause },
         orderBy: { pinnedAt: 'desc' },
         select: { postId: true, post: { include: postInclude } },
       });
