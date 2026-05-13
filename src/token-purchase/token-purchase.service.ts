@@ -79,47 +79,6 @@ export class TokenPurchaseService {
     return post;
   }
 
-  private async closeMissionPostIfGoalReached(postId: string) {
-    const now = new Date();
-    const post = await this.prisma.post.findFirst({
-      where: {
-        id: postId,
-        deletedAt: null,
-        isDelete: 'no',
-        postHide: 'no',
-        type: { in: ['crowdfunding', 'support'] },
-        end_time: { gt: now },
-        raiseAmount: { not: null },
-      },
-      select: {
-        id: true,
-        raiseAmount: true,
-      },
-    });
-
-    if (!post || post.raiseAmount == null) return;
-
-    const totalResult = await this.prisma.donationData.aggregate({
-      where: {
-        postId,
-        action: 'missionDonation',
-        status: 'completed',
-      },
-      _sum: { amount: true },
-    });
-
-    const totalRaised = totalResult._sum.amount ?? 0;
-    if (totalRaised < post.raiseAmount) return;
-
-    await this.prisma.post.updateMany({
-      where: {
-        id: post.id,
-        end_time: { gt: now },
-      },
-      data: { end_time: now },
-    });
-  }
-
   /** @deprecated Valens does not display token amounts/prices or tie engagement to token activity. */
   async getTotalTokenData(userId: string) {
     return [];
@@ -598,18 +557,6 @@ export class TokenPurchaseService {
       if (paymentUpdateResult.count === 0 && donationUpdateResult.count === 0) {
         this.logger.warn(`No pending mission donation records found for session ${session.id}`);
         return;
-      }
-
-      const donation = await this.prisma.donationData.findFirst({
-        where: {
-          stripeCheckoutSessionId: session.id,
-          action: 'missionDonation',
-          status: 'completed',
-        },
-        select: { postId: true },
-      });
-      if (donation?.postId) {
-        await this.closeMissionPostIfGoalReached(donation.postId);
       }
 
       this.logger.log(`Mission donation for session ${session.id} completed successfully`);
