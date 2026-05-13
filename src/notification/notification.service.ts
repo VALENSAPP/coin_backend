@@ -7,6 +7,10 @@ import { Notification } from '@prisma/client';
 export class NotificationService {
   constructor(private prisma: PrismaService) {}
 
+  private getNotificationCategory(data?: Record<string, string>): string | undefined {
+    return data?.notificationCategory || data?.category;
+  }
+
   async sendNotificationToUser(
     userId: string,
     title: string,
@@ -33,6 +37,7 @@ export class NotificationService {
       return;
     }
 
+    const notificationCategory = this.getNotificationCategory(data);
     const message = {
       token: (user as any).fcmToken,
       notification: {
@@ -48,6 +53,7 @@ export class NotificationService {
         payload: {
           aps: {
             sound: 'default',
+            ...(notificationCategory ? { category: notificationCategory } : {}),
           },
         },
       },
@@ -55,6 +61,7 @@ export class NotificationService {
         priority: 'high' as const,
         notification: {
           sound: 'default',
+          ...(notificationCategory ? { clickAction: notificationCategory } : {}),
         },
       },
     };
@@ -99,6 +106,7 @@ export class NotificationService {
       return;
     }
 
+    const notificationCategory = this.getNotificationCategory(data);
     const message = {
       tokens,
       notification: {
@@ -114,6 +122,7 @@ export class NotificationService {
         payload: {
           aps: {
             sound: 'default',
+            ...(notificationCategory ? { category: notificationCategory } : {}),
           },
         },
       },
@@ -121,6 +130,7 @@ export class NotificationService {
         priority: 'high' as const,
         notification: {
           sound: 'default',
+          ...(notificationCategory ? { clickAction: notificationCategory } : {}),
         },
       },
     };
@@ -358,11 +368,54 @@ export class NotificationService {
   }
 
   async sendBattleInvite(invitedUserId: string, battleId: string): Promise<void> {
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        creatorId: true,
+        question: true,
+        options: true,
+        endTime: true,
+        creator: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+          },
+        },
+        participants: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!battle) return;
+
+    const inviterName = battle.creator?.userName || battle.creator?.displayName || 'Someone';
+    const inviterHandle = inviterName.startsWith('@') ? inviterName : `@${inviterName}`;
+    const forecastSide = battle.options?.[0] || 'YES';
+    const participantCount = battle.participants.length;
+
     return this.sendNotificationToUser(
       invitedUserId,
       'Battle Invitation',
-      'You have been invited to a Battle. Review the forecast and choose your side.',
-      { type: 'battle_invite', battleId },
+      `${inviterHandle} invited you to a Battle. Review the forecast and choose your side.`,
+      {
+        type: 'battle_invite',
+        battleId,
+        inviterId: battle.creatorId,
+        inviterUserName: inviterHandle,
+        question: battle.question,
+        forecastSide,
+        endTime: battle.endTime.toISOString(),
+        participantCount: String(participantCount),
+        deepLink: `valens://battle/${battle.id}`,
+        notificationCategory: 'BATTLE_INVITE',
+        primaryAction: 'AGREE_FORECAST',
+        secondaryAction: 'CHALLENGE_FORECAST',
+      },
     );
   }
 
