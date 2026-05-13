@@ -11,6 +11,21 @@ export class NotificationService {
     return data?.notificationCategory || data?.category;
   }
 
+  private toHandle(name?: string | null, fallback = 'username'): string {
+    const safeName = name?.trim() || fallback;
+    return safeName.startsWith('@') ? safeName : `@${safeName}`;
+  }
+
+  private truncateText(value?: string | null, maxLength = 100): string {
+    const text = value?.trim() || '';
+    return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+  }
+
+  private extractMentionNames(text?: string | null): string[] {
+    const matches = text?.match(/@[\w.]+/g) || [];
+    return Array.from(new Set(matches.map((mention) => mention.slice(1).toLowerCase())));
+  }
+
   async sendNotificationToUser(
     userId: string,
     title: string,
@@ -546,6 +561,180 @@ export class NotificationService {
         views: '0',
         primaryAction: 'VIEW_DROP',
       },
+    );
+  }
+
+  async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
+    const [post, comment, commenter] = await Promise.all([
+      this.prisma.post.findUnique({
+        where: { id: postId, deletedAt: null },
+        select: { id: true, userId: true, text: true, caption: true },
+      }),
+      this.prisma.postComment.findUnique({
+        where: { id: commentId },
+        select: { id: true, comment: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: commenterId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+    ]);
+
+    if (!post || !comment || post.userId === commenterId) return;
+
+    const commenterHandle = this.toHandle(commenter?.userName || commenter?.displayName);
+    const commentPreview = this.truncateText(comment.comment, 90);
+    const postTitle = this.truncateText(post.caption || post.text || 'Your post', 80);
+
+    return this.sendNotificationToUser(
+      post.userId,
+      '\uD83D\uDCAC New Comment',
+      `${commenterHandle} commented on your post: "${commentPreview}"`,
+      {
+        type: 'post_comment',
+        postId,
+        commentId,
+        commenterId,
+        commenterUserName: commenterHandle,
+        commenterDisplayName: commenter?.displayName || '',
+        commenterImage: commenter?.image || '',
+        notificationCategory: 'NEW_COMMENT',
+        deepLink: `valens://post/${postId}`,
+        expandedTitle: 'NEW COMMENT',
+        expandedBody: `${commenterHandle} commented on your post:`,
+        commentPreview,
+        postTitle,
+        primaryAction: 'REPLY',
+        secondaryAction: 'VIEW_POST',
+      },
+    );
+  }
+
+  async sendPostMentionNotifications(postId: string, commentId: string, mentionerId: string): Promise<void> {
+    const [post, comment, mentioner] = await Promise.all([
+      this.prisma.post.findUnique({
+        where: { id: postId, deletedAt: null },
+        select: { id: true, text: true, caption: true },
+      }),
+      this.prisma.postComment.findUnique({
+        where: { id: commentId },
+        select: { id: true, comment: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: mentionerId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+    ]);
+
+    if (!post || !comment) return;
+
+    const mentionNames = this.extractMentionNames(comment.comment);
+    if (mentionNames.length === 0) return;
+
+    const mentionedUsers = await this.prisma.user.findMany({
+      where: {
+        OR: mentionNames.flatMap((name) => [
+          { userName: { equals: name, mode: 'insensitive' } },
+          { displayName: { equals: name, mode: 'insensitive' } },
+        ]),
+      },
+      select: { id: true },
+    });
+
+    const recipientIds = Array.from(new Set(mentionedUsers.map((user) => user.id))).filter((id) => id !== mentionerId);
+    if (recipientIds.length === 0) return;
+
+    const mentionerHandle = this.toHandle(mentioner?.userName || mentioner?.displayName);
+    const postTitle = this.truncateText(post.caption || post.text || 'this post', 80);
+
+    await Promise.all(
+      recipientIds.map((recipientId) =>
+        this.sendNotificationToUser(
+          recipientId,
+          '\uD83D\uDCE3 You were mentioned!',
+          `${mentionerHandle} mentioned you in a post. Tap to see the context.`,
+          {
+            type: 'mention',
+            contextType: 'post',
+            postId,
+            commentId,
+            mentionerId,
+            mentionerUserName: mentionerHandle,
+            mentionerDisplayName: mentioner?.displayName || '',
+            mentionerImage: mentioner?.image || '',
+            notificationCategory: 'MENTION',
+            deepLink: `valens://post/${postId}`,
+            expandedTitle: 'YOU WERE MENTIONED',
+            expandedBody: `${mentionerHandle} mentioned you in a post.`,
+            postTitle,
+            primaryAction: 'VIEW_CONTEXT',
+          },
+        ),
+      ),
+    );
+  }
+
+  async sendBattleMentionNotifications(battleId: string, commentId: string, mentionerId: string): Promise<void> {
+    const [battle, comment, mentioner] = await Promise.all([
+      this.prisma.battle.findUnique({
+        where: { id: battleId },
+        select: { id: true, question: true },
+      }),
+      this.prisma.battleComment.findUnique({
+        where: { id: commentId },
+        select: { id: true, comment: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: mentionerId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+    ]);
+
+    if (!battle || !comment) return;
+
+    const mentionNames = this.extractMentionNames(comment.comment);
+    if (mentionNames.length === 0) return;
+
+    const mentionedUsers = await this.prisma.user.findMany({
+      where: {
+        OR: mentionNames.flatMap((name) => [
+          { userName: { equals: name, mode: 'insensitive' } },
+          { displayName: { equals: name, mode: 'insensitive' } },
+        ]),
+      },
+      select: { id: true },
+    });
+
+    const recipientIds = Array.from(new Set(mentionedUsers.map((user) => user.id))).filter((id) => id !== mentionerId);
+    if (recipientIds.length === 0) return;
+
+    const mentionerHandle = this.toHandle(mentioner?.userName || mentioner?.displayName);
+    const battleTitle = this.truncateText(battle.question, 80);
+
+    await Promise.all(
+      recipientIds.map((recipientId) =>
+        this.sendNotificationToUser(
+          recipientId,
+          '\uD83D\uDCE3 You were mentioned!',
+          `${mentionerHandle} mentioned you in a Battle post. Tap to see the context.`,
+          {
+            type: 'mention',
+            contextType: 'battle',
+            battleId,
+            commentId,
+            mentionerId,
+            mentionerUserName: mentionerHandle,
+            mentionerDisplayName: mentioner?.displayName || '',
+            mentionerImage: mentioner?.image || '',
+            notificationCategory: 'MENTION',
+            deepLink: `valens://battle/${battleId}`,
+            expandedTitle: 'YOU WERE MENTIONED',
+            expandedBody: `${mentionerHandle} mentioned you in a Battle post.`,
+            battleTitle,
+            primaryAction: 'VIEW_CONTEXT',
+          },
+        ),
+      ),
     );
   }
 

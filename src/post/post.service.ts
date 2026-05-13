@@ -1406,6 +1406,15 @@ async getAllReel(viewerUserId?: string) {
       console.error('Failed to send drop trending notification:', error);
     }
 
+    try {
+      await Promise.all([
+        this.notificationService.sendPostCommentNotification(postId, createdComment.id, userId),
+        this.notificationService.sendPostMentionNotifications(postId, createdComment.id, userId),
+      ]);
+    } catch (error) {
+      console.error('Failed to send post comment or mention notification:', error);
+    }
+
     return createdComment;
   }
 

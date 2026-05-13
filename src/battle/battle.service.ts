@@ -499,6 +499,12 @@ export class BattleService {
       }
     }
 
+    try {
+      await this.notificationService.sendBattleMentionNotifications(dto.battleId, comment.id, userId);
+    } catch (error) {
+      console.error('Failed to send battle mention notification:', error);
+    }
+
     return comment;
   }
 
@@ -576,6 +582,12 @@ export class BattleService {
       }
     }
 
+    try {
+      await this.notificationService.sendBattleMentionNotifications(dto.battleId, comment.id, userId);
+    } catch (error) {
+      console.error('Failed to send battle mention notification:', error);
+    }
+
     return comment;
   }
 
@@ -650,6 +662,14 @@ export class BattleService {
     } catch (error) {
       // Best-effort: don't block the vote flow if notification fails.
       console.error('Failed to send new participants notification (vote join):', error);
+    }
+
+    if (result.comment) {
+      try {
+        await this.notificationService.sendBattleMentionNotifications(dto.battleId, result.comment.id, userId);
+      } catch (error) {
+        console.error('Failed to send battle mention notification:', error);
+      }
     }
 
     return result;
