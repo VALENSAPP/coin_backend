@@ -1318,6 +1318,13 @@ async getAllReel(viewerUserId?: string) {
           userId,
         },
       });
+
+      try {
+        await this.notificationService.sendDropTrendingIfNeeded(postId, userId);
+      } catch (error) {
+        console.error('Failed to send drop trending notification:', error);
+      }
+
       return { message: 'Post liked successfully', liked: true };
     }
   }
@@ -1389,9 +1396,17 @@ async getAllReel(viewerUserId?: string) {
       if (parent.parentId) throw new BadRequestException('Replies cannot have subcomments');
     }
 
-    return this.prisma.postComment.create({
+    const createdComment = await this.prisma.postComment.create({
       data: { postId, userId, comment, parentId: parentCommentId || null },
     });
+
+    try {
+      await this.notificationService.sendDropTrendingIfNeeded(postId, userId);
+    } catch (error) {
+      console.error('Failed to send drop trending notification:', error);
+    }
+
+    return createdComment;
   }
 
 async editComment(commentId: string, userId: string, newComment: string) {

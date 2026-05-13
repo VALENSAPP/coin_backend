@@ -476,6 +476,79 @@ export class NotificationService {
     );
   }
 
+  async sendDropTrendingIfNeeded(postId: string, actorId: string): Promise<void> {
+    const milestones = [1, 25, 50, 100, 250, 500, 1000];
+
+    const [post, actor, reactionCount, commentCount] = await Promise.all([
+      this.prisma.post.findUnique({
+        where: { id: postId, deletedAt: null },
+        select: { id: true, userId: true, text: true, caption: true, type: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: actorId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+      this.prisma.postLike.count({ where: { postId } }),
+      this.prisma.postComment.count({ where: { postId } }),
+    ]);
+
+    if (!post || post.userId === actorId) return;
+
+    const totalInteractions = reactionCount + commentCount;
+    const milestone = milestones
+      .slice()
+      .reverse()
+      .find((value) => totalInteractions >= value);
+
+    if (!milestone) return;
+
+    const recentNotifications = await this.prisma.notification.findMany({
+      where: { userId: post.userId },
+      select: { data: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const alreadySent = recentNotifications.some((notification) => {
+      const data = notification.data as Record<string, string> | null;
+      return data?.type === 'drop_trending' && data?.postId === postId && data?.milestone === String(milestone);
+    });
+
+    if (alreadySent) return;
+
+    const rawUsername = actor?.userName || actor?.displayName || 'username';
+    const actorHandle = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+    const othersCount = Math.max(0, totalInteractions - 1);
+    const actorText = othersCount > 0 ? `${actorHandle} and ${othersCount} others` : actorHandle;
+    const dropTitle = (post.caption || post.text || 'Your Drop').trim();
+    const displayDropTitle = dropTitle.length > 80 ? `${dropTitle.slice(0, 77)}...` : dropTitle;
+
+    return this.sendNotificationToUser(
+      post.userId,
+      '\uD83C\uDFAC Your Drop is trending!',
+      `${actorText} reacted to your Drop. It's getting traction!`,
+      {
+        type: 'drop_trending',
+        postId,
+        creatorId: post.userId,
+        actorId,
+        actorUserName: actorHandle,
+        actorDisplayName: actor?.displayName || '',
+        actorImage: actor?.image || '',
+        milestone: String(milestone),
+        notificationCategory: 'DROP_TRENDING',
+        deepLink: `valens://drop/${postId}`,
+        expandedTitle: 'DROP TRENDING',
+        dropTitle: displayDropTitle,
+        reactionCount: String(reactionCount),
+        commentCount: String(commentCount),
+        totalInteractions: String(totalInteractions),
+        views: '0',
+        primaryAction: 'VIEW_DROP',
+      },
+    );
+  }
+
   async sendBattleStarted(userId: string, battleId: string): Promise<void> {
     const battle = await this.prisma.battle.findUnique({
       where: { id: battleId },
