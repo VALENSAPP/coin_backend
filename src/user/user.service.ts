@@ -933,18 +933,7 @@ export class UserService {
 
     // Send notification to the person being followed
     try {
-      const follower = await this.prisma.user.findUnique({
-        where: { id: followerId },
-        select: { displayName: true, userName: true },
-      });
-      const followerName = follower?.displayName || follower?.userName || 'Someone';
-
-      await this.notificationService.sendNotificationToUser(
-        followingId,
-        'New Follower',
-        `${followerName} started following you.`,
-        { type: 'follow', followerId, followingId }
-      );
+      await this.notificationService.sendNewFollower(followingId, followerId);
     } catch (error) {
       console.error('Failed to send follow notification:', error);
     }

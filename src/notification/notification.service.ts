@@ -419,6 +419,63 @@ export class NotificationService {
     );
   }
 
+  async sendNewFollower(followingId: string, followerId: string): Promise<void> {
+    const [follower, totalFollowers, ownerStats, followerTotalFollowers, followerStats] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: followerId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+      this.prisma.followerAndFollowing.count({
+        where: { followingId, status: 'ACCEPTED' },
+      }),
+      this.prisma.userBattleStats.findUnique({
+        where: { userId: followingId },
+        select: { totalPredictionsCorrect: true, totalPredictionsWrong: true },
+      }),
+      this.prisma.followerAndFollowing.count({
+        where: { followingId: followerId, status: 'ACCEPTED' },
+      }),
+      this.prisma.userBattleStats.findUnique({
+        where: { userId: followerId },
+        select: { totalPredictionsCorrect: true, totalPredictionsWrong: true },
+      }),
+    ]);
+
+    const rawUsername = follower?.userName || follower?.displayName || 'username';
+    const followerHandle = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+
+    const getAccuracyRate = (
+      stats?: { totalPredictionsCorrect: number; totalPredictionsWrong: number } | null,
+    ): number => {
+      const predictionTotal = (stats?.totalPredictionsCorrect || 0) + (stats?.totalPredictionsWrong || 0);
+      return predictionTotal > 0 ? Math.round(((stats?.totalPredictionsCorrect || 0) / predictionTotal) * 100) : 0;
+    };
+
+    return this.sendNotificationToUser(
+      followingId,
+      '👤 New Follower!',
+      `${followerHandle} started following you. Check out their profile.`,
+      {
+        type: 'follow',
+        followerId,
+        followingId,
+        followerUserName: followerHandle,
+        followerDisplayName: follower?.displayName || '',
+        followerImage: follower?.image || '',
+        notificationCategory: 'NEW_FOLLOWER',
+        deepLink: `valens://profile/${followerId}`,
+        expandedTitle: 'NEW FOLLOWER',
+        expandedBody: `${followerHandle} is now following you`,
+        totalFollowers: String(totalFollowers),
+        accuracyRate: String(getAccuracyRate(ownerStats)),
+        followerTotalFollowers: String(followerTotalFollowers),
+        followerAccuracyRate: String(getAccuracyRate(followerStats)),
+        primaryAction: 'VIEW_PROFILE',
+        secondaryAction: 'FOLLOW_BACK',
+      },
+    );
+  }
+
   async sendBattleStarted(userId: string, battleId: string): Promise<void> {
     const battle = await this.prisma.battle.findUnique({
       where: { id: battleId },
