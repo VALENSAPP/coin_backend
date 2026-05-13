@@ -502,11 +502,48 @@ export class NotificationService {
 
   async sendBattleClosingSoon(userIds: string[], battleId: string): Promise<void> {
     if (!userIds || userIds.length === 0) return;
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        options: true,
+        endTime: true,
+        participants: {
+          select: {
+            side: true,
+          },
+        },
+      },
+    });
+
+    const sideACount = battle?.participants.filter((participant) => participant.side === 'A').length ?? 0;
+    const sideBCount = battle?.participants.filter((participant) => participant.side === 'B').length ?? 0;
+    const remainingMs = battle?.endTime ? battle.endTime.getTime() - Date.now() : 0;
+    const remainingMinutes = Math.max(0, Math.ceil(remainingMs / (60 * 1000)));
+    const remainingHours = Math.max(0, Math.ceil(remainingMinutes / 60));
+    const timeRemainingLabel = remainingHours >= 1
+      ? `${remainingHours} ${remainingHours === 1 ? 'hour' : 'hours'}`
+      : `${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
+
     return this.sendNotificationToMultipleUsers(
       userIds,
       '⏳ Battle Closing Soon',
       'Final votes are coming in. See the current outcome before time runs out.',
-      { type: 'battle_closing_soon', battleId },
+      {
+        type: 'battle_closing_soon',
+        battleId,
+        notificationCategory: 'BATTLE_CLOSING_SOON',
+        deepLink: `valens://battle/${battleId}`,
+        expandedTitle: 'BATTLE ENDING SOON',
+        timeRemaining: timeRemainingLabel,
+        sideALabel: battle?.options?.[0] || 'Agree with Forecast',
+        sideBLabel: battle?.options?.[1] || 'Challenge Forecast',
+        sideACount: String(sideACount),
+        sideBCount: String(sideBCount),
+        accuracyText: 'Accuracy impact pending.',
+        primaryAction: 'VIEW_BATTLE',
+      },
     );
   }
 
