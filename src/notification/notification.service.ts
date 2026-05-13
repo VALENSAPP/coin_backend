@@ -783,11 +783,55 @@ export class NotificationService {
 
   async sendBattleLeaderboardClimbed(userIds: string[], battleId: string): Promise<void> {
     if (!userIds || userIds.length === 0) return;
-    return this.sendNotificationToMultipleUsers(
-      userIds,
-      '🚀 You moved up the leaderboard!',
-      'See your new global ranking as a Forecaster on Valens.',
-      { type: 'battle_leaderboard_climbed', battleId },
+
+    const userStats = await this.prisma.userBattleStats.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        totalBattlePoints: true,
+        totalBattlesWon: true,
+        totalPredictionsCorrect: true,
+        totalPredictionsWrong: true,
+      },
+    });
+
+    const statsMap = new Map(userStats.map((stats) => [stats.userId, stats]));
+
+    await Promise.all(
+      userIds.map(async (userId) => {
+        const stats = statsMap.get(userId);
+        const totalBattlePoints = stats?.totalBattlePoints || 0;
+        const predictionTotal = (stats?.totalPredictionsCorrect || 0) + (stats?.totalPredictionsWrong || 0);
+        const accuracyRate = predictionTotal > 0
+          ? Math.round(((stats?.totalPredictionsCorrect || 0) / predictionTotal) * 100)
+          : 0;
+        const globalRank = totalBattlePoints > 0
+          ? await this.prisma.userBattleStats.count({
+              where: {
+                totalBattlePoints: { gt: totalBattlePoints },
+              },
+            }) + 1
+          : 0;
+
+        return this.sendNotificationToUser(
+          userId,
+          'You moved up the leaderboard!',
+          'See your new global ranking as a Forecaster on Valens.',
+          {
+            type: 'battle_leaderboard_climbed',
+            battleId,
+            notificationCategory: 'BATTLE_LEADERBOARD_CLIMBED',
+            deepLink: 'valens://battle/leaderboard',
+            expandedTitle: 'RANK UPDATE',
+            positionLabel: globalRank > 0 ? `#${globalRank} Global Forecaster` : 'Global Forecaster',
+            globalRank: String(globalRank),
+            accuracyRate: String(accuracyRate),
+            battlesWon: String(stats?.totalBattlesWon || 0),
+            totalBattlePoints: String(totalBattlePoints),
+            primaryAction: 'VIEW_LEADERBOARD',
+          },
+        );
+      }),
     );
   }
 
