@@ -713,11 +713,71 @@ export class NotificationService {
 
   async sendBattleForecastMissed(userIds: string[], battleId: string): Promise<void> {
     if (!userIds || userIds.length === 0) return;
-    return this.sendNotificationToMultipleUsers(
-      userIds,
-      '📊 Battle Result Updated',
-      'The outcome did not match your forecast. Review your accuracy.',
-      { type: 'battle_forecast_missed', battleId },
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        winningSide: true,
+        correctSide: true,
+        participants: {
+          where: {
+            userId: { in: userIds },
+          },
+          select: {
+            userId: true,
+            loserPenalty: true,
+          },
+        },
+      },
+    });
+
+    const userStats = await this.prisma.userBattleStats.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        totalBattlesJoined: true,
+        totalBattlesWon: true,
+        totalPredictionsCorrect: true,
+        totalPredictionsWrong: true,
+      },
+    });
+
+    const participantMap = new Map(battle?.participants.map((participant) => [participant.userId, participant]) || []);
+    const statsMap = new Map(userStats.map((stats) => [stats.userId, stats]));
+    const winningSide = battle?.winningSide || battle?.correctSide || '';
+
+    await Promise.all(
+      userIds.map((userId) => {
+        const participant = participantMap.get(userId);
+        const stats = statsMap.get(userId);
+        const predictionTotal = (stats?.totalPredictionsCorrect || 0) + (stats?.totalPredictionsWrong || 0);
+        const accuracyRate = predictionTotal > 0
+          ? Math.round(((stats?.totalPredictionsCorrect || 0) / predictionTotal) * 100)
+          : stats?.totalBattlesJoined
+            ? Math.round(((stats.totalBattlesWon || 0) / stats.totalBattlesJoined) * 100)
+            : 0;
+        const credibilityPenalty = participant?.loserPenalty || 10;
+
+        return this.sendNotificationToUser(
+          userId,
+          'Battle Result Updated',
+          'The outcome did not match your forecast. Review your accuracy.',
+          {
+            type: 'battle_forecast_missed',
+            battleId,
+            notificationCategory: 'BATTLE_FORECAST_MISSED',
+            deepLink: 'valens://battle/create',
+            expandedTitle: 'BATTLE RESULT',
+            resultText: 'Your side did not win this Battle.',
+            winningSide,
+            credibilityPenalty: String(credibilityPenalty),
+            accuracyRate: String(accuracyRate),
+            encouragementText: 'Keep forecasting to improve your rank.',
+            primaryAction: 'START_NEW_BATTLE',
+          },
+        );
+      }),
     );
   }
 
