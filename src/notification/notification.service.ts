@@ -463,11 +463,40 @@ export class NotificationService {
     if (!userIds || userIds.length === 0) return;
     const safeNewCount = Number.isFinite(newCount) && newCount > 0 ? Math.floor(newCount) : 1;
 
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        options: true,
+        participants: {
+          select: {
+            side: true,
+          },
+        },
+      },
+    });
+
+    const sideACount = battle?.participants.filter((participant) => participant.side === 'A').length ?? 0;
+    const sideBCount = battle?.participants.filter((participant) => participant.side === 'B').length ?? 0;
+
     return this.sendNotificationToMultipleUsers(
       userIds,
       '👥 New Participants!',
       `${safeNewCount} new participants joined your Battle. See which side the community is backing.`,
-      { type: 'battle_participant_joined', battleId, newCount: String(safeNewCount) },
+      {
+        type: 'battle_participant_joined',
+        battleId,
+        newCount: String(safeNewCount),
+        notificationCategory: 'BATTLE_PARTICIPANT_JOINED',
+        deepLink: `valens://battle/${battleId}`,
+        expandedTitle: 'BATTLE ACTIVITY',
+        activityText: `${safeNewCount} new participants joined`,
+        sideALabel: battle?.options?.[0] || 'Agree with Forecast',
+        sideBLabel: battle?.options?.[1] || 'Challenge Forecast',
+        sideACount: String(sideACount),
+        sideBCount: String(sideBCount),
+        primaryAction: 'VIEW_BATTLE',
+      },
     );
   }
 
