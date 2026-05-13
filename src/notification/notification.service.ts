@@ -635,11 +635,79 @@ export class NotificationService {
 
   async sendBattleVictory(userIds: string[], battleId: string): Promise<void> {
     if (!userIds || userIds.length === 0) return;
-    return this.sendNotificationToMultipleUsers(
-      userIds,
-      '🎉 Victory! Your side won!',
-      'Your credibility score has increased. Check your updated achievements.',
-      { type: 'battle_victory', battleId },
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        options: true,
+        winningSide: true,
+        correctSide: true,
+        participants: {
+          where: {
+            userId: { in: userIds },
+          },
+          select: {
+            userId: true,
+            side: true,
+            score: true,
+          },
+        },
+      },
+    });
+
+    const userStats = await this.prisma.userBattleStats.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        totalBattlesJoined: true,
+        totalBattlesWon: true,
+        totalPredictionsCorrect: true,
+        totalPredictionsWrong: true,
+      },
+    });
+
+    const participantMap = new Map(battle?.participants.map((participant) => [participant.userId, participant]) || []);
+    const statsMap = new Map(userStats.map((stats) => [stats.userId, stats]));
+    const winningSide = battle?.winningSide || battle?.correctSide || '';
+    const winningSideLabel = winningSide === 'A'
+      ? battle?.options?.[0] || 'Agree with Forecast'
+      : winningSide === 'B'
+        ? battle?.options?.[1] || 'Challenge Forecast'
+        : 'the winning side';
+
+    await Promise.all(
+      userIds.map((userId) => {
+        const participant = participantMap.get(userId);
+        const stats = statsMap.get(userId);
+        const predictionTotal = (stats?.totalPredictionsCorrect || 0) + (stats?.totalPredictionsWrong || 0);
+        const accuracyRate = predictionTotal > 0
+          ? Math.round(((stats?.totalPredictionsCorrect || 0) / predictionTotal) * 100)
+          : stats?.totalBattlesJoined
+            ? Math.round(((stats.totalBattlesWon || 0) / stats.totalBattlesJoined) * 100)
+            : 0;
+
+        return this.sendNotificationToUser(
+          userId,
+          'Victory! Your side won!',
+          'Your credibility score has increased. Check your updated achievements.',
+          {
+            type: 'battle_victory',
+            battleId,
+            notificationCategory: 'BATTLE_VICTORY',
+            deepLink: `valens://battle/${battleId}/achievements`,
+            expandedTitle: 'VICTORY!',
+            resultText: 'You chose the winning side.',
+            winningSide,
+            winningSideLabel,
+            userSide: participant?.side || winningSide,
+            credibilityGain: String(participant?.score ?? 25),
+            accuracyRate: String(accuracyRate),
+            badgeText: 'Badges Progress Updated',
+            primaryAction: 'VIEW_ACHIEVEMENTS',
+          },
+        );
+      }),
     );
   }
 
