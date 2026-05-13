@@ -549,11 +549,58 @@ export class NotificationService {
 
   async sendBattleCompleted(userIds: string[], battleId: string): Promise<void> {
     if (!userIds || userIds.length === 0) return;
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        question: true,
+        options: true,
+        winningSide: true,
+        correctSide: true,
+        participants: {
+          select: {
+            side: true,
+          },
+        },
+        votes: {
+          select: {
+            side: true,
+          },
+        },
+      },
+    });
+
+    const resultEntries = battle?.votes.length ? battle.votes : battle?.participants || [];
+    const sideACount = resultEntries.filter((entry) => entry.side === 'A').length;
+    const sideBCount = resultEntries.filter((entry) => entry.side === 'B').length;
+    const winningSide = battle?.winningSide || battle?.correctSide || '';
+    const winningSideLabel = winningSide === 'A'
+      ? battle?.options?.[0] || 'Agree with Forecast'
+      : winningSide === 'B'
+        ? battle?.options?.[1] || 'Challenge Forecast'
+        : '';
+
     return this.sendNotificationToMultipleUsers(
       userIds,
       '🏆 Battle Completed',
       'See the final outcome and accuracy result for your Battle.',
-      { type: 'battle_completed', battleId },
+      {
+        type: 'battle_completed',
+        battleId,
+        notificationCategory: 'BATTLE_COMPLETED',
+        deepLink: `valens://battle/${battleId}`,
+        expandedTitle: 'BATTLE RESULT',
+        question: battle?.question || '',
+        winningSide,
+        winningSideLabel,
+        sideALabel: battle?.options?.[0] || 'Agree with Forecast',
+        sideBLabel: battle?.options?.[1] || 'Challenge Forecast',
+        sideACount: String(sideACount),
+        sideBCount: String(sideBCount),
+        accuracyText: 'Accuracy Score Updated',
+        primaryAction: 'VIEW_ACHIEVEMENTS',
+      },
     );
   }
 
