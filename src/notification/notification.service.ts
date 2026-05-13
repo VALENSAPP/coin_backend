@@ -420,11 +420,42 @@ export class NotificationService {
   }
 
   async sendBattleStarted(userId: string, battleId: string): Promise<void> {
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        question: true,
+        options: true,
+        endTime: true,
+        participants: {
+          select: {
+            side: true,
+          },
+        },
+      },
+    });
+
+    const sideACount = battle?.participants.filter((participant) => participant.side === 'A').length ?? 0;
+    const sideBCount = battle?.participants.filter((participant) => participant.side === 'B').length ?? 0;
+
     return this.sendNotificationToUser(
       userId,
       '⚔️ Battle Started',
       'The debate is live. See who joins your side.',
-      { type: 'battle_started', battleId },
+      {
+        type: 'battle_started',
+        battleId,
+        notificationCategory: 'BATTLE_STARTED',
+        deepLink: `valens://battle/${battleId}`,
+        expandedTitle: 'BATTLE LIVE',
+        question: battle?.question || '',
+        sideALabel: battle?.options?.[0] || 'Side A',
+        sideBLabel: battle?.options?.[1] || 'Side B',
+        sideACount: String(sideACount),
+        sideBCount: String(sideBCount),
+        endTime: battle?.endTime?.toISOString() || '',
+        primaryAction: 'VIEW_DISCUSSION',
+      },
     );
   }
 
