@@ -2,10 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class StoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async uploadStory(userId: string, files?: Express.Multer.File[], caption?: string, storyMeta?: string) {
     if (!userId) throw new BadRequestException('User ID required');
@@ -147,6 +151,50 @@ export class StoryService {
     orderBy: { createdAt: 'asc' },
   });
 }
+
+  async viewStory(storyId: string, viewerId: string) {
+    if (!storyId) throw new BadRequestException('Story ID required');
+    if (!viewerId) throw new BadRequestException('User ID required');
+
+    const story = await this.prisma.story.findUnique({
+      where: { id: storyId },
+      select: { id: true, userId: true, deletedAt: true },
+    });
+    if (!story || story.deletedAt) throw new BadRequestException('Story not found');
+
+    if (story.userId === viewerId) {
+      return { message: 'Own story view ignored', viewed: false };
+    }
+
+    const existingView = await this.prisma.storyView.findUnique({
+      where: {
+        storyId_viewerId: {
+          storyId,
+          viewerId,
+        },
+      },
+    });
+
+    if (existingView) {
+      return { message: 'Story already viewed', viewed: false };
+    }
+
+    const view = await this.prisma.storyView.create({
+      data: {
+        storyId,
+        viewerId,
+        ownerId: story.userId,
+      },
+    });
+
+    try {
+      await this.notificationService.sendStoryViewInsightsIfNeeded(storyId, viewerId);
+    } catch (error) {
+      console.error('Failed to send story view insights notification:', error);
+    }
+
+    return { message: 'Story viewed successfully', viewed: true, view };
+  }
 
 async commentOnStory(userId: string, comment?: string, storyId?: string) {
    if (!storyId) throw new BadRequestException('Story ID required');

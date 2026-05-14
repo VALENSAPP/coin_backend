@@ -564,6 +564,82 @@ export class NotificationService {
     );
   }
 
+  async sendStoryViewInsightsIfNeeded(storyId: string, viewerId: string): Promise<void> {
+    const milestones = [2, 10, 25, 50, 100, 250, 500, 1000];
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [story, viewer, viewsLastHour, viewsLast24h, reactionCount] = await Promise.all([
+      this.prisma.story.findUnique({
+        where: { id: storyId },
+        select: { id: true, userId: true, deletedAt: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: viewerId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+      this.prisma.storyView.count({
+        where: { storyId, createdAt: { gte: oneHourAgo } },
+      }),
+      this.prisma.storyView.count({
+        where: { storyId, createdAt: { gte: last24Hours } },
+      }),
+      this.prisma.storyLike.count({ where: { storyId } }),
+    ]);
+
+    if (!story || story.deletedAt || story.userId === viewerId) return;
+
+    const milestone = milestones
+      .slice()
+      .reverse()
+      .find((value) => viewsLastHour >= value);
+
+    if (!milestone) return;
+
+    const recentNotifications = await this.prisma.notification.findMany({
+      where: { userId: story.userId },
+      select: { data: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const alreadySent = recentNotifications.some((notification) => {
+      const data = notification.data as Record<string, string> | null;
+      return data?.type === 'story_view_insights' && data?.storyId === storyId && data?.milestone === String(milestone);
+    });
+
+    if (alreadySent) return;
+
+    const viewerHandle = this.toHandle(viewer?.userName || viewer?.displayName);
+    const othersCount = Math.max(0, viewsLastHour - 1);
+    const viewerText = othersCount > 0 ? `${viewerHandle} and ${othersCount} others` : viewerHandle;
+
+    return this.sendNotificationToUser(
+      story.userId,
+      '\uD83D\uDC41 Your Story is Popular!',
+      `${viewerText} viewed your Story in the last hour.`,
+      {
+        type: 'story_view_insights',
+        storyId,
+        creatorId: story.userId,
+        actorId: viewerId,
+        actorUserName: viewerHandle,
+        actorDisplayName: viewer?.displayName || '',
+        actorImage: viewer?.image || '',
+        milestone: String(milestone),
+        viewersLastHour: String(viewsLastHour),
+        viewsLast24h: String(viewsLast24h),
+        reactions: String(reactionCount),
+        profileVisits: '0',
+        notificationCategory: 'STORY_INSIGHTS',
+        deepLink: `valens://story/${storyId}`,
+        analyticsDeepLink: `valens://story-analytics/${storyId}`,
+        expandedTitle: 'STORY INSIGHTS',
+        primaryAction: 'VIEW_STORY_ANALYTICS',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({

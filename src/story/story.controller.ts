@@ -72,6 +72,24 @@ export class StoryController {
     return this.storyService.followingStory(userId, time);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('view')
+  @ApiOperation({ summary: 'Track a story view' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        storyId: { type: 'string', description: 'ID of the story being viewed' },
+      },
+      required: ['storyId'],
+    },
+  })
+  async viewStory(@Req() req: Request, @Body('storyId') storyId: string) {
+    const viewerId = (req.user as any).userId;
+    return this.storyService.viewStory(storyId, viewerId);
+  }
+
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @Post('commentStory')
