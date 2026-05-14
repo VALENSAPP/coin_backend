@@ -131,16 +131,18 @@ export class PostService {
         throw new BadRequestException('Invalid end_time');
       }
 
+      let remainingHitsAfterCreate: number | null = null;
       const createdPost = await this.prisma.$transaction(async (tx) => {
         // For crowdfunding, decrement hit
         if (type === 'crowdfunding' || type === 'support') {
           const postHit = await tx.postHit.findFirst({ where: { userId } });
           if (!postHit) throw new BadRequestException('PostHit record not found');
           
-          await tx.postHit.update({
+          const updatedPostHit = await tx.postHit.update({
             where: { id: postHit.id },
             data: { hitLeft: { decrement: 1 } },
           });
+          remainingHitsAfterCreate = updatedPostHit.hitLeft;
         }
 
         // Create the post
@@ -156,6 +158,14 @@ export class PostService {
       }, {
         timeout: 15000 // Increased timeout
       });
+
+      if (remainingHitsAfterCreate === 1) {
+        try {
+          await this.notificationService.sendPostCreditLowAlert(userId, remainingHitsAfterCreate);
+        } catch (notificationError) {
+          console.error('Failed to send post credit low notification:', notificationError);
+        }
+      }
 
       const taggedIds = Array.from(
         new Set((processedData.taggedPeople || []).map((id) => String(id).trim()).filter(Boolean)),

@@ -640,6 +640,29 @@ export class NotificationService {
     );
   }
 
+  async sendPostCreditLowAlert(userId: string, creditsRemaining: number): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      '\u26A0 1 Post Credit Left',
+      'You have 1 free post credit remaining this month. Upgrade to keep posting.',
+      {
+        type: 'post_credit_low',
+        userId,
+        creditsRemaining: String(creditsRemaining),
+        totalCredits: '5',
+        hitPriceUsd: '1.99',
+        upgradePriceUsd: '1.99',
+        notificationCategory: 'POST_CREDIT_LOW',
+        deepLink: 'valens://upgrade',
+        expandedTitle: 'LOW POST CREDITS',
+        expandedSubtitle: `Credits Remaining: ${creditsRemaining} / 5`,
+        expandedBody: 'Upgrade to Valens Pro for $1.99/month',
+        primaryAction: 'UPGRADE_NOW',
+        secondaryAction: 'CONTINUE_WITH_FREE_PLAN',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({
