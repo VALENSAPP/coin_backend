@@ -963,6 +963,117 @@ export class NotificationService {
     );
   }
 
+  async sendMissionFullyFundedIfNeeded(postId: string): Promise<void> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        userId: true,
+        text: true,
+        caption: true,
+        raiseAmount: true,
+        type: true,
+        user: {
+          select: {
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!post || !['mission-post', 'crowdfunding', 'support'].includes(post.type || '') || !post.raiseAmount) return;
+
+    const [raisedResult, backersCount, donors, recentNotifications] = await Promise.all([
+      this.prisma.donationData.aggregate({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.count({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
+      this.prisma.donationData.findMany({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        select: { userId: true },
+      }),
+      this.prisma.notification.findMany({
+        where: { userId: post.userId },
+        select: { data: true },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
+    ]);
+
+    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const goalAmount = Number(post.raiseAmount);
+    if (goalAmount <= 0 || raisedAmount < goalAmount) return;
+
+    const alreadySent = recentNotifications.some((notification) => {
+      const data = notification.data as Record<string, string> | null;
+      return data?.type === 'mission_fully_funded' && data?.postId === postId;
+    });
+    if (alreadySent) return;
+
+    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+    const raisedLabel = raisedAmount.toFixed(2);
+    const goalLabel = goalAmount.toFixed(2);
+    const commonData = {
+      type: 'mission_fully_funded',
+      postId,
+      creatorId: post.userId,
+      creatorUserName: creatorHandle,
+      creatorDisplayName: post.user?.displayName || '',
+      creatorImage: post.user?.image || '',
+      missionTitle,
+      raised: raisedLabel,
+      goal: goalLabel,
+      fundedPercent: '100',
+      backersCount: String(backersCount),
+      notificationCategory: 'MISSION_FULLY_FUNDED',
+      deepLink: `valens://post/${postId}`,
+      expandedTitle: 'MISSION COMPLETE!',
+      expandedSubtitle: 'Goal Fully Reached!',
+      primaryAction: 'VIEW_MISSION_SUMMARY',
+    };
+
+    await this.sendNotificationToUser(
+      post.userId,
+      '\uD83C\uDF89 Your Mission is FULLY FUNDED!',
+      `Congratulations! Your campaign hit the $${goalLabel} goal. Payout is being processed.`,
+      {
+        ...commonData,
+        audience: 'creator',
+      },
+    );
+
+    const backerIds = Array.from(new Set(donors.map((donor) => donor.userId).filter((userId) => userId !== post.userId)));
+    if (backerIds.length === 0) return;
+
+    return this.sendNotificationToMultipleUsers(
+      backerIds,
+      '\uD83C\uDF89 Mission Fully Funded!',
+      `${creatorHandle}'s Mission reached its goal! You helped make it happen. Thank you.`,
+      {
+        ...commonData,
+        audience: 'backer',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({

@@ -573,6 +573,7 @@ export class TokenPurchaseService {
         try {
           await this.notificationService.sendNewMissionBackerNotification(completedDonation.id);
           await this.notificationService.sendMissionGoalMilestoneIfNeeded(completedDonation.postId);
+          await this.notificationService.sendMissionFullyFundedIfNeeded(completedDonation.postId);
         } catch (notificationError) {
           this.logger.error('Failed to send mission donation notification:', notificationError);
         }
