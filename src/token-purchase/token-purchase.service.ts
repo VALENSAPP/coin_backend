@@ -559,6 +559,24 @@ export class TokenPurchaseService {
         return;
       }
 
+      const completedDonation = await this.prisma.donationData.findFirst({
+        where: {
+          userId,
+          stripeCheckoutSessionId: session.id,
+          status: 'completed',
+          action: 'missionDonation',
+        },
+        select: { postId: true },
+      });
+
+      if (completedDonation?.postId) {
+        try {
+          await this.notificationService.sendMissionGoalMilestoneIfNeeded(completedDonation.postId);
+        } catch (notificationError) {
+          this.logger.error('Failed to send mission goal milestone notification:', notificationError);
+        }
+      }
+
       this.logger.log(`Mission donation for session ${session.id} completed successfully`);
     } catch (error) {
       this.logger.error('Error handling mission donation payment:', error);

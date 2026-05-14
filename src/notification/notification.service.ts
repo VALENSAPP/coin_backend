@@ -735,6 +735,134 @@ export class NotificationService {
     );
   }
 
+  async sendMissionGoalMilestoneIfNeeded(postId: string): Promise<void> {
+    const milestones = [25, 50, 75];
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        userId: true,
+        text: true,
+        caption: true,
+        raiseAmount: true,
+        end_time: true,
+        type: true,
+        user: {
+          select: {
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!post || !['mission-post', 'crowdfunding', 'support'].includes(post.type || '') || !post.raiseAmount) return;
+
+    const [raisedResult, backersCount, donors] = await Promise.all([
+      this.prisma.donationData.aggregate({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.count({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
+      this.prisma.donationData.findMany({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        select: { userId: true },
+      }),
+    ]);
+
+    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const goalAmount = Number(post.raiseAmount);
+    if (goalAmount <= 0) return;
+
+    const fundedPercent = (raisedAmount / goalAmount) * 100;
+    const milestone = milestones
+      .slice()
+      .reverse()
+      .find((value) => fundedPercent >= value);
+
+    if (!milestone) return;
+
+    const recentNotifications = await this.prisma.notification.findMany({
+      where: { userId: post.userId },
+      select: { data: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const sentForMilestone = recentNotifications.some((notification) => {
+      const data = notification.data as Record<string, string> | null;
+      return data?.type === 'mission_goal_milestone' && data?.postId === postId && data?.milestone === String(milestone);
+    });
+
+    if (sentForMilestone) return;
+
+    const recipientIds = Array.from(new Set([post.userId, ...donors.map((donor) => donor.userId)]));
+    if (recipientIds.length === 0) return;
+
+    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+    const raisedLabel = raisedAmount.toFixed(2);
+    const goalLabel = goalAmount.toFixed(2);
+    const daysLeft = post.end_time
+      ? Math.max(0, Math.ceil((post.end_time.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : 0;
+    const timeLeftLabel = post.end_time ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}` : '';
+    const titleByMilestone: Record<number, string> = {
+      25: '\uD83D\uDCC8 Mission is 25% funded!',
+      50: '\uD83D\uDD25 Halfway there! Mission is 50% funded.',
+      75: '\u26A1 Almost there! Mission is 75% funded.',
+    };
+    const bodyByMilestone: Record<number, string> = {
+      25: `${creatorHandle}'s campaign just hit its first milestone. Help push it further!`,
+      50: `${creatorHandle}'s campaign is gaining momentum. Share it with your network!`,
+      75: `Just 25% to go on ${creatorHandle}'s Mission. One last push makes the difference.`,
+    };
+
+    return this.sendNotificationToMultipleUsers(
+      recipientIds,
+      titleByMilestone[milestone],
+      bodyByMilestone[milestone],
+      {
+        type: 'mission_goal_milestone',
+        postId,
+        creatorId: post.userId,
+        creatorUserName: creatorHandle,
+        creatorDisplayName: post.user?.displayName || '',
+        creatorImage: post.user?.image || '',
+        milestone: String(milestone),
+        fundedPercent: String(milestone),
+        missionTitle,
+        raised: raisedLabel,
+        goal: goalLabel,
+        backersCount: String(backersCount),
+        timeLeft: timeLeftLabel,
+        notificationCategory: 'MISSION_GOAL_MILESTONE',
+        deepLink: `valens://post/${postId}`,
+        backMissionDeepLink: `valens://mission/${postId}/back`,
+        expandedTitle: 'MISSION MILESTONE',
+        expandedSubtitle: `${milestone}% Funded!`,
+        primaryAction: 'BACK_THIS_MISSION',
+        secondaryAction: 'SHARE',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({
