@@ -663,6 +663,78 @@ export class NotificationService {
     );
   }
 
+  async sendMissionPostLaunchedToFollowers(postId: string): Promise<void> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        userId: true,
+        text: true,
+        caption: true,
+        raiseAmount: true,
+        end_time: true,
+        type: true,
+        user: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!post || !['mission-post', 'crowdfunding', 'support'].includes(post.type || '')) return;
+
+    const followers = await this.prisma.followerAndFollowing.findMany({
+      where: { followingId: post.userId, status: 'ACCEPTED' },
+      select: { followerId: true },
+    });
+    const followerIds = followers.map((f) => f.followerId).filter((id) => id !== post.userId);
+
+    if (followerIds.length === 0) return;
+
+    const backersCount = await this.prisma.donationData.count({
+      where: {
+        postId,
+        status: 'completed',
+        action: { in: ['missionDonation', 'donate'] },
+      },
+    });
+
+    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+    const goal = typeof post.raiseAmount === 'number' ? post.raiseAmount.toFixed(2) : '';
+    const deadlineIso = post.end_time ? post.end_time.toISOString() : '';
+
+    return this.sendNotificationToMultipleUsers(
+      followerIds,
+      `\uD83C\uDFAF ${creatorHandle} launched a Mission!`,
+      'They need your support. See the goal and be one of the first backers.',
+      {
+        type: 'mission_post_launched',
+        postId,
+        creatorId: post.userId,
+        creatorUserName: creatorHandle,
+        creatorDisplayName: post.user?.displayName || '',
+        creatorImage: post.user?.image || '',
+        missionTitle,
+        goal,
+        deadline: deadlineIso,
+        backersCount: String(backersCount),
+        platformFeePercent: '5',
+        notificationCategory: 'MISSION_POST_LAUNCHED',
+        deepLink: `valens://post/${postId}`,
+        backMissionDeepLink: `valens://mission/${postId}/back`,
+        expandedTitle: 'NEW MISSION POST',
+        expandedBody: `${creatorHandle} just launched a Mission`,
+        primaryAction: 'BACK_THIS_MISSION',
+        secondaryAction: 'VIEW_FULL_POST',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({

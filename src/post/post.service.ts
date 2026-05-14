@@ -167,6 +167,14 @@ export class PostService {
         }
       }
 
+      if (['mission-post', 'crowdfunding', 'support'].includes(type || '')) {
+        try {
+          await this.notificationService.sendMissionPostLaunchedToFollowers(createdPost.id);
+        } catch (notificationError) {
+          console.error('Failed to send mission post launch notification:', notificationError);
+        }
+      }
+
       const taggedIds = Array.from(
         new Set((processedData.taggedPeople || []).map((id) => String(id).trim()).filter(Boolean)),
       ).filter((id) => id !== userId);
