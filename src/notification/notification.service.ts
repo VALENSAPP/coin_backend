@@ -863,6 +863,106 @@ export class NotificationService {
     );
   }
 
+  async sendNewMissionBackerNotification(donationId: string): Promise<void> {
+    const donation = await this.prisma.donationData.findUnique({
+      where: { id: donationId },
+      select: {
+        id: true,
+        userId: true,
+        vendorId: true,
+        postId: true,
+        amount: true,
+        status: true,
+        action: true,
+        user: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!donation || donation.status !== 'completed' || donation.action !== 'missionDonation' || !donation.postId || !donation.vendorId) {
+      return;
+    }
+
+    const [post, raisedResult, backersCount] = await Promise.all([
+      this.prisma.post.findUnique({
+        where: { id: donation.postId, deletedAt: null },
+        select: {
+          id: true,
+          userId: true,
+          text: true,
+          caption: true,
+          raiseAmount: true,
+          end_time: true,
+          type: true,
+        },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          postId: donation.postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.count({
+        where: {
+          postId: donation.postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
+    ]);
+
+    if (!post || post.userId !== donation.vendorId || !['mission-post', 'crowdfunding', 'support'].includes(post.type || '')) {
+      return;
+    }
+
+    const backerHandle = this.toHandle(donation.user?.userName || donation.user?.displayName);
+    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const goalAmount = Number(post.raiseAmount || 0);
+    const fundedPercent = goalAmount > 0 ? Math.floor((raisedAmount / goalAmount) * 100) : 0;
+    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+    const daysLeft = post.end_time
+      ? Math.max(0, Math.ceil((post.end_time.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : 0;
+    const timeLeftLabel = post.end_time ? `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}` : '';
+
+    return this.sendNotificationToUser(
+      donation.vendorId,
+      '\uD83C\uDFE6 New Backer on your Mission!',
+      `${backerHandle} contributed $${donation.amount} to your Mission. You're now ${fundedPercent}% funded!`,
+      {
+        type: 'mission_new_backer',
+        donationId: donation.id,
+        postId: donation.postId,
+        creatorId: donation.vendorId,
+        backerId: donation.userId,
+        backerUserName: backerHandle,
+        backerDisplayName: donation.user?.displayName || '',
+        backerImage: donation.user?.image || '',
+        contribution: donation.amount.toFixed(2),
+        totalRaised: raisedAmount.toFixed(2),
+        goal: goalAmount.toFixed(2),
+        fundedPercent: String(fundedPercent),
+        backersCount: String(backersCount),
+        timeLeft: timeLeftLabel,
+        missionTitle,
+        notificationCategory: 'MISSION_NEW_BACKER',
+        deepLink: `valens://post/${donation.postId}`,
+        expandedTitle: 'NEW BACKER',
+        expandedBody: `${backerHandle} backed your Mission!`,
+        primaryAction: 'VIEW_YOUR_MISSION',
+        secondaryAction: 'SEND_THANKS',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({

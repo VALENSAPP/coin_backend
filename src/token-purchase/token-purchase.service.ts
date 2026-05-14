@@ -566,14 +566,15 @@ export class TokenPurchaseService {
           status: 'completed',
           action: 'missionDonation',
         },
-        select: { postId: true },
+        select: { id: true, postId: true },
       });
 
       if (completedDonation?.postId) {
         try {
+          await this.notificationService.sendNewMissionBackerNotification(completedDonation.id);
           await this.notificationService.sendMissionGoalMilestoneIfNeeded(completedDonation.postId);
         } catch (notificationError) {
-          this.logger.error('Failed to send mission goal milestone notification:', notificationError);
+          this.logger.error('Failed to send mission donation notification:', notificationError);
         }
       }
 
