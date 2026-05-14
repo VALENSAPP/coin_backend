@@ -571,6 +571,7 @@ export class TokenPurchaseService {
 
       if (completedDonation?.postId) {
         try {
+          await this.notificationService.sendMissionContributionConfirmed(completedDonation.id);
           await this.notificationService.sendNewMissionBackerNotification(completedDonation.id);
           await this.notificationService.sendMissionGoalMilestoneIfNeeded(completedDonation.postId);
           await this.notificationService.sendMissionFullyFundedIfNeeded(completedDonation.postId);

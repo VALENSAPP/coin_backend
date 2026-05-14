@@ -1189,6 +1189,74 @@ export class NotificationService {
     );
   }
 
+  async sendMissionContributionConfirmed(donationId: string): Promise<void> {
+    const donation = await this.prisma.donationData.findUnique({
+      where: { id: donationId },
+      select: {
+        id: true,
+        userId: true,
+        vendorId: true,
+        postId: true,
+        amount: true,
+        status: true,
+        action: true,
+      },
+    });
+
+    if (!donation || donation.status !== 'completed' || donation.action !== 'missionDonation' || !donation.postId || !donation.vendorId) {
+      return;
+    }
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: donation.postId, deletedAt: null },
+      select: {
+        id: true,
+        userId: true,
+        text: true,
+        caption: true,
+        type: true,
+        user: {
+          select: {
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!post || post.userId !== donation.vendorId || !['mission-post', 'crowdfunding', 'support'].includes(post.type || '')) {
+      return;
+    }
+
+    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+
+    return this.sendNotificationToUser(
+      donation.userId,
+      '\u2705 Contribution Confirmed!',
+      `Your $${donation.amount} backing of ${creatorHandle}'s Mission is confirmed. Thank you for your support!`,
+      {
+        type: 'mission_contribution_confirmed',
+        donationId: donation.id,
+        postId: donation.postId,
+        creatorId: donation.vendorId,
+        creatorUserName: creatorHandle,
+        creatorDisplayName: post.user?.displayName || '',
+        creatorImage: post.user?.image || '',
+        missionTitle,
+        amountPaid: donation.amount.toFixed(2),
+        paymentVia: 'Stripe',
+        notificationCategory: 'MISSION_CONTRIBUTION_CONFIRMED',
+        deepLink: `valens://post/${donation.postId}`,
+        expandedTitle: 'CONTRIBUTION CONFIRMED',
+        expandedBody: 'Your backing was successful!',
+        primaryAction: 'VIEW_MISSION_PROGRESS',
+        secondaryAction: 'SHARE',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({
