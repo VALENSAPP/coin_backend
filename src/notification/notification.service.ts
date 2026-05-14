@@ -1074,6 +1074,121 @@ export class NotificationService {
     );
   }
 
+  async sendMissionEndingSoonIfNeeded(postId: string): Promise<void> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        userId: true,
+        text: true,
+        caption: true,
+        raiseAmount: true,
+        end_time: true,
+        type: true,
+        user: {
+          select: {
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!post || !['mission-post', 'crowdfunding', 'support'].includes(post.type || '') || !post.end_time) return;
+
+    const remainingMs = post.end_time.getTime() - Date.now();
+    if (remainingMs <= 0 || remainingMs > 24 * 60 * 60 * 1000) return;
+
+    const recentNotifications = await this.prisma.notification.findMany({
+      where: { userId: post.userId },
+      select: { data: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const alreadySent = recentNotifications.some((notification) => {
+      const data = notification.data as Record<string, string> | null;
+      return data?.type === 'mission_ending_soon' && data?.postId === postId;
+    });
+    if (alreadySent) return;
+
+    const [raisedResult, backersCount, followers, donors] = await Promise.all([
+      this.prisma.donationData.aggregate({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.count({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
+      this.prisma.followerAndFollowing.findMany({
+        where: { followingId: post.userId, status: 'ACCEPTED' },
+        select: { followerId: true },
+      }),
+      this.prisma.donationData.findMany({
+        where: {
+          postId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        select: { userId: true },
+      }),
+    ]);
+
+    const recipientIds = Array.from(
+      new Set([
+        post.userId,
+        ...followers.map((follower) => follower.followerId),
+        ...donors.map((donor) => donor.userId),
+      ]),
+    );
+    if (recipientIds.length === 0) return;
+
+    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const goalAmount = Number(post.raiseAmount || 0);
+    const fundedPercent = goalAmount > 0 ? Math.floor((raisedAmount / goalAmount) * 100) : 0;
+    const stillNeeded = Math.max(0, goalAmount - raisedAmount);
+    const hoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+
+    return this.sendNotificationToMultipleUsers(
+      recipientIds,
+      '\u23F0 Mission ends in 24 hours!',
+      `${creatorHandle}'s campaign closes tomorrow. Don't miss your chance to back it.`,
+      {
+        type: 'mission_ending_soon',
+        postId,
+        creatorId: post.userId,
+        creatorUserName: creatorHandle,
+        creatorDisplayName: post.user?.displayName || '',
+        creatorImage: post.user?.image || '',
+        missionTitle,
+        raised: raisedAmount.toFixed(2),
+        goal: goalAmount.toFixed(2),
+        fundedPercent: String(fundedPercent),
+        stillNeeded: stillNeeded.toFixed(2),
+        backersCount: String(backersCount),
+        hoursLeft: String(hoursLeft),
+        notificationCategory: 'MISSION_ENDING_SOON',
+        deepLink: `valens://post/${postId}`,
+        backMissionDeepLink: `valens://mission/${postId}/back`,
+        expandedTitle: 'LAST CHANCE',
+        expandedSubtitle: 'Mission ends in 24 hours',
+        primaryAction: 'BACK_THIS_MISSION_NOW',
+        secondaryAction: 'SHARE',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({
