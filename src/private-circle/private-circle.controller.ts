@@ -11,6 +11,15 @@ export class PrivateCircleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Delete()
+  @ApiOperation({ summary: 'Delete the authenticated user private circle' })
+  async deleteCircle(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.privateCircleService.deleteCircle(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Post('setup')
   @ApiOperation({ summary: 'Create or return the authenticated user private circle' })
   async setup(@Req() req: Request) {

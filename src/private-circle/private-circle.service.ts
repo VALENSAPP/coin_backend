@@ -274,4 +274,23 @@ export class PrivateCircleService {
       },
     };
   }
+
+  async deleteCircle(ownerId: string) {
+    if (!ownerId) throw new BadRequestException('User ID required');
+
+    const circle = await this.prisma.privateCircle.findUnique({
+      where: { ownerId },
+      select: { id: true },
+    });
+
+    if (!circle) throw new BadRequestException('Private circle not found');
+
+    await this.prisma.privateCircle.delete({
+      where: { id: circle.id },
+    });
+
+    return {
+      message: 'Private circle deleted successfully',
+    };
+  }
 }
