@@ -14,6 +14,7 @@ import { SumsubVerificationModule } from './sumsub-verification/sumsub-verificat
 import { SumsubUserVerificationModule } from './sumsub-user_verification/sumsub-user_verification.module';
 import { NotificationModule } from './notification/notification.module';
 import { BattleModule } from './battle/battle.module';
+import { PrivateCircleModule } from './private-circle/private-circle.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -34,6 +35,7 @@ import { AppService } from './app.service';
     SumsubUserVerificationModule,
     NotificationModule,
     BattleModule,
+    PrivateCircleModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -254,9 +254,11 @@ export class PostController {
   @Get('like/list')
   @ApiOperation({ summary: 'Get list of users who liked a post' })
   async postLikeList(
+    @Req() req: Request,
     @Query(new ValidationPipe({ whitelist: true })) query: PostLikeListDto
   ) {
-    return this.postService.postLikeList(query.postId);
+    const viewerUserId = (req.user as any).userId;
+    return this.postService.postLikeList(query.postId, viewerUserId);
   }
 
   @UseGuards(AuthGuard('jwt'))

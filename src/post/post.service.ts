@@ -10,10 +10,74 @@ import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class PostService {
+  private readonly privateCircleVisibilityValues = [
+    'PRIVATE_CIRCLE',
+    'private_circle',
+    'private-circle',
+    'private circle',
+    'Private Circle',
+  ];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
   ) {}
+
+  private isPrivateCircleVisibility(visibleTo?: string | null): boolean {
+    const normalized = (visibleTo || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+    return normalized === 'private_circle';
+  }
+
+  private buildPostVisibilityWhere(viewerUserId?: string): Prisma.PostWhereInput {
+    const publicVisibility: Prisma.PostWhereInput[] = [
+      { visibleTo: null },
+      { visibleTo: { notIn: this.privateCircleVisibilityValues } },
+    ];
+
+    if (!viewerUserId) {
+      return { OR: publicVisibility };
+    }
+
+    return {
+      OR: [
+        ...publicVisibility,
+        {
+          visibleTo: { in: this.privateCircleVisibilityValues },
+          userId: viewerUserId,
+        },
+        {
+          visibleTo: { in: this.privateCircleVisibilityValues },
+          privateCircle: {
+            members: {
+              some: {
+                userId: viewerUserId,
+                status: 'ACTIVE',
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private async ensureCanViewPost(post: { userId: string; visibleTo?: string | null; privateCircleId?: string | null }, viewerUserId?: string) {
+    if (!this.isPrivateCircleVisibility(post.visibleTo)) return;
+    if (viewerUserId && post.userId === viewerUserId) return;
+    if (!viewerUserId || !post.privateCircleId) {
+      throw new BadRequestException('Post not found');
+    }
+
+    const member = await this.prisma.privateCircleMember.findFirst({
+      where: {
+        privateCircleId: post.privateCircleId,
+        userId: viewerUserId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    if (!member) throw new BadRequestException('Post not found');
+  }
 
   async createPost(
     userId: string,
@@ -131,6 +195,21 @@ export class PostService {
         throw new BadRequestException('Invalid end_time');
       }
 
+      let privateCircleId: string | null = null;
+      if (this.isPrivateCircleVisibility(processedData.visibleTo)) {
+        const privateCircle = await this.prisma.privateCircle.findUnique({
+          where: { ownerId: userId },
+          select: { id: true, isActive: true },
+        });
+
+        if (!privateCircle || !privateCircle.isActive) {
+          throw new BadRequestException('Set up your private circle before creating a private circle post');
+        }
+
+        privateCircleId = privateCircle.id;
+        processedData.visibleTo = 'PRIVATE_CIRCLE';
+      }
+
       let remainingHitsAfterCreate: number | null = null;
       const createdPost = await this.prisma.$transaction(async (tx) => {
         // For crowdfunding, decrement hit
@@ -153,6 +232,7 @@ export class PostService {
             images: imageUrls,
             thumbnails: thumbnailUrls,
             type,
+            privateCircleId,
           },
         });
       }, {
@@ -206,7 +286,10 @@ export class PostService {
         );
       }
 
-      return createdPost;
+      return {
+        ...createdPost,
+        private_circle: this.isPrivateCircleVisibility(createdPost.visibleTo),
+      };
 
     } catch (error) {
       console.error('Create post error:', error);
@@ -255,6 +338,7 @@ export class PostService {
 
     const post = await this.prisma.post.findUnique({ where: { id: postId, deletedAt: null } });
     if (!post) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, userId);
 
     const now = new Date();
     const MAX_PINNED_POSTS = 3;
@@ -316,6 +400,7 @@ export class PostService {
     } else {
       whereClause.type = { not: 'private' };
     }
+    whereClause.AND = [this.buildPostVisibilityWhere(viewerUserId)];
 
     const postInclude = {
       user: {
@@ -435,6 +520,7 @@ export class PostService {
     type:post.type,
     link:post.link,
     visibleTo: (post as any).visibleTo,
+    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
     start_time:post.start_time,
     end_time:post.end_time,
     raiseAmount:post.raiseAmount,
@@ -565,6 +651,7 @@ export class PostService {
       type: post.type,
       link: post.link,
       visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
       start_time: post.start_time,
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
@@ -615,6 +702,8 @@ export class PostService {
   if (!post) {
     throw new BadRequestException('Post not found');
   }
+
+  await this.ensureCanViewPost(post, viewerId);
 
   // ✅ Fetch saved state for this viewer
   const saved = await this.prisma.savePost.findFirst({
@@ -672,6 +761,7 @@ export class PostService {
     type:post.type,
     link:post.link,
     visibleTo: (post as any).visibleTo,
+    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
     start_time:post.start_time,
     end_time:post.end_time,
     raiseAmount:post.raiseAmount,
@@ -683,7 +773,11 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
   const take = Math.min(Math.max(1, limit), 50);
   const skip = (Math.max(1, page) - 1) * take;
 
-  const postWhere = { deletedAt: null, type: { not: 'private' } };
+  const postWhere: Prisma.PostWhereInput = {
+    deletedAt: null,
+    type: { not: 'private' },
+    AND: [this.buildPostVisibilityWhere(viewerUserId)],
+  };
   const postInclude = {
     user: {
       select: {
@@ -806,6 +900,7 @@ async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
     type:post.type,
     link:post.link,
     visibleTo: (post as any).visibleTo,
+    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
     start_time:post.start_time,
     end_time:post.end_time,
     raiseAmount:post.raiseAmount,
@@ -843,7 +938,8 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       const posts = await this.prisma.post.findMany({
         where: {
           text: { contains: search.trim(), mode: 'insensitive' },
-          deletedAt: null
+          deletedAt: null,
+          AND: [this.buildPostVisibilityWhere(viewerUserId)],
         },
         include: {
           user: {
@@ -941,6 +1037,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         type: post.type,
          link:post.link,
          visibleTo: (post as any).visibleTo,
+         private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
       start_time:post.start_time,
       end_time:post.end_time,
       raiseAmount:post.raiseAmount,
@@ -951,7 +1048,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
   } else {
     // No search query, get all posts
     const posts = await this.prisma.post.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, AND: [this.buildPostVisibilityWhere(viewerUserId)] },
       include: {
         user: {
           select: {
@@ -1043,6 +1140,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       type: post.type,
        link:post.link,
        visibleTo: (post as any).visibleTo,
+       private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
   start_time:post.start_time,
   end_time:post.end_time,
   raiseAmount:post.raiseAmount,
@@ -1054,7 +1152,8 @@ async getAllReel(viewerUserId?: string) {
   const posts = await this.prisma.post.findMany({
     where: {
       deletedAt: null,
-      type: 'reel'
+      type: 'reel',
+      AND: [this.buildPostVisibilityWhere(viewerUserId)],
     },
     include: {
       user: {
@@ -1146,6 +1245,7 @@ async getAllReel(viewerUserId?: string) {
     isHide: hiddenSet.has(post.id),
     type: post.type,
     visibleTo: (post as any).visibleTo,
+    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
   }));
 }
 
@@ -1167,9 +1267,9 @@ async getAllReel(viewerUserId?: string) {
 
     const post = await this.prisma.post.findUnique({
       where: { id: postId, deletedAt: null },
-      select: { id: true },
     });
     if (!post) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, userId);
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -1274,10 +1374,26 @@ async getAllReel(viewerUserId?: string) {
 
     // Only update visibleTo if it's provided and not empty string
     if (updateData.visibleTo !== undefined && updateData.visibleTo !== null && updateData.visibleTo.trim() !== '') {
-      updateFields.visibleTo = updateData.visibleTo;
+      if (this.isPrivateCircleVisibility(updateData.visibleTo)) {
+        const privateCircle = await this.prisma.privateCircle.findUnique({
+          where: { ownerId: userId },
+          select: { id: true, isActive: true },
+        });
+
+        if (!privateCircle || !privateCircle.isActive) {
+          throw new BadRequestException('Set up your private circle before making this a private circle post');
+        }
+
+        updateFields.visibleTo = 'PRIVATE_CIRCLE';
+        updateFields.privateCircleId = privateCircle.id;
+      } else {
+        updateFields.visibleTo = updateData.visibleTo;
+        updateFields.privateCircleId = null;
+      }
     } else if (updateData.visibleTo === '') {
       // If empty string is explicitly sent, set to null
       updateFields.visibleTo = null;
+      updateFields.privateCircleId = null;
     }
     
     // Update images if new files are uploaded
@@ -1285,10 +1401,15 @@ async getAllReel(viewerUserId?: string) {
       updateFields.images = imageUrls;
     }
 
-    return this.prisma.post.update({
+    const updatedPost = await this.prisma.post.update({
       where: { id: postId },
       data: updateFields,
     });
+
+    return {
+      ...updatedPost,
+      private_circle: this.isPrivateCircleVisibility(updatedPost.visibleTo),
+    };
   }
 
   async postLikeByUser(postId: string, userId: string) {
@@ -1306,6 +1427,8 @@ async getAllReel(viewerUserId?: string) {
     if (!post) {
       throw new BadRequestException('Post not found');
     }
+
+    await this.ensureCanViewPost(post, userId);
 
     // Check if user already liked the post
     const existingLike = await this.prisma.postLike.findUnique({
@@ -1347,7 +1470,7 @@ async getAllReel(viewerUserId?: string) {
     }
   }
 
-  async postLikeList(postId: string) {
+  async postLikeList(postId: string, viewerUserId?: string) {
     if (!postId) throw new BadRequestException('Post ID required');
 
     // Check if post exists
@@ -1361,6 +1484,8 @@ async getAllReel(viewerUserId?: string) {
     if (!post) {
       throw new BadRequestException('Post not found');
     }
+
+    await this.ensureCanViewPost(post, viewerUserId);
 
     // Get likes with user information
     const likes = await this.prisma.postLike.findMany({
@@ -1407,6 +1532,7 @@ async getAllReel(viewerUserId?: string) {
       where: { id: postId, deletedAt: null },
     });
     if (!post) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, userId);
 
     if (parentCommentId) {
       const parent = await this.prisma.postComment.findUnique({ where: { id: parentCommentId } });
@@ -1458,8 +1584,12 @@ async editComment(commentId: string, userId: string, newComment: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!reaction) throw new BadRequestException('Reaction required');
 
-    const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
+    const comment = await this.prisma.postComment.findUnique({
+      where: { id: commentId },
+      include: { post: true },
+    });
     if (!comment) throw new BadRequestException('Comment not found');
+    await this.ensureCanViewPost(comment.post, userId);
 
     await this.prisma.$transaction(async (tx) => {
       const existing = await tx.postCommentReaction.findUnique({
@@ -1535,6 +1665,7 @@ async editComment(commentId: string, userId: string, newComment: string) {
       where: { id: postId, deletedAt: null },
     });
     if (!post) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, viewerUserId);
     const comments = await this.prisma.postComment.findMany({
       where: { postId },
       orderBy: { createdAt: 'desc' },
@@ -1637,7 +1768,13 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
 
   // ✅ Get saved posts with full post + user + counts
   const savedPosts = await this.prisma.savePost.findMany({
-    where: { userId, post: { deletedAt: null } },
+    where: {
+      userId,
+      post: {
+        deletedAt: null,
+        AND: [this.buildPostVisibilityWhere(viewerUserId)],
+      },
+    },
     orderBy: { createdAt: 'desc' },
     include: {
       post: {
@@ -1723,6 +1860,7 @@ async getSavedPostsByUser(userId: string, viewerUserId: string) {
       type:post.type,
       link:post.link,
       visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
       start_time:post.start_time,
       end_time:post.end_time,
     };
@@ -1764,6 +1902,13 @@ async sharePostToUser(mediaId: string, mediaType: string, conversationType: stri
   // If mediaType is POST, create a PostShare record to track the share count
   // This should be done regardless of conversation existence, as they serve different purposes
   if (mediaType === 'POST' || mediaType === 'post') {
+    const post = await this.prisma.post.findUnique({
+      where: { id: mediaId, deletedAt: null },
+    });
+    if (!post) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, sharedUserId);
+    await this.ensureCanViewPost(post, receiverUserId);
+
     // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
     const existingPostShare = await this.prisma.postShare.findUnique({
       where: {
@@ -1861,7 +2006,11 @@ async getSharedPostList(userId: string) {
   // Fetch media data separately based on mediaType
   const mediaIds: string[] = conversations.map(c => c.mediaId).filter((id): id is string => id !== null);
   const posts = await this.prisma.post.findMany({
-    where: { id: { in: mediaIds }, deletedAt: null },
+    where: {
+      id: { in: mediaIds },
+      deletedAt: null,
+      AND: [this.buildPostVisibilityWhere(userId)],
+    },
     include: {
       user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
       _count: { select: { likes: true, comments: true, shares: true } },
@@ -1899,6 +2048,7 @@ async getSharedPostList(userId: string) {
         commentCount: post._count.comments,
         shareCount: post._count.shares,
         visibleTo: (post as any).visibleTo,
+        private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
         type: post.type,
       },
       sharedBy: {
@@ -1952,13 +2102,17 @@ async hidePost(postId: string, userId: string) {
     throw new BadRequestException('Post ID and User ID required');
   }
 
-  return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
     // 1. Upsert hidePost
     // await tx.hidePost.upsert({
     //   where: { postId_userId: { postId, userId } },
     //   update: {},
     //   create: { postId, userId },
     // });
+
+    const post = await tx.post.findUnique({ where: { id: postId } });
+    if (!post || post.deletedAt) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, userId);
 
     // 2. Update post table
     const updatedPost = await tx.post.update({
@@ -1990,6 +2144,10 @@ async unhidePost(postId: string, userId: string) {
     // await tx.hidePost.deleteMany({
     //   where: { postId, userId },
     // });
+
+    const post = await tx.post.findUnique({ where: { id: postId } });
+    if (!post || post.deletedAt) throw new BadRequestException('Post not found');
+    await this.ensureCanViewPost(post, userId);
 
     // 2. Update post table
     const updatedPost = await tx.post.update({
@@ -2260,7 +2418,11 @@ async getConversationWithUser(userId: string, otherUserId: string) {
 
   // Fetch posts with user details
   const posts = postIds.length > 0 ? await this.prisma.post.findMany({
-    where: { id: { in: postIds }, deletedAt: null },
+    where: {
+      id: { in: postIds },
+      deletedAt: null,
+      AND: [this.buildPostVisibilityWhere(userId)],
+    },
     include: {
       user: { select: { id: true, displayName: true, image: true, profile: true } },
     },
@@ -2307,6 +2469,7 @@ async getConversationWithUser(userId: string, otherUserId: string) {
             type: p.type,
             link: p.link,
             visibleTo: p.visibleTo,
+            private_circle: this.isPrivateCircleVisibility(p.visibleTo),
             start_time: p.start_time,
             end_time: p.end_time,
             raiseAmount: p.raiseAmount,

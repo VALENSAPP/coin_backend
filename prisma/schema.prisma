@@ -72,6 +72,8 @@ model User {
   tokenSales            TokenSale[]
   donationData          DonationData[]
   posts                 Post[]
+  privateCircles        PrivateCircle[]
+  privateCircleMembers  PrivateCircleMember[]
   postReports           PostReport[]
   postComments          PostComment[]
   postCommentReactions  PostCommentReaction[]
@@ -168,15 +170,50 @@ model Post {
   type             String?
   link             String?
   visibleTo        String?
+  privateCircleId  String?
   postHide         postHide      @default(no)
   hides            HidePost[]
   reports          PostReport[]
   user             User          @relation(fields: [userId], references: [id])
+  privateCircle    PrivateCircle? @relation(fields: [privateCircleId], references: [id], onDelete: SetNull)
   comments         PostComment[]
   likes            PostLike[]
   shares           PostShare[]
   saves            SavePost[]
   pinnedBy         PinnedPost[]
+
+  @@index([privateCircleId])
+}
+
+model PrivateCircle {
+  id          String                @id @default(uuid())
+  ownerId     String
+  owner       User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isActive    Boolean               @default(true)
+  minSlots    Int
+  maxSlots    Int
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+  members     PrivateCircleMember[]
+  posts       Post[]
+
+  @@unique([ownerId])
+  @@index([ownerId])
+}
+
+model PrivateCircleMember {
+  id              String                    @id @default(uuid())
+  privateCircleId String
+  userId          String
+  status          PrivateCircleMemberStatus @default(ACTIVE)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  privateCircle   PrivateCircle             @relation(fields: [privateCircleId], references: [id], onDelete: Cascade)
+  user            User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([privateCircleId, userId])
+  @@index([userId])
+  @@index([privateCircleId, status])
 }
 
 model PinnedPost {
@@ -1002,6 +1039,11 @@ enum postHide {
 enum isdelete {
   yes
   no
+}
+
+enum PrivateCircleMemberStatus {
+  ACTIVE
+  REMOVED
 }
 
 enum BattleFormat {
