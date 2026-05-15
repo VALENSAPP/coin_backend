@@ -39,6 +39,7 @@ export class BillingService {
   }
 
   async ensureStripeCustomer(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     if (user.stripeCustomerId) return user.stripeCustomerId;
@@ -925,6 +926,11 @@ export class BillingService {
   }
 
   async createOneTimePaymentCheckForFanSubscription(amount: number, buyUserId: string, fanUserId: string) {
+    if (!buyUserId) throw new BadRequestException('Creator user id is required');
+    if (!fanUserId) throw new BadRequestException('Fan user id is required');
+    if (buyUserId === fanUserId) throw new BadRequestException('You cannot buy your own fan subscription');
+    if (!amount || amount <= 0) throw new BadRequestException('Amount must be greater than 0');
+
     const destinationAccountId = await this.requireCanReceivePayments(buyUserId);
     const customerId = await this.ensureStripeCustomer(fanUserId);
     const buyUser = await this.prisma.user.findUnique({ where: { id: buyUserId } });

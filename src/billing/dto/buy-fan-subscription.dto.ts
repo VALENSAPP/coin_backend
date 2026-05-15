@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsPositive, IsUUID } from 'class-validator';
+import { IsNumber, IsOptional, IsPositive, IsUUID } from 'class-validator';
 
 export class BuyFanSubscriptionDto {
   @ApiProperty({
@@ -20,8 +20,10 @@ export class BuyFanSubscriptionDto {
 
   @ApiProperty({
     description: 'User ID of the fan making the purchase',
-    example: '123e4567-e89b-12d3-a456-426614174001'
+    example: '123e4567-e89b-12d3-a456-426614174001',
+    required: false,
   })
+  @IsOptional()
   @IsUUID()
-  fanUserId: string;
+  fanUserId?: string;
 }

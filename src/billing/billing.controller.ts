@@ -195,12 +195,23 @@ export class BillingController {
   async buyFanSubscription(@Req() req: Request, @Body() dto: BuyFanSubscriptionDto) {
     const userId = (req.user as any).userId;
 
-    // Validate that the fanUserId matches the authenticated user
-    if (dto.fanUserId == userId) {
-      throw new BadRequestException('wrong fan user id');
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
     }
 
-    const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, dto.fanUserId);
+    if (!dto.buyUserId) {
+      throw new BadRequestException('Creator user id is required');
+    }
+
+    if (dto.buyUserId === userId) {
+      throw new BadRequestException('You cannot buy your own fan subscription');
+    }
+
+    if (dto.fanUserId && dto.fanUserId !== userId) {
+      throw new BadRequestException('Fan user id must match authenticated user');
+    }
+
+    const result = await this.billingService.createOneTimePaymentCheckForFanSubscription(dto.amount, dto.buyUserId, userId);
     return { message: 'Checkout session created', ...result };
   }
 
