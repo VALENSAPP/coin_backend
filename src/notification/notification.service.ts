@@ -401,6 +401,9 @@ export class NotificationService {
         participants: {
           select: {
             id: true,
+            userId: true,
+            side: true,
+            openingArgument: true,
           },
         },
       },
@@ -410,26 +413,28 @@ export class NotificationService {
 
     const inviterName = battle.creator?.userName || battle.creator?.displayName || 'Someone';
     const inviterHandle = inviterName.startsWith('@') ? inviterName : `@${inviterName}`;
-    const forecastSide = battle.options?.[0] || 'YES';
+    const challengerPosition = battle.participants.find((participant) => participant.userId === battle.creatorId);
+    const challengerSide = challengerPosition?.side || battle.options?.[0] || 'Side A';
     const participantCount = battle.participants.length;
 
     return this.sendNotificationToUser(
       invitedUserId,
       'Battle Invitation',
-      `${inviterHandle} invited you to a Battle. Review the forecast and choose your side.`,
+      `${inviterHandle} challenged you to a Battle. Review their side and argument.`,
       {
         type: 'battle_invite',
         battleId,
         inviterId: battle.creatorId,
         inviterUserName: inviterHandle,
         question: battle.question,
-        forecastSide,
+        challengerSide,
+        challengerArgument: challengerPosition?.openingArgument || '',
         endTime: battle.endTime.toISOString(),
         participantCount: String(participantCount),
-        deepLink: `valens://battle/${battle.id}`,
+        deepLink: `valens://battle/invite/${battle.id}`,
         notificationCategory: 'BATTLE_INVITE',
-        primaryAction: 'AGREE_FORECAST',
-        secondaryAction: 'CHALLENGE_FORECAST',
+        primaryAction: 'ACCEPT_BATTLE',
+        secondaryAction: 'DECLINE_BATTLE',
       },
     );
   }

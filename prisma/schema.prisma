@@ -819,6 +819,7 @@ model BattleParticipant {
   battleId          String
   userId            String
   side              String?
+  openingArgument   String?   @db.Text
   joinedAt          DateTime  @default(now())
   score             Int       @default(0)
   stakeWon          Float     @default(0)

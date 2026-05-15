@@ -4,7 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
-import { BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 
 @ApiTags('battle')
@@ -125,11 +125,29 @@ export class BattleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Post('challenger-position')
+  @ApiOperation({ summary: 'Creator chooses side and opening comment for a head-to-head battle, then sends invite notification' })
+  async submitChallengerPosition(@Req() req: Request, @Body() dto: BattleChallengerPositionDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.submitChallengerPosition(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Post('accept')
   @ApiOperation({ summary: 'Accept a battle invite' })
   async acceptInvite(@Req() req: Request, @Body() dto: BattleResponseDto) {
     const userId = (req.user as any)?.userId;
     return this.battleService.acceptInvite(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('opponent-position')
+  @ApiOperation({ summary: 'Invited user adds opening comment, receives remaining side automatically, and makes battle live' })
+  async submitOpponentPosition(@Req() req: Request, @Body() dto: BattleOpponentPositionDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.submitOpponentPosition(userId, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -253,6 +271,16 @@ export class BattleController {
   @ApiOperation({ summary: 'Get battle details' })
   async getBattle(@Query('battleId') battleId: string) {
     return this.battleService.getBattle(battleId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('invite-detail')
+  @ApiQuery({ name: 'battleId', required: true, type: 'string' })
+  @ApiOperation({ summary: 'Get head-to-head invite detail for accept/decline screen' })
+  async getInviteDetail(@Req() req: Request, @Query('battleId') battleId: string) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.getInviteDetail(userId, battleId);
   }
 
   @UseGuards(AuthGuard('jwt'))
