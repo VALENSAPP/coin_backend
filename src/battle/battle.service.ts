@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BattleStatus } from '@prisma/client';
-import { BattleCommentDto, BattleCommentLikeDto, BattleCloseDto, BattleInviteDto, BattleJoinDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentLikeDto, BattleCloseDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
 
@@ -31,6 +31,83 @@ export class BattleService {
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
   ) {}
+
+  private normalizeBattleSide(side: string | undefined, options: string[] = []): string {
+    const normalizedSide = (side || '').trim();
+    if (!normalizedSide) throw new BadRequestException('Side required');
+
+    const exactOption = options.find((option) => option.trim().toLowerCase() === normalizedSide.toLowerCase());
+    if (exactOption) return exactOption;
+
+    throw new BadRequestException('Side must match one of the battle options');
+  }
+
+  private normalizeOpeningComment(comment: string | undefined): string {
+    const normalizedComment = (comment || '').trim();
+    if (normalizedComment.length < ARGUMENT_MIN_LENGTH) {
+      throw new BadRequestException(`Comment must be at least ${ARGUMENT_MIN_LENGTH} characters`);
+    }
+    return normalizedComment;
+  }
+
+  private getRemainingSide(options: string[], challengerSide: string): string {
+    const remainingSide = options.find((option) => option.trim().toLowerCase() !== challengerSide.trim().toLowerCase());
+    if (!remainingSide) throw new BadRequestException('No remaining side available for opponent');
+    return remainingSide;
+  }
+
+  private buildHeadToHeadSides(battle: {
+    format: string;
+    creatorId: string;
+    options: string[];
+    participants?: Array<{
+      id?: string;
+      userId: string;
+      side?: string | null;
+      openingArgument?: string | null;
+      user?: any;
+    }>;
+    invites?: Array<{
+      invitedUserId: string;
+      status?: string;
+      invited?: any;
+    }>;
+  }) {
+    if (battle.format !== 'HEAD_TO_HEAD') return null;
+
+    const participants = battle.participants || [];
+    const invite = battle.invites?.[0] || null;
+    const creatorParticipant = participants.find((participant) => participant.userId === battle.creatorId) || null;
+    const invitedUserId =
+      invite?.invitedUserId || participants.find((participant) => participant.userId !== battle.creatorId)?.userId || null;
+    const invitedParticipant = invitedUserId
+      ? participants.find((participant) => participant.userId === invitedUserId) || null
+      : null;
+    const creatorSide = creatorParticipant?.side || null;
+    const invitedUserSide =
+      invitedParticipant?.side ||
+      (creatorSide && battle.options.length === 2 ? this.getRemainingSide(battle.options, creatorSide) : null);
+
+    return {
+      creatorSide,
+      invitedUserSide,
+      creator: {
+        userId: battle.creatorId,
+        side: creatorSide,
+        openingArgument: creatorParticipant?.openingArgument || null,
+        participantId: creatorParticipant?.id || null,
+        user: creatorParticipant?.user || null,
+      },
+      invitedUser: {
+        userId: invitedUserId,
+        side: invitedUserSide,
+        openingArgument: invitedParticipant?.openingArgument || null,
+        participantId: invitedParticipant?.id || null,
+        inviteStatus: invite?.status || null,
+        user: invitedParticipant?.user || invite?.invited || null,
+      },
+    };
+  }
 
   private async getBattleEngagedUserIds(battleId: string, creatorId?: string | null): Promise<string[]> {
     const [participants, votes, comments, predictions] = await Promise.all([
@@ -134,9 +211,17 @@ export class BattleService {
     if (startTime && Number.isNaN(startTime.getTime())) throw new BadRequestException('Invalid start time');
     if (startTime && endTime <= startTime) throw new BadRequestException('End time must be after start time');
 
+    const options = dto.options || [];
     const isHeadToHead = dto.format === 'HEAD_TO_HEAD';
-    const status = isHeadToHead ? 'PENDING_INVITE' : 'LIVE';
+    const status = isHeadToHead ? 'DRAFT' : 'LIVE';
     const liveAt = status === 'LIVE' ? new Date() : null;
+    const invitedUserId = dto.invitedUserId?.trim();
+
+    if (isHeadToHead) {
+      if (!invitedUserId) throw new BadRequestException('Invited user required for head-to-head');
+      if (invitedUserId === userId) throw new BadRequestException('You cannot invite yourself to a battle');
+      if (options.length !== 2) throw new BadRequestException('Head-to-head battles require exactly two sides');
+    }
 
     const stakeAmount = dto.stake ?? 0;
 
@@ -144,7 +229,7 @@ export class BattleService {
     const uploadedOptionImages = optionImageFiles.length
       ? await Promise.all(optionImageFiles.map((file) => uploadImageToS3(file, 'battle-option-images')))
       : [];
-    const optionImages = this.buildOptionImages(dto.options || [], uploadedOptionImages, dto.optionImageIndexes, dto.optionImages);
+    const optionImages = this.buildOptionImages(options, uploadedOptionImages, dto.optionImageIndexes, dto.optionImages);
 
     const battle = await this.prisma.$transaction(async (tx) => {
       if (stakeAmount > 0) {
@@ -168,7 +253,7 @@ export class BattleService {
           format: dto.format,
           status,
           question: dto.question.trim(),
-          options: dto.options || [],
+          options,
           optionImages,
           startTime: startTime || null,
           endTime,
@@ -181,21 +266,12 @@ export class BattleService {
       });
 
       if (isHeadToHead) {
-        if (!dto.invitedUserId) throw new BadRequestException('Invited user required for head-to-head');
         await tx.battleInvite.create({
           data: {
             battleId: created.id,
             inviterId: userId,
-            invitedUserId: dto.invitedUserId,
+            invitedUserId: invitedUserId!,
             status: 'PENDING',
-          },
-        });
-
-        await tx.battleParticipant.create({
-          data: {
-            battleId: created.id,
-            userId,
-            side: 'A',
           },
         });
       }
@@ -210,10 +286,6 @@ export class BattleService {
         battle.id,
         battle.question,
       );
-    }
-
-    if (isHeadToHead && dto.invitedUserId) {
-      await this.notificationService.sendBattleInvite(dto.invitedUserId, battle.id);
     }
 
     return battle;
@@ -257,6 +329,9 @@ export class BattleService {
     if (!battle) throw new NotFoundException('Battle not found');
     if (battle.creatorId !== userId) throw new ForbiddenException('Only creator can invite');
     if (battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Invite is only for head-to-head');
+    if (battle.status !== 'DRAFT' && battle.status !== 'PENDING_INVITE') {
+      throw new BadRequestException('Battle invite cannot be changed after it has started');
+    }
 
     const invite = await this.prisma.battleInvite.upsert({
       where: { battleId_invitedUserId: { battleId: dto.battleId, invitedUserId: dto.invitedUserId } },
@@ -269,14 +344,64 @@ export class BattleService {
       },
     });
 
-    await this.prisma.battle.update({
+    return invite;
+  }
+
+  async submitChallengerPosition(userId: string, dto: BattleChallengerPositionDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId) throw new BadRequestException('Battle ID required');
+
+    const battle = await this.prisma.battle.findUnique({
       where: { id: dto.battleId },
-      data: { status: 'PENDING_INVITE' },
+      include: { invites: true },
+    });
+    if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.creatorId !== userId) throw new ForbiddenException('Only creator can choose challenger side');
+    if (battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Challenger side only applies to head-to-head');
+    if (battle.status !== 'DRAFT') throw new BadRequestException('Challenger side can only be submitted while battle is draft');
+    if (battle.options.length !== 2) throw new BadRequestException('Head-to-head battles require exactly two sides');
+
+    const invite = battle.invites[0];
+    if (!invite) throw new BadRequestException('Invite not found for this battle');
+
+    const side = this.normalizeBattleSide(dto.side, battle.options);
+    const comment = this.normalizeOpeningComment(dto.comment);
+
+    const updatedBattle = await this.prisma.$transaction(async (tx) => {
+      await tx.battleParticipant.upsert({
+        where: { battleId_userId: { battleId: battle.id, userId } },
+        update: {
+          side,
+          openingArgument: comment,
+          argumentSubmitted: true,
+        },
+        create: {
+          battleId: battle.id,
+          userId,
+          side,
+          openingArgument: comment,
+          argumentSubmitted: true,
+        },
+      });
+
+      await tx.battleComment.create({
+        data: {
+          battleId: battle.id,
+          userId,
+          comment,
+          images: [],
+        },
+      });
+
+      return tx.battle.update({
+        where: { id: battle.id },
+        data: { status: 'PENDING_INVITE' },
+      });
     });
 
-    await this.notificationService.sendBattleInvite(dto.invitedUserId, dto.battleId);
+    await this.notificationService.sendBattleInvite(invite.invitedUserId, battle.id);
 
-    return invite;
+    return updatedBattle;
   }
 
   async acceptInvite(userId: string, dto: BattleResponseDto) {
@@ -288,6 +413,8 @@ export class BattleService {
       include: { battle: true },
     });
     if (!invite) throw new NotFoundException('Invite not found');
+    if (invite.battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Invite only applies to head-to-head');
+    if (invite.battle.status !== 'PENDING_INVITE') throw new BadRequestException('Battle is not ready to accept');
 
     const [updatedInvite, battle] = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.battleInvite.update({
@@ -295,18 +422,71 @@ export class BattleService {
         data: { status: 'ACCEPTED', respondedAt: new Date() },
       });
 
-      const updatedBattle = await tx.battle.update({
+      const updatedBattle = await tx.battle.findUnique({
+        where: { id: dto.battleId },
+      });
+      if (!updatedBattle) throw new NotFoundException('Battle not found');
+
+      return [updated, updatedBattle] as const;
+    });
+
+    return { invite: updatedInvite, battle };
+  }
+
+  async submitOpponentPosition(userId: string, dto: BattleOpponentPositionDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId) throw new BadRequestException('Battle ID required');
+
+    const invite = await this.prisma.battleInvite.findFirst({
+      where: { battleId: dto.battleId, invitedUserId: userId, status: 'ACCEPTED' },
+      include: {
+        battle: {
+          include: {
+            participants: true,
+          },
+        },
+      },
+    });
+    if (!invite) throw new NotFoundException('Accepted invite not found');
+    if (invite.battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Opponent side only applies to head-to-head');
+    if (invite.battle.status !== 'PENDING_INVITE') throw new BadRequestException('Battle is not ready to go live');
+
+    const challenger = invite.battle.participants.find((participant) => participant.userId === invite.battle.creatorId);
+    if (!challenger?.side) throw new BadRequestException('Creator must choose a side before opponent can respond');
+
+    const side = this.getRemainingSide(invite.battle.options, challenger.side);
+    const comment = this.normalizeOpeningComment(dto.comment);
+
+    const battle = await this.prisma.$transaction(async (tx) => {
+      await tx.battleParticipant.upsert({
+        where: { battleId_userId: { battleId: dto.battleId, userId } },
+        update: {
+          side,
+          openingArgument: comment,
+          argumentSubmitted: true,
+        },
+        create: {
+          battleId: dto.battleId,
+          userId,
+          side,
+          openingArgument: comment,
+          argumentSubmitted: true,
+        },
+      });
+
+      await tx.battleComment.create({
+        data: {
+          battleId: dto.battleId,
+          userId,
+          comment,
+          images: [],
+        },
+      });
+
+      return tx.battle.update({
         where: { id: dto.battleId },
         data: { status: 'LIVE', liveAt: new Date() },
       });
-
-      await tx.battleParticipant.upsert({
-        where: { battleId_userId: { battleId: dto.battleId, userId } },
-        update: { side: 'B' },
-        create: { battleId: dto.battleId, userId, side: 'B' },
-      });
-
-      return [updated, updatedBattle] as const;
     });
 
     await Promise.all([
@@ -314,7 +494,7 @@ export class BattleService {
       this.notificationService.sendBattleStarted(userId, dto.battleId),
     ]);
 
-    return { invite: updatedInvite, battle };
+    return battle;
   }
 
   async declineInvite(userId: string, dto: BattleResponseDto) {
@@ -746,6 +926,7 @@ export class BattleService {
         return { ...rest, opponent: null, voteCounts };
       }
 
+      const headToHeadSides = this.buildHeadToHeadSides(battle);
       const participantOpponent = battle.participants
         .map((participant) => participant.user)
         .find((participantUser) => participantUser.id !== battle.creatorId);
@@ -756,7 +937,7 @@ export class BattleService {
 
       const opponent = participantOpponent || invitedOpponent || null;
       const { participants, invites, ...rest } = battle;
-      return { ...rest, opponent, voteCounts };
+      return { ...rest, opponent, headToHeadSides, voteCounts };
     });
   }
 
@@ -907,7 +1088,17 @@ export class BattleService {
       where: { id: battleId },
       include: {
         creator: true,
-        participants: true,
+        participants: {
+          include: {
+            user: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
+        invites: {
+          include: {
+            inviter: { select: BATTLE_PUBLIC_USER_SELECT },
+            invited: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
         predictions: true,
         comments: {
           include: {
@@ -980,11 +1171,66 @@ export class BattleService {
 
     return {
       ...battle,
+      headToHeadSides: this.buildHeadToHeadSides(battle),
       predictionCounts: effectivePredictionCounts,
       voteCounts,
       comments: nestedComments,
     };
    
+  }
+
+  async getInviteDetail(userId: string, battleId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!battleId) throw new BadRequestException('Battle ID required');
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      include: {
+        creator: { select: BATTLE_PUBLIC_USER_SELECT },
+        participants: {
+          include: {
+            user: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
+        invites: {
+          include: {
+            inviter: { select: BATTLE_PUBLIC_USER_SELECT },
+            invited: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
+      },
+    });
+
+    if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.format !== 'HEAD_TO_HEAD') throw new BadRequestException('Invite detail only applies to head-to-head');
+
+    const invite = battle.invites.find((entry) => entry.invitedUserId === userId || entry.inviterId === userId);
+    const isCreator = battle.creatorId === userId;
+    if (!invite && !isCreator) throw new ForbiddenException('Not allowed to view this battle invite');
+
+    const challenger = battle.participants.find((participant) => participant.userId === battle.creatorId) || null;
+    const opponent = battle.participants.find((participant) => participant.userId !== battle.creatorId) || null;
+    const headToHeadSides = this.buildHeadToHeadSides(battle);
+
+    return {
+      id: battle.id,
+      battleId: battle.id,
+      format: battle.format,
+      status: battle.status,
+      question: battle.question,
+      options: battle.options,
+      optionImages: battle.optionImages,
+      image: battle.image,
+      endTime: battle.endTime,
+      invite,
+      challenger,
+      opponent,
+      headToHeadSides,
+      opponentSideToAssign: challenger?.side ? this.getRemainingSide(battle.options, challenger.side) : null,
+      canAccept: !!invite && invite.invitedUserId === userId && invite.status === 'PENDING' && battle.status === 'PENDING_INVITE',
+      canDecline: !!invite && invite.invitedUserId === userId && invite.status === 'PENDING' && battle.status === 'PENDING_INVITE',
+      canSubmitOpponentPosition: !!invite && invite.invitedUserId === userId && invite.status === 'ACCEPTED' && battle.status === 'PENDING_INVITE',
+    };
   }
 
   async closeBattle(dto: BattleCloseDto) {

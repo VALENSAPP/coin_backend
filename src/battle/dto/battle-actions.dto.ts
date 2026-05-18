@@ -17,6 +17,30 @@ export class BattleResponseDto {
   battleId!: string;
 }
 
+export class BattleChallengerPositionDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty({ description: 'Creator selected side/position' })
+  @IsString()
+  side!: string;
+
+  @ApiProperty({ description: 'Creator opening comment/argument' })
+  @IsString()
+  comment!: string;
+}
+
+export class BattleOpponentPositionDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty({ description: 'Invited user opening comment/argument. Side is assigned automatically from the remaining option.' })
+  @IsString()
+  comment!: string;
+}
+
 export class BattleJoinDto {
   @ApiProperty()
   @IsString()
