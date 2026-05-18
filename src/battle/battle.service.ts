@@ -56,6 +56,59 @@ export class BattleService {
     return remainingSide;
   }
 
+  private buildHeadToHeadSides(battle: {
+    format: string;
+    creatorId: string;
+    options: string[];
+    participants?: Array<{
+      id?: string;
+      userId: string;
+      side?: string | null;
+      openingArgument?: string | null;
+      user?: any;
+    }>;
+    invites?: Array<{
+      invitedUserId: string;
+      status?: string;
+      invited?: any;
+    }>;
+  }) {
+    if (battle.format !== 'HEAD_TO_HEAD') return null;
+
+    const participants = battle.participants || [];
+    const invite = battle.invites?.[0] || null;
+    const creatorParticipant = participants.find((participant) => participant.userId === battle.creatorId) || null;
+    const invitedUserId =
+      invite?.invitedUserId || participants.find((participant) => participant.userId !== battle.creatorId)?.userId || null;
+    const invitedParticipant = invitedUserId
+      ? participants.find((participant) => participant.userId === invitedUserId) || null
+      : null;
+    const creatorSide = creatorParticipant?.side || null;
+    const invitedUserSide =
+      invitedParticipant?.side ||
+      (creatorSide && battle.options.length === 2 ? this.getRemainingSide(battle.options, creatorSide) : null);
+
+    return {
+      creatorSide,
+      invitedUserSide,
+      creator: {
+        userId: battle.creatorId,
+        side: creatorSide,
+        openingArgument: creatorParticipant?.openingArgument || null,
+        participantId: creatorParticipant?.id || null,
+        user: creatorParticipant?.user || null,
+      },
+      invitedUser: {
+        userId: invitedUserId,
+        side: invitedUserSide,
+        openingArgument: invitedParticipant?.openingArgument || null,
+        participantId: invitedParticipant?.id || null,
+        inviteStatus: invite?.status || null,
+        user: invitedParticipant?.user || invite?.invited || null,
+      },
+    };
+  }
+
   private async getBattleEngagedUserIds(battleId: string, creatorId?: string | null): Promise<string[]> {
     const [participants, votes, comments, predictions] = await Promise.all([
       this.prisma.battleParticipant.findMany({ where: { battleId }, select: { userId: true } }),
@@ -873,6 +926,7 @@ export class BattleService {
         return { ...rest, opponent: null, voteCounts };
       }
 
+      const headToHeadSides = this.buildHeadToHeadSides(battle);
       const participantOpponent = battle.participants
         .map((participant) => participant.user)
         .find((participantUser) => participantUser.id !== battle.creatorId);
@@ -883,7 +937,7 @@ export class BattleService {
 
       const opponent = participantOpponent || invitedOpponent || null;
       const { participants, invites, ...rest } = battle;
-      return { ...rest, opponent, voteCounts };
+      return { ...rest, opponent, headToHeadSides, voteCounts };
     });
   }
 
@@ -1117,6 +1171,7 @@ export class BattleService {
 
     return {
       ...battle,
+      headToHeadSides: this.buildHeadToHeadSides(battle),
       predictionCounts: effectivePredictionCounts,
       voteCounts,
       comments: nestedComments,
@@ -1155,6 +1210,7 @@ export class BattleService {
 
     const challenger = battle.participants.find((participant) => participant.userId === battle.creatorId) || null;
     const opponent = battle.participants.find((participant) => participant.userId !== battle.creatorId) || null;
+    const headToHeadSides = this.buildHeadToHeadSides(battle);
 
     return {
       id: battle.id,
@@ -1169,6 +1225,7 @@ export class BattleService {
       invite,
       challenger,
       opponent,
+      headToHeadSides,
       opponentSideToAssign: challenger?.side ? this.getRemainingSide(battle.options, challenger.side) : null,
       canAccept: !!invite && invite.invitedUserId === userId && invite.status === 'PENDING' && battle.status === 'PENDING_INVITE',
       canDecline: !!invite && invite.invitedUserId === userId && invite.status === 'PENDING' && battle.status === 'PENDING_INVITE',
