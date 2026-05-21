@@ -317,8 +317,8 @@ export class UserService {
         const trimmedReferrerCode = data.referrerCode?.trim();
         const referrer = trimmedReferrerCode
           ? await this.prisma.user.findFirst({
-              where: { referCode: trimmedReferrerCode, isDeleted: 0 },
-            })
+            where: { referCode: trimmedReferrerCode, isDeleted: 0 },
+          })
           : null;
 
         if (trimmedReferrerCode && !referrer) {
@@ -482,8 +482,8 @@ export class UserService {
       const trimmedReferrerCode = data.referrerCode?.trim();
       const referrer = trimmedReferrerCode
         ? await this.prisma.user.findFirst({
-            where: { referCode: trimmedReferrerCode, isDeleted: 0 },
-          })
+          where: { referCode: trimmedReferrerCode, isDeleted: 0 },
+        })
         : null;
 
       if (trimmedReferrerCode && !referrer) {
@@ -585,9 +585,10 @@ export class UserService {
       if (!user) {
         throw new BadRequestException('User not registered');
       }
-      if (user.verifyEmail !== 1) {
-        throw new BadRequestException('User not registered. Please verify your email first.');
-      }
+      // need to uncomment the code after the email is working properly, to avoid blocking users who registered before email verification was implemented
+      // if (user.verifyEmail !== 1) {
+      //   throw new BadRequestException('User not registered. Please verify your email first.');
+      // }
       if (!user.password || !(await bcrypt.compare(data.password, user.password))) {
         throw new BadRequestException('Invalid credentials');
       }
@@ -669,7 +670,7 @@ export class UserService {
       data.phoneNumber = dto.phoneNumber;
     }
 
-        if (dto.website_link !== undefined && dto.website_link !== '' && dto.website_link !== null) {
+    if (dto.website_link !== undefined && dto.website_link !== '' && dto.website_link !== null) {
       data.website_link = dto.website_link;
     }
 
@@ -1385,7 +1386,7 @@ export class UserService {
           userName: true,
           image: true,
           bio: true,
-          profile:true,
+          profile: true,
         },
         take: limit,
         orderBy: {
@@ -1414,7 +1415,7 @@ export class UserService {
             userName: true,
             image: true,
             bio: true,
-            profile:true,
+            profile: true,
           },
         },
       },
@@ -1444,7 +1445,7 @@ export class UserService {
           userName: true,
           image: true,
           bio: true,
-          profile:true,
+          profile: true,
         },
         take: limit - users.length,
         orderBy: {
@@ -2075,7 +2076,7 @@ export class UserService {
       totalPlatformPoints,
       totalBattlePoints,
       referPoints,
-      used:  totalBattlePoints + referPoints - totalPlatformPoints,
+      used: totalBattlePoints + referPoints - totalPlatformPoints,
     };
   }
 }
