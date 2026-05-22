@@ -1,6 +1,5 @@
 node_modules
 # Keep environment variables out of version control
-.env
 dist
 
 /generated/prisma
@@ -11,3 +10,4 @@ config/service-account-key.json
 # User and app images (local assets)
 userImage
 images
+config.bat
