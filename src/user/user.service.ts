@@ -586,9 +586,9 @@ export class UserService {
         throw new BadRequestException('User not registered');
       }
       // need to uncomment the code after the email is working properly, to avoid blocking users who registered before email verification was implemented
-      // if (user.verifyEmail !== 1) {
-      //   throw new BadRequestException('User not registered. Please verify your email first.');
-      // }
+      if (user.verifyEmail !== 1) {
+        throw new BadRequestException('User not registered. Please verify your email first.');
+      }
       if (!user.password || !(await bcrypt.compare(data.password, user.password))) {
         throw new BadRequestException('Invalid credentials');
       }
