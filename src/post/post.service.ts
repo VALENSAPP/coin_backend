@@ -21,7 +21,7 @@ export class PostService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   private isPrivateCircleVisibility(visibleTo?: string | null): boolean {
     const normalized = (visibleTo || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
@@ -129,7 +129,7 @@ export class PostService {
 
       let imageUrls: string[] = images || [];
       let thumbnailUrls: string[] = [];
-      
+
       // Upload files to S3 and collect URLs
       if (files && files.length > 0) {
         try {
@@ -216,7 +216,7 @@ export class PostService {
         if (type === 'crowdfunding' || type === 'support') {
           const postHit = await tx.postHit.findFirst({ where: { userId } });
           if (!postHit) throw new BadRequestException('PostHit record not found');
-          
+
           const updatedPostHit = await tx.postHit.update({
             where: { id: postHit.id },
             data: { hitLeft: { decrement: 1 } },
@@ -451,7 +451,7 @@ export class PostService {
     const posts = [...pinnedPosts, ...otherPosts];
     // Fetch saved flags for the viewer
     let savedSet: Set<string> = new Set();
-  let likedSet: Set<string> = new Set();
+    let likedSet: Set<string> = new Set();
 
     if (viewerUserId) {
       const saved = await this.prisma.savePost.findMany({
@@ -461,70 +461,70 @@ export class PostService {
       savedSet = new Set(saved.map(s => s.postId));
     }
 
-   if (viewerUserId) {
-    // Fetch saved posts for viewer
-    const saved = await this.prisma.savePost.findMany({
-      where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
-      select: { postId: true },
-    });
-    savedSet = new Set(saved.map(s => s.postId));
-
-    // Fetch liked posts for viewer
-    const liked = await this.prisma.postLike.findMany({
-      where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
-      select: { postId: true },
-    });
-    likedSet = new Set(liked.map(l => l.postId));
-  }
-
-  // Build follow map for viewer vs authors
-  let followMap: Record<string, boolean> = {};
-  if (viewerUserId) {
-    const authorIds = Array.from(new Set(posts.map(p => p.userId)));
-    if (authorIds.length > 0) {
-      const follows = await this.prisma.followerAndFollowing.findMany({
-        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
-        select: { followingId: true },
+    if (viewerUserId) {
+      // Fetch saved posts for viewer
+      const saved = await this.prisma.savePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
       });
-      followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
-    }
-  }
+      savedSet = new Set(saved.map(s => s.postId));
 
-  return posts.map(post => ({
-    id: post.id,
-    text: post.text,
-    images: post.images,
-    thumbnails: post.thumbnails,
-    caption: post.caption,
-    hashtag: post.hashtag,
-    location: post.location,
-    music: post.music,
-    youtubeMusicMeta: post.youtubeMusicMeta,
-    taggedPeople: post.taggedPeople,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    deletedAt: post.deletedAt,
-    userId: post.userId,
-    userName: post.user?.displayName || null,
-    userImage: post.user?.image || null,
-    tokenBalance: post.user?.tokenBalance || 0,
-    profileStatus: post.user?.profileStatus || null,
-    profile: post.user?.profile || null,  
-    likeCount: post._count.likes,
-    commentCount: post._count.comments,
-    isSaved: savedSet.has(post.id),
-    isLike: likedSet.has(post.id), // ✅ true if viewer liked
-    shareCount: post._count.shares,
-    isFollow: !!followMap[post.userId],
-    pinned: pinnedIdSet.has(post.id),
-    type:post.type,
-    link:post.link,
-    visibleTo: (post as any).visibleTo,
-    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-    start_time:post.start_time,
-    end_time:post.end_time,
-    raiseAmount:post.raiseAmount,
-  }));
+      // Fetch liked posts for viewer
+      const liked = await this.prisma.postLike.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      likedSet = new Set(liked.map(l => l.postId));
+    }
+
+    // Build follow map for viewer vs authors
+    let followMap: Record<string, boolean> = {};
+    if (viewerUserId) {
+      const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+      if (authorIds.length > 0) {
+        const follows = await this.prisma.followerAndFollowing.findMany({
+          where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+          select: { followingId: true },
+        });
+        followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+      }
+    }
+
+    return posts.map(post => ({
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      tokenBalance: post.user?.tokenBalance || 0,
+      profileStatus: post.user?.profileStatus || null,
+      profile: post.user?.profile || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      isSaved: savedSet.has(post.id),
+      isLike: likedSet.has(post.id), // ✅ true if viewer liked
+      shareCount: post._count.shares,
+      isFollow: !!followMap[post.userId],
+      pinned: pinnedIdSet.has(post.id),
+      type: post.type,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      start_time: post.start_time,
+      end_time: post.end_time,
+      raiseAmount: post.raiseAmount,
+    }));
   }
 
   async getMissionpost(userId: string, status: 'active' | 'completed' | 'all' = 'all') {
@@ -576,36 +576,36 @@ export class PostService {
     const [saved, liked, donationSums, donationUniqueUsers] = await Promise.all([
       postIds.length
         ? this.prisma.savePost.findMany({
-            where: { userId, postId: { in: postIds } },
-            select: { postId: true },
-          })
+          where: { userId, postId: { in: postIds } },
+          select: { postId: true },
+        })
         : Promise.resolve([] as Array<{ postId: string }>),
       postIds.length
         ? this.prisma.postLike.findMany({
-            where: { userId, postId: { in: postIds } },
-            select: { postId: true },
-          })
+          where: { userId, postId: { in: postIds } },
+          select: { postId: true },
+        })
         : Promise.resolve([] as Array<{ postId: string }>),
       postIds.length
         ? this.prisma.donationData.groupBy({
-            by: ['postId'],
-            where: {
-              postId: { in: postIds },
-              action: { in: ['missionDonation', 'donate'] },
-              status: 'completed',
-            },
-            _sum: { amount: true },
-          })
+          by: ['postId'],
+          where: {
+            postId: { in: postIds },
+            action: { in: ['missionDonation', 'donate'] },
+            status: 'completed',
+          },
+          _sum: { amount: true },
+        })
         : Promise.resolve([] as Array<{ postId: string | null; _sum: { amount: number | null } }>),
       postIds.length
         ? this.prisma.donationData.groupBy({
-            by: ['postId', 'userId'],
-            where: {
-              postId: { in: postIds },
-              action: { in: ['missionDonation', 'donate'] },
-              status: 'completed',
-            },
-          })
+          by: ['postId', 'userId'],
+          where: {
+            postId: { in: postIds },
+            action: { in: ['missionDonation', 'donate'] },
+            status: 'completed',
+          },
+        })
         : Promise.resolve([] as Array<{ postId: string | null; userId: string }>),
     ]);
 
@@ -671,15 +671,115 @@ export class PostService {
   }
 
   async getPostById(postId: string, viewerId: string) {
-  if (!postId) throw new BadRequestException('Post ID required');
+    if (!postId) throw new BadRequestException('Post ID required');
 
-  // ✅ Find single post
-  const post = await this.prisma.post.findUnique({
-    where: { 
-      id: postId,
+    // ✅ Find single post
+    const post = await this.prisma.post.findUnique({
+      where: {
+        id: postId,
+        deletedAt: null,
+      },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+            profile: true,
+            profileStatus: true,
+            tokenBalance: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+      },
+    });
+
+    if (!post) {
+      throw new BadRequestException('Post not found');
+    }
+
+    await this.ensureCanViewPost(post, viewerId);
+
+    // ✅ Fetch saved state for this viewer
+    const saved = await this.prisma.savePost.findFirst({
+      where: { userId: viewerId, postId },
+    });
+
+    // ✅ Fetch like state for this viewer
+    const liked = await this.prisma.postLike.findFirst({
+      where: { userId: viewerId, postId },
+    });
+
+    // ✅ Fetch hide state for this viewer
+    const hidden = viewerId
+      ? await this.prisma.hidePost.findFirst({ where: { userId: viewerId, postId } })
+      : null;
+
+    // ✅ Follow status (does viewer follow the post's author?)
+    let isFollow = false;
+    if (viewerId) {
+      const follow = await this.prisma.followerAndFollowing.findFirst({
+        where: { followerId: viewerId, followingId: post.userId, status: 'ACCEPTED' },
+        select: { id: true },
+      });
+      isFollow = !!follow;
+    }
+
+    // ✅ Return single structured response
+    return {
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      tokenBalance: post.user?.tokenBalance || 0,
+      profile: post.user?.profile || null,
+      profileStatus: post.user?.profileStatus || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      shareCount: post._count.shares,
+      isSaved: !!saved,   // ✅ true if viewer saved
+      isLike: !!liked,    // ✅ true if viewer liked
+      isFollow,
+      isHide: !!hidden,
+      type: post.type,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      start_time: post.start_time,
+      end_time: post.end_time,
+      raiseAmount: post.raiseAmount,
+    };
+  }
+
+
+  async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
+    const take = Math.min(Math.max(1, limit), 50);
+    const skip = (Math.max(1, page) - 1) * take;
+
+    const postWhere: Prisma.PostWhereInput = {
       deletedAt: null,
-    },
-    include: {
+      isDelete: 'no',
+      type: { not: 'private' },
+      AND: [this.buildPostVisibilityWhere(viewerUserId)],
+    };
+    const postInclude = {
       user: {
         select: {
           displayName: true,
@@ -691,256 +791,265 @@ export class PostService {
       },
       _count: {
         select: {
-          likes: true,
-          comments: true,
+          likes: true,      // from Post model
+          comments: true,   // from Post model
           shares: true,
         },
       },
-    },
-  });
+    } as const;
 
-  if (!post) {
-    throw new BadRequestException('Post not found');
-  }
+    // Pinned posts first (newer pins appear at the top), then other posts.
+    const pinnedIdSet = new Set<string>();
+    let pinnedPosts: any[] = [];
 
-  await this.ensureCanViewPost(post, viewerId);
-
-  // ✅ Fetch saved state for this viewer
-  const saved = await this.prisma.savePost.findFirst({
-    where: { userId: viewerId, postId },
-  });
-
-  // ✅ Fetch like state for this viewer
-  const liked = await this.prisma.postLike.findFirst({
-    where: { userId: viewerId, postId },
-  });
-
-  // ✅ Fetch hide state for this viewer
-  const hidden = viewerId
-    ? await this.prisma.hidePost.findFirst({ where: { userId: viewerId, postId } })
-    : null;
-
-  // ✅ Follow status (does viewer follow the post's author?)
-  let isFollow = false;
-  if (viewerId) {
-    const follow = await this.prisma.followerAndFollowing.findFirst({
-      where: { followerId: viewerId, followingId: post.userId, status: 'ACCEPTED' },
-      select: { id: true },
-    });
-    isFollow = !!follow;
-  }
-
-  // ✅ Return single structured response
-  return {
-    id: post.id,
-    text: post.text,
-    images: post.images,
-    thumbnails: post.thumbnails,
-    caption: post.caption,
-    hashtag: post.hashtag,
-    location: post.location,
-    music: post.music,
-    youtubeMusicMeta: post.youtubeMusicMeta,
-    taggedPeople: post.taggedPeople,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    deletedAt: post.deletedAt,
-    userId: post.userId,
-    userName: post.user?.displayName || null,
-    userImage: post.user?.image || null,
-    tokenBalance: post.user?.tokenBalance || 0,
-    profile: post.user?.profile || null,
-    profileStatus: post.user?.profileStatus || null,
-    likeCount: post._count.likes,
-    commentCount: post._count.comments,
-    shareCount: post._count.shares,
-    isSaved: !!saved,   // ✅ true if viewer saved
-    isLike: !!liked,    // ✅ true if viewer liked
-    isFollow,
-    isHide: !!hidden,
-    type:post.type,
-    link:post.link,
-    visibleTo: (post as any).visibleTo,
-    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-    start_time:post.start_time,
-    end_time:post.end_time,
-    raiseAmount:post.raiseAmount,
-  };
-}
-
-
-async getAllPost(viewerUserId?: string, page: number = 1, limit: number = 20) {
-  const take = Math.min(Math.max(1, limit), 50);
-  const skip = (Math.max(1, page) - 1) * take;
-
-  const postWhere: Prisma.PostWhereInput = {
-    deletedAt: null,
-    type: { not: 'private' },
-    AND: [this.buildPostVisibilityWhere(viewerUserId)],
-  };
-  const postInclude = {
-    user: {
-      select: {
-        displayName: true,
-        image: true,
-        profile: true,
-        profileStatus: true,
-        tokenBalance: true,
-      },
-    },
-    _count: {
-      select: {
-        likes: true,      // from Post model
-        comments: true,   // from Post model
-        shares: true,
-      },
-    },
-  } as const;
-
-  // Pinned posts first (newer pins appear at the top), then other posts.
-  const pinnedIdSet = new Set<string>();
-  let pinnedPosts: any[] = [];
-
-  if (viewerUserId) {
-    const pinned = await this.prisma.pinnedPost.findMany({
-      where: { userId: viewerUserId, post: postWhere },
-      orderBy: { pinnedAt: 'desc' },
-      select: { postId: true, post: { include: postInclude } },
-    });
-
-    pinnedPosts = pinned.map((p) => p.post).filter(Boolean);
-    pinnedPosts.forEach((p: any) => pinnedIdSet.add(p.id));
-  }
-
-  const otherPosts = await this.prisma.post.findMany({
-    where: {
-      ...postWhere,
-      ...(pinnedIdSet.size ? { id: { notIn: Array.from(pinnedIdSet) } } : {}),
-    },
-    take,
-    skip,
-    orderBy: { createdAt: 'desc' },
-    include: postInclude,
-  });
-
-  // Keep existing mixed ordering for non-pinned posts, but never shuffle pinned posts.
-  otherPosts.sort(() => Math.random() - 0.5);
-  const posts = [...pinnedPosts, ...otherPosts];
-
-  let savedSet: Set<string> = new Set();
-  let likedSet: Set<string> = new Set();
-  let followMap: Record<string, boolean> = {};
-  let hiddenSet: Set<string> = new Set();
-
-  if (viewerUserId) {
-    // Fetch saved posts for viewer
-    const saved = await this.prisma.savePost.findMany({
-      where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
-      select: { postId: true },
-    });
-    savedSet = new Set(saved.map(s => s.postId));
-
-    // Fetch liked posts for viewer
-    const liked = await this.prisma.postLike.findMany({
-      where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
-      select: { postId: true },
-    });
-    likedSet = new Set(liked.map(l => l.postId));
-
-    // ✅ Fetch follow status for each post's author
-    const authorIds = Array.from(new Set(posts.map(p => p.userId)));
-    if (authorIds.length > 0) {
-      const follows = await this.prisma.followerAndFollowing.findMany({
-        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
-        select: { followingId: true },
+    if (viewerUserId) {
+      const pinned = await this.prisma.pinnedPost.findMany({
+        where: { userId: viewerUserId, post: postWhere },
+        orderBy: { pinnedAt: 'desc' },
+        select: { postId: true, post: { include: postInclude } },
       });
-      followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+
+      pinnedPosts = pinned.map((p) => p.post).filter(Boolean);
+      pinnedPosts.forEach((p: any) => pinnedIdSet.add(p.id));
     }
 
-    // ✅ Fetch hidden posts for viewer
-    if (posts.length > 0) {
-      const hidden = await this.prisma.hidePost.findMany({
+    const otherPosts = await this.prisma.post.findMany({
+      where: {
+        ...postWhere,
+        ...(pinnedIdSet.size ? { id: { notIn: Array.from(pinnedIdSet) } } : {}),
+      },
+      take,
+      skip,
+      orderBy: { createdAt: 'desc' },
+      include: postInclude,
+    });
+
+    // Keep existing mixed ordering for non-pinned posts, but never shuffle pinned posts.
+    otherPosts.sort(() => Math.random() - 0.5);
+    const posts = [...pinnedPosts, ...otherPosts];
+
+    let savedSet: Set<string> = new Set();
+    let likedSet: Set<string> = new Set();
+    let followMap: Record<string, boolean> = {};
+    let hiddenSet: Set<string> = new Set();
+
+    if (viewerUserId) {
+      // Fetch saved posts for viewer
+      const saved = await this.prisma.savePost.findMany({
         where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
         select: { postId: true },
       });
-      hiddenSet = new Set(hidden.map(h => h.postId));
+      savedSet = new Set(saved.map(s => s.postId));
+
+      // Fetch liked posts for viewer
+      const liked = await this.prisma.postLike.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      likedSet = new Set(liked.map(l => l.postId));
+
+      // ✅ Fetch follow status for each post's author
+      const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+      if (authorIds.length > 0) {
+        const follows = await this.prisma.followerAndFollowing.findMany({
+          where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+          select: { followingId: true },
+        });
+        followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+      }
+
+      // ✅ Fetch hidden posts for viewer
+      if (posts.length > 0) {
+        const hidden = await this.prisma.hidePost.findMany({
+          where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+          select: { postId: true },
+        });
+        hiddenSet = new Set(hidden.map(h => h.postId));
+      }
     }
+
+    // Note: We do not shuffle the combined array so pinned posts stay on top.
+
+    return posts.map(post => ({
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      tokenBalance: post.user?.tokenBalance || 0,
+      profile: post.user?.profile || null,
+      profileStatus: post.user?.profileStatus || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      shareCount: post._count.shares,
+      isSaved: savedSet.has(post.id),
+      isLike: likedSet.has(post.id), // ✅ true if viewer liked
+      isFollow: !!followMap[post.userId],
+      isHide: hiddenSet.has(post.id),
+      isPinned: pinnedIdSet.has(post.id),
+      type: post.type,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      start_time: post.start_time,
+      end_time: post.end_time,
+      raiseAmount: post.raiseAmount,
+    }));
   }
 
-  // Note: We do not shuffle the combined array so pinned posts stay on top.
-
-  return posts.map(post => ({
-    id: post.id,
-    text: post.text,
-    images: post.images,
-    thumbnails: post.thumbnails,
-    caption: post.caption,
-    hashtag: post.hashtag,
-    location: post.location,
-    music: post.music,
-    youtubeMusicMeta: post.youtubeMusicMeta,
-    taggedPeople: post.taggedPeople,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    deletedAt: post.deletedAt,
-    userId: post.userId,
-    userName: post.user?.displayName || null,
-    userImage: post.user?.image || null,
-    tokenBalance: post.user?.tokenBalance || 0,
-    profile: post.user?.profile || null,
-    profileStatus: post.user?.profileStatus || null,
-    likeCount: post._count.likes,
-    commentCount: post._count.comments,
-    shareCount: post._count.shares,
-    isSaved: savedSet.has(post.id),
-    isLike: likedSet.has(post.id), // ✅ true if viewer liked
-    isFollow: !!followMap[post.userId],
-    isHide: hiddenSet.has(post.id),
-    isPinned: pinnedIdSet.has(post.id),
-    type:post.type,
-    link:post.link,
-    visibleTo: (post as any).visibleTo,
-    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-    start_time:post.start_time,
-    end_time:post.end_time,
-    raiseAmount:post.raiseAmount,
-  }));
-}
-
-async searchAllPost(viewerUserId?: string, search?: string) {
-  if (search && search.trim()) {
-    // First, search for users by userName or displayName
-    const users = await this.prisma.user.findMany({
-      where: {
-        OR: [
-          { userName: { contains: search.trim(), mode: 'insensitive' } },
-          { displayName: { contains: search.trim(), mode: 'insensitive' } },
-        ],
-        isDeleted: 0,
-      },
-      select: {
-        id: true,
-        displayName: true,
-        userName: true,
-        image: true,
-        profile: true,
-        profileStatus: true,
-        bio: true,
-        email: true,
-      },
-    });
-
-    if (users.length > 0) {
-      // If users found, return user details
-      return { type: 'users', data: users };
-    } else {
-      // If no users found, search posts by text field
-      const posts = await this.prisma.post.findMany({
+  async searchAllPost(viewerUserId?: string, search?: string) {
+    if (search && search.trim()) {
+      // First, search for users by userName or displayName
+      const users = await this.prisma.user.findMany({
         where: {
-          text: { contains: search.trim(), mode: 'insensitive' },
-          deletedAt: null,
-          AND: [this.buildPostVisibilityWhere(viewerUserId)],
+          OR: [
+            { userName: { contains: search.trim(), mode: 'insensitive' } },
+            { displayName: { contains: search.trim(), mode: 'insensitive' } },
+          ],
+          isDeleted: 0,
         },
+        select: {
+          id: true,
+          displayName: true,
+          userName: true,
+          image: true,
+          profile: true,
+          profileStatus: true,
+          bio: true,
+          email: true,
+        },
+      });
+
+      if (users.length > 0) {
+        // If users found, return user details
+        return { type: 'users', data: users };
+      } else {
+        // If no users found, search posts by text field
+        const posts = await this.prisma.post.findMany({
+          where: {
+            text: { contains: search.trim(), mode: 'insensitive' },
+            deletedAt: null,
+            AND: [this.buildPostVisibilityWhere(viewerUserId)],
+          },
+          include: {
+            user: {
+              select: {
+                displayName: true,
+                image: true,
+                profile: true,
+                profileStatus: true,
+              },
+            },
+            _count: {
+              select: {
+                likes: true,
+                comments: true,
+                shares: true,
+              },
+            },
+          },
+        });
+
+        if (!posts || posts.length === 0) {
+          return { message: 'No data found' };
+        }
+
+        // Shuffle the posts randomly
+        const shuffledPosts = posts.sort(() => Math.random() - 0.5);
+
+        // Get additional metadata for posts
+        let savedSet: Set<string> = new Set();
+        let likedSet: Set<string> = new Set();
+        let followMap: Record<string, boolean> = {};
+        let hiddenSet: Set<string> = new Set();
+
+        if (viewerUserId) {
+          // Fetch saved posts for viewer
+          const saved = await this.prisma.savePost.findMany({
+            where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+            select: { postId: true },
+          });
+          savedSet = new Set(saved.map(s => s.postId));
+
+          // Fetch liked posts for viewer
+          const liked = await this.prisma.postLike.findMany({
+            where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+            select: { postId: true },
+          });
+          likedSet = new Set(liked.map(l => l.postId));
+
+          // Fetch follow status for each post's author
+          const authorIds = Array.from(new Set(shuffledPosts.map(p => p.userId)));
+          if (authorIds.length > 0) {
+            const follows = await this.prisma.followerAndFollowing.findMany({
+              where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+              select: { followingId: true },
+            });
+            followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+          }
+
+          // Fetch hidden posts for viewer
+          if (shuffledPosts.length > 0) {
+            const hidden = await this.prisma.hidePost.findMany({
+              where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
+              select: { postId: true },
+            });
+            hiddenSet = new Set(hidden.map(h => h.postId));
+          }
+        }
+
+        const formattedPosts = shuffledPosts.map(post => ({
+          id: post.id,
+          text: post.text,
+          images: post.images,
+          thumbnails: post.thumbnails,
+          caption: post.caption,
+          hashtag: post.hashtag,
+          location: post.location,
+          music: post.music,
+          youtubeMusicMeta: post.youtubeMusicMeta,
+          taggedPeople: post.taggedPeople,
+          createdAt: post.createdAt,
+          updatedAt: post.updatedAt,
+          deletedAt: post.deletedAt,
+          userId: post.userId,
+          userName: post.user?.displayName || null,
+          userImage: post.user?.image || null,
+          profile: post.user?.profile || null,
+          profileStatus: post.user?.profileStatus || null,
+          likeCount: post._count.likes,
+          commentCount: post._count.comments,
+          shareCount: post._count.shares,
+          isSaved: savedSet.has(post.id),
+          isLike: likedSet.has(post.id),
+          isFollow: !!followMap[post.userId],
+          isHide: hiddenSet.has(post.id),
+          type: post.type,
+          link: post.link,
+          visibleTo: (post as any).visibleTo,
+          private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+          start_time: post.start_time,
+          end_time: post.end_time,
+          raiseAmount: post.raiseAmount,
+        }));
+
+        return { type: 'posts', data: formattedPosts };
+      }
+    } else {
+      // No search query, get all posts
+      const posts = await this.prisma.post.findMany({
+        where: { deletedAt: null, AND: [this.buildPostVisibilityWhere(viewerUserId)] },
         include: {
           user: {
             select: {
@@ -960,14 +1069,9 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         },
       });
 
-      if (!posts || posts.length === 0) {
-        return { message: 'No data found' };
-      }
-
       // Shuffle the posts randomly
       const shuffledPosts = posts.sort(() => Math.random() - 0.5);
 
-      // Get additional metadata for posts
       let savedSet: Set<string> = new Set();
       let likedSet: Set<string> = new Set();
       let followMap: Record<string, boolean> = {};
@@ -1008,7 +1112,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         }
       }
 
-      const formattedPosts = shuffledPosts.map(post => ({
+      return shuffledPosts.map(post => ({
         id: post.id,
         text: post.text,
         images: post.images,
@@ -1035,20 +1139,23 @@ async searchAllPost(viewerUserId?: string, search?: string) {
         isFollow: !!followMap[post.userId],
         isHide: hiddenSet.has(post.id),
         type: post.type,
-         link:post.link,
-         visibleTo: (post as any).visibleTo,
-         private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-      start_time:post.start_time,
-      end_time:post.end_time,
-      raiseAmount:post.raiseAmount,
+        link: post.link,
+        visibleTo: (post as any).visibleTo,
+        private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+        start_time: post.start_time,
+        end_time: post.end_time,
+        raiseAmount: post.raiseAmount,
       }));
-
-      return { type: 'posts', data: formattedPosts };
     }
-  } else {
-    // No search query, get all posts
+  }
+
+  async getAllReel(viewerUserId?: string) {
     const posts = await this.prisma.post.findMany({
-      where: { deletedAt: null, AND: [this.buildPostVisibilityWhere(viewerUserId)] },
+      where: {
+        deletedAt: null,
+        type: 'reel',
+        AND: [this.buildPostVisibilityWhere(viewerUserId)],
+      },
       include: {
         user: {
           select: {
@@ -1068,7 +1175,7 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       },
     });
 
-    // Shuffle the posts randomly
+    // Shuffle the reel posts randomly
     const shuffledPosts = posts.sort(() => Math.random() - 0.5);
 
     let savedSet: Set<string> = new Set();
@@ -1138,116 +1245,10 @@ async searchAllPost(viewerUserId?: string, search?: string) {
       isFollow: !!followMap[post.userId],
       isHide: hiddenSet.has(post.id),
       type: post.type,
-       link:post.link,
-       visibleTo: (post as any).visibleTo,
-       private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-  start_time:post.start_time,
-  end_time:post.end_time,
-  raiseAmount:post.raiseAmount,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
     }));
   }
-}
-
-async getAllReel(viewerUserId?: string) {
-  const posts = await this.prisma.post.findMany({
-    where: {
-      deletedAt: null,
-      type: 'reel',
-      AND: [this.buildPostVisibilityWhere(viewerUserId)],
-    },
-    include: {
-      user: {
-        select: {
-          displayName: true,
-          image: true,
-          profile: true,
-          profileStatus: true,
-        },
-      },
-      _count: {
-        select: {
-          likes: true,
-          comments: true,
-          shares: true,
-        },
-      },
-    },
-  });
-
-  // Shuffle the reel posts randomly
-  const shuffledPosts = posts.sort(() => Math.random() - 0.5);
-
-  let savedSet: Set<string> = new Set();
-  let likedSet: Set<string> = new Set();
-  let followMap: Record<string, boolean> = {};
-  let hiddenSet: Set<string> = new Set();
-
-  if (viewerUserId) {
-    // Fetch saved posts for viewer
-    const saved = await this.prisma.savePost.findMany({
-      where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
-      select: { postId: true },
-    });
-    savedSet = new Set(saved.map(s => s.postId));
-
-    // Fetch liked posts for viewer
-    const liked = await this.prisma.postLike.findMany({
-      where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
-      select: { postId: true },
-    });
-    likedSet = new Set(liked.map(l => l.postId));
-
-    // Fetch follow status for each post's author
-    const authorIds = Array.from(new Set(shuffledPosts.map(p => p.userId)));
-    if (authorIds.length > 0) {
-      const follows = await this.prisma.followerAndFollowing.findMany({
-        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
-        select: { followingId: true },
-      });
-      followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
-    }
-
-    // Fetch hidden posts for viewer
-    if (shuffledPosts.length > 0) {
-      const hidden = await this.prisma.hidePost.findMany({
-        where: { userId: viewerUserId, postId: { in: shuffledPosts.map(p => p.id) } },
-        select: { postId: true },
-      });
-      hiddenSet = new Set(hidden.map(h => h.postId));
-    }
-  }
-
-  return shuffledPosts.map(post => ({
-    id: post.id,
-    text: post.text,
-    images: post.images,
-    thumbnails: post.thumbnails,
-    caption: post.caption,
-    hashtag: post.hashtag,
-    location: post.location,
-    music: post.music,
-    youtubeMusicMeta: post.youtubeMusicMeta,
-    taggedPeople: post.taggedPeople,
-    createdAt: post.createdAt,
-    updatedAt: post.updatedAt,
-    deletedAt: post.deletedAt,
-    userId: post.userId,
-    userName: post.user?.displayName || null,
-    userImage: post.user?.image || null,
-    profile: post.user?.profile || null,
-    profileStatus: post.user?.profileStatus || null,
-    likeCount: post._count.likes,
-    commentCount: post._count.comments,
-    shareCount: post._count.shares,
-    isSaved: savedSet.has(post.id),
-    isLike: likedSet.has(post.id),
-    isFollow: !!followMap[post.userId],
-    isHide: hiddenSet.has(post.id),
-    type: post.type,
-    visibleTo: (post as any).visibleTo,
-    private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-  }));
-}
 
 
   async deletePost(postId: string, userId: string) {
@@ -1311,8 +1312,8 @@ async getAllReel(viewerUserId?: string) {
   async editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]) {
     // Check if post exists and belongs to user
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
-    console.log('Service received post:', post?.userId,userId);
-    
+    console.log('Service received post:', post?.userId, userId);
+
     if (!post || post.deletedAt) throw new BadRequestException('Post not found');
     if (post.userId !== userId) throw new BadRequestException('Unauthorized to edit this post');
 
@@ -1325,7 +1326,7 @@ async getAllReel(viewerUserId?: string) {
 
     // Process update data - only update fields that are explicitly provided and not empty
     const updateFields: any = {};
-    
+
     // Only update text if it's provided and not empty string
     if (updateData.text !== undefined && updateData.text !== null && updateData.text.trim() !== '') {
       updateFields.text = updateData.text;
@@ -1333,7 +1334,7 @@ async getAllReel(viewerUserId?: string) {
       // If empty string is explicitly sent, set to null
       updateFields.text = null;
     }
-    
+
     // Only update caption if it's provided and not empty string
     if (updateData.caption !== undefined && updateData.caption !== null && updateData.caption.trim() !== '') {
       updateFields.caption = updateData.caption;
@@ -1341,12 +1342,12 @@ async getAllReel(viewerUserId?: string) {
       // If empty string is explicitly sent, set to null
       updateFields.caption = null;
     }
-    
+
     // Only update hashtag if it's provided and not empty array
     if (updateData.hashtag !== undefined && Array.isArray(updateData.hashtag)) {
       updateFields.hashtag = updateData.hashtag.length > 0 ? updateData.hashtag : [];
     }
-    
+
     // Only update location if it's provided and not empty string
     if (updateData.location !== undefined && updateData.location !== null && updateData.location.trim() !== '') {
       updateFields.location = updateData.location;
@@ -1354,7 +1355,7 @@ async getAllReel(viewerUserId?: string) {
       // If empty string is explicitly sent, set to null
       updateFields.location = null;
     }
-    
+
     // Only update music if it's provided and not empty string
     if (updateData.music !== undefined && updateData.music !== null && updateData.music.trim() !== '') {
       updateFields.music = updateData.music;
@@ -1366,7 +1367,7 @@ async getAllReel(viewerUserId?: string) {
     if (updateData.youtubeMusicMeta !== undefined) {
       updateFields.youtubeMusicMeta = updateData.youtubeMusicMeta === '' ? null : updateData.youtubeMusicMeta;
     }
-    
+
     // Only update taggedPeople if it's provided and not empty array
     if (updateData.taggedPeople !== undefined && Array.isArray(updateData.taggedPeople)) {
       updateFields.taggedPeople = updateData.taggedPeople.length > 0 ? updateData.taggedPeople : [];
@@ -1395,7 +1396,7 @@ async getAllReel(viewerUserId?: string) {
       updateFields.visibleTo = null;
       updateFields.privateCircleId = null;
     }
-    
+
     // Update images if new files are uploaded
     if (files && files.length > 0) {
       updateFields.images = imageUrls;
@@ -1418,12 +1419,12 @@ async getAllReel(viewerUserId?: string) {
 
     // Check if post exists
     const post = await this.prisma.post.findUnique({
-      where: { 
+      where: {
         id: postId,
-        deletedAt: null 
+        deletedAt: null
       },
     });
-    
+
     if (!post) {
       throw new BadRequestException('Post not found');
     }
@@ -1475,12 +1476,12 @@ async getAllReel(viewerUserId?: string) {
 
     // Check if post exists
     const post = await this.prisma.post.findUnique({
-      where: { 
+      where: {
         id: postId,
-        deletedAt: null 
+        deletedAt: null
       },
     });
-    
+
     if (!post) {
       throw new BadRequestException('Post not found');
     }
@@ -1562,22 +1563,22 @@ async getAllReel(viewerUserId?: string) {
     return createdComment;
   }
 
-async editComment(commentId: string, userId: string, newComment: string) {
-  if (!commentId) throw new BadRequestException('Comment ID required');
-  if (!userId) throw new BadRequestException('User ID required');
-  if (!newComment || newComment.trim() === '') throw new BadRequestException('New comment text required');
+  async editComment(commentId: string, userId: string, newComment: string) {
+    if (!commentId) throw new BadRequestException('Comment ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!newComment || newComment.trim() === '') throw new BadRequestException('New comment text required');
 
-  // Find the comment
-  const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
-  if (!comment) throw new BadRequestException('Comment not found');
-  if (comment.userId !== userId) throw new BadRequestException('Not allowed to edit this comment');
+    // Find the comment
+    const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
+    if (!comment) throw new BadRequestException('Comment not found');
+    if (comment.userId !== userId) throw new BadRequestException('Not allowed to edit this comment');
 
-  // Update the comment
-  return this.prisma.postComment.update({
-    where: { id: commentId },
-    data: { comment: newComment },
-  });
-}
+    // Update the comment
+    return this.prisma.postComment.update({
+      where: { id: commentId },
+      data: { comment: newComment },
+    });
+  }
 
   async reactOnComment(commentId: string, userId: string, reaction: 'LIKE' | 'DISLIKE' | 'NONE') {
     if (!commentId) throw new BadRequestException('Comment ID required');
@@ -1679,16 +1680,16 @@ async editComment(commentId: string, userId: string, newComment: string) {
     const [reactionCounts, viewerReactions] = await Promise.all([
       commentIds.length
         ? this.prisma.postCommentReaction.groupBy({
-            by: ['commentId', 'type'],
-            where: { commentId: { in: commentIds } },
-            _count: { _all: true },
-          })
+          by: ['commentId', 'type'],
+          where: { commentId: { in: commentIds } },
+          _count: { _all: true },
+        })
         : Promise.resolve([] as any[]),
       viewerUserId && commentIds.length
         ? this.prisma.postCommentReaction.findMany({
-            where: { commentId: { in: commentIds }, userId: viewerUserId },
-            select: { commentId: true, type: true },
-          })
+          where: { commentId: { in: commentIds }, userId: viewerUserId },
+          select: { commentId: true, type: true },
+        })
         : Promise.resolve([] as any[]),
     ]);
 
@@ -1763,269 +1764,75 @@ async editComment(commentId: string, userId: string, newComment: string) {
     return { message: 'Comment deleted' };
   }
 
-async getSavedPostsByUser(userId: string, viewerUserId: string) {
-  if (!userId) throw new BadRequestException('User ID required');
+  async getSavedPostsByUser(userId: string, viewerUserId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
 
-  // ✅ Get saved posts with full post + user + counts
-  const savedPosts = await this.prisma.savePost.findMany({
-    where: {
-      userId,
-      post: {
-        deletedAt: null,
-        AND: [this.buildPostVisibilityWhere(viewerUserId)],
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      post: {
-        include: {
-          user: {
-            select: {
-              displayName: true,
-              image: true,
-              profileStatus: true,
-              profile: true,
-            },
+    // ✅ Get saved posts with full post + user + counts
+    const savedPosts = await this.prisma.savePost.findMany({
+      where: {
+        userId,
+        post: {
+          deletedAt: null,
+          AND: [this.buildPostVisibilityWhere(viewerUserId)],
         },
-          _count: {
-            select: {
-              likes: true,
-              comments: true,
-              shares: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        post: {
+          include: {
+            user: {
+              select: {
+                displayName: true,
+                image: true,
+                profileStatus: true,
+                profile: true,
+              },
+            },
+            _count: {
+              select: {
+                likes: true,
+                comments: true,
+                shares: true,
+              },
             },
           },
         },
       },
-    },
-  });
-
-  let savedSet: Set<string> = new Set();
-  let likedSet: Set<string> = new Set();
-
-  if (viewerUserId) {
-    const postIds = savedPosts.map(sp => sp.postId);
-
-    // ✅ Fetch saved posts for viewer
-    const saved = await this.prisma.savePost.findMany({
-      where: { userId: viewerUserId, postId: { in: postIds } },
-      select: { postId: true },
-    });
-    savedSet = new Set(saved.map(s => s.postId));
-
-    // ✅ Fetch liked posts for viewer
-    const liked = await this.prisma.postLike.findMany({
-      where: { userId: viewerUserId, postId: { in: postIds } },
-      select: { postId: true },
-    });
-    likedSet = new Set(liked.map(l => l.postId));
-
-    // ✅ Fetch follow status for each post's author
-    const authorIds = Array.from(new Set(savedPosts.map(sp => sp.post.userId)));
-    const follows = await this.prisma.followerAndFollowing.findMany({
-      where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
-      select: { followingId: true },
-    });
-    var followMap: Record<string, boolean> = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
-  }
-
-  // ✅ Map savedPosts to return actual post info
-  return savedPosts.map(sp => {
-    const post = sp.post;
-    return {
-      id: post.id,
-      text: post.text,
-      images: post.images,
-      thumbnails: post.thumbnails,
-      caption: post.caption,
-      hashtag: post.hashtag,
-      location: post.location,
-      music: post.music,
-      youtubeMusicMeta: post.youtubeMusicMeta,
-      taggedPeople: post.taggedPeople,
-      createdAt: post.createdAt,
-      updatedAt: post.updatedAt,
-      deletedAt: post.deletedAt,
-      userId: post.userId,
-      userName: post.user?.displayName || null,
-      userImage: post.user?.image || null,
-      profileStatus: post.user?.profileStatus || null,
-      profile: post.user?.profile || null,
-      likeCount: post._count.likes,
-      commentCount: post._count.comments,
-      shareCount: post._count.shares,
-      isSaved: savedSet.has(post.id),
-      isLike: likedSet.has(post.id),
-      isFollow: !!(typeof followMap !== 'undefined' && followMap[post.userId]),
-      raiseAmount:post.raiseAmount,
-      type:post.type,
-      link:post.link,
-      visibleTo: (post as any).visibleTo,
-      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-      start_time:post.start_time,
-      end_time:post.end_time,
-    };
-  });
-}
-
-async sharePostToUser(mediaId: string, mediaType: string, conversationType: string, sharedUserId: string, receiverUserId: string) {
-  if (!mediaId) throw new BadRequestException('Media ID required');
-  if (!mediaType) throw new BadRequestException('Media type required');
-  if (!conversationType) throw new BadRequestException('Conversation type required');
-  if (!sharedUserId) throw new BadRequestException('Sender user ID required');
-  if (!receiverUserId) throw new BadRequestException('Receiver user ID required');
-
-  // Prevent sharing to self
-  if (sharedUserId === receiverUserId) {
-    throw new BadRequestException('Cannot share media to yourself');
-  }
-
-  // Find existing ChatBox between sender and receiver (bidirectional)
-  let chatBox = await this.prisma.chatBox.findFirst({
-    where: {
-      OR: [
-        { senderId: sharedUserId, receiverId: receiverUserId },
-        { senderId: receiverUserId, receiverId: sharedUserId },
-      ],
-    },
-  });
-
-  // If no ChatBox exists, create one
-  if (!chatBox) {
-    chatBox = await this.prisma.chatBox.create({
-      data: {
-        senderId: sharedUserId,
-        receiverId: receiverUserId,
-      },
-    });
-  }
-
-  // If mediaType is POST, create a PostShare record to track the share count
-  // This should be done regardless of conversation existence, as they serve different purposes
-  if (mediaType === 'POST' || mediaType === 'post') {
-    const post = await this.prisma.post.findUnique({
-      where: { id: mediaId, deletedAt: null },
-    });
-    if (!post) throw new BadRequestException('Post not found');
-    await this.ensureCanViewPost(post, sharedUserId);
-    await this.ensureCanViewPost(post, receiverUserId);
-
-    // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
-    const existingPostShare = await this.prisma.postShare.findUnique({
-      where: {
-        postId_sharedUserId_receiverUserId: {
-          postId: mediaId,
-          sharedUserId: sharedUserId,
-          receiverUserId: receiverUserId,
-        },
-      },
     });
 
-    // Only create PostShare if it doesn't exist
-    if (!existingPostShare) {
-      await this.prisma.postShare.create({
-        data: {
-          postId: mediaId,
-          sharedUserId: sharedUserId,
-          receiverUserId: receiverUserId,
-        },
+    let savedSet: Set<string> = new Set();
+    let likedSet: Set<string> = new Set();
+
+    if (viewerUserId) {
+      const postIds = savedPosts.map(sp => sp.postId);
+
+      // ✅ Fetch saved posts for viewer
+      const saved = await this.prisma.savePost.findMany({
+        where: { userId: viewerUserId, postId: { in: postIds } },
+        select: { postId: true },
       });
-    }
-  }
+      savedSet = new Set(saved.map(s => s.postId));
 
-  // Always create a new conversation record for media share
-  const conversation = await this.prisma.conversation.create({
-    data: {
-      type: 'MEDIA',
-      senderId: sharedUserId,
-      receiverId: receiverUserId,
-      mediaId,
-      mediaType: mediaType as any,
-      chatId: chatBox.id,
-    },
-  });
-
-  return { message: 'Media shared successfully', conversationId: conversation.id };
-}
-
-async sharePostToUsers(
-  mediaId: string,
-  mediaType: string,
-  conversationType: string,
-  sharedUserId: string,
-  receiverUserId: string[],
-) {
-  if (!Array.isArray(receiverUserId) || receiverUserId.length === 0) {
-    throw new BadRequestException('Receiver user IDs required');
-  }
-
-  const uniqueReceiverIds = Array.from(new Set(receiverUserId.filter(Boolean)));
-  if (uniqueReceiverIds.length === 0) {
-    throw new BadRequestException('Receiver user IDs required');
-  }
-
-  const results: Array<{ receiverUserId: string; message?: string; conversationId?: string; error?: string }> = [];
-
-  for (const receiverUserId of uniqueReceiverIds) {
-    try {
-      const res = await this.sharePostToUser(
-        mediaId,
-        mediaType,
-        conversationType,
-        sharedUserId,
-        receiverUserId,
-      );
-      results.push({ receiverUserId, ...res });
-    } catch (error) {
-      results.push({
-        receiverUserId,
-        error: (error as Error)?.message || 'Failed to share media',
+      // ✅ Fetch liked posts for viewer
+      const liked = await this.prisma.postLike.findMany({
+        where: { userId: viewerUserId, postId: { in: postIds } },
+        select: { postId: true },
       });
+      likedSet = new Set(liked.map(l => l.postId));
+
+      // ✅ Fetch follow status for each post's author
+      const authorIds = Array.from(new Set(savedPosts.map(sp => sp.post.userId)));
+      const follows = await this.prisma.followerAndFollowing.findMany({
+        where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+        select: { followingId: true },
+      });
+      var followMap: Record<string, boolean> = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
     }
-  }
 
-  return {
-    message: 'Share operation completed',
-    results,
-  };
-}
-
-async getSharedPostList(userId: string) {
-  if (!userId) throw new BadRequestException('User ID required');
-
-  const conversations = await this.prisma.conversation.findMany({
-    where: {
-      OR: [
-        { senderId: userId },
-        { receiverId: userId },
-      ],
-      type: 'MEDIA',
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Fetch media data separately based on mediaType
-  const mediaIds: string[] = conversations.map(c => c.mediaId).filter((id): id is string => id !== null);
-  const posts = await this.prisma.post.findMany({
-    where: {
-      id: { in: mediaIds },
-      deletedAt: null,
-      AND: [this.buildPostVisibilityWhere(userId)],
-    },
-    include: {
-      user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
-      _count: { select: { likes: true, comments: true, shares: true } },
-    },
-  });
-
-  const postMap = new Map(posts.map(p => [p.id, p]));
-
-  return conversations.map(conv => {
-    const post = conv.mediaId ? postMap.get(conv.mediaId) : null;
-    return {
-      id: conv.id,
-      sharedAt: conv.createdAt,
-      mediaType: conv.mediaType,
-      post: post && {
+    // ✅ Map savedPosts to return actual post info
+    return savedPosts.map(sp => {
+      const post = sp.post;
+      return {
         id: post.id,
         text: post.text,
         images: post.images,
@@ -2047,576 +1854,770 @@ async getSharedPostList(userId: string) {
         likeCount: post._count.likes,
         commentCount: post._count.comments,
         shareCount: post._count.shares,
+        isSaved: savedSet.has(post.id),
+        isLike: likedSet.has(post.id),
+        isFollow: !!(typeof followMap !== 'undefined' && followMap[post.userId]),
+        raiseAmount: post.raiseAmount,
+        type: post.type,
+        link: post.link,
         visibleTo: (post as any).visibleTo,
         private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
-        type: post.type,
-      },
-      sharedBy: {
-        id: conv.senderId,
-        // Note: sender details not fetched, can add if needed
-      },
-      receivedBy: {
-        id: conv.receiverId,
-        // Note: receiver details not fetched, can add if needed
-      },
-    };
-  });
-}
-
-async deleteSharedPosts(shareIds: string[], userId: string) {
-  if (!Array.isArray(shareIds) || shareIds.length === 0) throw new BadRequestException('Share IDs required');
-  if (!userId) throw new BadRequestException('User ID required');
-
-  // Find all conversation records for the given IDs
-  const conversations = await this.prisma.conversation.findMany({
-    where: { id: { in: shareIds }, type: 'MEDIA' },
-  });
-
-  // Filter to only those the user is authorized to delete
-  const deletableIds = conversations
-    .filter(conv => conv.senderId === userId || conv.receiverId === userId)
-    .map(conv => conv.id);
-
-  if (deletableIds.length === 0) throw new BadRequestException('No authorized shared posts to delete');
-
-  // Delete all authorized conversation records
-  await this.prisma.conversation.deleteMany({
-    where: { id: { in: deletableIds }, type: 'MEDIA' },
-  });
-
-  return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
-}
-
-// async hidePost(postId: string, userId: string) {
-//   if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
-//   return this.prisma.hidePost.upsert({
-//     where: { postId_userId: { postId, userId } },
-//     update: {},
-//     create: { postId, userId },
-//   });
-// }
-
-
-async hidePost(postId: string, userId: string) {
-  if (!postId || !userId) {
-    throw new BadRequestException('Post ID and User ID required');
-  }
-
-    return this.prisma.$transaction(async (tx) => {
-    // 1. Upsert hidePost
-    // await tx.hidePost.upsert({
-    //   where: { postId_userId: { postId, userId } },
-    //   update: {},
-    //   create: { postId, userId },
-    // });
-
-    const post = await tx.post.findUnique({ where: { id: postId } });
-    if (!post || post.deletedAt) throw new BadRequestException('Post not found');
-    await this.ensureCanViewPost(post, userId);
-
-    // 2. Update post table
-    const updatedPost = await tx.post.update({
-      where: { id: postId },
-      data: { postHide: 'yes' }, 
-    });
-
-    await tx.savePost.deleteMany({
-  where: { postId },
-});
-    return updatedPost;
-  });
-}
-
-// async unhidePost(postId: string, userId: string) {
-//   if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
-//   await this.prisma.hidePost.deleteMany({ where: { postId, userId } });
-//   return { message: 'Post unhidden successfully' };
-// }
-
-
-async unhidePost(postId: string, userId: string) {
-  if (!postId || !userId) {
-    throw new BadRequestException('Post ID and User ID required');
-  }
-
-  return this.prisma.$transaction(async (tx) => {
-    // 1. Remove hide entry
-    // await tx.hidePost.deleteMany({
-    //   where: { postId, userId },
-    // });
-
-    const post = await tx.post.findUnique({ where: { id: postId } });
-    if (!post || post.deletedAt) throw new BadRequestException('Post not found');
-    await this.ensureCanViewPost(post, userId);
-
-    // 2. Update post table
-    const updatedPost = await tx.post.update({
-      where: { id: postId },
-      data: { postHide: 'no' }, 
-    });
-
-    return {
-      message: 'Post unhidden successfully',
-      data: updatedPost,
-    };
-  });
-}
-
-// async getHidePost(userId: string) {
-//   if (!userId) throw new BadRequestException('User ID required');
-//   const hidden = await this.prisma.hidePost.findMany({
-//     where: { userId },
-//     orderBy: { createdAt: 'desc' },
-//     include: { post: true },
-//   });
-//   return hidden.map(h => h.post);
-// }
-
-async getHidePost(userId: string) {
-  if (!userId) {
-    throw new BadRequestException('User ID required');
-  }
-
-  const posts = await this.prisma.post.findMany({
-    where: {
-      userId: userId,
-      postHide: 'yes',
-      isDelete: 'no',
-    },
-    orderBy: {
-      updatedAt: 'desc',
-    },
-  });
-
-  return posts;
-}
-
-// Chat functionality using unified Conversation table
-async sendMessage(senderId: string, receiverId: string, message: string) {
-  if (!senderId) throw new BadRequestException('Sender ID required');
-  if (!receiverId) throw new BadRequestException('Receiver ID required');
-  if (!message || message.trim() === '') throw new BadRequestException('Message required');
-
-  // Prevent sending message to self
-  if (senderId === receiverId) {
-    throw new BadRequestException('Cannot send message to yourself');
-  }
-
-  // Verify both users exist before creating ChatBox
-  const [sender, receiver] = await Promise.all([
-    this.prisma.user.findUnique({ where: { id: senderId } }),
-    this.prisma.user.findUnique({ where: { id: receiverId } }),
-  ]);
-
-  if (!sender) {
-    throw new BadRequestException('Sender user not found');
-  }
-  if (!receiver) {
-    throw new BadRequestException('Receiver user not found');
-  }
-
-  // Find existing ChatBox between sender and receiver (bidirectional)
-  let chatBox = await this.prisma.chatBox.findFirst({
-    where: {
-      OR: [
-        { senderId, receiverId },
-        { senderId: receiverId, receiverId: senderId },
-      ],
-    },
-  });
-
-  // If no ChatBox exists, create one
-  if (!chatBox) {
-    chatBox = await this.prisma.chatBox.create({
-      data: {
-        senderId,
-        receiverId,
-      },
+        start_time: post.start_time,
+        end_time: post.end_time,
+      };
     });
   }
 
-  const conversation = await this.prisma.conversation.create({
-    data: {
-      type: 'CHAT',
-      senderId,
-      receiverId,
-      content: message,
-      chatId: chatBox.id,
-    },
-  });
+  async sharePostToUser(mediaId: string, mediaType: string, conversationType: string, sharedUserId: string, receiverUserId: string) {
+    if (!mediaId) throw new BadRequestException('Media ID required');
+    if (!mediaType) throw new BadRequestException('Media type required');
+    if (!conversationType) throw new BadRequestException('Conversation type required');
+    if (!sharedUserId) throw new BadRequestException('Sender user ID required');
+    if (!receiverUserId) throw new BadRequestException('Receiver user ID required');
 
-  return conversation;
-}
-
-async getConversations(userId: string) {
-  if (!userId) throw new BadRequestException('User ID required');
-
-  const conversations = await this.prisma.conversation.findMany({
-    where: {
-      OR: [
-        { senderId: userId },
-        { receiverId: userId },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      sender: { select: { id: true, displayName: true, image: true } },
-      receiver: { select: { id: true, displayName: true, image: true } },
-    },
-  });
-
-  return conversations.map(conv => ({
-    id: conv.id,
-    type: conv.type,
-    content: conv.content,
-    createdAt: conv.createdAt,
-    sender: conv.sender,
-    receiver: conv.receiver,
-    post: null,
-    story: null,
-  }));
-}
-
-async getUserChatBox(userId: string) {
-  if (!userId) throw new BadRequestException('User ID required');
-
-  const chatBoxes = await this.prisma.chatBox.findMany({
-    where: {
-      OR: [
-        { senderId: userId },
-        { receiverId: userId },
-      ],
-    },
-    include: {
-      sender: {
-        select: {
-          id: true,
-          displayName: true,
-          image: true,
-          profile: true,
-          profileStatus: true,
-        },
-      },
-      receiver: {
-        select: {
-          id: true,
-          displayName: true,
-          image: true,
-          profile: true,
-          profileStatus: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Get conversation details for each chatBox
-  const chatBoxIds = chatBoxes.map(cb => cb.id);
-  const conversations = await this.prisma.conversation.findMany({
-    where: {
-      chatId: { in: chatBoxIds },
-    },
-    select: {
-      id: true,
-      senderId: true,
-      receiverId: true,
-      isSeen: true,
-      chatId: true,
-      createdAt: true,
-      content: true,
-      type: true,
-      mediaId: true,
-      mediaType: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  // Group conversations by chatId
-  const conversationsByChatId = conversations.reduce((acc, conv) => {
-    if (!acc[conv.chatId!]) {
-      acc[conv.chatId!] = [];
-    }
-    acc[conv.chatId!].push(conv);
-    return acc;
-  }, {} as Record<string, any[]>);
-
-  const result = chatBoxes.map(chatBox => {
-    const isSender = chatBox.senderId === userId;
-    const user = isSender ? chatBox.receiver : chatBox.sender;
-    const chatConversations = conversationsByChatId[chatBox.id] || [];
-    const lastMessage = chatConversations.length > 0 ? chatConversations[0] : null;
-    
-    // Instagram-like behavior:
-    // - If I (current user) sent the last message, my unreadCount = 0
-    // - If the other user sent the last message, count all unread messages I received from them
-    let unreadCount = 0;
-    
-    if (lastMessage && lastMessage.senderId === userId) {
-      // Current user sent the last message, so unreadCount = 0
-      // (Even if there are old unread messages, we don't show them because user is actively chatting)
-      unreadCount = 0;
-    } else {
-      // Other user sent the last message (or no messages), count all unread messages received
-      unreadCount = chatConversations.filter(
-        conv => {
-          // Only count messages that:
-          // 1. Are unread (isSeen === 0)
-          // 2. Were received by the current user (receiverId === userId)
-          // 3. Were NOT sent by the current user (senderId !== userId)
-          return conv.isSeen === 0 && conv.receiverId === userId && conv.senderId !== userId;
-        }
-      ).length;
+    // Prevent sharing to self
+    if (sharedUserId === receiverUserId) {
+      throw new BadRequestException('Cannot share media to yourself');
     }
 
-    return {
-      id: chatBox.id,
-      createdAt: chatBox.createdAt,
-      updatedAt: chatBox.updatedAt,
-      user: user,
-      unreadCount,
-      lastMessage,
-      isHidden: chatBox.hiddenBy.includes(userId),
-      sortKey: lastMessage ? lastMessage.createdAt : chatBox.createdAt,
-    };
-  });
+    // Find existing ChatBox between sender and receiver (bidirectional)
+    let chatBox = await this.prisma.chatBox.findFirst({
+      where: {
+        OR: [
+          { senderId: sharedUserId, receiverId: receiverUserId },
+          { senderId: receiverUserId, receiverId: sharedUserId },
+        ],
+      },
+    });
 
-  // Sort by latest conversation activity (descending)
-  result.sort((a, b) => new Date(b.sortKey).getTime() - new Date(a.sortKey).getTime());
+    // If no ChatBox exists, create one
+    if (!chatBox) {
+      chatBox = await this.prisma.chatBox.create({
+        data: {
+          senderId: sharedUserId,
+          receiverId: receiverUserId,
+        },
+      });
+    }
 
-  // Remove sortKey from response
-  return result.map(({ sortKey, ...item }) => item);
-}
+    // If mediaType is POST, create a PostShare record to track the share count
+    // This should be done regardless of conversation existence, as they serve different purposes
+    if (mediaType === 'POST' || mediaType === 'post') {
+      const post = await this.prisma.post.findUnique({
+        where: { id: mediaId, deletedAt: null },
+      });
+      if (!post) throw new BadRequestException('Post not found');
+      await this.ensureCanViewPost(post, sharedUserId);
+      await this.ensureCanViewPost(post, receiverUserId);
 
-async getConversationWithUser(userId: string, otherUserId: string) {
-  if (!userId) throw new BadRequestException('User ID required');
-  if (!otherUserId) throw new BadRequestException('Other user ID required');
+      // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
+      const existingPostShare = await this.prisma.postShare.findUnique({
+        where: {
+          postId_sharedUserId_receiverUserId: {
+            postId: mediaId,
+            sharedUserId: sharedUserId,
+            receiverUserId: receiverUserId,
+          },
+        },
+      });
 
-  const conversations = await this.prisma.conversation.findMany({
-    where: {
-      OR: [
-        { senderId: userId, receiverId: otherUserId },
-        { senderId: otherUserId, receiverId: userId },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      sender: { select: { id: true, displayName: true, image: true } },
-      receiver: { select: { id: true, displayName: true, image: true } },
-    },
-  });
-
-  // Collect media IDs for MEDIA type conversations
-  const mediaConversations = conversations.filter(c => c.type === 'MEDIA');
-  const postIds = mediaConversations
-    .filter(c => c.mediaType === 'POST' || c.mediaType === 'REEL')
-    .map(c => c.mediaId)
-    .filter(id => id !== null) as string[];
-  const storyIds = mediaConversations
-    .filter(c => c.mediaType === 'STORY')
-    .map(c => c.mediaId)
-    .filter(id => id !== null) as string[];
-
-  // Fetch posts with user details
-  const posts = postIds.length > 0 ? await this.prisma.post.findMany({
-    where: {
-      id: { in: postIds },
-      deletedAt: null,
-      AND: [this.buildPostVisibilityWhere(userId)],
-    },
-    include: {
-      user: { select: { id: true, displayName: true, image: true, profile: true } },
-    },
-  }) : [];
-
-  // Fetch stories with user details
-  const stories = storyIds.length > 0 ? await this.prisma.story.findMany({
-    where: { id: { in: storyIds } },
-    include: {
-      user: { select: { id: true, displayName: true, image: true, profile: true } },
-    },
-  }) : [];
-
-  // Create maps for quick lookup
-  const postMap = new Map(posts.map(p => [p.id, p]));
-  const storyMap = new Map(stories.map(s => [s.id, s]));
-
-  return conversations.map(conv => {
-    let post = null;
-    let story = null;
-
-    if (conv.type === 'MEDIA' && conv.mediaId) {
-      if (conv.mediaType === 'POST' || conv.mediaType === 'REEL') {
-        const p = postMap.get(conv.mediaId);
-        if (p) {
-          post = {
-            id: p.id,
-            text: p.text,
-            images: p.images,
-            thumbnails: p.thumbnails,
-            caption: p.caption,
-            hashtag: p.hashtag,
-            location: p.location,
-            music: p.music,
-            youtubeMusicMeta: p.youtubeMusicMeta,
-            taggedPeople: p.taggedPeople,
-            createdAt: p.createdAt,
-            updatedAt: p.updatedAt,
-            deletedAt: p.deletedAt,
-            userId: p.userId,
-            userName: p.user.displayName,
-            userImage: p.user.image,
-            profile: p.user.profile,
-            type: p.type,
-            link: p.link,
-            visibleTo: p.visibleTo,
-            private_circle: this.isPrivateCircleVisibility(p.visibleTo),
-            start_time: p.start_time,
-            end_time: p.end_time,
-            raiseAmount: p.raiseAmount,
-          };
-        }
-      } else if (conv.mediaType === 'STORY') {
-        const s = storyMap.get(conv.mediaId);
-        if (s) {
-          story = {
-            id: s.id,
-            caption: s.caption,
-            media: s.media,
-            thumbnails: s.thumbnails,
-            createdAt: s.createdAt,
-            updatedAt: s.updatedAt,
-            userId: s.userId,
-            userName: s.user.displayName,
-            userImage: s.user.image,
-            profile: s.user.profile,
-          };
-        }
+      // Only create PostShare if it doesn't exist
+      if (!existingPostShare) {
+        await this.prisma.postShare.create({
+          data: {
+            postId: mediaId,
+            sharedUserId: sharedUserId,
+            receiverUserId: receiverUserId,
+          },
+        });
       }
     }
-return {
-  id: conv.id,
-  type: conv.type,
-  content: conv.content,
-  createdAt: conv.createdAt,
-  isSeen: conv.isSeen,
-  sender: conv.sender,
-  receiver: conv.receiver,
-  post,
-  story,
-};
-});
 
-}
-
-async chatStatusUpdate(chatId: string) {
-if (!chatId) throw new BadRequestException('Chat ID required');
-
-// Update all conversation records where chatId matches and isSeen is 0 to set isSeen to 1
-const result = await this.prisma.conversation.updateMany({
-where: {
-  chatId,
-  isSeen: 0,
-},
-data: {
-  isSeen: 1,
-},
-});
-
-return {
-message: 'Chat status updated successfully',
-updatedCount: result.count,
-};
-}
-
-async messageSeenUpdate(messageId: string, userId: string) {
-if (!messageId) throw new BadRequestException('Message ID required');
-if (!userId) throw new BadRequestException('User ID required');
-
-// Only the receiver can mark a message as seen
-const result = await this.prisma.conversation.updateMany({
-where: {
-  id: messageId,
-  receiverId: userId,
-  isSeen: 0,
-},
-data: {
-  isSeen: 1,
-},
-});
-
-return {
-message: 'Message seen updated successfully',
-updatedCount: result.count,
-};
-}
-
-async hideChat(chatId: string, userId: string) {
-  if (!chatId) throw new BadRequestException('Chat ID required');
-  if (!userId) throw new BadRequestException('User ID required');
-
-  // Find the chatBox
-  const chatBox = await this.prisma.chatBox.findUnique({
-    where: { id: chatId },
-  });
-
-  if (!chatBox) {
-    throw new BadRequestException('Chat not found');
-  }
-
-  // Check if user is part of this chat
-  if (chatBox.senderId !== userId && chatBox.receiverId !== userId) {
-    throw new BadRequestException('Unauthorized to hide this chat');
-  }
-
-  // Add userId to hiddenBy array
-  const updatedHiddenBy = [...(chatBox.hiddenBy || []), userId];
-
-  // If both users have hidden the chat, delete it completely
-  if (updatedHiddenBy.length >= 2) {
-    // Delete all conversations first
-    await this.prisma.conversation.deleteMany({
-      where: { chatId },
+    // Always create a new conversation record for media share
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        type: 'MEDIA',
+        senderId: sharedUserId,
+        receiverId: receiverUserId,
+        mediaId,
+        mediaType: mediaType as any,
+        chatId: chatBox.id,
+      },
     });
 
-    // Then delete the chatBox
-    await this.prisma.chatBox.delete({
+    return { message: 'Media shared successfully', conversationId: conversation.id };
+  }
+
+  async sharePostToUsers(
+    mediaId: string,
+    mediaType: string,
+    conversationType: string,
+    sharedUserId: string,
+    receiverUserId: string[],
+  ) {
+    if (!Array.isArray(receiverUserId) || receiverUserId.length === 0) {
+      throw new BadRequestException('Receiver user IDs required');
+    }
+
+    const uniqueReceiverIds = Array.from(new Set(receiverUserId.filter(Boolean)));
+    if (uniqueReceiverIds.length === 0) {
+      throw new BadRequestException('Receiver user IDs required');
+    }
+
+    const results: Array<{ receiverUserId: string; message?: string; conversationId?: string; error?: string }> = [];
+
+    for (const receiverUserId of uniqueReceiverIds) {
+      try {
+        const res = await this.sharePostToUser(
+          mediaId,
+          mediaType,
+          conversationType,
+          sharedUserId,
+          receiverUserId,
+        );
+        results.push({ receiverUserId, ...res });
+      } catch (error) {
+        results.push({
+          receiverUserId,
+          error: (error as Error)?.message || 'Failed to share media',
+        });
+      }
+    }
+
+    return {
+      message: 'Share operation completed',
+      results,
+    };
+  }
+
+  async getSharedPostList(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        OR: [
+          { senderId: userId },
+          { receiverId: userId },
+        ],
+        type: 'MEDIA',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Fetch media data separately based on mediaType
+    const mediaIds: string[] = conversations.map(c => c.mediaId).filter((id): id is string => id !== null);
+    const posts = await this.prisma.post.findMany({
+      where: {
+        id: { in: mediaIds },
+        deletedAt: null,
+        AND: [this.buildPostVisibilityWhere(userId)],
+      },
+      include: {
+        user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
+        _count: { select: { likes: true, comments: true, shares: true } },
+      },
+    });
+
+    const postMap = new Map(posts.map(p => [p.id, p]));
+
+    return conversations.map(conv => {
+      const post = conv.mediaId ? postMap.get(conv.mediaId) : null;
+      return {
+        id: conv.id,
+        sharedAt: conv.createdAt,
+        mediaType: conv.mediaType,
+        post: post && {
+          id: post.id,
+          text: post.text,
+          images: post.images,
+          thumbnails: post.thumbnails,
+          caption: post.caption,
+          hashtag: post.hashtag,
+          location: post.location,
+          music: post.music,
+          youtubeMusicMeta: post.youtubeMusicMeta,
+          taggedPeople: post.taggedPeople,
+          createdAt: post.createdAt,
+          updatedAt: post.updatedAt,
+          deletedAt: post.deletedAt,
+          userId: post.userId,
+          userName: post.user?.displayName || null,
+          userImage: post.user?.image || null,
+          profileStatus: post.user?.profileStatus || null,
+          profile: post.user?.profile || null,
+          likeCount: post._count.likes,
+          commentCount: post._count.comments,
+          shareCount: post._count.shares,
+          visibleTo: (post as any).visibleTo,
+          private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+          type: post.type,
+        },
+        sharedBy: {
+          id: conv.senderId,
+          // Note: sender details not fetched, can add if needed
+        },
+        receivedBy: {
+          id: conv.receiverId,
+          // Note: receiver details not fetched, can add if needed
+        },
+      };
+    });
+  }
+
+  async deleteSharedPosts(shareIds: string[], userId: string) {
+    if (!Array.isArray(shareIds) || shareIds.length === 0) throw new BadRequestException('Share IDs required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Find all conversation records for the given IDs
+    const conversations = await this.prisma.conversation.findMany({
+      where: { id: { in: shareIds }, type: 'MEDIA' },
+    });
+
+    // Filter to only those the user is authorized to delete
+    const deletableIds = conversations
+      .filter(conv => conv.senderId === userId || conv.receiverId === userId)
+      .map(conv => conv.id);
+
+    if (deletableIds.length === 0) throw new BadRequestException('No authorized shared posts to delete');
+
+    // Delete all authorized conversation records
+    await this.prisma.conversation.deleteMany({
+      where: { id: { in: deletableIds }, type: 'MEDIA' },
+    });
+
+    return { message: 'Shared posts deleted successfully', deletedIds: deletableIds };
+  }
+
+  // async hidePost(postId: string, userId: string) {
+  //   if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
+  //   return this.prisma.hidePost.upsert({
+  //     where: { postId_userId: { postId, userId } },
+  //     update: {},
+  //     create: { postId, userId },
+  //   });
+  // }
+
+
+  async hidePost(postId: string, userId: string) {
+    if (!postId || !userId) {
+      throw new BadRequestException('Post ID and User ID required');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Upsert hidePost
+      // await tx.hidePost.upsert({
+      //   where: { postId_userId: { postId, userId } },
+      //   update: {},
+      //   create: { postId, userId },
+      // });
+
+      const post = await tx.post.findUnique({ where: { id: postId } });
+      if (!post || post.deletedAt) throw new BadRequestException('Post not found');
+      await this.ensureCanViewPost(post, userId);
+
+      // 2. Update post table
+      const updatedPost = await tx.post.update({
+        where: { id: postId },
+        data: { postHide: 'yes' },
+      });
+
+      await tx.savePost.deleteMany({
+        where: { postId },
+      });
+      return updatedPost;
+    });
+  }
+
+  // async unhidePost(postId: string, userId: string) {
+  //   if (!postId || !userId) throw new BadRequestException('Post ID and User ID required');
+  //   await this.prisma.hidePost.deleteMany({ where: { postId, userId } });
+  //   return { message: 'Post unhidden successfully' };
+  // }
+
+
+  async unhidePost(postId: string, userId: string) {
+    if (!postId || !userId) {
+      throw new BadRequestException('Post ID and User ID required');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Remove hide entry
+      // await tx.hidePost.deleteMany({
+      //   where: { postId, userId },
+      // });
+
+      const post = await tx.post.findUnique({ where: { id: postId } });
+      if (!post || post.deletedAt) throw new BadRequestException('Post not found');
+      await this.ensureCanViewPost(post, userId);
+
+      // 2. Update post table
+      const updatedPost = await tx.post.update({
+        where: { id: postId },
+        data: { postHide: 'no' },
+      });
+
+      return {
+        message: 'Post unhidden successfully',
+        data: updatedPost,
+      };
+    });
+  }
+
+  // async getHidePost(userId: string) {
+  //   if (!userId) throw new BadRequestException('User ID required');
+  //   const hidden = await this.prisma.hidePost.findMany({
+  //     where: { userId },
+  //     orderBy: { createdAt: 'desc' },
+  //     include: { post: true },
+  //   });
+  //   return hidden.map(h => h.post);
+  // }
+
+  async getHidePost(userId: string) {
+    if (!userId) {
+      throw new BadRequestException('User ID required');
+    }
+
+    const posts = await this.prisma.post.findMany({
+      where: {
+        userId: userId,
+        postHide: 'yes',
+        isDelete: 'no',
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    return posts;
+  }
+
+  // Chat functionality using unified Conversation table
+  async sendMessage(senderId: string, receiverId: string, message: string) {
+    if (!senderId) throw new BadRequestException('Sender ID required');
+    if (!receiverId) throw new BadRequestException('Receiver ID required');
+    if (!message || message.trim() === '') throw new BadRequestException('Message required');
+
+    // Prevent sending message to self
+    if (senderId === receiverId) {
+      throw new BadRequestException('Cannot send message to yourself');
+    }
+
+    // Verify both users exist before creating ChatBox
+    const [sender, receiver] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: senderId } }),
+      this.prisma.user.findUnique({ where: { id: receiverId } }),
+    ]);
+
+    if (!sender) {
+      throw new BadRequestException('Sender user not found');
+    }
+    if (!receiver) {
+      throw new BadRequestException('Receiver user not found');
+    }
+
+    // Find existing ChatBox between sender and receiver (bidirectional)
+    let chatBox = await this.prisma.chatBox.findFirst({
+      where: {
+        OR: [
+          { senderId, receiverId },
+          { senderId: receiverId, receiverId: senderId },
+        ],
+      },
+    });
+
+    // If no ChatBox exists, create one
+    if (!chatBox) {
+      chatBox = await this.prisma.chatBox.create({
+        data: {
+          senderId,
+          receiverId,
+        },
+      });
+    }
+
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        type: 'CHAT',
+        senderId,
+        receiverId,
+        content: message,
+        chatId: chatBox.id,
+      },
+    });
+
+    return conversation;
+  }
+
+  async getConversations(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        OR: [
+          { senderId: userId },
+          { receiverId: userId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sender: { select: { id: true, displayName: true, image: true } },
+        receiver: { select: { id: true, displayName: true, image: true } },
+      },
+    });
+
+    return conversations.map(conv => ({
+      id: conv.id,
+      type: conv.type,
+      content: conv.content,
+      createdAt: conv.createdAt,
+      sender: conv.sender,
+      receiver: conv.receiver,
+      post: null,
+      story: null,
+    }));
+  }
+
+  async getUserChatBox(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const chatBoxes = await this.prisma.chatBox.findMany({
+      where: {
+        OR: [
+          { senderId: userId },
+          { receiverId: userId },
+        ],
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            image: true,
+            profile: true,
+            profileStatus: true,
+          },
+        },
+        receiver: {
+          select: {
+            id: true,
+            displayName: true,
+            image: true,
+            profile: true,
+            profileStatus: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get conversation details for each chatBox
+    const chatBoxIds = chatBoxes.map(cb => cb.id);
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        chatId: { in: chatBoxIds },
+      },
+      select: {
+        id: true,
+        senderId: true,
+        receiverId: true,
+        isSeen: true,
+        chatId: true,
+        createdAt: true,
+        content: true,
+        type: true,
+        mediaId: true,
+        mediaType: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Group conversations by chatId
+    const conversationsByChatId = conversations.reduce((acc, conv) => {
+      if (!acc[conv.chatId!]) {
+        acc[conv.chatId!] = [];
+      }
+      acc[conv.chatId!].push(conv);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    const result = chatBoxes.map(chatBox => {
+      const isSender = chatBox.senderId === userId;
+      const user = isSender ? chatBox.receiver : chatBox.sender;
+      const chatConversations = conversationsByChatId[chatBox.id] || [];
+      const lastMessage = chatConversations.length > 0 ? chatConversations[0] : null;
+
+      // Instagram-like behavior:
+      // - If I (current user) sent the last message, my unreadCount = 0
+      // - If the other user sent the last message, count all unread messages I received from them
+      let unreadCount = 0;
+
+      if (lastMessage && lastMessage.senderId === userId) {
+        // Current user sent the last message, so unreadCount = 0
+        // (Even if there are old unread messages, we don't show them because user is actively chatting)
+        unreadCount = 0;
+      } else {
+        // Other user sent the last message (or no messages), count all unread messages received
+        unreadCount = chatConversations.filter(
+          conv => {
+            // Only count messages that:
+            // 1. Are unread (isSeen === 0)
+            // 2. Were received by the current user (receiverId === userId)
+            // 3. Were NOT sent by the current user (senderId !== userId)
+            return conv.isSeen === 0 && conv.receiverId === userId && conv.senderId !== userId;
+          }
+        ).length;
+      }
+
+      return {
+        id: chatBox.id,
+        createdAt: chatBox.createdAt,
+        updatedAt: chatBox.updatedAt,
+        user: user,
+        unreadCount,
+        lastMessage,
+        isHidden: chatBox.hiddenBy.includes(userId),
+        sortKey: lastMessage ? lastMessage.createdAt : chatBox.createdAt,
+      };
+    });
+
+    // Sort by latest conversation activity (descending)
+    result.sort((a, b) => new Date(b.sortKey).getTime() - new Date(a.sortKey).getTime());
+
+    // Remove sortKey from response
+    return result.map(({ sortKey, ...item }) => item);
+  }
+
+  async getConversationWithUser(userId: string, otherUserId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!otherUserId) throw new BadRequestException('Other user ID required');
+
+    const conversations = await this.prisma.conversation.findMany({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: otherUserId },
+          { senderId: otherUserId, receiverId: userId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sender: { select: { id: true, displayName: true, image: true } },
+        receiver: { select: { id: true, displayName: true, image: true } },
+      },
+    });
+
+    // Collect media IDs for MEDIA type conversations
+    const mediaConversations = conversations.filter(c => c.type === 'MEDIA');
+    const postIds = mediaConversations
+      .filter(c => c.mediaType === 'POST' || c.mediaType === 'REEL')
+      .map(c => c.mediaId)
+      .filter(id => id !== null) as string[];
+    const storyIds = mediaConversations
+      .filter(c => c.mediaType === 'STORY')
+      .map(c => c.mediaId)
+      .filter(id => id !== null) as string[];
+
+    // Fetch posts with user details
+    const posts = postIds.length > 0 ? await this.prisma.post.findMany({
+      where: {
+        id: { in: postIds },
+        deletedAt: null,
+        AND: [this.buildPostVisibilityWhere(userId)],
+      },
+      include: {
+        user: { select: { id: true, displayName: true, image: true, profile: true } },
+      },
+    }) : [];
+
+    // Fetch stories with user details
+    const stories = storyIds.length > 0 ? await this.prisma.story.findMany({
+      where: { id: { in: storyIds } },
+      include: {
+        user: { select: { id: true, displayName: true, image: true, profile: true } },
+      },
+    }) : [];
+
+    // Create maps for quick lookup
+    const postMap = new Map(posts.map(p => [p.id, p]));
+    const storyMap = new Map(stories.map(s => [s.id, s]));
+
+    return conversations.map(conv => {
+      let post = null;
+      let story = null;
+
+      if (conv.type === 'MEDIA' && conv.mediaId) {
+        if (conv.mediaType === 'POST' || conv.mediaType === 'REEL') {
+          const p = postMap.get(conv.mediaId);
+          if (p) {
+            post = {
+              id: p.id,
+              text: p.text,
+              images: p.images,
+              thumbnails: p.thumbnails,
+              caption: p.caption,
+              hashtag: p.hashtag,
+              location: p.location,
+              music: p.music,
+              youtubeMusicMeta: p.youtubeMusicMeta,
+              taggedPeople: p.taggedPeople,
+              createdAt: p.createdAt,
+              updatedAt: p.updatedAt,
+              deletedAt: p.deletedAt,
+              userId: p.userId,
+              userName: p.user.displayName,
+              userImage: p.user.image,
+              profile: p.user.profile,
+              type: p.type,
+              link: p.link,
+              visibleTo: p.visibleTo,
+              private_circle: this.isPrivateCircleVisibility(p.visibleTo),
+              start_time: p.start_time,
+              end_time: p.end_time,
+              raiseAmount: p.raiseAmount,
+            };
+          }
+        } else if (conv.mediaType === 'STORY') {
+          const s = storyMap.get(conv.mediaId);
+          if (s) {
+            story = {
+              id: s.id,
+              caption: s.caption,
+              media: s.media,
+              thumbnails: s.thumbnails,
+              createdAt: s.createdAt,
+              updatedAt: s.updatedAt,
+              userId: s.userId,
+              userName: s.user.displayName,
+              userImage: s.user.image,
+              profile: s.user.profile,
+            };
+          }
+        }
+      }
+      return {
+        id: conv.id,
+        type: conv.type,
+        content: conv.content,
+        createdAt: conv.createdAt,
+        isSeen: conv.isSeen,
+        sender: conv.sender,
+        receiver: conv.receiver,
+        post,
+        story,
+      };
+    });
+
+  }
+
+  async chatStatusUpdate(chatId: string) {
+    if (!chatId) throw new BadRequestException('Chat ID required');
+
+    // Update all conversation records where chatId matches and isSeen is 0 to set isSeen to 1
+    const result = await this.prisma.conversation.updateMany({
+      where: {
+        chatId,
+        isSeen: 0,
+      },
+      data: {
+        isSeen: 1,
+      },
+    });
+
+    return {
+      message: 'Chat status updated successfully',
+      updatedCount: result.count,
+    };
+  }
+
+  async messageSeenUpdate(messageId: string, userId: string) {
+    if (!messageId) throw new BadRequestException('Message ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Only the receiver can mark a message as seen
+    const result = await this.prisma.conversation.updateMany({
+      where: {
+        id: messageId,
+        receiverId: userId,
+        isSeen: 0,
+      },
+      data: {
+        isSeen: 1,
+      },
+    });
+
+    return {
+      message: 'Message seen updated successfully',
+      updatedCount: result.count,
+    };
+  }
+
+  async hideChat(chatId: string, userId: string) {
+    if (!chatId) throw new BadRequestException('Chat ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Find the chatBox
+    const chatBox = await this.prisma.chatBox.findUnique({
       where: { id: chatId },
     });
 
-    return { message: 'Chat deleted permanently' };
-  } else {
-    // Just hide for this user
+    if (!chatBox) {
+      throw new BadRequestException('Chat not found');
+    }
+
+    // Check if user is part of this chat
+    if (chatBox.senderId !== userId && chatBox.receiverId !== userId) {
+      throw new BadRequestException('Unauthorized to hide this chat');
+    }
+
+    // Add userId to hiddenBy array
+    const updatedHiddenBy = [...(chatBox.hiddenBy || []), userId];
+
+    // If both users have hidden the chat, delete it completely
+    if (updatedHiddenBy.length >= 2) {
+      // Delete all conversations first
+      await this.prisma.conversation.deleteMany({
+        where: { chatId },
+      });
+
+      // Then delete the chatBox
+      await this.prisma.chatBox.delete({
+        where: { id: chatId },
+      });
+
+      return { message: 'Chat deleted permanently' };
+    } else {
+      // Just hide for this user
+      await this.prisma.chatBox.update({
+        where: { id: chatId },
+        data: { hiddenBy: updatedHiddenBy },
+      });
+
+      return { message: 'Chat hidden successfully' };
+    }
+  }
+
+  async unhideChat(chatId: string, userId: string) {
+    if (!chatId) throw new BadRequestException('Chat ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    // Find the chatBox
+    const chatBox = await this.prisma.chatBox.findUnique({
+      where: { id: chatId },
+    });
+
+    if (!chatBox) {
+      throw new BadRequestException('Chat not found');
+    }
+
+    // Remove userId from hiddenBy array
+    const updatedHiddenBy = (chatBox.hiddenBy || []).filter(id => id !== userId);
+
     await this.prisma.chatBox.update({
       where: { id: chatId },
       data: { hiddenBy: updatedHiddenBy },
     });
 
-    return { message: 'Chat hidden successfully' };
+    return { message: 'Chat unhidden successfully' };
   }
-}
-
-async unhideChat(chatId: string, userId: string) {
-  if (!chatId) throw new BadRequestException('Chat ID required');
-  if (!userId) throw new BadRequestException('User ID required');
-
-  // Find the chatBox
-  const chatBox = await this.prisma.chatBox.findUnique({
-    where: { id: chatId },
-  });
-
-  if (!chatBox) {
-    throw new BadRequestException('Chat not found');
-  }
-
-  // Remove userId from hiddenBy array
-  const updatedHiddenBy = (chatBox.hiddenBy || []).filter(id => id !== userId);
-
-  await this.prisma.chatBox.update({
-    where: { id: chatId },
-    data: { hiddenBy: updatedHiddenBy },
-  });
-
-  return { message: 'Chat unhidden successfully' };
-}
 
 }
