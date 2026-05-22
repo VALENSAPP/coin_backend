@@ -394,7 +394,7 @@ export class PostService {
     if (!userId) throw new BadRequestException('User ID required');
     const take = Math.min(Math.max(1, limit), 50);
     const skip = (Math.max(1, page) - 1) * take;
-    const whereClause: any = { userId, deletedAt: null, postHide: 'no' };
+    const whereClause: any = { userId, deletedAt: null, postHide: 'no', isDelete: 'no' };
     if (type === 'private') {
       whereClause.type = 'private';
     } else {
