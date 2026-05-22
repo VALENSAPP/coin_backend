@@ -868,6 +868,24 @@ export class PostService {
       }
     }
 
+    const taggedPeopleIds = Array.from(
+      new Set(
+        posts
+          .flatMap((post) => post.taggedPeople || [])
+          .map((taggedPerson) => String(taggedPerson).trim())
+          .filter(Boolean),
+      ),
+    );
+    const taggedUsers = taggedPeopleIds.length
+      ? await this.prisma.user.findMany({
+        where: { id: { in: taggedPeopleIds } },
+        select: { id: true, userName: true, displayName: true },
+      })
+      : [];
+    const taggedUserNameMap = new Map(
+      taggedUsers.map((user) => [user.id, user.userName || user.displayName || user.id]),
+    );
+
     // Note: We do not shuffle the combined array so pinned posts stay on top.
 
     return posts.map(post => ({
@@ -880,7 +898,7 @@ export class PostService {
       location: post.location,
       music: post.music,
       youtubeMusicMeta: post.youtubeMusicMeta,
-      taggedPeople: post.taggedPeople,
+      taggedPeople: post.taggedPeople.map((taggedPerson: string) => taggedUserNameMap.get(taggedPerson) || taggedPerson),
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
       deletedAt: post.deletedAt,
