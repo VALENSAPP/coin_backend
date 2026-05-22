@@ -5,7 +5,7 @@ import { Notification } from '@prisma/client';
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   private getNotificationCategory(data?: Record<string, string>): string | undefined {
     return data?.notificationCategory || data?.category;
@@ -183,26 +183,26 @@ export class NotificationService {
 
     const battles = battleIds.length
       ? await this.prisma.battle.findMany({
-          where: { id: { in: battleIds } },
-          select: {
-            id: true,
-            question: true,
-            format: true,
-            status: true,
-            options: true,
-            optionImages: true,
-            startTime: true,
-            endTime: true,
-            isPublic: true,
-            creatorId: true,
-            liveAt: true,
-            closedAt: true,
-            resolvedAt: true,
-            winningSide: true,
-            correctSide: true,
-            winnerUserId: true,
-          },
-        })
+        where: { id: { in: battleIds } },
+        select: {
+          id: true,
+          question: true,
+          format: true,
+          status: true,
+          options: true,
+          optionImages: true,
+          startTime: true,
+          endTime: true,
+          isPublic: true,
+          creatorId: true,
+          liveAt: true,
+          closedAt: true,
+          resolvedAt: true,
+          winningSide: true,
+          correctSide: true,
+          winnerUserId: true,
+        },
+      })
       : [];
 
     const battleMap = new Map(battles.map((b) => [b.id, b]));
@@ -254,16 +254,16 @@ export class NotificationService {
       userId,
       title: 'Post Liked',
       body: `${like.user?.displayName || like.user?.userName || 'Someone'} liked your post.`,
-        data: {
-          type: 'like',
-          likerId: like.user?.id,
-          postId: like.post?.id,
-        },
-        isRead: !!(like as any).isReadByOwner,
-        createdAt: like.createdAt,
-        updatedAt: like.createdAt,
-        post: like.post,
-        liker: like.user,
+      data: {
+        type: 'like',
+        likerId: like.user?.id,
+        postId: like.post?.id,
+      },
+      isRead: !!(like as any).isReadByOwner,
+      createdAt: like.createdAt,
+      updatedAt: like.createdAt,
+      post: like.post,
+      liker: like.user,
     }));
   }
 
@@ -294,15 +294,15 @@ export class NotificationService {
     const [posts, donors] = await Promise.all([
       postIds.length > 0
         ? this.prisma.post.findMany({
-            where: { id: { in: postIds }, deletedAt: null },
-            select: { id: true, text: true, images: true, createdAt: true, type: true },
-          })
+          where: { id: { in: postIds }, deletedAt: null },
+          select: { id: true, text: true, images: true, createdAt: true, type: true },
+        })
         : Promise.resolve([]),
       donorIds.length > 0
         ? this.prisma.user.findMany({
-            where: { id: { in: donorIds } },
-            select: { id: true, userName: true, displayName: true, image: true },
-          })
+          where: { id: { in: donorIds } },
+          select: { id: true, userName: true, displayName: true, image: true },
+        })
         : Promise.resolve([]),
     ]);
 
@@ -356,9 +356,9 @@ export class NotificationService {
     const payerIds = Array.from(new Set(payments.map((p) => p.userId)));
     const payers = payerIds.length
       ? await this.prisma.user.findMany({
-          where: { id: { in: payerIds } },
-          select: { id: true, userName: true, displayName: true, image: true },
-        })
+        where: { id: { in: payerIds } },
+        select: { id: true, userName: true, displayName: true, image: true },
+      })
       : [];
     const payerMap = new Map(payers.map((u) => [u.id, u]));
 
@@ -650,7 +650,7 @@ export class NotificationService {
     return this.sendNotificationToUser(
       userId,
       '\u26A0 1 Post Credit Left',
-      'You have 1 free post credit remaining this month. Upgrade to keep posting.',
+      'You have 1 post credit remaining. Upgrade to keep posting.',
       {
         type: 'post_credit_low',
         userId,
@@ -1825,10 +1825,10 @@ export class NotificationService {
           : 0;
         const globalRank = totalBattlePoints > 0
           ? await this.prisma.userBattleStats.count({
-              where: {
-                totalBattlePoints: { gt: totalBattlePoints },
-              },
-            }) + 1
+            where: {
+              totalBattlePoints: { gt: totalBattlePoints },
+            },
+          }) + 1
           : 0;
 
         return this.sendNotificationToUser(
@@ -1911,27 +1911,27 @@ export class NotificationService {
     const [notifUpdate, likeUpdate, donationUpdate, paymentUpdate] = await Promise.all([
       notifIds.length
         ? this.prisma.notification.updateMany({
-            where: { id: { in: notifIds }, userId },
-            data: { isRead: true },
-          })
+          where: { id: { in: notifIds }, userId },
+          data: { isRead: true },
+        })
         : Promise.resolve({ count: 0 }),
       likeIdList.length
         ? this.prisma.postLike.updateMany({
-            where: { id: { in: likeIdList } },
-            data: { isReadByOwner: true },
-          })
+          where: { id: { in: likeIdList } },
+          data: { isReadByOwner: true },
+        })
         : Promise.resolve({ count: 0 }),
       donationIdList.length
         ? this.prisma.donationData.updateMany({
-            where: { id: { in: donationIdList } },
-            data: { isReadByOwner: true },
-          })
+          where: { id: { in: donationIdList } },
+          data: { isReadByOwner: true },
+        })
         : Promise.resolve({ count: 0 }),
       paymentIdList.length
         ? this.prisma.payment.updateMany({
-            where: { id: { in: paymentIdList } },
-            data: { isReadByOwner: true },
-          })
+          where: { id: { in: paymentIdList } },
+          data: { isReadByOwner: true },
+        })
         : Promise.resolve({ count: 0 }),
     ]);
 
