@@ -1,6 +1,7 @@
-import { IsOptional, IsString, IsNumberString } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { POST_TYPES, PostType } from './post-types';
 
 export class CreatePostDto {
   @ApiProperty({ description: 'Text content of the post', required: false })
@@ -95,10 +96,10 @@ export class CreatePostDto {
   })
   images?: any[];
 
-  @ApiProperty({ description: 'Type of post (normal or crowdfunding)', required: false })
+  @ApiProperty({ description: 'Type of post', required: false, enum: POST_TYPES })
   @IsOptional()
   @IsString()
-  type?: string;
+  type?: PostType;
 
   @ApiProperty({ description: 'Raise amount for crowdfunding posts', required: false })
   @IsOptional()

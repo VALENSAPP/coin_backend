@@ -17,6 +17,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { ChatStatusUpdateDto } from './dto/chat-status-update.dto';
 import { HideChatDto } from './dto/hide-chat.dto';
 import { PinPostDto, UnpinPostDto } from './dto/pin-post.dto';
+import { POST_TYPES } from './dto/post-types';
 import { log } from 'console';
 
 @Controller('post')
@@ -46,7 +47,7 @@ export class PostController {
           items: { type: 'string', format: 'binary' },
           description: 'Array of image/video files',
         },
-        type: { type: 'string', description: 'Type of post (normal or crowdfunding)' },
+        type: { type: 'string', enum: [...POST_TYPES], description: 'Type of post' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },
@@ -107,7 +108,7 @@ export class PostController {
           items: { type: 'string', format: 'binary' },
           description: 'Array of image files',
         },
-        type: { type: 'string', description: 'Type of post (normal or crowdfunding)' },
+        type: { type: 'string', enum: [...POST_TYPES], description: 'Type of post' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },

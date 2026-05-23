@@ -28,30 +28,30 @@ export class PostService {
     return normalized === 'private_circle';
   }
 
-  private buildPostVisibilityWhere(viewerUserId?: string): Prisma.PostWhereInput {
-    const publicVisibility: Prisma.PostWhereInput[] = [
-      { visibleTo: null },
-      { visibleTo: { notIn: this.privateCircleVisibilityValues } },
-    ];
-
+  private buildSubscriptionContentAccessWhere(viewerUserId?: string): Prisma.PostWhereInput {
     if (!viewerUserId) {
-      return { OR: publicVisibility };
+      return {
+        OR: [
+          { type: null },
+          { type: { not: 'subscription_content' } },
+        ],
+      };
     }
 
     return {
       OR: [
-        ...publicVisibility,
+        { type: null },
+        { type: { not: 'subscription_content' } },
+        { userId: viewerUserId },
         {
-          visibleTo: { in: this.privateCircleVisibilityValues },
-          userId: viewerUserId,
-        },
-        {
-          visibleTo: { in: this.privateCircleVisibilityValues },
-          privateCircle: {
-            members: {
+          type: 'subscription_content',
+          user: {
+            receivedPayments: {
               some: {
                 userId: viewerUserId,
-                status: 'ACTIVE',
+                forPayment: 'following',
+                status: 'succeeded',
+                periodEnd: { gt: new Date() },
               },
             },
           },
@@ -60,7 +60,53 @@ export class PostService {
     };
   }
 
-  private async ensureCanViewPost(post: { userId: string; visibleTo?: string | null; privateCircleId?: string | null }, viewerUserId?: string) {
+  private buildPostVisibilityWhere(viewerUserId?: string): Prisma.PostWhereInput {
+    const publicVisibility: Prisma.PostWhereInput[] = [
+      { visibleTo: null },
+      { visibleTo: { notIn: this.privateCircleVisibilityValues } },
+    ];
+
+    const subscriptionContentAccess = this.buildSubscriptionContentAccessWhere(viewerUserId);
+
+    if (!viewerUserId) {
+      return {
+        AND: [
+          { OR: publicVisibility },
+          subscriptionContentAccess,
+        ],
+      };
+    }
+
+    return {
+      AND: [
+        {
+          OR: [
+            ...publicVisibility,
+            {
+              visibleTo: { in: this.privateCircleVisibilityValues },
+              userId: viewerUserId,
+            },
+            {
+              visibleTo: { in: this.privateCircleVisibilityValues },
+              privateCircle: {
+                members: {
+                  some: {
+                    userId: viewerUserId,
+                    status: 'ACTIVE',
+                  },
+                },
+              },
+            },
+          ],
+        },
+        subscriptionContentAccess,
+      ],
+    };
+  }
+
+  private async ensureCanViewPost(post: { userId: string; type?: string | null; visibleTo?: string | null; privateCircleId?: string | null }, viewerUserId?: string) {
+    await this.ensureCanViewSubscriptionContent(post, viewerUserId);
+
     if (!this.isPrivateCircleVisibility(post.visibleTo)) return;
     if (viewerUserId && post.userId === viewerUserId) return;
     if (!viewerUserId || !post.privateCircleId) {
@@ -77,6 +123,25 @@ export class PostService {
     });
 
     if (!member) throw new BadRequestException('Post not found');
+  }
+
+  private async ensureCanViewSubscriptionContent(post: { userId: string; type?: string | null }, viewerUserId?: string) {
+    if (post.type !== 'subscription_content') return;
+    if (viewerUserId && post.userId === viewerUserId) return;
+    if (!viewerUserId) throw new BadRequestException('Post not found');
+
+    const activePayment = await this.prisma.payment.findFirst({
+      where: {
+        userId: viewerUserId,
+        receiverId: post.userId,
+        forPayment: 'following',
+        status: 'succeeded',
+        periodEnd: { gt: new Date() },
+      },
+      select: { id: true },
+    });
+
+    if (!activePayment) throw new BadRequestException('Post not found');
   }
 
   async createPost(
@@ -1384,6 +1449,12 @@ export class PostService {
 
     if (updateData.youtubeMusicMeta !== undefined) {
       updateFields.youtubeMusicMeta = updateData.youtubeMusicMeta === '' ? null : updateData.youtubeMusicMeta;
+    }
+
+    if (updateData.type !== undefined && updateData.type !== null && updateData.type.trim() !== '') {
+      updateFields.type = updateData.type;
+    } else if (updateData.type === '') {
+      updateFields.type = null;
     }
 
     // Only update taggedPeople if it's provided and not empty array

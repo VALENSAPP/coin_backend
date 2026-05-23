@@ -1,6 +1,7 @@
 import { IsOptional, IsString, IsArray, ArrayMaxSize } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import { POST_TYPES, PostType } from './post-types';
 
 export class EditPostDto {
   @ApiProperty({ description: 'Text content of the post', required: false })
@@ -62,6 +63,11 @@ export class EditPostDto {
   @IsOptional()
   @IsString()
   visibleTo?: string;
+
+  @ApiProperty({ description: 'Type of post', required: false, enum: POST_TYPES })
+  @IsOptional()
+  @IsString()
+  type?: PostType;
 
   @ApiProperty({ description: 'Array of image files', required: false, type: 'string', format: 'binary', isArray: true })
   @IsOptional()
