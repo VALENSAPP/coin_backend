@@ -359,6 +359,7 @@ model Story {
   media          String[]
   thumbnails     String[]             @default([])
   caption        String?
+  type           String               @default("normal")
   storyMeta      Json?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt

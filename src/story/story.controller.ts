@@ -20,6 +20,12 @@ export class StoryController {
       type: 'object',
       properties: {
         caption: { type: 'string' },
+        type: {
+          type: 'string',
+          enum: ['normal', 'subscription-content', 'pay-following'],
+          default: 'normal',
+          description: 'Story type. Defaults to normal when omitted.',
+        },
         storyMeta: { type: 'string', description: 'JSON string for story metadata (clips, audio, trims, etc.)' },
         media: {
           type: 'array',
@@ -35,11 +41,12 @@ export class StoryController {
   async uploadStory(
     @Req() req: Request,
     @Body('caption') caption: string,
+    @Body('type') type?: string,
     @Body('storyMeta') storyMeta?: string,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     const userId = (req.user as any)?.userId;
-    return this.storyService.uploadStory(userId, files, caption, storyMeta);
+    return this.storyService.uploadStory(userId, files, caption, storyMeta, type);
   }
 
   @UseGuards(AuthGuard('jwt'))

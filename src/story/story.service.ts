@@ -4,6 +4,9 @@ import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { NotificationService } from '../notification/notification.service';
 
+const STORY_TYPES = ['normal', 'subscription-content', 'pay-following'] as const;
+type StoryType = (typeof STORY_TYPES)[number];
+
 @Injectable()
 export class StoryService {
   constructor(
@@ -11,9 +14,21 @@ export class StoryService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async uploadStory(userId: string, files?: Express.Multer.File[], caption?: string, storyMeta?: string) {
+  private normalizeStoryType(type?: string): StoryType {
+    if (!type || type.trim() === '') return 'normal';
+
+    const normalizedType = type.trim().toLowerCase().replace(/\s*-\s*/g, '-');
+    if (!STORY_TYPES.includes(normalizedType as StoryType)) {
+      throw new BadRequestException('type must be one of: normal, subscription-content, pay-following');
+    }
+
+    return normalizedType as StoryType;
+  }
+
+  async uploadStory(userId: string, files?: Express.Multer.File[], caption?: string, storyMeta?: string, type?: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!files || files.length === 0) throw new BadRequestException('At least one media file is required');
+    const storyType = this.normalizeStoryType(type);
 
     const mediaFiles = files.filter(f => f.fieldname === 'media');
     const audioFiles = files.filter(f => f.fieldname.startsWith('audio_'));
@@ -89,6 +104,7 @@ export class StoryService {
         media: urls,
         thumbnails: thumbnailUrls,
         caption: caption && caption.trim() !== '' ? caption : null,
+        type: storyType,
         storyMeta: parsedStoryMeta,
       },
     });
