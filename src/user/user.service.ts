@@ -1373,11 +1373,13 @@ export class UserService {
     // Combine following and followers for mutual connections
     const mutualIds = [...new Set([...followingIds, ...followerIds])];
 
+    const excludedUserIds = [userId, ...followingIds];
+
     if (mutualIds.length === 0) {
-      // If no mutual connections, return random users excluding self
+      // If no mutual connections, return recent users excluding self and already-followed users
       const suggestedUsers = await this.prisma.user.findMany({
         where: {
-          id: { not: userId },
+          id: { notIn: excludedUserIds },
           deletedAt: null,
         },
         select: {
@@ -1400,12 +1402,8 @@ export class UserService {
     const suggestedUsers = await this.prisma.followerAndFollowing.findMany({
       where: {
         followerId: { in: mutualIds },
-        followingId: { not: userId }, // Exclude self
+        followingId: { notIn: excludedUserIds },
         status: 'ACCEPTED',
-        // Exclude users already followed by current user
-        NOT: {
-          followingId: { in: followingIds },
-        },
       },
       select: {
         following: {
@@ -1435,7 +1433,7 @@ export class UserService {
       const additionalUsers = await this.prisma.user.findMany({
         where: {
           id: {
-            notIn: [userId, ...existingIds, ...followingIds],
+            notIn: [...excludedUserIds, ...existingIds],
           },
           deletedAt: null,
         },
