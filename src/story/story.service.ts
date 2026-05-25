@@ -3,8 +3,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { NotificationService } from '../notification/notification.service';
+import { Prisma } from '@prisma/client';
 
-const STORY_TYPES = ['normal', 'subscription-content', 'pay-following'] as const;
+const STORY_TYPES = ['normal', 'subscription-content', 'private-circle'] as const;
 type StoryType = (typeof STORY_TYPES)[number];
 
 @Injectable()
@@ -17,12 +18,68 @@ export class StoryService {
   private normalizeStoryType(type?: string): StoryType {
     if (!type || type.trim() === '') return 'normal';
 
-    const normalizedType = type.trim().toLowerCase().replace(/\s*-\s*/g, '-');
+    const normalizedType = type.trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/\s*-\s*/g, '-');
+    if (normalizedType === 'pay-following') return 'subscription-content';
+
     if (!STORY_TYPES.includes(normalizedType as StoryType)) {
-      throw new BadRequestException('type must be one of: normal, subscription-content, pay-following');
+      throw new BadRequestException('type must be one of: normal, subscription-content, private-circle');
     }
 
     return normalizedType as StoryType;
+  }
+
+  private buildAccessibleStoryWhere(viewerId: string): Prisma.StoryWhereInput {
+    const now = new Date();
+
+    return {
+      OR: [
+        { userId: viewerId },
+        { type: 'normal' },
+        {
+          type: { in: ['subscription-content', 'pay-following'] },
+          user: {
+            is: {
+              receivedPayments: {
+                some: {
+                  userId: viewerId,
+                  forPayment: 'following',
+                  status: 'succeeded',
+                  periodEnd: { gt: now },
+                },
+              },
+            },
+          },
+        },
+        {
+          type: 'private-circle',
+          user: {
+            is: {
+              privateCircles: {
+                some: {
+                  isActive: true,
+                  members: {
+                    some: {
+                      userId: viewerId,
+                      status: 'ACTIVE',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private async getAccessibleStory(storyId: string, viewerId: string) {
+    return this.prisma.story.findFirst({
+      where: {
+        id: storyId,
+        deletedAt: null,
+        AND: [this.buildAccessibleStoryWhere(viewerId)],
+      },
+    });
   }
 
   async uploadStory(userId: string, files?: Express.Multer.File[], caption?: string, storyMeta?: string, type?: string) {
@@ -110,8 +167,9 @@ export class StoryService {
     });
   }
 
-  async viewUserStory(targetUserId: string, time?: string) {
+  async viewUserStory(targetUserId: string, viewerId: string, time?: string) {
     if (!targetUserId) throw new BadRequestException('User ID required');
+    if (!viewerId) throw new BadRequestException('Viewer ID required');
     const isAll = (time || '').toLowerCase() === 'all';
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const stories = await this.prisma.story.findMany({
@@ -119,6 +177,7 @@ export class StoryService {
         userId: targetUserId,
         deletedAt: null,
         ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
+        AND: [this.buildAccessibleStoryWhere(viewerId)],
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -160,6 +219,7 @@ export class StoryService {
       userId: { in: followingUserIds },
       deletedAt: null,
       ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
+      AND: [this.buildAccessibleStoryWhere(userId)],
     },
     include: {
       user: true, // optional: to return story owner details
@@ -172,11 +232,8 @@ export class StoryService {
     if (!storyId) throw new BadRequestException('Story ID required');
     if (!viewerId) throw new BadRequestException('User ID required');
 
-    const story = await this.prisma.story.findUnique({
-      where: { id: storyId },
-      select: { id: true, userId: true, deletedAt: true },
-    });
-    if (!story || story.deletedAt) throw new BadRequestException('Story not found');
+    const story = await this.getAccessibleStory(storyId, viewerId);
+    if (!story) throw new BadRequestException('Story not found');
 
     if (story.userId === viewerId) {
       return { message: 'Own story view ignored', viewed: false };
@@ -216,10 +273,8 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
    if (!storyId) throw new BadRequestException('Story ID required');
     if (!userId) throw new BadRequestException('User ID required');
     if (!comment || comment.trim() === '') throw new BadRequestException('Comment required');
-    // Check if story exists
-    const story = await this.prisma.story.findUnique({
-      where: { id: storyId, deletedAt: null },
-    });
+    // Check if story exists and is visible to this user
+    const story = await this.getAccessibleStory(storyId, userId);
     if (!story) throw new BadRequestException('Story not found');
 
     // Create conversation record for story comment
@@ -242,13 +297,9 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
     if (!storyId) throw new BadRequestException('Story ID required');
     if (!userId) throw new BadRequestException('User ID required');
 
-    // Check if post exists
-    const story = await this.prisma.story.findUnique({
-      where: { 
-        id: storyId
-      },
-    });
-    
+    // Check if story exists and is visible to this user
+    const story = await this.getAccessibleStory(storyId, userId);
+
     if (!story) {
       throw new BadRequestException('Story not found');
     }
@@ -391,21 +442,46 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
     return { message: 'Story removed from highlight' };
   }
 
-  async listHighlights(userId: string) {
+  async listHighlights(userId: string, viewerId?: string) {
     if (!userId) throw new BadRequestException('User ID required');
+    const accessibleStoryWhere = viewerId ? this.buildAccessibleStoryWhere(viewerId) : { type: 'normal' };
     return this.prisma.storyHighlight.findMany({
       where: { userId },
-      include: { _count: { select: { items: true } } },
+      include: {
+        _count: {
+          select: {
+            items: {
+              where: {
+                story: {
+                  is: {
+                    deletedAt: null,
+                    AND: [accessibleStoryWhere],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getHighlight(highlightId?: string) {
+  async getHighlight(highlightId?: string, viewerId?: string) {
     if (!highlightId) throw new BadRequestException('Highlight ID required');
+    const accessibleStoryWhere = viewerId ? this.buildAccessibleStoryWhere(viewerId) : { type: 'normal' };
     const highlight = await this.prisma.storyHighlight.findUnique({
       where: { id: highlightId },
       include: {
         items: {
+          where: {
+            story: {
+              is: {
+                deletedAt: null,
+                AND: [accessibleStoryWhere],
+              },
+            },
+          },
           include: { story: true },
           orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
         },

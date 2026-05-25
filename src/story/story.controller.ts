@@ -22,7 +22,7 @@ export class StoryController {
         caption: { type: 'string' },
         type: {
           type: 'string',
-          enum: ['normal', 'subscription-content', 'pay-following'],
+          enum: ['normal', 'subscription-content', 'private-circle'],
           default: 'normal',
           description: 'Story type. Defaults to normal when omitted.',
         },
@@ -55,8 +55,9 @@ export class StoryController {
   @ApiQuery({ name: 'userId', type: 'string', required: true })
   @ApiQuery({ name: 'time', type: 'string', required: false, description: "Use 'all' to fetch all stories; otherwise last 24 hours" })
   @ApiOperation({ summary: 'View stories uploaded by a user' })
-  async viewUserStory(@Query('userId') userId: string, @Query('time') time?: string) {
-    return this.storyService.viewUserStory(userId, time);
+  async viewUserStory(@Req() req: Request, @Query('userId') userId: string, @Query('time') time?: string) {
+    const viewerId = (req.user as any)?.userId;
+    return this.storyService.viewUserStory(userId, viewerId, time);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -245,7 +246,7 @@ export class StoryController {
       @ApiOperation({ summary: 'List highlights for authenticated user' })
       async listHighlights(@Req() req: Request) {
         const userId = (req.user as any).userId;
-        return this.storyService.listHighlights(userId);
+        return this.storyService.listHighlights(userId, userId);
       }
 
       @UseGuards(AuthGuard('jwt'))
@@ -253,8 +254,9 @@ export class StoryController {
       @Get('highlight/by-user')
       @ApiQuery({ name: 'userId', type: 'string', required: true })
       @ApiOperation({ summary: 'List highlights by userId' })
-      async listHighlightsByUser(@Query('userId') userId: string) {
-        return this.storyService.listHighlights(userId);
+      async listHighlightsByUser(@Req() req: Request, @Query('userId') userId: string) {
+        const viewerId = (req.user as any).userId;
+        return this.storyService.listHighlights(userId, viewerId);
       }
 
       @UseGuards(AuthGuard('jwt'))
@@ -262,8 +264,9 @@ export class StoryController {
       @Get('highlight/get')
       @ApiQuery({ name: 'highlightId', type: 'string', required: true })
       @ApiOperation({ summary: 'Get a highlight with stories' })
-      async getHighlight(@Query('highlightId') highlightId: string) {
-        return this.storyService.getHighlight(highlightId);
+      async getHighlight(@Req() req: Request, @Query('highlightId') highlightId: string) {
+        const viewerId = (req.user as any).userId;
+        return this.storyService.getHighlight(highlightId, viewerId);
       }
 
       private normalizeStoryIds(storyIds?: string[] | string): string[] | undefined {
