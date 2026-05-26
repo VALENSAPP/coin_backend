@@ -17,7 +17,7 @@ import { BattleModule } from './battle/battle.module';
 import { PrivateCircleModule } from './private-circle/private-circle.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-
+import { DeepLinkController } from './deep-link/deep-link.controller';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -37,7 +37,7 @@ import { AppService } from './app.service';
     BattleModule,
     PrivateCircleModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, DeepLinkController],
   providers: [AppService],
 })
 export class AppModule { }
