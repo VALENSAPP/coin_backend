@@ -38,6 +38,15 @@ export class PrivateCircleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('members')
+  @ApiOperation({ summary: 'Get private circle members for the authenticated user' })
+  async getMembers(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.privateCircleService.getMembers(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Post('members')
   @ApiOperation({ summary: 'Add multiple users to the authenticated user private circle' })
   @ApiBody({ type: AddPrivateCircleMembersDto })
