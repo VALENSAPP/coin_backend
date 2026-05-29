@@ -1235,6 +1235,7 @@ export class PostService {
   async getAllReel(viewerUserId?: string) {
     const posts = await this.prisma.post.findMany({
       where: {
+        isDelete: 'no',
         deletedAt: null,
         type: 'reel',
         AND: [this.buildPostVisibilityWhere(viewerUserId)],
@@ -1350,7 +1351,8 @@ export class PostService {
     if (!userId) throw new BadRequestException('User ID required');
 
     const post = await this.prisma.post.findUnique({
-      where: { id: postId, deletedAt: null },
+      where: { id: postId, isDelete: 'no', deletedAt: null },
+
     });
     if (!post) throw new BadRequestException('Post not found');
     await this.ensureCanViewPost(post, userId);
