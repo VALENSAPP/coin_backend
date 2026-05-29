@@ -47,6 +47,15 @@ export class PrivateCircleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('users/:userId/members')
+  @ApiOperation({ summary: "Get another user's private circle members" })
+  @ApiParam({ name: 'userId', type: 'string', description: 'Private circle owner user ID' })
+  async getUserMembers(@Param('userId') userId: string) {
+    return this.privateCircleService.getUserMembers(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Post('members')
   @ApiOperation({ summary: 'Add multiple users to the authenticated user private circle' })
   @ApiBody({ type: AddPrivateCircleMembersDto })

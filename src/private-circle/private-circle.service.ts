@@ -170,6 +170,61 @@ export class PrivateCircleService {
     };
   }
 
+  async getUserMembers(ownerId: string) {
+    if (!ownerId) throw new BadRequestException('User ID required');
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { id: true },
+    });
+    if (!owner) throw new BadRequestException('User not found');
+
+    const circle = await this.prisma.privateCircle.findUnique({
+      where: { ownerId },
+    });
+
+    if (!circle) {
+      return {
+        privateCircleId: null,
+        ownerId,
+        usedSlots: 0,
+        availableSlots: 0,
+        members: [],
+      };
+    }
+
+    const members = await this.prisma.privateCircleMember.findMany({
+      where: { privateCircleId: circle.id, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+            profile: true,
+          },
+        },
+      },
+    });
+
+    const usedSlots = members.length;
+    return {
+      privateCircleId: circle.id,
+      ownerId: circle.ownerId,
+      usedSlots,
+      availableSlots: Math.max(circle.maxSlots - usedSlots, 0),
+      members: members.map((member) => ({
+        id: member.id,
+        userId: member.userId,
+        status: member.status,
+        addedAt: member.createdAt,
+        user: member.user,
+      })),
+    };
+  }
+
   async addMembers(ownerId: string, userIds: string[]) {
     if (!ownerId) throw new BadRequestException('User ID required');
     const uniqueUserIds = Array.from(
