@@ -13,7 +13,7 @@ export class DeepLinkController {
           <meta name="viewport" content="width=device-width, initial-scale=1">
         </head>
         <body>
-          <p>Opening Valens...</p>
+         
 
           <script>
             // window.location.href = "com.valens.app://${route}/${id}";
