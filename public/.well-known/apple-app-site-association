@@ -3,10 +3,16 @@
     "apps": [],
     "details": [
       {
-        "appID": "6LKPR7J437.com.valens",
+        "appID": "6LKPR7J437.com.valens.app",
         "paths": [
+          "/u/*",
+          "/profile/*",
+          "/share/*",
           "/callback",
-          "/callback/*"
+          "/callback/*",
+          "/postshare/*",
+          "/reelshare/*",
+          "/storyshare/*"
         ]
       }
     ]
