@@ -80,12 +80,14 @@ export class BillingService {
     return session;
   }
 
-  /** Platform fee: Valens keeps 5%, rest goes to creator's Stripe Connect account (no holding). */
+  /** Default platform fee: Valens keeps 5%, rest goes to creator's Stripe Connect account (no holding). */
   private readonly PLATFORM_FEE_PERCENT = 0.05;
+  /** Pay-following platform fee: Valens keeps 20%, rest goes to creator's Stripe Connect account. */
+  private readonly PAY_FOLLOWING_PLATFORM_FEE_PERCENT = 0.20;
 
   private getPayFollowingAmountSplit(amountCents: number) {
     const totalAmount = Math.round(amountCents / 100);
-    const platformFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+    const platformFeeCents = Math.round(amountCents * this.PAY_FOLLOWING_PLATFORM_FEE_PERCENT);
     const receiverAmountCents = Math.max(0, amountCents - platformFeeCents);
     const platformFee = Math.round(platformFeeCents / 100);
     const receiverAmount = Math.max(0, totalAmount - platformFee);
