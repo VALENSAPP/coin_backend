@@ -16,7 +16,7 @@ export class DeepLinkController {
          
 
           <script>
-            // window.location.href = "com.valens.app://${route}/${id}";
+            window.location.href = "com.valens.app://${route}/${id}";
 
             setTimeout(function () {
               window.location.href = "${APP_STORE_URL}";
