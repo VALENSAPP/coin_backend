@@ -4,8 +4,8 @@ import { Response } from 'express';
 const APP_STORE_URL = process.env.APP_STORE_URL;
 @Controller()
 export class DeepLinkController {
-    private fallbackHtml(route: string, id: string) {
-        return `
+  private fallbackHtml(route: string, id: string) {
+    return `
       <!DOCTYPE html>
       <html>
         <head>
@@ -17,7 +17,7 @@ export class DeepLinkController {
           <p>Opening Valens...</p>
 
           <script>
-            window.location.href = "com.valens.app://${route}/${id}";
+            // window.location.href = "com.valens.app://${route}/${id}";
 
             setTimeout(function () {
               window.location.href = "${APP_STORE_URL}";
@@ -26,35 +26,35 @@ export class DeepLinkController {
         </body>
       </html>
     `;
-    }
+  }
 
-    @Get('profile/:id')
-    profile(@Param('id') id: string, @Res() res: Response) {
-        return res.send(this.fallbackHtml('profile', id));
-    }
+  @Get('profile/:id')
+  profile(@Param('id') id: string, @Res() res: Response) {
+    return res.send(this.fallbackHtml('profile', id));
+  }
 
-    @Get('u/:id')
-    user(@Param('id') id: string, @Res() res: Response) {
-        return res.send(this.fallbackHtml('u', id));
-    }
+  @Get('u/:id')
+  user(@Param('id') id: string, @Res() res: Response) {
+    return res.send(this.fallbackHtml('u', id));
+  }
 
-    @Get('share/:id')
-    share(@Param('id') id: string, @Res() res: Response) {
-        return res.send(this.fallbackHtml('share', id));
-    }
+  @Get('share/:id')
+  share(@Param('id') id: string, @Res() res: Response) {
+    return res.send(this.fallbackHtml('share', id));
+  }
 
-    @Get('postshare/:id')
-    postshare(@Param('id') id: string, @Res() res: Response) {
-        return res.send(this.fallbackHtml('postshare', id));
-    }
+  @Get('postshare/:id')
+  postshare(@Param('id') id: string, @Res() res: Response) {
+    return res.send(this.fallbackHtml('postshare', id));
+  }
 
-    @Get('reelshare/:id')
-    reelshare(@Param('id') id: string, @Res() res: Response) {
-        return res.send(this.fallbackHtml('reelshare', id));
-    }
+  @Get('reelshare/:id')
+  reelshare(@Param('id') id: string, @Res() res: Response) {
+    return res.send(this.fallbackHtml('reelshare', id));
+  }
 
-    @Get('storyshare/:id')
-    storyshare(@Param('id') id: string, @Res() res: Response) {
-        return res.send(this.fallbackHtml('storyshare', id));
-    }
+  @Get('storyshare/:id')
+  storyshare(@Param('id') id: string, @Res() res: Response) {
+    return res.send(this.fallbackHtml('storyshare', id));
+  }
 }
