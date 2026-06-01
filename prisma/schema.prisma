@@ -404,6 +404,8 @@ model Payment {
   userId                String
   receiverId            String?
   amount                Int
+  platformFee           Int?
+  totalAmount           Int?
   currency              String
   status                String
   forPayment            String    @default("subscription") // "subscription" or "following"

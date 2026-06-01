@@ -83,6 +83,22 @@ export class BillingService {
   /** Platform fee: Valens keeps 5%, rest goes to creator's Stripe Connect account (no holding). */
   private readonly PLATFORM_FEE_PERCENT = 0.05;
 
+  private getPayFollowingAmountSplit(amountCents: number) {
+    const totalAmount = Math.round(amountCents / 100);
+    const platformFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+    const receiverAmountCents = Math.max(0, amountCents - platformFeeCents);
+    const platformFee = Math.round(platformFeeCents / 100);
+    const receiverAmount = Math.max(0, totalAmount - platformFee);
+
+    return {
+      totalAmount,
+      platformFee,
+      receiverAmount,
+      platformFeeCents,
+      receiverAmountCents,
+    };
+  }
+
   /** Check if user has completed Stripe Connect onboarding and can receive payments. */
   async getOnboardingStatus(userId: string): Promise<{
     canReceivePayments: boolean;
@@ -142,7 +158,13 @@ export class BillingService {
       throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
     }
     const amountCents = Math.round(amount * 100);
-    const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+    const {
+      platformFeeCents: applicationFeeCents,
+      receiverAmountCents,
+      platformFee,
+      receiverAmount,
+      totalAmount,
+    } = this.getPayFollowingAmountSplit(amountCents);
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
@@ -168,6 +190,10 @@ export class BillingService {
           contentUserId,
           type: 'following',
           amount: amount.toString(),
+          totalAmount: totalAmount.toString(),
+          platformFee: platformFee.toString(),
+          receiverAmount: receiverAmount.toString(),
+          receiverAmountCents: receiverAmountCents.toString(),
         },
       },
       metadata: {
@@ -175,6 +201,10 @@ export class BillingService {
         contentUserId,
         type: 'following',
         amount: amount.toString(),
+        totalAmount: totalAmount.toString(),
+        platformFee: platformFee.toString(),
+        receiverAmount: receiverAmount.toString(),
+        receiverAmountCents: receiverAmountCents.toString(),
       },
     });
     return session;
@@ -334,7 +364,11 @@ export class BillingService {
       return;
     }
     const amountCents = paymentIntent.amount ?? 0;
-    const amountInDollars = Math.round(amountCents / 100);
+    const {
+      totalAmount,
+      platformFee,
+      receiverAmount,
+    } = this.getPayFollowingAmountSplit(amountCents);
     const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
     const contentUserId = paymentIntent.metadata?.contentUserId;
     const periodStart = new Date();
@@ -344,7 +378,9 @@ export class BillingService {
       data: {
         user: { connect: { id: user.id } },
         ...(contentUserId && { receiver: { connect: { id: contentUserId } } }),
-        amount: amountInDollars,
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
         currency,
         status: 'succeeded',
         forPayment: 'following',
@@ -354,7 +390,7 @@ export class BillingService {
       },
     });
     // eslint-disable-next-line no-console
-    console.log('[Billing] Payment created (pay-following success): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amount(USD)=', amountInDollars, 'status=succeeded');
+    console.log('[Billing] Payment created (pay-following success): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=succeeded');
   }
 
   async handleOneTimePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
@@ -383,7 +419,11 @@ export class BillingService {
       return;
     }
     const amountCents = paymentIntent.amount ?? 0;
-    const amountInDollars = Math.round(amountCents / 100);
+    const {
+      totalAmount,
+      platformFee,
+      receiverAmount,
+    } = this.getPayFollowingAmountSplit(amountCents);
     const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
     const contentUserId = paymentIntent.metadata?.contentUserId;
     const periodStart = new Date();
@@ -393,7 +433,9 @@ export class BillingService {
       data: {
         user: { connect: { id: user.id } },
         ...(contentUserId && { receiver: { connect: { id: contentUserId } } }),
-        amount: amountInDollars,
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
         currency,
         status: 'failed',
         forPayment: 'following',
@@ -403,7 +445,7 @@ export class BillingService {
       },
     });
     // eslint-disable-next-line no-console
-    console.log('[Billing] Payment created (pay-following failed): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amount(USD)=', amountInDollars, 'status=failed');
+    console.log('[Billing] Payment created (pay-following failed): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=failed');
   }
 
   async getLatestTransactions(userId: string, limit: number = 50) {
