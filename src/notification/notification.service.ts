@@ -51,7 +51,7 @@ export class NotificationService {
     rangeLabel: string;
   } | null {
     const upgrades = [
-      { threshold: 12, previousTier: 'White', newTier: 'Black', newDragonfly: 'Black Dragonfly', rangeLabel: '1K - 10K' },
+      { threshold: 1000, previousTier: 'White', newTier: 'Black', newDragonfly: 'Black Dragonfly', rangeLabel: '1K - 10K' },
       { threshold: 10000, previousTier: 'Black', newTier: 'Silver', newDragonfly: 'Silver Dragonfly', rangeLabel: '10K - 100K' },
       { threshold: 100000, previousTier: 'Silver', newTier: 'Gold', newDragonfly: 'Gold Dragonfly', rangeLabel: '100K - 1M' },
       { threshold: 1000000, previousTier: 'Gold', newTier: 'Purple', newDragonfly: 'Purple Dragonfly', rangeLabel: '1M - 10M' },
