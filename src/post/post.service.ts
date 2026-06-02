@@ -338,13 +338,20 @@ export class PostService {
 
         const authorName = author?.displayName || author?.userName || 'Someone';
         const validTaggedUserIds = taggedUsers.map((u) => u.id);
+        const isPrivateCirclePost =
+          (createdPost.type || '').trim().toLowerCase() === 'private' &&
+          this.isPrivateCircleVisibility(createdPost.visibleTo);
+        const tagNotificationTitle = isPrivateCirclePost ? 'Tagged in a private post' : 'Tagged in a post';
+        const tagNotificationBody = isPrivateCirclePost
+          ? `${authorName} tagged you in a private post.`
+          : `${authorName} tagged you in a post.`;
 
         await Promise.all(
           validTaggedUserIds.map((taggedUserId) =>
             this.notificationService.sendNotificationToUser(
               taggedUserId,
-              'Tagged in a post',
-              `${authorName} tagged you in a post.`,
+              tagNotificationTitle,
+              tagNotificationBody,
               { type: 'post_tag', postId: createdPost.id, taggerId: userId },
             ),
           ),
