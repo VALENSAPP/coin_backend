@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Valens Account Deletion</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background: #0f172a;
+            color: #fff;
+            min-height: 100vh;
+            padding: 50px 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: auto;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #7c3aed, #2563eb);
+            padding: 60px;
+            border-radius: 30px;
+            text-align: center;
+            box-shadow: 0 25px 60px rgba(37, 99, 235, .3);
+        }
+
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .hero p {
+            max-width: 700px;
+            margin: auto;
+            font-size: 18px;
+            opacity: .9;
+            line-height: 1.8;
+        }
+
+        .content {
+            margin-top: -50px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .card {
+            background: #fff;
+            color: #1e293b;
+            border-radius: 25px;
+            padding: 40px;
+            margin-bottom: 25px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, .15);
+        }
+
+        .section-title {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 30px;
+            color: #111827;
+        }
+
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #dbeafe;
+        }
+
+        .step {
+            position: relative;
+            margin-bottom: 25px;
+            padding-left: 25px;
+        }
+
+        .step:last-child {
+            margin-bottom: 0;
+        }
+
+        .step::before {
+            content: '';
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            position: absolute;
+            left: -31px;
+            top: 5px;
+            border: 4px solid #dbeafe;
+        }
+
+        .step h3 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .step p {
+            color: #64748b;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .info-box {
+            background: #f8fafc;
+            padding: 25px;
+            border-radius: 18px;
+            border: 1px solid #e2e8f0;
+            transition: .3s;
+        }
+
+        .info-box:hover {
+            transform: translateY(-5px);
+        }
+
+        .info-box h4 {
+            margin-bottom: 10px;
+            color: #2563eb;
+        }
+
+        .retention {
+            background: linear-gradient(135deg, #eff6ff, #f8fafc);
+            border-left: 6px solid #2563eb;
+            padding: 30px;
+            border-radius: 20px;
+        }
+
+        .retention ul {
+            margin-top: 15px;
+            padding-left: 20px;
+        }
+
+        .retention li {
+            margin-bottom: 10px;
+        }
+
+        .contact {
+            background: linear-gradient(135deg, #111827, #1e293b);
+            color: #fff;
+            text-align: center;
+            padding: 40px;
+            border-radius: 25px;
+        }
+
+        .contact h2 {
+            margin-bottom: 15px;
+        }
+
+        .contact p {
+            color: #cbd5e1;
+            line-height: 1.8;
+        }
+
+        .footer {
+            text-align: center;
+            color: #94a3b8;
+            margin-top: 25px;
+        }
+
+        @media(max-width:768px) {
+
+            .hero {
+                padding: 40px 25px;
+            }
+
+            .hero h1 {
+                font-size: 34px;
+            }
+
+            .card {
+                padding: 25px;
+            }
+
+            .section-title {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <div class="hero">
+            <h1>Valens Account Deletion</h1>
+            <p>
+                Manage your privacy with confidence. You can permanently delete your
+                Valens account and associated personal information directly from the app.
+            </p>
+            <p></p>
+        </div>
+
+        <div class="content">
+
+            <div class="card">
+                <h2 class="section-title">Request Account Deletion</h2>
+                <div class="timeline">
+
+                    <div class="step">
+                        <h3>Sign In</h3>
+                        <p>Open the Valens app and log in to your account.</p>
+                    </div>
+
+                    <div class="step">
+                        <h3>Open Wallet</h3>
+                        <p>Navigate to the Wallet tab and open the menu drawer.</p>
+                    </div>
+
+                    <div class="step">
+                        <h3>Settings</h3>
+                        <p>Select the Settings option.</p>
+                    </div>
+
+                    <div class="step">
+                        <h3>Privacy Settings</h3>
+                        <p>Open the Privacy Settings section.</p>
+                    </div>
+
+                    <div class="step">
+                        <h3>Delete Account</h3>
+                        <p>Tap the Delete Account option.</p>
+                    </div>
+
+                    <div class="step">
+                        <h3>Confirm</h3>
+                        <p>Confirm your request to permanently delete your account.</p>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="section-title">Data That Will Be Deleted</h2>
+
+                <div class="grid">
+                    <div class="info-box">
+                        <h4>Profile Information</h4>
+                        <p>Name, profile photo, bio and related details.</p>
+                    </div>
+
+                    <div class="info-box">
+                        <h4>Account Details</h4>
+                        <p>Login credentials and account information.</p>
+                    </div>
+
+                    <div class="info-box">
+                        <h4>User Content</h4>
+                        <p>Posts, uploads and user-generated content.</p>
+                    </div>
+
+                    <div class="info-box">
+                        <h4>Preferences</h4>
+                        <p>Application settings and saved preferences.</p>
+                    </div>
+
+                    <div class="info-box">
+                        <h4>Personal Data</h4>
+                        <p>Other information associated with your account.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="section-title">Data Retention Policy</h2>
+
+                <div class="retention">
+                    <p>
+                        Certain information may be retained temporarily when required for:
+                    </p>
+
+                    <ul>
+                        <li>Legal and regulatory compliance</li>
+                        <li>Dispute resolution</li>
+                        <li>Enforcement of agreements and policies</li>
+                        <li>Fraud prevention and security purposes</li>
+                    </ul>
+
+                    <p style="margin-top:15px;">
+                        Any retained information is securely protected and permanently
+                        removed once it is no longer required.
+                    </p>
+                </div>
+            </div>
+
+            <div class="contact">
+                <h2>Need Help?</h2>
+                <p>
+                    If you have questions about account deletion or privacy,
+                    please contact the Valens Support Team.
+                </p>
+            </div>
+
+        </div>
+
+        <div class="footer">
+            © 2026 Valens. All Rights Reserved.
+        </div>
+
+    </div>
+
+</body>
+
+</html>
