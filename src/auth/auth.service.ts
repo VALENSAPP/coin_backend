@@ -399,6 +399,7 @@ export class AuthService {
           const meta = this.buildSessionMeta(req, loginDto);
           const tokens = await this.issueTokensForUser(newUser, meta);
           await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
+          await this.userService.sendWelcomeOnboardingNotification(newUser.id);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -499,6 +500,7 @@ export class AuthService {
 
           const meta = this.buildSessionMeta(req, loginDto);
           const tokens = await this.issueTokensForUser(newUser, meta);
+          await this.userService.sendWelcomeOnboardingNotification(newUser.id);
 
           // Save login history
           await this.prisma.loginHistory.create({
@@ -573,6 +575,7 @@ export class AuthService {
           },
         });
         existingUser = newUser;
+        await this.userService.sendWelcomeOnboardingNotification(newUser.id);
       }
 
       const meta = this.buildSessionMeta(req, loginDto);

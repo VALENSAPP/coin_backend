@@ -196,6 +196,14 @@ export class UserService {
     });
   }
 
+  async sendWelcomeOnboardingNotification(userId: string): Promise<void> {
+    try {
+      await this.notificationService.sendWelcomeOnboarding(userId);
+    } catch (notificationError) {
+      console.error('Failed to send welcome onboarding notification:', notificationError);
+    }
+  }
+
   private async generateUniqueReferCode(): Promise<string> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const code = randomBytes(4).toString('hex').toUpperCase();
@@ -387,6 +395,7 @@ export class UserService {
       const meta = this.buildSessionMetaFromRegister(data);
       const tokens = await this.issueTokensForUser(user, meta);
       await this.upsertDeviceAccount(user.id, meta?.deviceId);
+      await this.sendWelcomeOnboardingNotification(user.id);
       return {
         ...tokens,
         user,
@@ -563,6 +572,7 @@ export class UserService {
     const meta = this.buildSessionMetaFromRegister(data);
     const tokens = await this.issueTokensForUser(user, meta);
     await this.upsertDeviceAccount(user.id, meta?.deviceId);
+    await this.sendWelcomeOnboardingNotification(user.id);
     return {
       ...tokens,
       user,
@@ -1615,6 +1625,7 @@ export class UserService {
 
         const tokens = await this.issueTokensForUser(newUser, meta);
         await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
+        await this.sendWelcomeOnboardingNotification(newUser.id);
         return {
           ...tokens,
           ...newUser,
@@ -1710,6 +1721,7 @@ export class UserService {
 
         const tokens = await this.issueTokensForUser(newUser, meta);
         await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
+        await this.sendWelcomeOnboardingNotification(newUser.id);
         return {
           ...tokens,
           ...newUser,
@@ -1789,6 +1801,7 @@ export class UserService {
           },
         });
         existingUser = newUser;
+        await this.sendWelcomeOnboardingNotification(newUser.id);
       }
 
       const tokens = await this.issueTokensForUser(existingUser, meta);

@@ -584,6 +584,25 @@ export class NotificationService {
     );
   }
 
+  async sendWelcomeOnboarding(userId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      '\uD83D\uDE80 Welcome to Valens!',
+      'Your profile is live. Start posting, join Battles, and grow your following today!',
+      {
+        type: 'welcome_onboarding',
+        userId,
+        notificationCategory: 'WELCOME_ONBOARDING',
+        deepLink: 'valens://home',
+        expandedTitle: 'welcome_onboarding',
+        expandedDisplayTitle: 'WELCOME TO VALENS',
+        expandedBody: 'Your profile is live. Start posting, join Battles, and grow your following today!',
+        primaryAction: 'START_EXPLORING',
+        secondaryAction: 'CREATE_POST',
+      },
+    );
+  }
+
   async sendDropTrendingIfNeeded(postId: string, actorId: string): Promise<void> {
     const milestones = [1, 25, 50, 100, 250, 500, 1000];
 
