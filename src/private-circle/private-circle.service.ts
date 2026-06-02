@@ -361,6 +361,12 @@ export class PrivateCircleService {
       data: { status: 'REMOVED' },
     });
 
+    try {
+      await this.notificationService.sendPrivateCircleAccessRemoved(memberUserId, ownerId, circle.id);
+    } catch (notificationError) {
+      console.error('Failed to send private circle access removed notification:', notificationError);
+    }
+
     const activeCount = await this.prisma.privateCircleMember.count({
       where: { privateCircleId: circle.id, status: 'ACTIVE' },
     });

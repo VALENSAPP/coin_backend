@@ -551,6 +551,39 @@ export class NotificationService {
     );
   }
 
+  async sendPrivateCircleAccessRemoved(memberUserId: string, ownerId: string, privateCircleId: string): Promise<void> {
+    const owner = await this.prisma.user.findUnique({
+      where: { id: ownerId },
+      select: { id: true, userName: true, displayName: true, image: true },
+    });
+
+    if (!owner || memberUserId === ownerId) return;
+
+    const ownerHandle = this.toHandle(owner.userName || owner.displayName);
+
+    return this.sendNotificationToUser(
+      memberUserId,
+      '\uD83D\uDD13 Private Circle access removed.',
+      `You have been removed from ${ownerHandle}'s Private Circle. Exclusive content is no longer accessible.`,
+      {
+        type: 'private_circle_access_removed',
+        privateCircleId,
+        ownerId,
+        ownerUserName: ownerHandle,
+        ownerDisplayName: owner.displayName || '',
+        ownerImage: owner.image || '',
+        notificationCategory: 'PRIVATE_CIRCLE_ACCESS_REMOVED',
+        deepLink: `valens://profile/${ownerId}`,
+        expandedTitle: 'private_circle_access_removed',
+        expandedDisplayTitle: 'CIRCLE ACCESS REMOVED',
+        expandedBody: `You have been removed from ${ownerHandle}'s Private Circle`,
+        accessMessage: 'Exclusive posts from this Circle are no longer visible.',
+        publicMessage: 'You can still follow public content.',
+        primaryAction: 'VIEW_PROFILE',
+      },
+    );
+  }
+
   async sendDropTrendingIfNeeded(postId: string, actorId: string): Promise<void> {
     const milestones = [1, 25, 50, 100, 250, 500, 1000];
 
