@@ -320,6 +320,14 @@ export class PostService {
         }
       }
 
+      if (this.isPrivateCircleVisibility(createdPost.visibleTo) && createdPost.privateCircleId) {
+        try {
+          await this.notificationService.sendPrivateCircleExclusivePostPublished(createdPost.id);
+        } catch (notificationError) {
+          console.error('Failed to send private circle exclusive post notification:', notificationError);
+        }
+      }
+
       const taggedIds = Array.from(
         new Set((processedData.taggedPeople || []).map((id) => String(id).trim()).filter(Boolean)),
       ).filter((id) => id !== userId);

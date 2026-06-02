@@ -795,6 +795,84 @@ export class NotificationService {
     );
   }
 
+  async sendPrivateCircleExclusivePostPublished(postId: string): Promise<void> {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId, deletedAt: null },
+      select: {
+        id: true,
+        userId: true,
+        text: true,
+        caption: true,
+        images: true,
+        privateCircleId: true,
+        visibleTo: true,
+        user: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!post || !post.privateCircleId || post.visibleTo !== 'PRIVATE_CIRCLE') return;
+
+    const members = await this.prisma.privateCircleMember.findMany({
+      where: {
+        privateCircleId: post.privateCircleId,
+        status: 'ACTIVE',
+        userId: { not: post.userId },
+      },
+      select: { userId: true },
+    });
+    const memberIds = members.map((member) => member.userId);
+
+    if (memberIds.length === 0) return;
+
+    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+    const postText = this.truncateText(post.caption || post.text || 'Exclusive content', 140);
+    const mediaUrls = post.images || [];
+    const videoCount = mediaUrls.filter((url) => /\.(mp4|mov|m4v|webm|avi|mkv)(\?|$)/i.test(url)).length;
+    const pdfCount = mediaUrls.filter((url) => /\.pdf(\?|$)/i.test(url)).length;
+    const photoCount = Math.max(mediaUrls.length - videoCount - pdfCount, 0);
+    const mediaSummary = [
+      videoCount ? `${videoCount} ${videoCount === 1 ? 'Video' : 'Videos'}` : '',
+      photoCount ? `${photoCount} ${photoCount === 1 ? 'Photo' : 'Photos'}` : '',
+      pdfCount ? `${pdfCount} PDF ${pdfCount === 1 ? 'Guide' : 'Guides'}` : '',
+    ].filter(Boolean).join(' | ');
+
+    return this.sendNotificationToMultipleUsers(
+      memberIds,
+      '\uD83D\uDD10 New exclusive post in your Circle!',
+      `${creatorHandle} just posted exclusive content for your Private Circle. Only you can see this.`,
+      {
+        type: 'private_circle_exclusive_post',
+        postId,
+        privateCircleId: post.privateCircleId,
+        creatorId: post.userId,
+        creatorUserName: creatorHandle,
+        creatorDisplayName: post.user?.displayName || '',
+        creatorImage: post.user?.image || '',
+        notificationCategory: 'PRIVATE_CIRCLE_EXCLUSIVE_POST',
+        deepLink: `valens://post/${postId}`,
+        expandedTitle: 'private_circle_exclusive_post',
+        expandedDisplayTitle: 'EXCLUSIVE CIRCLE POST',
+        expandedSubtitle: 'Only visible to Circle members',
+        expandedBody: `${creatorHandle} posted exclusive content.`,
+        postPreview: postText,
+        mediaSummary,
+        videoCount: String(videoCount),
+        photoCount: String(photoCount),
+        pdfCount: String(pdfCount),
+        postedTo: 'Inner Circle — Exclusive Drops',
+        membersText: 'Private Circle members only',
+        primaryAction: 'VIEW_EXCLUSIVE_POST',
+      },
+    );
+  }
+
   async sendMissionGoalMilestoneIfNeeded(postId: string): Promise<void> {
     const milestones = [25, 50, 75];
 
