@@ -472,7 +472,9 @@ model DonationData {
   userId                  String
   vendorId                String? // User receiving the donation
   postId                  String? // Post for which donation is made
-  amount                  Float // Donation amount in USD
+  amount                  Float // Receiver amount in USD after platform fee
+  totalAmount             Float? // Original donation amount in USD before platform fee
+  platformFees            Float? // Platform fee amount in USD
   currency                String    @default("USD")
   status                  String    @default("pending") // pending, completed, failed
   isReadByOwner           Boolean   @default(false)

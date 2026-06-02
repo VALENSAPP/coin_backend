@@ -280,10 +280,22 @@ export class DonationResponseDto {
   id: string;
 
   @ApiProperty({
-    description: 'Donation amount',
+    description: 'Amount received by the vendor after platform fee',
     example: 10.00
   })
   amount: number;
+
+  @ApiProperty({
+    description: 'Original donation amount paid by the donor before platform fee',
+    example: 10.00
+  })
+  totalAmount?: number;
+
+  @ApiProperty({
+    description: 'Platform fee deducted from the donation',
+    example: 0.50
+  })
+  platformFees?: number;
 
   @ApiProperty({
     description: 'Payment status',

@@ -17,6 +17,10 @@ export class TokenPurchaseService {
   /** Platform fee for mission donation: 5% to platform, 95% to vendor (Stripe Connect). */
   private readonly PLATFORM_FEE_PERCENT = 0.05;
 
+  private roundCurrency(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
@@ -589,17 +593,21 @@ export class TokenPurchaseService {
   async getPostDonationTotal(postId: string): Promise<{ totalDonation: number }> {
     try {
       // Aggregate the total donation amount for the post
-      const result = await this.prisma.donationData.aggregate({
-        _sum: {
-          amount: true,
-        },
+      const donations = await this.prisma.donationData.findMany({
         where: {
           postId,
           status: 'completed', // Only count completed donations
         },
+        select: {
+          amount: true,
+          totalAmount: true,
+        },
       });
 
-      const totalDonation = result._sum.amount || 0;
+      const totalDonation = donations.reduce(
+        (sum, donation) => sum + Number(donation.totalAmount ?? donation.amount ?? 0),
+        0,
+      );
 
       this.logger.log(`Total donation for post ${postId}: $${totalDonation}`);
 
@@ -683,6 +691,10 @@ export class TokenPurchaseService {
       const metadataType = 'MissionDonation';
       const amountCents = Math.round(dto.amount * 100);
       const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+      const receiverAmountCents = Math.max(0, amountCents - applicationFeeCents);
+      const totalAmount = this.roundCurrency(amountCents / 100);
+      const platformFees = this.roundCurrency(applicationFeeCents / 100);
+      const receiverAmount = this.roundCurrency(receiverAmountCents / 100);
 
       this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor ${dto.vendorId})`);
 
@@ -729,7 +741,10 @@ export class TokenPurchaseService {
       // Create payment record (same as before)
       const paymentData: any = {
         userId,
-        amount: amountCents,
+        receiverId: dto.vendorId,
+        amount: receiverAmountCents,
+        platformFee: applicationFeeCents,
+        totalAmount: amountCents,
         currency: 'usd',
         stripePaymentIntentId: session.id,
         status: 'pending',
@@ -745,7 +760,9 @@ export class TokenPurchaseService {
         userId,
         vendorId: dto.vendorId,
         postId: dto.postId,
-        amount: dto.amount,
+        amount: receiverAmount,
+        totalAmount,
+        platformFees,
         stripeCheckoutSessionId: session.id,
         status: 'pending',
         action: 'missionDonation',
@@ -758,7 +775,9 @@ export class TokenPurchaseService {
 
       return {
         id: donationRecord.id,
-        amount: dto.amount,
+        amount: donationRecord.amount,
+        totalAmount: donationRecord.totalAmount ?? totalAmount,
+        platformFees: donationRecord.platformFees ?? platformFees,
         status: donationRecord.status,
         sessionUrl: session.url!,
       };

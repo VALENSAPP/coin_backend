@@ -596,8 +596,6 @@ export class PostService {
     if (!userId) throw new BadRequestException('User ID required');
 
     const now = new Date();
-    const PLATFORM_FEE_PERCENT = 0.05;
-
     const whereClause: Prisma.PostWhereInput = {
       userId,
       deletedAt: null,
@@ -638,7 +636,7 @@ export class PostService {
     });
 
     const postIds = posts.map((p) => p.id);
-    const [saved, liked, donationSums, donationUniqueUsers] = await Promise.all([
+    const [saved, liked, donations, donationUniqueUsers] = await Promise.all([
       postIds.length
         ? this.prisma.savePost.findMany({
           where: { userId, postId: { in: postIds } },
@@ -652,16 +650,20 @@ export class PostService {
         })
         : Promise.resolve([] as Array<{ postId: string }>),
       postIds.length
-        ? this.prisma.donationData.groupBy({
-          by: ['postId'],
+        ? this.prisma.donationData.findMany({
           where: {
             postId: { in: postIds },
             action: { in: ['missionDonation', 'donate'] },
             status: 'completed',
           },
-          _sum: { amount: true },
+          select: {
+            postId: true,
+            amount: true,
+            totalAmount: true,
+            platformFees: true,
+          },
         })
-        : Promise.resolve([] as Array<{ postId: string | null; _sum: { amount: number | null } }>),
+        : Promise.resolve([] as Array<{ postId: string | null; amount: number; totalAmount: number | null; platformFees: number | null }>),
       postIds.length
         ? this.prisma.donationData.groupBy({
           by: ['postId', 'userId'],
@@ -676,11 +678,15 @@ export class PostService {
 
     const savedSet = new Set(saved.map((s) => s.postId));
     const likedSet = new Set(liked.map((l) => l.postId));
-    const totalEarningByPostId = new Map<string, number>(
-      donationSums
-        .filter((d) => !!d.postId)
-        .map((d) => [d.postId as string, Number(d._sum.amount ?? 0)]),
-    );
+    const earningByPostId = new Map<string, { total: number; platformFees: number; userEarning: number }>();
+    for (const donation of donations) {
+      if (!donation.postId) continue;
+      const existing = earningByPostId.get(donation.postId) ?? { total: 0, platformFees: 0, userEarning: 0 };
+      existing.total += Number(donation.totalAmount ?? donation.amount ?? 0);
+      existing.platformFees += Number(donation.platformFees ?? 0);
+      existing.userEarning += Number(donation.amount ?? 0);
+      earningByPostId.set(donation.postId, existing);
+    }
     const requestUsersByPostId = new Map<string, number>();
     for (const row of donationUniqueUsers) {
       if (!row.postId) continue;
@@ -721,9 +727,10 @@ export class PostService {
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
       earning: (() => {
-        const total = totalEarningByPostId.get(post.id) ?? 0;
-        const platformFees = total * PLATFORM_FEE_PERCENT;
-        const userEarning = total - platformFees;
+        const earning = earningByPostId.get(post.id);
+        const total = earning?.total ?? 0;
+        const platformFees = earning?.platformFees ?? 0;
+        const userEarning = earning?.userEarning ?? 0;
         const requestusers = requestUsersByPostId.get(post.id) ?? 0;
         return {
           total,

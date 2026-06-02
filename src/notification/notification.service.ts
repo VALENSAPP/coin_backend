@@ -773,7 +773,7 @@ export class NotificationService {
           status: 'completed',
           action: { in: ['missionDonation', 'donate'] },
         },
-        _sum: { amount: true },
+        _sum: { amount: true, totalAmount: true },
       }),
       this.prisma.donationData.count({
         where: {
@@ -792,7 +792,7 @@ export class NotificationService {
       }),
     ]);
 
-    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount);
     if (goalAmount <= 0) return;
 
@@ -878,6 +878,7 @@ export class NotificationService {
         vendorId: true,
         postId: true,
         amount: true,
+        totalAmount: true,
         status: true,
         action: true,
         user: {
@@ -914,7 +915,7 @@ export class NotificationService {
           status: 'completed',
           action: { in: ['missionDonation', 'donate'] },
         },
-        _sum: { amount: true },
+        _sum: { amount: true, totalAmount: true },
       }),
       this.prisma.donationData.count({
         where: {
@@ -930,7 +931,7 @@ export class NotificationService {
     }
 
     const backerHandle = this.toHandle(donation.user?.userName || donation.user?.displayName);
-    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount || 0);
     const fundedPercent = goalAmount > 0 ? Math.floor((raisedAmount / goalAmount) * 100) : 0;
     const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
@@ -998,7 +999,7 @@ export class NotificationService {
           status: 'completed',
           action: { in: ['missionDonation', 'donate'] },
         },
-        _sum: { amount: true },
+        _sum: { amount: true, totalAmount: true },
       }),
       this.prisma.donationData.count({
         where: {
@@ -1023,7 +1024,7 @@ export class NotificationService {
       }),
     ]);
 
-    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount);
     if (goalAmount <= 0 || raisedAmount < goalAmount) return;
 
@@ -1126,7 +1127,7 @@ export class NotificationService {
           status: 'completed',
           action: { in: ['missionDonation', 'donate'] },
         },
-        _sum: { amount: true },
+        _sum: { amount: true, totalAmount: true },
       }),
       this.prisma.donationData.count({
         where: {
@@ -1160,7 +1161,7 @@ export class NotificationService {
 
     const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
     const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
-    const raisedAmount = Number(raisedResult._sum.amount || 0);
+    const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount || 0);
     const fundedPercent = goalAmount > 0 ? Math.floor((raisedAmount / goalAmount) * 100) : 0;
     const stillNeeded = Math.max(0, goalAmount - raisedAmount);
@@ -1204,6 +1205,7 @@ export class NotificationService {
         vendorId: true,
         postId: true,
         amount: true,
+        totalAmount: true,
         status: true,
         action: true,
       },
@@ -1237,11 +1239,12 @@ export class NotificationService {
 
     const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
     const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+    const amountPaid = Number(donation.totalAmount ?? donation.amount);
 
     return this.sendNotificationToUser(
       donation.userId,
       '\u2705 Contribution Confirmed!',
-      `Your $${donation.amount} backing of ${creatorHandle}'s Mission is confirmed. Thank you for your support!`,
+      `Your $${amountPaid} backing of ${creatorHandle}'s Mission is confirmed. Thank you for your support!`,
       {
         type: 'mission_contribution_confirmed',
         donationId: donation.id,
@@ -1251,7 +1254,7 @@ export class NotificationService {
         creatorDisplayName: post.user?.displayName || '',
         creatorImage: post.user?.image || '',
         missionTitle,
-        amountPaid: donation.amount.toFixed(2),
+        amountPaid: amountPaid.toFixed(2),
         paymentVia: 'Stripe',
         notificationCategory: 'MISSION_CONTRIBUTION_CONFIRMED',
         deepLink: `valens://post/${donation.postId}`,
