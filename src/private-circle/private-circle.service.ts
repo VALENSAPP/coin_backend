@@ -12,7 +12,7 @@ export class PrivateCircleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   private getPrivateCircleLimits(user: {
     profile?: string | null;
@@ -303,7 +303,7 @@ export class PrivateCircleService {
       const ownerName = owner.displayName || owner.userName || 'A creator';
       await this.notificationService.sendNotificationToMultipleUsers(
         usersToAdd,
-        'Added to Private Circle',
+        "You've Been Chosen",
         `${ownerName} added you to their Private Circle.`,
         {
           type: 'private_circle_added',
