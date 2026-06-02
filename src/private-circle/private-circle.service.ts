@@ -311,6 +311,16 @@ export class PrivateCircleService {
           ownerId,
         },
       );
+
+      try {
+        await Promise.all(
+          usersToAdd.map((joinedUserId) =>
+            this.notificationService.sendPrivateCircleGrowing(ownerId, joinedUserId, circle.id),
+          ),
+        );
+      } catch (notificationError) {
+        console.error('Failed to send private circle growing notification:', notificationError);
+      }
     }
 
     const usedSlots = activeCount + added.length;

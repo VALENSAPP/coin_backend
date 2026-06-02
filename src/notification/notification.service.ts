@@ -502,6 +502,55 @@ export class NotificationService {
     );
   }
 
+  async sendPrivateCircleGrowing(ownerId: string, joinedUserId: string, privateCircleId: string): Promise<void> {
+    const [joinedUser, totalMembers, activePosts] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: joinedUserId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+      this.prisma.privateCircleMember.count({
+        where: { privateCircleId, status: 'ACTIVE' },
+      }),
+      this.prisma.post.count({
+        where: {
+          privateCircleId,
+          deletedAt: null,
+          isDelete: 'no',
+        },
+      }),
+    ]);
+
+    if (!joinedUser || ownerId === joinedUserId) return;
+
+    const joinedUserHandle = this.toHandle(joinedUser.userName || joinedUser.displayName);
+    const activePostsLabel = `${activePosts} exclusive ${activePosts === 1 ? 'post' : 'posts'}`;
+
+    return this.sendNotificationToUser(
+      ownerId,
+      '\uD83D\uDC65 Your Circle is growing!',
+      `${joinedUserHandle} just joined your Private Circle. You now have ${totalMembers} members.`,
+      {
+        type: 'private_circle_growing',
+        privateCircleId,
+        ownerId,
+        joinedUserId,
+        joinedUserName: joinedUserHandle,
+        joinedUserDisplayName: joinedUser.displayName || '',
+        joinedUserImage: joinedUser.image || '',
+        notificationCategory: 'PRIVATE_CIRCLE_GROWING',
+        deepLink: `valens://private-circle/${privateCircleId}`,
+        expandedTitle: 'private_circle_growing',
+        expandedBody: `${joinedUserHandle} joined your Private Circle!`,
+        circleName: 'Private Circle',
+        totalMembers: String(totalMembers),
+        activePosts: String(activePosts),
+        activePostsLabel,
+        primaryAction: 'MANAGE_CIRCLE_MEMBERS',
+        secondaryAction: 'POST_EXCLUSIVE_CONTENT',
+      },
+    );
+  }
+
   async sendDropTrendingIfNeeded(postId: string, actorId: string): Promise<void> {
     const milestones = [1, 25, 50, 100, 250, 500, 1000];
 
