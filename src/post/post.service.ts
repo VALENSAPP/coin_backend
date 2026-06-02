@@ -341,9 +341,9 @@ export class PostService {
         const isPrivateCirclePost =
           (createdPost.type || '').trim().toLowerCase() === 'private' &&
           this.isPrivateCircleVisibility(createdPost.visibleTo);
-        const tagNotificationTitle = isPrivateCirclePost ? 'Tagged in a private post' : 'Tagged in a post';
+        const tagNotificationTitle = isPrivateCirclePost ? 'Tagged in a private circle post' : 'Tagged in a post';
         const tagNotificationBody = isPrivateCirclePost
-          ? `${authorName} tagged you in a private post.`
+          ? `${authorName} tagged you in a private circle post.`
           : `${authorName} tagged you in a post.`;
 
         await Promise.all(
