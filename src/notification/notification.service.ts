@@ -31,6 +31,36 @@ export class NotificationService {
     return Array.from(new Set(matches.map((mention) => mention.slice(1).toLowerCase())));
   }
 
+  private formatCompactCount(value: number): string {
+    if (value >= 1000000) {
+      const millions = value / 1000000;
+      return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(1)}M`;
+    }
+    if (value >= 1000) {
+      const thousands = value / 1000;
+      return `${Number.isInteger(thousands) ? thousands.toFixed(0) : thousands.toFixed(1)}K`;
+    }
+    return String(value);
+  }
+
+  private getDralensTierUpgrade(totalFollowers: number): {
+    threshold: number;
+    previousTier: string;
+    newTier: string;
+    newDragonfly: string;
+    rangeLabel: string;
+  } | null {
+    const upgrades = [
+      { threshold: 12, previousTier: 'White', newTier: 'Black', newDragonfly: 'Black Dragonfly', rangeLabel: '1K - 10K' },
+      { threshold: 10000, previousTier: 'Black', newTier: 'Silver', newDragonfly: 'Silver Dragonfly', rangeLabel: '10K - 100K' },
+      { threshold: 100000, previousTier: 'Silver', newTier: 'Gold', newDragonfly: 'Gold Dragonfly', rangeLabel: '100K - 1M' },
+      { threshold: 1000000, previousTier: 'Gold', newTier: 'Purple', newDragonfly: 'Purple Dragonfly', rangeLabel: '1M - 10M' },
+      { threshold: 10000000, previousTier: 'Purple', newTier: 'Purple+', newDragonfly: 'Purple Dragonfly', rangeLabel: '10M+' },
+    ];
+
+    return upgrades.find((upgrade) => totalFollowers === upgrade.threshold) || null;
+  }
+
   async sendNotificationToUser(
     userId: string,
     title: string,
@@ -599,6 +629,75 @@ export class NotificationService {
         expandedBody: 'Your profile is live. Start posting, join Battles, and grow your following today!',
         primaryAction: 'START_EXPLORING',
         secondaryAction: 'CREATE_POST',
+      },
+    );
+  }
+
+  async sendBadgeAchievementUnlockedIfNeeded(userId: string): Promise<void> {
+    const [totalFollowers, stats] = await Promise.all([
+      this.prisma.followerAndFollowing.count({
+        where: { followingId: userId, status: 'ACCEPTED' },
+      }),
+      this.prisma.userBattleStats.findUnique({
+        where: { userId },
+        select: {
+          totalBattlesWon: true,
+          totalPredictionsCorrect: true,
+          totalPredictionsWrong: true,
+        },
+      }),
+    ]);
+
+    const tierUpgrade = this.getDralensTierUpgrade(totalFollowers);
+    if (!tierUpgrade) return;
+
+    const recentNotifications = await this.prisma.notification.findMany({
+      where: { userId },
+      select: { data: true },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    const alreadySent = recentNotifications.some((notification) => {
+      const data = notification.data as Record<string, string> | null;
+      return (
+        data?.type === 'badge_achievement_unlocked' &&
+        data?.achievementCode === 'dralens_tier_upgrade' &&
+        data?.milestoneValue === String(tierUpgrade.threshold)
+      );
+    });
+
+    if (alreadySent) return;
+
+    const predictionTotal = (stats?.totalPredictionsCorrect || 0) + (stats?.totalPredictionsWrong || 0);
+    const accuracyRate = predictionTotal > 0
+      ? Math.round(((stats?.totalPredictionsCorrect || 0) / predictionTotal) * 100)
+      : 0;
+    const milestoneLabel = `${this.formatCompactCount(tierUpgrade.threshold)} Followers`;
+
+    return this.sendNotificationToUser(
+      userId,
+      '\uD83E\uDD47 New Badge Unlocked!',
+      `You reached ${tierUpgrade.threshold.toLocaleString()} followers! Dralens evolved to ${tierUpgrade.newTier} tier. Congrats!`,
+      {
+        type: 'badge_achievement_unlocked',
+        achievementCode: 'dralens_tier_upgrade',
+        userId,
+        notificationCategory: 'BADGE_ACHIEVEMENT_UNLOCKED',
+        deepLink: `valens://profile/${userId}`,
+        expandedTitle: 'badge_achievement_unlocked',
+        expandedDisplayTitle: 'ACHIEVEMENT UNLOCKED',
+        achievementTitle: 'Dralens Tier Upgraded!',
+        previousTier: tierUpgrade.previousTier,
+        newTier: tierUpgrade.newTier,
+        dragonflyName: tierUpgrade.newDragonfly,
+        tierRange: tierUpgrade.rangeLabel,
+        milestone: milestoneLabel,
+        milestoneValue: String(tierUpgrade.threshold),
+        totalFollowers: String(totalFollowers),
+        accuracyRate: String(accuracyRate),
+        battlesWon: String(stats?.totalBattlesWon || 0),
+        primaryAction: 'VIEW_PROFILE',
       },
     );
   }

@@ -949,6 +949,12 @@ export class UserService {
       console.error('Failed to send follow notification:', error);
     }
 
+    try {
+      await this.notificationService.sendBadgeAchievementUnlockedIfNeeded(followingId);
+    } catch (error) {
+      console.error('Failed to send badge achievement notification:', error);
+    }
+
     return result;
   }
 
