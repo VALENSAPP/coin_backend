@@ -21,6 +21,11 @@ export class NotificationService {
     return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
   }
 
+  private getDisplayFundedPercent(raisedAmount: number, goalAmount: number): number {
+    if (goalAmount <= 0) return 0;
+    return Math.min(100, Math.floor((raisedAmount / goalAmount) * 100));
+  }
+
   private extractMentionNames(text?: string | null): string[] {
     const matches = text?.match(/@[\w.]+/g) || [];
     return Array.from(new Set(matches.map((mention) => mention.slice(1).toLowerCase())));
@@ -933,7 +938,7 @@ export class NotificationService {
     const backerHandle = this.toHandle(donation.user?.userName || donation.user?.displayName);
     const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount || 0);
-    const fundedPercent = goalAmount > 0 ? Math.floor((raisedAmount / goalAmount) * 100) : 0;
+    const fundedPercent = this.getDisplayFundedPercent(raisedAmount, goalAmount);
     const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
     const daysLeft = post.end_time
       ? Math.max(0, Math.ceil((post.end_time.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
@@ -1163,7 +1168,7 @@ export class NotificationService {
     const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
     const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount || 0);
-    const fundedPercent = goalAmount > 0 ? Math.floor((raisedAmount / goalAmount) * 100) : 0;
+    const fundedPercent = this.getDisplayFundedPercent(raisedAmount, goalAmount);
     const stillNeeded = Math.max(0, goalAmount - raisedAmount);
     const hoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
 
