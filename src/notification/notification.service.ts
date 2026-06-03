@@ -452,6 +452,11 @@ export class NotificationService {
     const inviterHandle = inviterName.startsWith('@') ? inviterName : `@${inviterName}`;
     const challengerPosition = battle.participants.find((participant) => participant.userId === battle.creatorId);
     const challengerSide = challengerPosition?.side || battle.options?.[0] || 'Side A';
+    const normalizedChallengerSide = challengerSide.trim().toLowerCase();
+    const remainingSide =
+      battle.options?.find((option) => option.trim().toLowerCase() !== normalizedChallengerSide) ||
+      battle.options?.[1] ||
+      '';
     const participantCount = battle.participants.length;
 
     return this.sendNotificationToUser(
@@ -465,6 +470,7 @@ export class NotificationService {
         inviterUserName: inviterHandle,
         question: battle.question,
         challengerSide,
+        remainingSide,
         challengerArgument: challengerPosition?.openingArgument || '',
         endTime: battle.endTime.toISOString(),
         participantCount: String(participantCount),
