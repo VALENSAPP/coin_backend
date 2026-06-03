@@ -1431,6 +1431,10 @@ export class PostService {
       imageUrls = imageUrls.concat(uploadedUrls);
     }
 
+    const existingTaggedPeople = Array.from(
+      new Set(((post.taggedPeople || []) as string[]).map((id) => String(id).trim()).filter(Boolean)),
+    );
+
     // Process update data - only update fields that are explicitly provided and not empty
     const updateFields: any = {};
 
@@ -1481,9 +1485,26 @@ export class PostService {
       updateFields.type = null;
     }
 
+    let newlyTaggedUserIds: string[] = [];
+
     // Only update taggedPeople if it's provided and not empty array
     if (updateData.taggedPeople !== undefined && Array.isArray(updateData.taggedPeople)) {
-      updateFields.taggedPeople = updateData.taggedPeople.length > 0 ? updateData.taggedPeople : [];
+      const normalizedTaggedSet = new Set<string>();
+      for (const rawTaggedId of updateData.taggedPeople as unknown[]) {
+        const normalizedTaggedId = String(rawTaggedId).trim();
+        if (normalizedTaggedId.length > 0) {
+          normalizedTaggedSet.add(normalizedTaggedId);
+        }
+      }
+
+      const normalizedTaggedPeople: string[] = Array.from(normalizedTaggedSet);
+
+      updateFields.taggedPeople = normalizedTaggedPeople;
+
+      const existingTaggedSet = new Set(existingTaggedPeople);
+      newlyTaggedUserIds = normalizedTaggedPeople.filter(
+        (taggedId) => taggedId !== userId && !existingTaggedSet.has(taggedId),
+      );
     }
 
     // Only update visibleTo if it's provided and not empty string
@@ -1519,6 +1540,43 @@ export class PostService {
       where: { id: postId },
       data: updateFields,
     });
+
+    if (newlyTaggedUserIds.length > 0) {
+      const [author, taggedUsers] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { displayName: true, userName: true },
+        }),
+        this.prisma.user.findMany({
+          where: { id: { in: newlyTaggedUserIds } },
+          select: { id: true },
+        }),
+      ]);
+
+      const validNewTaggedUserIds = taggedUsers.map((u) => u.id);
+
+      if (validNewTaggedUserIds.length > 0) {
+        const authorName = author?.displayName || author?.userName || 'Someone';
+        const isPrivateCirclePost =
+          (updatedPost.type || '').trim().toLowerCase() === 'private' &&
+          this.isPrivateCircleVisibility(updatedPost.visibleTo);
+        const tagNotificationTitle = isPrivateCirclePost ? 'Tagged in a private circle post' : 'Tagged in a post';
+        const tagNotificationBody = isPrivateCirclePost
+          ? `${authorName} tagged you in a private circle post.`
+          : `${authorName} tagged you in a post.`;
+
+        await Promise.all(
+          validNewTaggedUserIds.map((taggedUserId) =>
+            this.notificationService.sendNotificationToUser(
+              taggedUserId,
+              tagNotificationTitle,
+              tagNotificationBody,
+              { type: 'post_tag', postId: updatedPost.id, taggerId: userId },
+            ),
+          ),
+        );
+      }
+    }
 
     return {
       ...updatedPost,
