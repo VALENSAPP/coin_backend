@@ -30,7 +30,7 @@ export class BattleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   private normalizeBattleSide(side: string | undefined, options: string[] = []): string {
     const normalizedSide = (side || '').trim();
@@ -887,17 +887,17 @@ export class BattleService {
     const [pollCountsRaw, headToHeadVoteCountsRaw] = await Promise.all([
       pollBattleIds.length
         ? this.prisma.battlePrediction.groupBy({
-            by: ['battleId', 'side'],
-            where: { battleId: { in: pollBattleIds } },
-            _count: { _all: true },
-          })
+          by: ['battleId', 'side'],
+          where: { battleId: { in: pollBattleIds } },
+          _count: { _all: true },
+        })
         : Promise.resolve([] as Array<{ battleId: string; side: string; _count: { _all: number } }>),
       headToHeadBattleIds.length
         ? this.prisma.battleVote.groupBy({
-            by: ['battleId', 'side'],
-            where: { battleId: { in: headToHeadBattleIds } },
-            _count: { _all: true },
-          })
+          by: ['battleId', 'side'],
+          where: { battleId: { in: headToHeadBattleIds } },
+          _count: { _all: true },
+        })
         : Promise.resolve([] as Array<{ battleId: string; side: string; _count: { _all: number } }>),
     ]);
 
@@ -1115,17 +1115,17 @@ export class BattleService {
     const [predictionCountsRaw, voteCountsRaw] = await Promise.all([
       battle.format === 'POLL'
         ? this.prisma.battlePrediction.groupBy({
-            by: ['side'],
-            where: { battleId },
-            _count: { _all: true },
-          })
+          by: ['side'],
+          where: { battleId },
+          _count: { _all: true },
+        })
         : Promise.resolve([] as Array<{ side: string; _count: { _all: number } }>),
       battle.format === 'HEAD_TO_HEAD'
         ? this.prisma.battleVote.groupBy({
-            by: ['side'],
-            where: { battleId },
-            _count: { _all: true },
-          })
+          by: ['side'],
+          where: { battleId },
+          _count: { _all: true },
+        })
         : Promise.resolve([] as Array<{ side: string; _count: { _all: number } }>),
     ]);
 
@@ -1176,7 +1176,7 @@ export class BattleService {
       voteCounts,
       comments: nestedComments,
     };
-   
+
   }
 
   async getInviteDetail(userId: string, battleId: string) {
@@ -1662,7 +1662,8 @@ export class BattleService {
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
 
     const engagedUserIds = await this.getBattleEngagedUserIds(battleId, battle.creatorId);
-    await this.notificationService.sendBattleCompleted(engagedUserIds, battleId);
+    // Disabled by request: do not send battle-completed notification.
+    // await this.notificationService.sendBattleCompleted(engagedUserIds, battleId);
 
     return { battleId, winnerUserId: winner?.userId || null };
   }
@@ -1925,7 +1926,8 @@ export class BattleService {
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
 
     const engagedUserIds = await this.getBattleEngagedUserIds(battleId, battle.creatorId);
-    await this.notificationService.sendBattleCompleted(engagedUserIds, battleId);
+    // Disabled by request: do not send battle-completed notification.
+    // await this.notificationService.sendBattleCompleted(engagedUserIds, battleId);
 
     return { battleId, winnerUserId: winner?.userId || null };
   }
