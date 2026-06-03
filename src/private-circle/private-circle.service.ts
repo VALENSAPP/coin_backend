@@ -14,6 +14,16 @@ export class PrivateCircleService {
     private readonly notificationService: NotificationService,
   ) { }
 
+  private toHandle(name?: string | null, fallback = 'username'): string {
+    const safeName = name?.trim() || fallback;
+    return safeName.startsWith('@') ? safeName : `@${safeName}`;
+  }
+
+  private truncateText(value?: string | null, maxLength = 120): string {
+    const text = value?.trim() || '';
+    return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+  }
+
   private getPrivateCircleLimits(user: {
     profile?: string | null;
     fansPage?: number | null;
@@ -167,6 +177,135 @@ export class PrivateCircleService {
         addedAt: member.createdAt,
         user: member.user,
       })),
+    };
+  }
+
+  async getOwnerPostInteractions(ownerId: string, limit: number = 100) {
+    if (!ownerId) throw new BadRequestException('User ID required');
+
+    const safeLimit = Math.min(Math.max(1, limit), 200);
+    const privateCircleVisibilityValues = [
+      'PRIVATE_CIRCLE',
+      'private_circle',
+      'private-circle',
+      'private circle',
+      'Private Circle',
+    ];
+
+    const circle = await this.prisma.privateCircle.findUnique({
+      where: { ownerId },
+      select: { id: true },
+    });
+
+    if (!circle) {
+      return {
+        privateCircleId: null,
+        notifications: [],
+      };
+    }
+
+    const [likes, comments] = await Promise.all([
+      this.prisma.postLike.findMany({
+        where: {
+          userId: { not: ownerId },
+          post: {
+            userId: ownerId,
+            deletedAt: null,
+            visibleTo: { in: privateCircleVisibilityValues },
+          },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              userName: true,
+              displayName: true,
+              image: true,
+            },
+          },
+          post: {
+            select: {
+              id: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: safeLimit,
+      }),
+      this.prisma.postComment.findMany({
+        where: {
+          userId: { not: ownerId },
+          post: {
+            userId: ownerId,
+            deletedAt: null,
+            visibleTo: { in: privateCircleVisibilityValues },
+          },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          comment: true,
+          user: {
+            select: {
+              id: true,
+              userName: true,
+              displayName: true,
+              image: true,
+            },
+          },
+          post: {
+            select: {
+              id: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: safeLimit,
+      }),
+    ]);
+
+    const likeItems = likes.map((like) => {
+      const actorHandle = this.toHandle(like.user?.userName || like.user?.displayName);
+      return {
+        id: `pc_like_${like.id}`,
+        type: 'private_circle_post_like',
+        title: 'Post Liked',
+        body: `${actorHandle} liked your post.`,
+        postId: like.post?.id || '',
+        actorId: like.user?.id || '',
+        actorImage: like.user?.image || '',
+        actorUserName: actorHandle,
+        actorDisplayName: like.user?.displayName || '',
+        createdAt: like.createdAt,
+      };
+    });
+
+    const commentItems = comments.map((comment) => {
+      const actorHandle = this.toHandle(comment.user?.userName || comment.user?.displayName);
+      return {
+        id: `pc_comment_${comment.id}`,
+        type: 'private_circle_post_comment',
+        title: 'New Comment',
+        body: `${actorHandle} commented on your post.`,
+        postId: comment.post?.id || '',
+        actorId: comment.user?.id || '',
+        actorImage: comment.user?.image || '',
+        actorUserName: actorHandle,
+        actorDisplayName: comment.user?.displayName || '',
+        comment: this.truncateText(comment.comment, 120),
+        createdAt: comment.createdAt,
+      };
+    });
+
+    const notifications = [...likeItems, ...commentItems]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, safeLimit);
+
+    return {
+      privateCircleId: circle.id,
+      notifications,
     };
   }
 

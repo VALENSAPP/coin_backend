@@ -1,13 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PrivateCircleService } from './private-circle.service';
 import { AddPrivateCircleMembersDto } from './dto/add-private-circle-members.dto';
 
 @Controller('private-circle')
 export class PrivateCircleController {
-  constructor(private readonly privateCircleService: PrivateCircleService) {}
+  constructor(private readonly privateCircleService: PrivateCircleService) { }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -43,6 +43,20 @@ export class PrivateCircleController {
   async getMembers(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.privateCircleService.getMembers(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('owner-post-interactions')
+  @ApiOperation({ summary: 'Get likes/comments on authenticated owner private-circle posts' })
+  @ApiQuery({ name: 'limit', required: false, type: 'number' })
+  async getOwnerPostInteractions(@Req() req: Request, @Query('limit') limit?: string) {
+    const userId = (req.user as any).userId;
+    const parsedLimit = limit ? Number(limit) : undefined;
+    return this.privateCircleService.getOwnerPostInteractions(
+      userId,
+      Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    );
   }
 
   @UseGuards(AuthGuard('jwt'))
