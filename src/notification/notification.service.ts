@@ -88,21 +88,13 @@ export class NotificationService {
     }
 
     const notificationCategory = this.getNotificationCategory(data);
-    const isBattleInvite = notificationCategory === 'BATTLE_INVITE';
     const payloadData = {
       ...(data || {}),
-      ...(isBattleInvite ? { title, body } : {}),
+      title,
+      body,
     };
     const message = {
       token: (user as any).fcmToken,
-      ...(isBattleInvite
-        ? {}
-        : {
-          notification: {
-            title,
-            body,
-          },
-        }),
       data: payloadData,
       apns: {
         headers: {
@@ -166,21 +158,13 @@ export class NotificationService {
     }
 
     const notificationCategory = this.getNotificationCategory(data);
-    const isBattleInvite = notificationCategory === 'BATTLE_INVITE';
     const payloadData = {
       ...(data || {}),
-      ...(isBattleInvite ? { title, body } : {}),
+      title,
+      body,
     };
     const message = {
       tokens,
-      ...(isBattleInvite
-        ? {}
-        : {
-          notification: {
-            title,
-            body,
-          },
-        }),
       data: payloadData,
       apns: {
         headers: {
