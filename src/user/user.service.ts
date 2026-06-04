@@ -1061,8 +1061,31 @@ export class UserService {
     });
     if (!existing || existing.status !== 'ACCEPTED') throw new BadRequestException('Not following this user');
 
-    const result = await this.prisma.followerAndFollowing.delete({
-      where: { followerId_followingId: { followerId, followingId } },
+    const { result, removedFromPrivateCircleId } = await this.prisma.$transaction(async (tx) => {
+      const unfollowResult = await tx.followerAndFollowing.delete({
+        where: { followerId_followingId: { followerId, followingId } },
+      });
+
+      const ownerCircle = await tx.privateCircle.findUnique({
+        where: { ownerId: followingId },
+        select: { id: true },
+      });
+
+      let removedCircleId: string | null = null;
+      if (ownerCircle) {
+        const removal = await tx.privateCircleMember.deleteMany({
+          where: {
+            privateCircleId: ownerCircle.id,
+            userId: followerId,
+          },
+        });
+
+        if (removal.count > 0) {
+          removedCircleId = ownerCircle.id;
+        }
+      }
+
+      return { result: unfollowResult, removedFromPrivateCircleId: removedCircleId };
     });
 
     // Send notification to the person being unfollowed
@@ -1081,6 +1104,18 @@ export class UserService {
       );
     } catch (error) {
       console.error('Failed to send unfollow notification:', error);
+    }
+
+    if (removedFromPrivateCircleId) {
+      try {
+        await this.notificationService.sendPrivateCircleAccessRemoved(
+          followerId,
+          followingId,
+          removedFromPrivateCircleId,
+        );
+      } catch (error) {
+        console.error('Failed to send private circle access removed notification:', error);
+      }
     }
 
     return result;
