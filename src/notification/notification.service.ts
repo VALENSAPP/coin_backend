@@ -104,6 +104,8 @@ export class NotificationService {
         payload: {
           aps: {
             sound: 'default',
+            'mutable-content': '1',
+
             ...(notificationCategory ? { category: notificationCategory } : {}),
           },
         },
