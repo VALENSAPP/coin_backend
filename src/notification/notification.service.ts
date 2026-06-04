@@ -114,6 +114,8 @@ export class NotificationService {
         priority: 'high' as const,
         notification: {
           sound: 'default',
+          'mutable-content': '1',
+          'content-available': '1',
           ...(notificationCategory ? { clickAction: notificationCategory } : {}),
         },
       },
@@ -176,6 +178,8 @@ export class NotificationService {
         payload: {
           aps: {
             sound: 'default',
+            'mutable-content': '1',
+            'content-available': '1',
             ...(notificationCategory ? { category: notificationCategory } : {}),
           },
         },
@@ -184,6 +188,8 @@ export class NotificationService {
         priority: 'high' as const,
         notification: {
           sound: 'default',
+          'mutable-content': '1',
+          'content-available': '1',
           ...(notificationCategory ? { clickAction: notificationCategory } : {}),
         },
       },
