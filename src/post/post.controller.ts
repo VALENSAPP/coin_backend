@@ -22,7 +22,7 @@ import { log } from 'console';
 
 @Controller('post')
 export class PostController {
-  constructor(private readonly postService: PostService) {}
+  constructor(private readonly postService: PostService) { }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -48,6 +48,7 @@ export class PostController {
           description: 'Array of image/video files',
         },
         type: { type: 'string', enum: [...POST_TYPES], description: 'Type of post' },
+        format: { type: 'string', description: 'Format of the post' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },
@@ -79,6 +80,7 @@ export class PostController {
       body.visibleTo,
       body.taggedPeople,
       body.type,
+      body.format,
       body.raiseAmount,
       body.start_time,
       body.end_time,
@@ -121,11 +123,11 @@ export class PostController {
     @Body(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })) body: EditPostDto,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    console.log(">>>>>>>>>>>>>>>>>>>>>",req.user);
-    
+    console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
+
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
-    console.log(">>>>>>>>>>>>>>>>>>>>>",userId);
-    
+    console.log(">>>>>>>>>>>>>>>>>>>>>", userId);
+
     return this.postService.editPost(postId, userId, body, files);
   }
 
@@ -138,11 +140,11 @@ export class PostController {
   ) {
     console.log('Query received:', query);
     console.log('User from JWT:', req.user);
-    
+
     // Use userId from query if provided, otherwise use the authenticated user's ID
     const targetUserId = query.userId || (req.user as any)?.userId; // Use 'sub' instead of 'userId'
     console.log('Target user ID:', targetUserId);
-    
+
     const viewerUserId = (req.user as any)?.userId;
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -272,25 +274,25 @@ export class PostController {
   }
 
   @UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('editComment')
-@ApiBody({ 
-  schema: {
-    type: 'object',
-    properties: {
-      commentId: { type: 'string', description: 'ID of the comment to edit' },
-      comment: { type: 'string', description: 'New comment text' },
-    },
-    required: ['commentId', 'comment'],
+  @ApiBearerAuth()
+  @Post('editComment')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        commentId: { type: 'string', description: 'ID of the comment to edit' },
+        comment: { type: 'string', description: 'New comment text' },
+      },
+      required: ['commentId', 'comment'],
+    }
+  })
+  async editComment(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) dto: { commentId: string; comment: string }
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.editComment(dto.commentId, userId, dto.comment);
   }
-})
-async editComment(
-  @Req() req: Request,
-  @Body(new ValidationPipe({ whitelist: true })) dto: { commentId: string; comment: string }
-) {
-  const userId = (req.user as any).userId;
-  return this.postService.editComment(dto.commentId, userId, dto.comment);
-}
 
 
   @UseGuards(AuthGuard('jwt'))
@@ -348,10 +350,10 @@ async editComment(
   @Get('getSavedPost')
   @ApiOperation({ summary: 'Get saved posts for the authenticated user' })
   async getSavedPosts(@Req() req: Request) {
-    console.log(">>>>>>>>>>>>>>>>>>>>>",req.user);
+    console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
 
     const userId = (req.user as any).userId;
-    return this.postService.getSavedPostsByUser(userId,userId);
+    return this.postService.getSavedPostsByUser(userId, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -359,7 +361,7 @@ async editComment(
   @Get('by-id/:postId')
   @ApiOperation({ summary: 'Get a post by ID' })
   @ApiParam({ name: 'postId', type: 'string', description: 'Post ID' })
-  async getPostById(@Req() req: Request,@Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto) {
+  async getPostById(@Req() req: Request, @Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto) {
     const viewerId = (req.user as any)?.userId;
     return this.postService.getPostById(params.postId, viewerId);
   }
@@ -368,7 +370,7 @@ async editComment(
   @ApiBearerAuth()
   @Post('sharePost')
   @ApiOperation({ summary: 'Share media to user' })
-   @ApiBody({ type: SharePostDto })
+  @ApiBody({ type: SharePostDto })
   async sharePostToUser(@Body() body: SharePostDto) {
     if (!body.receiverUserId || body.receiverUserId.length === 0) {
       throw new BadRequestException('receiverUserId is required');
@@ -383,123 +385,123 @@ async editComment(
     );
   }
 
-    @UseGuards(AuthGuard('jwt'))
+  @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('getShareList')
   @ApiOperation({ summary: 'Get a sharedPostList by ID' })
   async getSharedPostList(@Req() req: Request) {
     const userId = (req.user as any)?.userId;
-    return this.postService.getSharedPostList( userId);
+    return this.postService.getSharedPostList(userId);
   }
 
   @UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Delete('deleteSharedPost')
-@ApiOperation({ summary: 'Delete multiple shared posts by IDs' })
-@ApiBody({ type: DeleteSharedPostDto })
-async deleteSharedPost(
-  @Req() req: Request,
-  @Body(new ValidationPipe({ whitelist: true })) dto: DeleteSharedPostDto
-) {
-  const userId = (req.user as any).userId;
-  return this.postService.deleteSharedPosts(dto.shareIds, userId);
-}
+  @ApiBearerAuth()
+  @Delete('deleteSharedPost')
+  @ApiOperation({ summary: 'Delete multiple shared posts by IDs' })
+  @ApiBody({ type: DeleteSharedPostDto })
+  async deleteSharedPost(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) dto: DeleteSharedPostDto
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.deleteSharedPosts(dto.shareIds, userId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('hide')
-@ApiOperation({ summary: 'Hide a post for the authenticated user' })
-@ApiBody({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to hide' } }, required: ['postId'] } })
-async hidePost(@Req() req: Request, @Body('postId') postId: string) {
-  const userId = (req.user as any).userId;
-  return this.postService.hidePost(postId, userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('hide')
+  @ApiOperation({ summary: 'Hide a post for the authenticated user' })
+  @ApiBody({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to hide' } }, required: ['postId'] } })
+  async hidePost(@Req() req: Request, @Body('postId') postId: string) {
+    const userId = (req.user as any).userId;
+    return this.postService.hidePost(postId, userId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('unhide')
-@ApiOperation({ summary: 'Unhide a post for the authenticated user' })
-@ApiBody({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to unhide' } }, required: ['postId'] } })
-async unhidePost(@Req() req: Request, @Body('postId') postId: string) {
-  const userId = (req.user as any).userId;
-  return this.postService.unhidePost(postId, userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('unhide')
+  @ApiOperation({ summary: 'Unhide a post for the authenticated user' })
+  @ApiBody({ schema: { type: 'object', properties: { postId: { type: 'string', description: 'Post ID to unhide' } }, required: ['postId'] } })
+  async unhidePost(@Req() req: Request, @Body('postId') postId: string) {
+    const userId = (req.user as any).userId;
+    return this.postService.unhidePost(postId, userId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Get('getHidePost')
-@ApiOperation({ summary: 'Get all hidden posts for the authenticated user' })
-async getHidePost(@Req() req: Request) {
-  const userId = (req.user as any).userId;
-  return this.postService.getHidePost(userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('getHidePost')
+  @ApiOperation({ summary: 'Get all hidden posts for the authenticated user' })
+  async getHidePost(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.postService.getHidePost(userId);
+  }
 
-// Chat functionality endpoints
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('sendMessage')
-@ApiOperation({ summary: 'Send a message to another user' })
-@ApiBody({ type: SendMessageDto })
-async sendMessage(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: SendMessageDto) {
-  const senderId = (req.user as any).userId;
-  return this.postService.sendMessage(senderId, dto.receiverId, dto.message);
-}
+  // Chat functionality endpoints
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('sendMessage')
+  @ApiOperation({ summary: 'Send a message to another user' })
+  @ApiBody({ type: SendMessageDto })
+  async sendMessage(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: SendMessageDto) {
+    const senderId = (req.user as any).userId;
+    return this.postService.sendMessage(senderId, dto.receiverId, dto.message);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Get('conversations')
-@ApiOperation({ summary: 'Get all conversations for the authenticated user' })
-async getConversations(@Req() req: Request) {
-  const userId = (req.user as any).userId;
-  return this.postService.getConversations(userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('conversations')
+  @ApiOperation({ summary: 'Get all conversations for the authenticated user' })
+  async getConversations(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.postService.getConversations(userId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Get('conversation/:otherUserId')
-@ApiOperation({ summary: 'Get conversation with a specific user' })
-@ApiParam({ name: 'otherUserId', type: 'string', description: 'ID of the other user' })
-async getConversationWithUser(@Req() req: Request, @Param('otherUserId') otherUserId: string) {
-  const userId = (req.user as any).userId;
-  return this.postService.getConversationWithUser(userId, otherUserId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('conversation/:otherUserId')
+  @ApiOperation({ summary: 'Get conversation with a specific user' })
+  @ApiParam({ name: 'otherUserId', type: 'string', description: 'ID of the other user' })
+  async getConversationWithUser(@Req() req: Request, @Param('otherUserId') otherUserId: string) {
+    const userId = (req.user as any).userId;
+    return this.postService.getConversationWithUser(userId, otherUserId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Get('getUserChatBox')
-@ApiOperation({ summary: 'Get all chat boxes for the authenticated user with conversation details' })
-async getUserChatBox(@Req() req: Request) {
-  const userId = (req.user as any).userId;
-  return this.postService.getUserChatBox(userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('getUserChatBox')
+  @ApiOperation({ summary: 'Get all chat boxes for the authenticated user with conversation details' })
+  async getUserChatBox(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.postService.getUserChatBox(userId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('chatStatusUpdate')
-@ApiOperation({ summary: 'Update chat status to mark messages as seen' })
-@ApiBody({ type: ChatStatusUpdateDto })
-async chatStatusUpdate(@Body(new ValidationPipe({ whitelist: true })) dto: ChatStatusUpdateDto) {
-  return this.postService.chatStatusUpdate(dto.chatId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('chatStatusUpdate')
+  @ApiOperation({ summary: 'Update chat status to mark messages as seen' })
+  @ApiBody({ type: ChatStatusUpdateDto })
+  async chatStatusUpdate(@Body(new ValidationPipe({ whitelist: true })) dto: ChatStatusUpdateDto) {
+    return this.postService.chatStatusUpdate(dto.chatId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('hideChat')
-@ApiOperation({ summary: 'Hide a chat for the authenticated user' })
-@ApiBody({ type: HideChatDto })
-async hideChat(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: HideChatDto) {
-  const userId = (req.user as any).userId;
-  return this.postService.hideChat(dto.chatId, userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('hideChat')
+  @ApiOperation({ summary: 'Hide a chat for the authenticated user' })
+  @ApiBody({ type: HideChatDto })
+  async hideChat(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: HideChatDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.hideChat(dto.chatId, userId);
+  }
 
-@UseGuards(AuthGuard('jwt'))
-@ApiBearerAuth()
-@Post('unhideChat')
-@ApiOperation({ summary: 'Unhide a chat for the authenticated user' })
-@ApiBody({ type: HideChatDto })
-async unhideChat(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: HideChatDto) {
-  const userId = (req.user as any).userId;
-  return this.postService.unhideChat(dto.chatId, userId);
-}
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('unhideChat')
+  @ApiOperation({ summary: 'Unhide a chat for the authenticated user' })
+  @ApiBody({ type: HideChatDto })
+  async unhideChat(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: HideChatDto) {
+    const userId = (req.user as any).userId;
+    return this.postService.unhideChat(dto.chatId, userId);
+  }
 
 }

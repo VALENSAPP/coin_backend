@@ -171,6 +171,7 @@ model Post {
   link             String?
   visibleTo        String?
   privateCircleId  String?
+  format           format      @default(image)
   postHide         postHide      @default(no)
   hides            HidePost[]
   reports          PostReport[]
@@ -1076,4 +1077,9 @@ enum BattleInviteStatus {
 enum ReactionType {
   LIKE
   DISLIKE
+}
+
+enum format {
+  image
+  video
 }

@@ -101,6 +101,12 @@ export class CreatePostDto {
   @IsString()
   type?: PostType;
 
+  @ApiProperty({ description: 'Format of the post', required: false })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : null)
+  format?: string;
+
   @ApiProperty({ description: 'Raise amount for crowdfunding posts', required: false })
   @IsOptional()
   @Transform(({ value }: { value: any }) => value ? parseFloat(value) : null)

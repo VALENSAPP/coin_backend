@@ -8,6 +8,8 @@ import { start } from 'repl';
 import { endWith } from 'rxjs';
 import { NotificationService } from '../notification/notification.service';
 
+type PostFormat = 'image' | 'video';
+
 @Injectable()
 export class PostService {
   private readonly privateCircleVisibilityValues = [
@@ -158,6 +160,7 @@ export class PostService {
     visibleTo?: string,
     taggedPeople?: string[],
     type?: string,
+    format?: string,
     raiseAmount?: number,
     start_time?: Date,
     end_time?: Date,
@@ -174,6 +177,7 @@ export class PostService {
         caption,
         hashtag,
         type,
+        format,
         raiseAmount
       });
 
@@ -194,6 +198,11 @@ export class PostService {
 
       let imageUrls: string[] = images || [];
       let thumbnailUrls: string[] = [];
+      const normalizedFormat = format?.trim().toLowerCase();
+      const postFormat: PostFormat | undefined =
+        normalizedFormat === 'image' || normalizedFormat === 'video'
+          ? (normalizedFormat as PostFormat)
+          : undefined;
 
       // Upload files to S3 and collect URLs
       if (files && files.length > 0) {
@@ -241,6 +250,7 @@ export class PostService {
         music: music?.trim() || null,
         youtubeMusicMeta: youtubeMusicMeta ?? null,
         link: link?.trim() || null,
+        format: postFormat,
         visibleTo: visibleTo?.trim() || null,
         hashtag: hashtag?.filter(Boolean) || [],
         taggedPeople: taggedPeople?.filter(Boolean) || [],
