@@ -10,11 +10,11 @@ export class DeepLinkController {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Opening Valens...</title>
+          <title></title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
         </head>
         <body>
-          <p>Opening Valens...</p>
+          <p></p>
 
           <script>
             window.location.href = "com.valens.app://${route}/${id}";
