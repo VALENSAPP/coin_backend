@@ -104,8 +104,8 @@ export class NotificationService {
         payload: {
           aps: {
             sound: 'default',
-            'mutable-content': '1',
-            'content-available': '1',
+            mutableContent: true,
+            contentAvailable: true,
             ...(notificationCategory ? { category: notificationCategory } : {}),
           },
         },
@@ -120,6 +120,11 @@ export class NotificationService {
     };
 
     try {
+      console.log('FCM APNS debug (single):', {
+        userId,
+        hasToken: Boolean((user as any).fcmToken),
+        aps: message.apns.payload.aps,
+      });
       const response = await admin.messaging().send(message);
       console.log('Successfully sent message:', response);
     } catch (error) {
@@ -176,8 +181,8 @@ export class NotificationService {
         payload: {
           aps: {
             sound: 'default',
-            'mutable-content': '1',
-            'content-available': '1',
+            mutableContent: true,
+            contentAvailable: true,
             ...(notificationCategory ? { category: notificationCategory } : {}),
           },
         },
@@ -192,6 +197,11 @@ export class NotificationService {
     };
 
     try {
+      console.log('FCM APNS debug (multicast):', {
+        userCount: userIds.length,
+        tokenCount: tokens.length,
+        aps: message.apns.payload.aps,
+      });
       const response = await admin.messaging().sendEachForMulticast(message);
       console.log('Successfully sent messages:', response);
     } catch (error) {
