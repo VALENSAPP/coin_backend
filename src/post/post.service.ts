@@ -1270,6 +1270,7 @@ export class PostService {
         isDelete: 'no',
         deletedAt: null,
         format: 'video',
+        type: 'reel',
         AND: [this.buildPostVisibilityWhere(viewerUserId)],
       },
       include: {
