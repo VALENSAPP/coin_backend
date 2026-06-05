@@ -359,7 +359,6 @@ export class BattleService {
 
     if (!battle) throw new NotFoundException('Battle not found');
     if (battle.creatorId !== userId) throw new ForbiddenException('Only creator can edit battle question');
-
     const minutesSinceCreation = (Date.now() - battle.createdAt.getTime()) / (60 * 1000);
     if (minutesSinceCreation > 5) {
       throw new BadRequestException('Battle question can only be edited within 5 minutes of creation');
