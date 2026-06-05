@@ -1076,7 +1076,7 @@ export class UserService {
         const removal = await tx.privateCircleMember.deleteMany({
           where: {
             privateCircleId: ownerCircle.id,
-            userId: followerId,
+            userId: followingId,
           },
         });
 
