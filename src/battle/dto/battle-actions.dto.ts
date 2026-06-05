@@ -129,3 +129,13 @@ export class BattleRebuildStatsDto {
   @IsString()
   userId?: string;
 }
+
+export class BattleEditQuestionDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty()
+  @IsString()
+  question!: string;
+}

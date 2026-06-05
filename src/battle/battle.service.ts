@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BattleStatus } from '@prisma/client';
-import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentLikeDto, BattleCloseDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentLikeDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
 
@@ -345,6 +345,30 @@ export class BattleService {
     });
 
     return invite;
+  }
+
+  async editBattleQuestion(userId: string, dto: BattleEditQuestionDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId) throw new BadRequestException('Battle ID required');
+    if (!dto?.question || dto.question.trim() === '') throw new BadRequestException('Question required');
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: dto.battleId },
+      select: { id: true, creatorId: true, status: true, createdAt: true },
+    });
+
+    if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.creatorId !== userId) throw new ForbiddenException('Only creator can edit battle question');
+
+    const minutesSinceCreation = (Date.now() - battle.createdAt.getTime()) / (60 * 1000);
+    if (minutesSinceCreation > 5) {
+      throw new BadRequestException('Battle question can only be edited within 5 minutes of creation');
+    }
+
+    return this.prisma.battle.update({
+      where: { id: dto.battleId },
+      data: { question: dto.question.trim() },
+    });
   }
 
   async submitChallengerPosition(userId: string, dto: BattleChallengerPositionDto) {

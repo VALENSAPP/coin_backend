@@ -4,13 +4,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
-import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 
 @ApiTags('battle')
 @Controller('battle')
 export class BattleController {
-  constructor(private readonly battleService: BattleService) {}
+  constructor(private readonly battleService: BattleService) { }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -121,6 +121,15 @@ export class BattleController {
   async inviteToBattle(@Req() req: Request, @Body() dto: BattleInviteDto) {
     const userId = (req.user as any)?.userId;
     return this.battleService.inviteToBattle(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('edit-question')
+  @ApiOperation({ summary: 'Edit battle question before battle goes live' })
+  async editBattleQuestion(@Req() req: Request, @Body() dto: BattleEditQuestionDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.editBattleQuestion(userId, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
