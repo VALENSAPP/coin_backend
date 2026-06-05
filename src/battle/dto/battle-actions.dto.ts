@@ -92,6 +92,26 @@ export class BattleCommentLikeDto {
   commentId!: string;
 }
 
+export class BattleCommentPinDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty()
+  @IsString()
+  commentId!: string;
+}
+
+export class BattleCommentUnpinDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty()
+  @IsString()
+  commentId!: string;
+}
+
 export class BattleVoteDto {
   @ApiProperty()
   @IsString()

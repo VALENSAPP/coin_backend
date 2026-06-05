@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { BattleStatus } from '@prisma/client';
-import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentLikeDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
 
@@ -811,6 +811,149 @@ export class BattleService {
     return { message: 'Comment liked', liked: true };
   }
 
+  async pinComment(userId: string, dto: BattleCommentPinDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId || !dto?.commentId) {
+      throw new BadRequestException('Battle ID and comment ID required');
+    }
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: dto.battleId },
+      select: { id: true, creatorId: true },
+    });
+    if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.creatorId !== userId) {
+      throw new ForbiddenException('Only battle creator can pin comments');
+    }
+
+    const comment = await this.prisma.battleComment.findUnique({
+      where: { id: dto.commentId },
+      select: { id: true, battleId: true },
+    });
+    if (!comment || comment.battleId !== dto.battleId) {
+      throw new NotFoundException('Comment not found for this battle');
+    }
+
+    const alreadyPinnedRows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "BattleComment"
+      WHERE "id" = ${dto.commentId}
+        AND "isPin" = true
+      LIMIT 1
+    `;
+
+    if (alreadyPinnedRows.length > 0) {
+      return { message: 'Comment already pinned', commentId: comment.id, isPin: true };
+    }
+
+    const pinResult = await this.prisma.$transaction(async (tx) => {
+      const pinnedCountRows = await tx.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS "count"
+        FROM "BattleComment"
+        WHERE "battleId" = ${dto.battleId}
+          AND "isPin" = true
+      `;
+
+      const pinnedCount = Number(pinnedCountRows[0]?.count || 0);
+      let unpinnedCommentId: string | null = null;
+
+      if (pinnedCount >= 3) {
+        const oldestPinnedRows = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id"
+          FROM "BattleComment"
+          WHERE "battleId" = ${dto.battleId}
+            AND "isPin" = true
+          ORDER BY COALESCE("pinnedAt", "createdAt") ASC
+          LIMIT 1
+        `;
+
+        const oldestPinnedCommentId = oldestPinnedRows[0]?.id;
+        if (oldestPinnedCommentId) {
+          await tx.$executeRaw`
+            UPDATE "BattleComment"
+            SET "isPin" = false,
+                "pinnedAt" = NULL
+            WHERE "id" = ${oldestPinnedCommentId}
+          `;
+          unpinnedCommentId = oldestPinnedCommentId;
+        }
+      }
+
+      await tx.$executeRaw`
+        UPDATE "BattleComment"
+        SET "isPin" = true,
+            "pinnedAt" = NOW()
+        WHERE "id" = ${dto.commentId}
+      `;
+
+      return { unpinnedCommentId };
+    });
+
+    return {
+      message: pinResult.unpinnedCommentId
+        ? 'Comment pinned successfully. Oldest pinned comment was unpinned.'
+        : 'Comment pinned successfully',
+      comment: {
+        id: dto.commentId,
+        battleId: dto.battleId,
+        isPin: true,
+      },
+      unpinnedCommentId: pinResult.unpinnedCommentId,
+    };
+  }
+
+  async unpinComment(userId: string, dto: BattleCommentUnpinDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId || !dto?.commentId) {
+      throw new BadRequestException('Battle ID and comment ID required');
+    }
+
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: dto.battleId },
+      select: { id: true, creatorId: true },
+    });
+    if (!battle) throw new NotFoundException('Battle not found');
+    if (battle.creatorId !== userId) {
+      throw new ForbiddenException('Only battle creator can unpin comments');
+    }
+
+    const comment = await this.prisma.battleComment.findUnique({
+      where: { id: dto.commentId },
+      select: { id: true, battleId: true },
+    });
+    if (!comment || comment.battleId !== dto.battleId) {
+      throw new NotFoundException('Comment not found for this battle');
+    }
+
+    const alreadyPinnedRows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "BattleComment"
+      WHERE "id" = ${dto.commentId}
+        AND "isPin" = true
+      LIMIT 1
+    `;
+
+    if (alreadyPinnedRows.length === 0) {
+      return { message: 'Comment is already unpinned', commentId: comment.id, isPin: false };
+    }
+
+    await this.prisma.$executeRaw`
+      UPDATE "BattleComment"
+      SET "isPin" = false,
+          "pinnedAt" = NULL
+      WHERE "id" = ${dto.commentId}
+    `;
+
+    return {
+      message: 'Comment unpinned successfully',
+      comment: {
+        id: dto.commentId,
+        battleId: dto.battleId,
+        isPin: false,
+      },
+    };
+  }
+
   async voteOnDuel(userId: string, dto: BattleVoteDto) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!dto?.battleId || !dto?.side) throw new BadRequestException('Battle ID and side required');
@@ -1167,9 +1310,17 @@ export class BattleService {
     const effectivePredictionCounts =
       battle.format === 'HEAD_TO_HEAD' ? voteCounts : predictionCounts;
 
+    const pinnedCommentRows = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "BattleComment"
+      WHERE "battleId" = ${battleId}
+        AND "isPin" = true
+    `;
+    const pinnedCommentIdSet = new Set(pinnedCommentRows.map((row) => row.id));
+
     const commentById = new Map<string, any>();
     battle.comments.forEach((comment) => {
-      commentById.set(comment.id, { ...comment, replies: [] });
+      commentById.set(comment.id, { ...comment, isPin: pinnedCommentIdSet.has(comment.id), replies: [] });
     });
 
     const nestedComments: any[] = [];
@@ -1181,16 +1332,20 @@ export class BattleService {
       }
     });
 
-    const sortByCreatedAtDesc = (items: any[]) => {
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const sortPinnedThenCreatedAtDesc = (items: any[]) => {
+      items.sort((a, b) => {
+        const pinDelta = Number(!!b.isPin) - Number(!!a.isPin);
+        if (pinDelta !== 0) return pinDelta;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
       items.forEach((item) => {
         if (Array.isArray(item.replies) && item.replies.length) {
-          sortByCreatedAtDesc(item.replies);
+          sortPinnedThenCreatedAtDesc(item.replies);
         }
       });
     };
 
-    sortByCreatedAtDesc(nestedComments);
+    sortPinnedThenCreatedAtDesc(nestedComments);
 
     return {
       ...battle,

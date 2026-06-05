@@ -892,6 +892,8 @@ model BattleComment {
   userId    String
   comment   String
   images    String[] @default([])
+  isPin     Boolean  @default(false)
+  pinnedAt  DateTime?
   parentId  String?
   createdAt DateTime @default(now())
 
