@@ -1067,7 +1067,7 @@ export class UserService {
       });
 
       const ownerCircle = await tx.privateCircle.findUnique({
-        where: { ownerId: followingId },
+        where: { ownerId: followerId },
         select: { id: true },
       });
 
