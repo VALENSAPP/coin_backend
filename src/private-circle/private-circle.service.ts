@@ -108,6 +108,15 @@ export class PrivateCircleService {
 
     if (!circle) throw new BadRequestException('Private circle not found');
 
+    const privateCirclePostsCount = await this.prisma.post.count({
+      where: {
+        userId: circle.ownerId,
+        type: 'private',
+        visibleTo: 'PRIVATE_CIRCLE',
+        isDelete: 'no',
+      },
+    });
+
     const usedSlots = circle.members.length;
     return {
       id: circle.id,
@@ -121,6 +130,7 @@ export class PrivateCircleService {
       usedSlots,
       availableSlots: Math.max(circle.maxSlots - usedSlots, 0),
       isMinimumReached: usedSlots >= circle.minSlots,
+      privateCirclePostsCount,
       members: circle.members.map((member) => ({
         id: member.id,
         userId: member.userId,
