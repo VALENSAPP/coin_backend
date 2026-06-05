@@ -126,7 +126,7 @@ export class BattleController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('edit-question')
-  @ApiOperation({ summary: 'Edit battle question before battle goes live' })
+  @ApiOperation({ summary: 'Edit battle question' })
   async editBattleQuestion(@Req() req: Request, @Body() dto: BattleEditQuestionDto) {
     const userId = (req.user as any)?.userId;
     return this.battleService.editBattleQuestion(userId, dto);
