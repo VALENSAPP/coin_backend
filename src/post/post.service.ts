@@ -370,7 +370,13 @@ export class PostService {
               taggedUserId,
               tagNotificationTitle,
               tagNotificationBody,
-              { type: 'post_tag', postId: createdPost.id, taggerId: userId },
+              {
+                type: 'post_tag',
+                postId: createdPost.id,
+                taggerId: userId,
+                post_type: createdPost.type || '',
+                visibleTo: createdPost.visibleTo || '',
+              },
             ),
           ),
         );
@@ -1581,7 +1587,13 @@ export class PostService {
               taggedUserId,
               tagNotificationTitle,
               tagNotificationBody,
-              { type: 'post_tag', postId: updatedPost.id, taggerId: userId },
+              {
+                type: 'post_tag',
+                postId: updatedPost.id,
+                taggerId: userId,
+                post_type: updatedPost.type || '',
+                visibleTo: updatedPost.visibleTo || '',
+              },
             ),
           ),
         );
