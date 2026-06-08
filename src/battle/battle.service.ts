@@ -56,6 +56,35 @@ export class BattleService {
     return remainingSide;
   }
 
+  private ensureCanCommentOnBattle(
+    battle: { status: string; format: string; creatorId: string },
+    userId: string,
+  ) {
+    if (battle.status === BattleStatus.LIVE) return;
+
+    const creatorCanCommentWhileInvitePending =
+      battle.format === 'HEAD_TO_HEAD' &&
+      battle.status === BattleStatus.PENDING_INVITE &&
+      battle.creatorId === userId;
+
+    if (!creatorCanCommentWhileInvitePending) {
+      throw new BadRequestException('Battle is not live');
+    }
+  }
+
+  private async ensureParentBattleComment(battleId: string, parentCommentId?: string) {
+    if (!parentCommentId) return;
+
+    const parent = await this.prisma.battleComment.findUnique({
+      where: { id: parentCommentId },
+      select: { battleId: true },
+    });
+
+    if (!parent || parent.battleId !== battleId) {
+      throw new BadRequestException('Parent comment not found');
+    }
+  }
+
   private buildHeadToHeadSides(battle: {
     format: string;
     creatorId: string;
@@ -641,7 +670,8 @@ export class BattleService {
 
     const battle = await this.prisma.battle.findUnique({ where: { id: dto.battleId } });
     if (!battle) throw new NotFoundException('Battle not found');
-    if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
+    this.ensureCanCommentOnBattle(battle, userId);
+    await this.ensureParentBattleComment(dto.battleId, dto.parentCommentId);
 
     const existingParticipant = await this.prisma.battleParticipant.findUnique({
       where: { battleId_userId: { battleId: dto.battleId, userId } },
@@ -720,7 +750,8 @@ export class BattleService {
 
     const battle = await this.prisma.battle.findUnique({ where: { id: dto.battleId } });
     if (!battle) throw new NotFoundException('Battle not found');
-    if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
+    this.ensureCanCommentOnBattle(battle, userId);
+    await this.ensureParentBattleComment(dto.battleId, dto.parentCommentId);
 
     const images = files && files.length > 0
       ? await Promise.all(files.map(file => uploadImageToS3(file, 'battle-comments')))
