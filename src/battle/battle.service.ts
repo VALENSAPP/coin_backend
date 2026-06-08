@@ -379,23 +379,77 @@ export class BattleService {
   async editBattleQuestion(userId: string, dto: BattleEditQuestionDto) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!dto?.battleId) throw new BadRequestException('Battle ID required');
-    if (!dto?.question || dto.question.trim() === '') throw new BadRequestException('Question required');
+
+    const normalizedQuestion = dto.question?.trim();
+    const hasQuestionUpdate = typeof dto.question === 'string' && normalizedQuestion !== '';
+    const hasOptionsUpdate = dto.options !== undefined;
+
+    if (!hasQuestionUpdate && !hasOptionsUpdate) {
+      throw new BadRequestException('Question or options required');
+    }
+
+    let normalizedOptions: string[] | undefined;
+    if (hasOptionsUpdate) {
+      if (!Array.isArray(dto.options) || dto.options.length === 0) {
+        throw new BadRequestException('Options must be a non-empty array');
+      }
+
+      normalizedOptions = dto.options.map((option) => option.trim());
+      if (normalizedOptions.some((option) => option === '')) {
+        throw new BadRequestException('Each option must be non-empty');
+      }
+
+      const uniqueOptions = new Set(normalizedOptions.map((option) => option.toLowerCase()));
+      if (uniqueOptions.size !== normalizedOptions.length) {
+        throw new BadRequestException('Options must be unique');
+      }
+    }
 
     const battle = await this.prisma.battle.findUnique({
       where: { id: dto.battleId },
-      select: { id: true, creatorId: true, status: true, createdAt: true },
+      select: {
+        id: true,
+        creatorId: true,
+        format: true,
+        status: true,
+        createdAt: true,
+        optionImages: true,
+      },
     });
 
     if (!battle) throw new NotFoundException('Battle not found');
     if (battle.creatorId !== userId) throw new ForbiddenException('Only creator can edit battle question');
+    if (battle.format === 'HEAD_TO_HEAD' && battle.status === 'LIVE') {
+      throw new BadRequestException('Live head-to-head battles cannot be edited');
+    }
+
+    if (normalizedOptions) {
+      if (battle.format === 'HEAD_TO_HEAD' && normalizedOptions.length !== 2) {
+        throw new BadRequestException('Head-to-head battles require exactly two sides');
+      }
+      if (battle.format === 'POLL' && normalizedOptions.length < 2) {
+        throw new BadRequestException('Poll battles require at least two options');
+      }
+    }
+
     const minutesSinceCreation = (Date.now() - battle.createdAt.getTime()) / (60 * 1000);
     if (minutesSinceCreation > 5) {
       throw new BadRequestException('Battle question can only be edited within 5 minutes of creation');
     }
 
+    const updateData: { question?: string; options?: string[]; optionImages?: string[] } = {};
+
+    if (hasQuestionUpdate) {
+      updateData.question = normalizedQuestion;
+    }
+    if (normalizedOptions) {
+      updateData.options = normalizedOptions;
+      updateData.optionImages = normalizedOptions.map((_, index) => battle.optionImages[index] || '');
+    }
+
     return this.prisma.battle.update({
       where: { id: dto.battleId },
-      data: { question: dto.question.trim() },
+      data: updateData,
     });
   }
 

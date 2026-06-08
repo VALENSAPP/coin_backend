@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class BattleInviteDto {
@@ -155,7 +155,17 @@ export class BattleEditQuestionDto {
   @IsString()
   battleId!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  question!: string;
+  question?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Optional updated options/sides for the battle',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  options?: string[];
 }
