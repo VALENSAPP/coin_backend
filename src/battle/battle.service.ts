@@ -1021,32 +1021,7 @@ export class BattleService {
     return result;
   }
 
-  async exploreBattles(userId: string, status?: string) {
-    const parsedStatus = this.parseBattleStatus(status) || BattleStatus.LIVE;
-    const battles = await this.prisma.battle.findMany({
-      where: {
-        status: parsedStatus,
-        isPublic: true,
-      },
-      include: {
-        creator: true,
-        participants: {
-          include: {
-            user: { select: BATTLE_PUBLIC_USER_SELECT },
-          },
-        },
-        invites: {
-          include: {
-            invited: { select: BATTLE_PUBLIC_USER_SELECT },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-        _count: { select: { participants: true, comments: true, votes: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-
+  private async formatBattleListItems(battles: any[]) {
     const pollBattleIds = battles.filter((b) => b.format === 'POLL').map((b) => b.id);
     const headToHeadBattleIds = battles.filter((b) => b.format === 'HEAD_TO_HEAD').map((b) => b.id);
 
@@ -1094,17 +1069,120 @@ export class BattleService {
 
       const headToHeadSides = this.buildHeadToHeadSides(battle);
       const participantOpponent = battle.participants
-        .map((participant) => participant.user)
-        .find((participantUser) => participantUser.id !== battle.creatorId);
+        .map((participant: any) => participant.user)
+        .find((participantUser: any) => participantUser.id !== battle.creatorId);
 
       const invitedOpponent = battle.invites
-        .map((invite) => invite.invited)
-        .find((invitedUser) => invitedUser.id !== battle.creatorId);
+        .map((invite: any) => invite.invited)
+        .find((invitedUser: any) => invitedUser.id !== battle.creatorId);
 
       const opponent = participantOpponent || invitedOpponent || null;
       const { participants, invites, ...rest } = battle;
       return { ...rest, opponent, headToHeadSides, voteCounts };
     });
+  }
+
+  async exploreBattles(userId: string, status?: string) {
+    const parsedStatus = this.parseBattleStatus(status) || BattleStatus.LIVE;
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        status: parsedStatus,
+        isPublic: true,
+      },
+      include: {
+        creator: true,
+        participants: {
+          include: {
+            user: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
+        invites: {
+          include: {
+            invited: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        _count: { select: { participants: true, comments: true, votes: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return this.formatBattleListItems(battles);
+  }
+
+  async myBattleTracking(userId: string, filter: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const normalizedFilter = (filter || '').trim();
+    const allowedFilters = ['battle_live', 'battle_arena', 'battle_past'];
+    if (!allowedFilters.includes(normalizedFilter)) {
+      throw new BadRequestException('Invalid filter. Use battle_live, battle_arena, or battle_past');
+    }
+
+    const myBattleEngagementWhere = {
+      OR: [
+        { participants: { some: { userId } } },
+        { comments: { some: { userId } } },
+        { votes: { some: { userId } } },
+        { predictions: { some: { userId } } },
+      ],
+    };
+
+    const where =
+      normalizedFilter === 'battle_live'
+        ? {
+          creatorId: userId,
+          status: BattleStatus.LIVE,
+        }
+        : normalizedFilter === 'battle_arena'
+          ? {
+            status: BattleStatus.LIVE,
+            creatorId: { not: userId },
+            ...myBattleEngagementWhere,
+          }
+          : {
+            status: BattleStatus.RESOLVED,
+            OR: [
+              { creatorId: userId },
+              { participants: { some: { userId } } },
+              { comments: { some: { userId } } },
+              { votes: { some: { userId } } },
+              { predictions: { some: { userId } } },
+            ],
+          };
+
+    const battles = await this.prisma.battle.findMany({
+      where,
+      include: {
+        creator: { select: BATTLE_PUBLIC_USER_SELECT },
+        winner: { select: BATTLE_PUBLIC_USER_SELECT },
+        participants: {
+          include: {
+            user: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+        },
+        invites: {
+          include: {
+            invited: { select: BATTLE_PUBLIC_USER_SELECT },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        _count: { select: { participants: true, comments: true, votes: true } },
+      },
+      orderBy: normalizedFilter === 'battle_past'
+        ? [{ resolvedAt: 'desc' }, { createdAt: 'desc' }]
+        : [{ endTime: 'asc' }, { createdAt: 'desc' }],
+      take: 100,
+    });
+
+    const items = await this.formatBattleListItems(battles);
+
+    return {
+      filter: normalizedFilter,
+      count: items.length,
+      items,
+    };
   }
 
   async getBattlesByUser(targetUserId: string, status?: string) {

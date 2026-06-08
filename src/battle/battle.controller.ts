@@ -263,6 +263,16 @@ export class BattleController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('myBattleTracking')
+  @ApiQuery({ name: 'filter', required: true, enum: ['battle_live', 'battle_arena', 'battle_past'] })
+  @ApiOperation({ summary: 'Track authenticated user battles by live, arena, or past filter' })
+  async myBattleTracking(@Req() req: Request, @Query('filter') filter: string) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.myBattleTracking(userId, filter);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Get('explore')
   @ApiQuery({ name: 'status', required: false, type: 'string' })
   @ApiOperation({ summary: 'Explore live battles' })
