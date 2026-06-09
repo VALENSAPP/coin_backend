@@ -30,38 +30,87 @@ export class PostService {
     return normalized === 'private_circle';
   }
 
-  private buildSubscriptionContentAccessWhere(viewerUserId?: string): Prisma.PostWhereInput {
+  // private buildSubscriptionContentAccessWhere(viewerUserId?: string): Prisma.PostWhereInput {
+  //   if (!viewerUserId) {
+  //     return {
+  //       OR: [
+  //         { type: null },
+  //         { type: { not: 'subscription_content' } },
+  //       ],
+  //     };
+  //   }
+
+  //   return {
+  //     OR: [
+  //       { type: null },
+  //       { type: { not: 'subscription_content' } },
+  //       { userId: viewerUserId },
+  //       {
+  //         type: 'subscription_content',
+  //         user: {
+  //           receivedPayments: {
+  //             some: {
+  //               userId: viewerUserId,
+  //               forPayment: 'following',
+  //               status: 'succeeded',
+  //               periodEnd: { gt: new Date() },
+  //             },
+  //           },
+  //         },
+  //       },
+  //     ],
+  //   };
+  // }
+  private buildSubscriptionContentAccessWhere(
+    viewerUserId?: string,
+  ): Prisma.PostWhereInput {
     if (!viewerUserId) {
       return {
         OR: [
           { type: null },
-          { type: { not: 'subscription_content' } },
+          { type: { not: 'private' } },
         ],
       };
     }
 
     return {
       OR: [
+        // Public / non-private posts
         { type: null },
-        { type: { not: 'subscription_content' } },
+        { type: { not: 'private' } },
+
+        // User can always see their own posts
         { userId: viewerUserId },
+
+        // Subscription posts
         {
-          type: 'subscription_content',
-          user: {
-            receivedPayments: {
-              some: {
-                userId: viewerUserId,
-                forPayment: 'following',
-                status: 'succeeded',
-                periodEnd: { gt: new Date() },
+          AND: [
+            { type: 'private' },
+            {
+              OR: [
+                { visibleTo: null },
+                { visibleTo: '' },
+              ],
+            },
+            {
+              user: {
+                receivedPayments: {
+                  some: {
+                    userId: viewerUserId,
+                    forPayment: 'following',
+                    status: 'succeeded',
+                    periodEnd: {
+                      gt: new Date(),
+                    },
+                  },
+                },
               },
             },
-          },
+          ],
         },
       ],
     };
   }
-
   private buildPostVisibilityWhere(viewerUserId?: string): Prisma.PostWhereInput {
     const publicVisibility: Prisma.PostWhereInput[] = [
       { visibleTo: null },
@@ -127,10 +176,50 @@ export class PostService {
     if (!member) throw new BadRequestException('Post not found');
   }
 
-  private async ensureCanViewSubscriptionContent(post: { userId: string; type?: string | null }, viewerUserId?: string) {
-    if (post.type !== 'subscription_content') return;
-    if (viewerUserId && post.userId === viewerUserId) return;
-    if (!viewerUserId) throw new BadRequestException('Post not found');
+  // private async ensureCanViewSubscriptionContent(post: { userId: string; type?: string | null }, viewerUserId?: string) {
+  //   if (post.type !== 'subscription_content') return;
+  //   if (viewerUserId && post.userId === viewerUserId) return;
+  //   if (!viewerUserId) throw new BadRequestException('Post not found');
+
+  //   const activePayment = await this.prisma.payment.findFirst({
+  //     where: {
+  //       userId: viewerUserId,
+  //       receiverId: post.userId,
+  //       forPayment: 'following',
+  //       status: 'succeeded',
+  //       periodEnd: { gt: new Date() },
+  //     },
+  //     select: { id: true },
+  //   });
+
+  //   if (!activePayment) throw new BadRequestException('Post not found');
+  // }
+  private async ensureCanViewSubscriptionContent(
+    post: {
+      userId: string;
+      type?: string | null;
+      visibleTo?: string | null;
+    },
+    viewerUserId?: string,
+  ) {
+    const isSubscriptionPost =
+      post.type === 'private' &&
+      (post.visibleTo === null || post.visibleTo === '');
+
+    // Not a subscription post
+    if (!isSubscriptionPost) {
+      return;
+    }
+
+    // Owner can always view their own subscription posts
+    if (viewerUserId && post.userId === viewerUserId) {
+      return;
+    }
+
+    // Guest users cannot view subscription posts
+    if (!viewerUserId) {
+      throw new BadRequestException('Post not found');
+    }
 
     const activePayment = await this.prisma.payment.findFirst({
       where: {
@@ -138,12 +227,18 @@ export class PostService {
         receiverId: post.userId,
         forPayment: 'following',
         status: 'succeeded',
-        periodEnd: { gt: new Date() },
+        periodEnd: {
+          gt: new Date(),
+        },
       },
-      select: { id: true },
+      select: {
+        id: true,
+      },
     });
 
-    if (!activePayment) throw new BadRequestException('Post not found');
+    if (!activePayment) {
+      throw new BadRequestException('Post not found');
+    }
   }
 
   async createPost(
