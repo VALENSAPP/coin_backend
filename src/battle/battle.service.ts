@@ -413,6 +413,7 @@ export class BattleService {
         format: true,
         status: true,
         createdAt: true,
+        options: true,
         optionImages: true,
       },
     });
@@ -447,9 +448,38 @@ export class BattleService {
       updateData.optionImages = normalizedOptions.map((_, index) => battle.optionImages[index] || '');
     }
 
-    return this.prisma.battle.update({
-      where: { id: dto.battleId },
-      data: updateData,
+    return this.prisma.$transaction(async (tx) => {
+      const updatedBattle = await tx.battle.update({
+        where: { id: dto.battleId },
+        data: updateData,
+      });
+
+      if (!normalizedOptions) {
+        return updatedBattle;
+      }
+
+      const sideRenames = battle.options
+        .map((oldSide, index) => ({ oldSide, newSide: normalizedOptions[index] }))
+        .filter(({ oldSide, newSide }) => !!newSide && oldSide !== newSide) as Array<{ oldSide: string; newSide: string }>;
+
+      await Promise.all(
+        sideRenames.flatMap(({ oldSide, newSide }) => [
+          tx.battleParticipant.updateMany({
+            where: { battleId: dto.battleId, side: oldSide },
+            data: { side: newSide },
+          }),
+          tx.battleVote.updateMany({
+            where: { battleId: dto.battleId, side: oldSide },
+            data: { side: newSide },
+          }),
+          tx.battlePrediction.updateMany({
+            where: { battleId: dto.battleId, side: oldSide },
+            data: { side: newSide },
+          }),
+        ]),
+      );
+
+      return updatedBattle;
     });
   }
 
