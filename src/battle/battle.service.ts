@@ -490,6 +490,16 @@ export class BattleService {
         },
       });
 
+      await tx.battleVote.upsert({
+        where: { battleId_userId: { battleId: battle.id, userId } },
+        update: { side },
+        create: {
+          battleId: battle.id,
+          userId,
+          side,
+        },
+      });
+
       await tx.battleComment.create({
         data: {
           battleId: battle.id,
@@ -577,6 +587,16 @@ export class BattleService {
           side,
           openingArgument: comment,
           argumentSubmitted: true,
+        },
+      });
+
+      await tx.battleVote.upsert({
+        where: { battleId_userId: { battleId: dto.battleId, userId } },
+        update: { side },
+        create: {
+          battleId: dto.battleId,
+          userId,
+          side,
         },
       });
 
