@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query, ParseUUIDPipe,BadRequestException } from '@nestjs/common';
+import { Body, Controller, Post, Patch, Get, Param, Delete, UseInterceptors, UploadedFile, Req, UseGuards, Query, ParseUUIDPipe, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { ApiProperty } from '@nestjs/swagger';
@@ -25,25 +25,25 @@ export enum Gender {
 }
 
 export class RegisterDto {
-   @ApiProperty({ required: false })
-   @IsOptional()
-   @IsString()
-   email?: string;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  email?: string;
 
-   @ApiProperty({ required: false })
-   @IsOptional()
-   @IsString()
-   userName?: string;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  userName?: string;
 
-   @ApiProperty({ required: false })
-   @IsOptional()
-   @IsString()
-   profile?: string;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  profile?: string;
 
-   @ApiProperty({ required: false })
-   @IsOptional()
-   @IsString()
-   password?: string;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  password?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -161,8 +161,8 @@ export class ProfileEditDto {
   @IsString()
   phoneNumber?: string;
 
-  @ApiProperty({ 
-    enum: Gender, 
+  @ApiProperty({
+    enum: Gender,
     required: false,
     description: 'Must be MALE, FEMALE, or OTHER'
   })
@@ -260,8 +260,8 @@ export class CheckDisplayNameDto {
 }
 
 export class GetProfileDto {
-  @ApiProperty({ 
-    description: 'User ID to get profile for', 
+  @ApiProperty({
+    description: 'User ID to get profile for',
     required: true,
     example: '123e4567-e89b-12d3-a456-426614174000'
   })
@@ -389,7 +389,7 @@ export class ReactivateAccountDto {
 @ApiTags('user')
 @Controller('user')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Post('register')
   async register(@Body() dto: RegisterDto) {
@@ -419,7 +419,7 @@ export class UserController {
   @Patch('editProfile')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Edit user profile',
     description: 'Update user profile fields. All fields are optional. If wallet address already exists, it cannot be updated (contact admin).'
   })
@@ -431,8 +431,8 @@ export class UserController {
     @UploadedFile() image: Express.Multer.File,
   ) {
     const userId = (req.user as any).userId;
-    console.log("LLLLLLLLLLLLLLLLLLLL",req.user,userId);
-    
+    console.log("LLLLLLLLLLLLLLLLLLLL", req.user, userId);
+
     const user = await this.userService.editProfile(userId, dto, image);
     return { message: 'Profile updated', user };
   }
@@ -447,6 +447,17 @@ export class UserController {
   async updateFirstLogAfterKyc(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.userService.updateFirstLogAfterKyc(userId);
+  }
+
+  @Get('profileLock')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get profile lock status based on KYC and last KYC attempt age',
+  })
+  async getProfileLock(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.getProfileLockStatus(userId);
   }
 
   @Post('forgot-password')
@@ -498,7 +509,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: FollowPersonDto })
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Follow a user',
     description: 'Follow a user directly (followerId is automatically extracted from JWT token)'
   })
@@ -511,7 +522,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: UnfollowDto })
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Unfollow a user',
     description: 'Unfollow a user (followerId is automatically extracted from JWT token)'
   })
@@ -524,7 +535,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: BlockUserDto })
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Block a user',
     description: 'Block a user (blockerId is automatically extracted from JWT token)'
   })
@@ -537,7 +548,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiBody({ type: UnblockUserDto })
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Unblock a user',
     description: 'Unblock a user (blockerId is automatically extracted from JWT token)'
   })
@@ -549,7 +560,7 @@ export class UserController {
   @Get('pending-requests')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get pending follow requests',
     description: 'Returns empty array since follow requests are now direct (userId is automatically extracted from JWT token)'
   })
@@ -588,7 +599,7 @@ export class UserController {
   @Get('blocked-users')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get blocked users for the authenticated user',
     description: 'Returns list of users blocked by the authenticated user (blockerId is automatically extracted from JWT token)'
   })
@@ -615,7 +626,7 @@ export class UserController {
   @Get('display-names')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all display names of all users',
     description: 'Retrieves display names, user names, emails, and IDs of all users (excluding soft-deleted users)'
   })
@@ -625,13 +636,13 @@ export class UserController {
   }
 
   @Post('check-display-name')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Check display name availability',
     description: 'Check if a display name is available. If taken, returns 4 similar suggestions.'
   })
   @ApiBody({ type: CheckDisplayNameDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Display name check result',
     schema: {
       type: 'object',
@@ -639,8 +650,8 @@ export class UserController {
         status: { type: 'string', enum: ['approved', 'taken'] },
         message: { type: 'string' },
         displayName: { type: 'string' },
-        suggestions: { 
-          type: 'array', 
+        suggestions: {
+          type: 'array',
           items: { type: 'string' },
           description: 'Array of 4 suggested display names (only if status is "taken")'
         }
@@ -657,8 +668,8 @@ export class UserController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user dashboard data' })
   @ApiQuery({ name: 'userId', type: 'string', description: 'User ID to get dashboard data for' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'User dashboard data retrieved successfully',
     schema: {
       type: 'object',

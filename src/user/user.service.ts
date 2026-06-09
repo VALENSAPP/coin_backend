@@ -101,6 +101,40 @@ export class UserService {
     return { updated: true, reason: 'updated', first_log: updatedUser.first_log };
   }
 
+  async getProfileLockStatus(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, kyc: true },
+    });
+
+    if (!user) throw new BadRequestException('User not found');
+
+    if (user.kyc) {
+      return { isLock: 'verified' };
+    }
+
+    const latestKyc = await this.prisma.kyc.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+
+    if (!latestKyc?.createdAt) {
+      return { isLock: false };
+    }
+
+    const seventyTwoHoursInMs = 72 * 60 * 60 * 1000;
+    const elapsedMs = Date.now() - new Date(latestKyc.createdAt).getTime();
+
+    if (elapsedMs < seventyTwoHoursInMs) {
+      return { isLock: false };
+    }
+
+    return { isLock: true };
+  }
+
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
