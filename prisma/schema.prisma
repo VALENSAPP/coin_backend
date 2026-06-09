@@ -122,6 +122,7 @@ model User {
   battleAchievements          BattleAchievement[]
   battleStats                 UserBattleStats?
   deviceAccounts              DeviceAccount[]
+  trustVotes                  PostTrustVote[]
 }
 
 model CompanyProfile {
@@ -173,6 +174,7 @@ model Post {
   privateCircleId  String?
   format           format      @default(image)
   postHide         postHide      @default(no)
+  isTrustPost      Boolean         @default(false)
   hides            HidePost[]
   reports          PostReport[]
   user             User          @relation(fields: [userId], references: [id])
@@ -182,7 +184,7 @@ model Post {
   shares           PostShare[]
   saves            SavePost[]
   pinnedBy         PinnedPost[]
-
+  trustVotes       PostTrustVote[]
   @@index([privateCircleId])
 }
 
@@ -985,6 +987,24 @@ model BattleActivity {
   @@index([type])
 }
 
+model PostTrustVote {
+  id              String          @id @default(uuid())
+
+  userId          String
+  postId          String
+
+  voteType        TrustVoteType
+
+  post            Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
 enum RegistrationType {
   NORMAL
   GOOGLE
@@ -1084,4 +1104,10 @@ enum ReactionType {
 enum format {
   image
   video
+}
+
+enum TrustVoteType {
+  AGREE
+  DISAGREE
+  NOT_SURE
 }

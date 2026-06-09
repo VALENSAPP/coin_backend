@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { POST_TYPES, PostType } from './post-types';
@@ -121,4 +121,20 @@ export class CreatePostDto {
   @IsOptional()
   @Transform(({ value }: { value: any }) => value ? new Date(value) : null)
   end_time?: Date;
+
+  @ApiProperty({
+    description: 'Mark post as trust post',
+    required: false,
+    default: false,
+    type: Boolean,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }: { value: any }) => {
+    if (value === null || value === undefined || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+    return Boolean(value);
+  })
+  isTrustPost?: boolean;
 }

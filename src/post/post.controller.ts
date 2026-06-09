@@ -17,6 +17,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { ChatStatusUpdateDto } from './dto/chat-status-update.dto';
 import { HideChatDto } from './dto/hide-chat.dto';
 import { PinPostDto, UnpinPostDto } from './dto/pin-post.dto';
+import { GetPostTrustScoreDto, PostTrustVoteDto, RemovePostTrustVoteDto } from './dto/post-trust-vote.dto';
 import { POST_TYPES } from './dto/post-types';
 import { log } from 'console';
 
@@ -52,6 +53,7 @@ export class PostController {
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },
+        isTrustPost: { type: 'boolean', description: 'Whether this is a trust post', default: false },
       },
     },
   })
@@ -84,6 +86,7 @@ export class PostController {
       body.raiseAmount,
       body.start_time,
       body.end_time,
+      body.isTrustPost,
     );
   }
 
@@ -211,6 +214,43 @@ export class PostController {
   ) {
     const userId = (req.user as any).userId;
     return this.postService.postLikeByUser(body.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('postTrustVote')
+  @ApiOperation({ summary: 'Create or update trust vote on a trust post' })
+  @ApiBody({ type: PostTrustVoteDto })
+  async postTrustVote(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) body: PostTrustVoteDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.postTrustVote(body.postId, userId, body.voteType);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('getPostTrustScore')
+  @ApiOperation({ summary: 'Get trust vote score and percentages for a trust post' })
+  @ApiBody({ type: GetPostTrustScoreDto })
+  async getPostTrustScore(
+    @Body(new ValidationPipe({ whitelist: true })) body: GetPostTrustScoreDto,
+  ) {
+    return this.postService.getPostTrustScore(body.postId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('removePostTrustVote')
+  @ApiOperation({ summary: 'Remove trust vote of logged-in user for a post' })
+  @ApiBody({ type: RemovePostTrustVoteDto })
+  async removePostTrustVote(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) body: RemovePostTrustVoteDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.removePostTrustVote(body.postId, userId);
   }
 
   @UseGuards(AuthGuard('jwt'))

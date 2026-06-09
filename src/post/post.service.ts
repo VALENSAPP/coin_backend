@@ -259,6 +259,7 @@ export class PostService {
     raiseAmount?: number,
     start_time?: Date,
     end_time?: Date,
+    isTrustPost: boolean = false,
   ) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
@@ -273,7 +274,8 @@ export class PostService {
         hashtag,
         type,
         format,
-        raiseAmount
+        raiseAmount,
+        isTrustPost,
       });
 
       // For crowdfunding posts, check hits and validate required fields
@@ -403,6 +405,7 @@ export class PostService {
             thumbnails: thumbnailUrls,
             type,
             privateCircleId,
+            isTrustPost,
           },
         });
       }, {
@@ -1757,6 +1760,136 @@ export class PostService {
 
       return { message: 'Post liked successfully', liked: true };
     }
+  }
+
+  async postTrustVote(postId: string, userId: string, voteType: 'AGREE' | 'DISAGREE' | 'NOT_SURE') {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, isTrustPost: true, deletedAt: true, isDelete: true },
+    });
+
+    if (!post || post.deletedAt || post.isDelete === 'yes') {
+      throw new BadRequestException('Post not found');
+    }
+
+    if (!post.isTrustPost) {
+      throw new BadRequestException('This post is not a trust post');
+    }
+
+    const prismaClient = this.prisma as any;
+
+    const existingVote = await prismaClient.postTrustVote.findUnique({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+      select: { id: true },
+    });
+
+    const vote = await prismaClient.postTrustVote.upsert({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+      create: {
+        userId,
+        postId,
+        voteType,
+      },
+      update: {
+        voteType,
+      },
+    });
+
+    return {
+      message: existingVote ? 'Trust vote updated successfully' : 'Trust vote added successfully',
+      vote,
+    };
+  }
+
+  async getPostTrustScore(postId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, isTrustPost: true, deletedAt: true, isDelete: true },
+    });
+
+    if (!post || post.deletedAt || post.isDelete === 'yes') {
+      throw new BadRequestException('Post not found');
+    }
+
+    if (!post.isTrustPost) {
+      throw new BadRequestException('This post is not a trust post');
+    }
+
+    const prismaClient = this.prisma as any;
+
+    const [agreeVoteCount, disagreeVoteCount, notSureVoteCount] = await Promise.all([
+      prismaClient.postTrustVote.count({ where: { postId, voteType: 'AGREE' } }),
+      prismaClient.postTrustVote.count({ where: { postId, voteType: 'DISAGREE' } }),
+      prismaClient.postTrustVote.count({ where: { postId, voteType: 'NOT_SURE' } }),
+    ]);
+
+    const total = agreeVoteCount + disagreeVoteCount + notSureVoteCount;
+
+    const agreeVotePercentage = total > 0 ? (agreeVoteCount * 100) / total : 0;
+    const disagreeVotePercentage = total > 0 ? (disagreeVoteCount * 100) / total : 0;
+    const notSureVotePercentage = total > 0 ? (notSureVoteCount * 100) / total : 0;
+
+    return {
+      postId,
+      total,
+      counts: {
+        agreeVoteCount,
+        disagreeVoteCount,
+        notSureVoteCount,
+      },
+      percentages: {
+        agreeVotePercentage,
+        disagreeVotePercentage,
+        notSureVotePercentage,
+      },
+    };
+  }
+
+  async removePostTrustVote(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const prismaClient = this.prisma as any;
+
+    const existingVote = await prismaClient.postTrustVote.findUnique({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!existingVote) {
+      throw new BadRequestException('Trust vote not found');
+    }
+
+    await prismaClient.postTrustVote.delete({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+    });
+
+    return { message: 'Trust vote removed successfully' };
   }
 
   async postLikeList(postId: string, viewerUserId?: string) {
