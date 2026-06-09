@@ -1238,12 +1238,17 @@ export class BattleService {
       normalizedFilter === 'battle_live'
         ? {
           creatorId: userId,
-          status: BattleStatus.LIVE,
+          status: {
+            in: [
+              BattleStatus.LIVE,
+              BattleStatus.PENDING_INVITE,
+            ],
+          },
         }
         : normalizedFilter === 'battle_arena'
           ? {
             status: BattleStatus.LIVE,
-            creatorId: { not: userId },
+            // creatorId: { not: userId },
             ...myBattleEngagementWhere,
           }
           : {
