@@ -749,42 +749,109 @@ export class UserService {
   }
 
   // Forgot password: generate OTP, save to user, send email (stub)
+
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new BadRequestException('Email not registered');
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit numeric OTP
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
-    await this.prisma.user.update({
+    const user = await this.prisma.user.findUnique({
       where: { email },
-      data: { otp, otpExpiresAt },
     });
-    try {
-      sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
-      // Read HTML template
-      const fs = require('fs');
-      const path = require('path');
-      const templatePath = path.join(process.cwd(), 'public', 'otp-email.html');
-      let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
+    // Only generate/send OTP if user exists
+    if (user) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-      // Replace placeholders
-      const userName = user.displayName || user.userName || 'User';
-      htmlTemplate = htmlTemplate.replace(/{{user_name}}/g, userName);
-      htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
+      const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      await sgMail.send({
-        to: email,
-        from: process.env.SENDGRID_FROM_EMAIL!,
-        subject: 'Your Password Reset OTP',
-        html: htmlTemplate,
-        text: `Your OTP for password reset is: ${otp}`, // Fallback for email clients that don't support HTML
+      await this.prisma.user.update({
+        where: { email },
+        data: {
+          otp,
+          otpExpiresAt,
+        },
       });
-    } catch (error) {
-      console.error('SendGrid error:', error);
-      throw new BadRequestException('Failed to send email. Please check your email address or try again later.');
+
+      try {
+        sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+        const fs = require('fs');
+        const path = require('path');
+
+        const templatePath = path.join(
+          process.cwd(),
+          'public',
+          'otp-email.html',
+        );
+
+        let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
+
+        const userName =
+          user.displayName ||
+          user.userName ||
+          'User';
+
+        htmlTemplate = htmlTemplate.replace(
+          /{{user_name}}/g,
+          userName,
+        );
+
+        htmlTemplate = htmlTemplate.replace(
+          /{{otp_code}}/g,
+          otp,
+        );
+
+        await sgMail.send({
+          to: email,
+          from: process.env.SENDGRID_FROM_EMAIL!,
+          subject: 'Your Password Reset OTP',
+          html: htmlTemplate,
+          text: `Your OTP for password reset is: ${otp}`,
+        });
+      } catch (error) {
+        console.error('SendGrid error:', error);
+      }
     }
-    return true;
+
+    return {
+      message:
+        'If an account exists with this email, you will receive further instructions.',
+    };
   }
+
+  // async forgotPassword(email: string) {
+  //   const user = await this.prisma.user.findUnique({ where: { email } });
+  //   if (!user) throw new BadRequestException('Email not registered');
+  //   const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit numeric OTP
+  //   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
+  //   await this.prisma.user.update({
+  //     where: { email },
+  //     data: { otp, otpExpiresAt },
+  //   });
+  //   try {
+  //     sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+  //     // Read HTML template
+  //     const fs = require('fs');
+  //     const path = require('path');
+  //     const templatePath = path.join(process.cwd(), 'public', 'otp-email.html');
+  //     let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
+
+  //     // Replace placeholders
+  //     const userName = user.displayName || user.userName || 'User';
+  //     htmlTemplate = htmlTemplate.replace(/{{user_name}}/g, userName);
+  //     htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
+
+  //     await sgMail.send({
+  //       to: email,
+  //       from: process.env.SENDGRID_FROM_EMAIL!,
+  //       subject: 'Your Password Reset OTP',
+  //       html: htmlTemplate,
+  //       text: `Your OTP for password reset is: ${otp}`, // Fallback for email clients that don't support HTML
+  //     });
+  //   } catch (error) {
+  //     console.error('SendGrid error:', error);
+  //     throw new BadRequestException('Failed to send email. Please check your email address or try again later.');
+  //   }
+  //   return true;
+  // }
 
   // Verify OTP
   async verifyOtp(email: string, otp: string) {
@@ -803,7 +870,7 @@ export class UserService {
   // SendGrid email OTP for email verification
   async sendEmailOtp(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) throw new BadRequestException('Email not registered');
+    if (!user) throw new BadRequestException('If an account exists with this email, you will receive further instructions.');
     const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit numeric OTP
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min
     await this.prisma.user.update({

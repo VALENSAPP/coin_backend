@@ -19,7 +19,7 @@ async function bootstrap() {
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/kyc/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/sumsub-verification/webhook', bodyParser.raw({ type: '*/*' }));
- app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
+  app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
   app.use(bodyParser.json({ limit: '5mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -36,6 +36,20 @@ async function bootstrap() {
     createRateLimitMiddleware({
       windowMs: 15 * 60 * 1000,
       max: 60,
+    }),
+  );
+  app.use(
+    '/auth/forgot-password',
+    createRateLimitMiddleware({
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+    }),
+  );
+  app.use(
+    '/user/forgot-password',
+    createRateLimitMiddleware({
+      windowMs: 15 * 60 * 1000,
+      max: 5,
     }),
   );
 
@@ -81,75 +95,75 @@ async function bootstrap() {
     }
 
     // Handle getUserChatBox
-   socket.on('getUserChatBox', async (data: any) => {
-  try {
-    // FIX: parse JSON string if necessary
-    if (typeof data === 'string') {
-      data = JSON.parse(data);
-    }
-
-     console.log('getUserChatBox payload:', data, data.userId);
-
-    const userId = data.userId;
-
-    const chatBoxes = await postService.getUserChatBox(userId);
-    socket.emit('userChatBox', chatBoxes);
-  } catch (error) {
-    console.error('getUserChatBox error:', error);
-    socket.emit('userChatBoxError', { message: 'Failed to fetch chat boxes' });
-  }
-});
-
-  socket.on('getConversation', async (data: any) => {
-  try {
-    // FIX: parse JSON string if necessary
-    if (typeof data === 'string') {
-      data = JSON.parse(data);
-    }
-
-     console.log('getConversationWithUser payload:', data, data.userId);
-
-    const userId = data.userId;
-    const otherUserId = data.otherUserId;
-
-    const chatBoxes = await postService.getConversationWithUser(userId, otherUserId);
-    socket.emit('userConversation', chatBoxes);
-  } catch (error) {
-    console.error('getUserConversation error:', error);
-    socket.emit('userConversation', { message: 'Failed to fetch conversation' });
-  }
-});
-
-  // Mark a single message as seen
-  socket.on('markMessageSeen', async (data: any) => {
-    try {
-      if (typeof data === 'string') {
-        data = JSON.parse(data);
-      }
-
-      const { messageId, userId, otherUserId } = data || {};
-
-      if (!messageId) {
-        socket.emit('messageSeenError', { message: 'messageId required' });
-        return;
-      }
-
-      const result = await postService.messageSeenUpdate(messageId, userId);
-      socket.emit('messageSeen', { messageId, ...result });
-
-      // Notify the other user if connected
-      if (otherUserId) {
-        const otherSocketId = connectedUsers.get(otherUserId);
-        if (otherSocketId) {
-          io.to(otherSocketId).emit('messageSeen', { messageId, seenBy: userId, ...result });
+    socket.on('getUserChatBox', async (data: any) => {
+      try {
+        // FIX: parse JSON string if necessary
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
         }
+
+        console.log('getUserChatBox payload:', data, data.userId);
+
+        const userId = data.userId;
+
+        const chatBoxes = await postService.getUserChatBox(userId);
+        socket.emit('userChatBox', chatBoxes);
+      } catch (error) {
+        console.error('getUserChatBox error:', error);
+        socket.emit('userChatBoxError', { message: 'Failed to fetch chat boxes' });
       }
-    } catch (error) {
-      console.error('markMessageSeen error:', error);
-      socket.emit('messageSeenError', { message: 'Failed to update seen status' });
-    }
-  });
-    
+    });
+
+    socket.on('getConversation', async (data: any) => {
+      try {
+        // FIX: parse JSON string if necessary
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+
+        console.log('getConversationWithUser payload:', data, data.userId);
+
+        const userId = data.userId;
+        const otherUserId = data.otherUserId;
+
+        const chatBoxes = await postService.getConversationWithUser(userId, otherUserId);
+        socket.emit('userConversation', chatBoxes);
+      } catch (error) {
+        console.error('getUserConversation error:', error);
+        socket.emit('userConversation', { message: 'Failed to fetch conversation' });
+      }
+    });
+
+    // Mark a single message as seen
+    socket.on('markMessageSeen', async (data: any) => {
+      try {
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+
+        const { messageId, userId, otherUserId } = data || {};
+
+        if (!messageId) {
+          socket.emit('messageSeenError', { message: 'messageId required' });
+          return;
+        }
+
+        const result = await postService.messageSeenUpdate(messageId, userId);
+        socket.emit('messageSeen', { messageId, ...result });
+
+        // Notify the other user if connected
+        if (otherUserId) {
+          const otherSocketId = connectedUsers.get(otherUserId);
+          if (otherSocketId) {
+            io.to(otherSocketId).emit('messageSeen', { messageId, seenBy: userId, ...result });
+          }
+        }
+      } catch (error) {
+        console.error('markMessageSeen error:', error);
+        socket.emit('messageSeenError', { message: 'Failed to update seen status' });
+      }
+    });
+
 
     // Handle disconnect
     socket.on('disconnect', () => {
