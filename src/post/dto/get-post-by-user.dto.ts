@@ -8,10 +8,10 @@ export class GetPostByUserDto {
   @IsUUID()
   userId?: string;
 
-  @ApiProperty({ description: "Filter by post type: 'normal' (exclude private) or 'private'. Default: normal", required: false, enum: ['normal', 'private'], default: 'normal' })
+  @ApiProperty({ description: "Filter by post type: 'normal' (exclude private), 'private', or 'private_circle' (private posts visible only to private circle). Default: normal", required: false, enum: ['normal', 'private', 'private_circle'], default: 'normal' })
   @IsOptional()
-  @IsIn(['normal', 'private'])
-  type?: 'normal' | 'private' = 'normal';
+  @IsIn(['normal', 'private', 'private_circle'])
+  type?: 'normal' | 'private' | 'private_circle' = 'normal';
 
   @ApiProperty({ description: 'Page (1-based)', required: false, default: 1 })
   @IsOptional()

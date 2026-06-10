@@ -151,7 +151,7 @@ export class PostController {
     const viewerUserId = (req.user as any)?.userId;
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const type = (query.type === 'private' ? 'private' : 'normal') as 'normal' | 'private';
+    const type = (query.type === 'private' || query.type === 'private_circle' ? query.type : 'normal') as 'normal' | 'private' | 'private_circle';
     return this.postService.getPostByUserId(targetUserId, viewerUserId, page, limit, type);
   }
 

@@ -584,17 +584,67 @@ export class PostService {
     return { message: 'Post unpinned successfully' };
   }
 
-  async getPostByUserId(userId: string, viewerUserId?: string, page: number = 1, limit: number = 20, type: 'normal' | 'private' = 'normal') {
+  async getPostByUserId(userId: string, viewerUserId?: string, page: number = 1, limit: number = 20, type: 'normal' | 'private' | 'private_circle' = 'normal') {
     if (!userId) throw new BadRequestException('User ID required');
     const take = Math.min(Math.max(1, limit), 50);
     const skip = (Math.max(1, page) - 1) * take;
     const whereClause: any = { userId, deletedAt: null, postHide: 'no', isDelete: 'no' };
-    if (type === 'private') {
+    if (type === 'private_circle') {
+      if (!viewerUserId) {
+        throw new BadRequestException('User not authorized to view private circle posts');
+      }
+
+      const isOwner = viewerUserId === userId;
+      if (!isOwner) {
+        const membership = await this.prisma.privateCircleMember.findFirst({
+          where: {
+            userId: viewerUserId,
+            status: 'ACTIVE',
+            privateCircle: {
+              is: {
+                ownerId: userId,
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        if (!membership) {
+          throw new BadRequestException('You are not a member of this private circle');
+        }
+      }
+
       whereClause.type = 'private';
+      whereClause.visibleTo = { in: this.privateCircleVisibilityValues };
+      whereClause.AND = [
+        {
+          OR: [
+            { userId: viewerUserId },
+            {
+              privateCircle: {
+                members: {
+                  some: {
+                    userId: viewerUserId,
+                    status: 'ACTIVE',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ];
+    } else if (type === 'private') {
+      whereClause.type = 'private';
+      whereClause.OR = [
+        { visibleTo: null },
+        { visibleTo: '' },
+        { visibleTo: { notIn: this.privateCircleVisibilityValues } },
+      ];
+      whereClause.AND = [this.buildPostVisibilityWhere(viewerUserId)];
     } else {
       whereClause.type = { not: 'private' };
+      whereClause.AND = [this.buildPostVisibilityWhere(viewerUserId)];
     }
-    whereClause.AND = [this.buildPostVisibilityWhere(viewerUserId)];
 
     const postInclude = {
       user: {
