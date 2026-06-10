@@ -923,6 +923,40 @@ export class UserService {
     phoneNumber?: string;
     displayName?: string;
   }) {
+
+    const userSelect = {
+      id: true,
+      email: true,
+      registrationType: true,
+      createdAt: true,
+      updatedAt: true,
+      age: true,
+      gender: true,
+      image: true,
+      phoneNumber: true,
+      isDeleted: true,
+      verifyEmail: true,
+      bio: true,
+      displayName: true,
+      userName: true,
+      profile: true,
+      currentPeriodEnd: true,
+      subscriptionEnd: true,
+      subscriptionStart: true,
+      subscriptionStatus: true,
+      kyc: true,
+      first_log: true,
+      profileStatus: true,
+      fansPage: true,
+      twoFact: true,
+      website_link: true,
+      social_media_links: true,
+      canAccessPlatform: true,
+      referCode: true,
+      referPoints: true,
+      totalPlatformPoints: true,
+      walletAddress: true,
+    };
     const where: any = { deletedAt: null };
 
     if (query) {
@@ -952,7 +986,7 @@ export class UserService {
     }
 
     const take = 100;
-    return this.prisma.user.findMany({ where, take, orderBy: { createdAt: 'desc' } });
+    return this.prisma.user.findMany({ where, take, orderBy: { createdAt: 'desc' }, select: userSelect });
   }
 
   // Soft delete user
