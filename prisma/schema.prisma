@@ -175,6 +175,8 @@ model Post {
   format           format      @default(image)
   postHide         postHide      @default(no)
   isTrustPost      Boolean         @default(false)
+  videoText        Boolean         @default(false)
+  videoTextItems   Json?
   hides            HidePost[]
   reports          PostReport[]
   user             User          @relation(fields: [userId], references: [id])

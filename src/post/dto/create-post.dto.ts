@@ -1,7 +1,38 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { Transform, Type as TransformType } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { POST_TYPES, PostType } from './post-types';
+
+export class VideoTextItemDto {
+  @ApiProperty({ description: 'Text to draw on the video' })
+  @IsString()
+  @MaxLength(120)
+  @Transform(({ value }: { value: any }) => (typeof value === 'string' ? value.trim() : value))
+  text!: string;
+
+  @ApiProperty({ description: 'Horizontal position in percentage (0 to 1)', minimum: 0, maximum: 1 })
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  xPercent!: number;
+
+  @ApiProperty({ description: 'Vertical position in percentage (0 to 1)', minimum: 0, maximum: 1 })
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  yPercent!: number;
+
+  @ApiProperty({ description: 'Font size in pixels', minimum: 8, maximum: 200 })
+  @IsInt()
+  @Min(8)
+  @Max(200)
+  fontSize!: number;
+
+  @ApiProperty({ description: 'Text color, e.g. white, yellow, #FFFFFF' })
+  @IsString()
+  @MaxLength(40)
+  color!: string;
+}
 
 export class CreatePostDto {
   @ApiProperty({ description: 'Text content of the post', required: false })
@@ -137,4 +168,59 @@ export class CreatePostDto {
     return Boolean(value);
   })
   isTrustPost?: boolean;
+
+  @ApiProperty({
+    description: 'Enable FFmpeg video text overlay processing for any post that includes video files',
+    required: false,
+    default: false,
+    type: Boolean,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }: { value: any }) => {
+    if (Array.isArray(value)) return true;
+    if (value === null || value === undefined || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+    return Boolean(value);
+  })
+  videoText?: boolean = false;
+
+  @ApiProperty({
+    description: 'Text overlays for video rendering. Supports JSON string or array.',
+    required: false,
+    type: [VideoTextItemDto],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @TransformType(() => VideoTextItemDto)
+  @Transform(({ value, obj }: { value: any; obj: any }) => {
+    const source =
+      value ??
+      obj?.videoTextItems ??
+      obj?.videoTextArray ??
+      (Array.isArray(obj?.videoText) ? obj.videoText : undefined);
+
+    if (source === null || source === undefined || source === '') return [];
+    if (Array.isArray(source)) return source;
+
+    if (typeof source === 'object') {
+      return [source];
+    }
+
+    if (typeof source === 'string') {
+      try {
+        const parsed = JSON.parse(source);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === 'object') return [parsed];
+        return [];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  })
+  videoTextItems?: VideoTextItemDto[];
 }

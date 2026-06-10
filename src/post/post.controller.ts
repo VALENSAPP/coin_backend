@@ -54,6 +54,21 @@ export class PostController {
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },
         isTrustPost: { type: 'boolean', description: 'Whether this is a trust post', default: false },
+        videoText: { type: 'boolean', description: 'Enable text overlay rendering for uploaded video files', default: false },
+        videoTextItems: {
+          type: 'array',
+          description: 'Text overlays rendered onto uploaded videos when videoText=true',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'Text to display' },
+              xPercent: { type: 'number', description: 'Horizontal position from 0 to 1' },
+              yPercent: { type: 'number', description: 'Vertical position from 0 to 1' },
+              fontSize: { type: 'number', description: 'Font size in px' },
+              color: { type: 'string', description: 'Text color, e.g. white or #FFFFFF' },
+            },
+          },
+        },
       },
     },
   })
@@ -68,6 +83,12 @@ export class PostController {
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
+    const rawVideoTextItems = (req as any)?.body?.videoTextItems;
+    const resolvedVideoTextItems =
+      Array.isArray(body.videoTextItems) && body.videoTextItems.length > 0
+        ? body.videoTextItems
+        : rawVideoTextItems;
+
     return this.postService.createPost(
       userId,
       body.text,
@@ -87,6 +108,9 @@ export class PostController {
       body.start_time,
       body.end_time,
       body.isTrustPost,
+      body.videoText,
+      resolvedVideoTextItems,
+      (req as any)?.body,
     );
   }
 

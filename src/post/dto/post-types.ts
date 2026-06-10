@@ -3,6 +3,7 @@ export const POST_TYPES = [
   'crowdfunding',
   'support',
   'mission-post',
+  'reel',
   'private',
   'subscription_content',
 ] as const;

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { uploadBufferToS3, uploadImageToS3 } from '../common/s3.util';
 import { Prisma } from '@prisma/client';
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
+import { applyVideoTextOverlays, VideoTextOverlayItem } from '../common/video-text-overlay.util';
 import { profile } from 'console';
 import { start } from 'repl';
 import { endWith } from 'rxjs';
@@ -260,6 +261,9 @@ export class PostService {
     start_time?: Date,
     end_time?: Date,
     isTrustPost: boolean = false,
+    videoText: boolean = false,
+    videoTextItems?: VideoTextOverlayItem[],
+    rawBody?: Record<string, any>,
   ) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
@@ -276,6 +280,9 @@ export class PostService {
         format,
         raiseAmount,
         isTrustPost,
+        videoText,
+        videoTextItemsCount: videoTextItems?.length,
+        rawBodyKeys: rawBody ? Object.keys(rawBody).length : 0,
       });
 
       // For crowdfunding posts, check hits and validate required fields
@@ -295,17 +302,156 @@ export class PostService {
 
       let imageUrls: string[] = images || [];
       let thumbnailUrls: string[] = [];
+      const normalizeKey = (key: string) => key.replace(/[^a-z]/gi, '').toLowerCase();
+
+      const collectVideoTextItems = (input: any, bucket: Record<string, any>[]) => {
+        if (input === null || input === undefined) return;
+
+        if (Array.isArray(input)) {
+          input.forEach((entry) => collectVideoTextItems(entry, bucket));
+          return;
+        }
+
+        if (typeof input === 'string') {
+          try {
+            const parsed = JSON.parse(input);
+            collectVideoTextItems(parsed, bucket);
+          } catch {
+            // Ignore non-JSON string values.
+          }
+          return;
+        }
+
+        if (typeof input !== 'object') return;
+
+        if (typeof (input as any).text !== 'undefined') {
+          bucket.push(input as Record<string, any>);
+          return;
+        }
+
+        // Handle objects where keys are encoded like videoTextItems[0][text]
+        const objectEntries = Object.entries(input as Record<string, any>);
+        const directCandidate: Record<string, any> = {};
+        for (const [rawKey, rawValue] of objectEntries) {
+          const key = normalizeKey(rawKey);
+          if (key.includes('text')) directCandidate.text = rawValue;
+          if (key.includes('xpercent')) directCandidate.xPercent = rawValue;
+          if (key.includes('ypercent')) directCandidate.yPercent = rawValue;
+          if (key.includes('fontsize')) directCandidate.fontSize = rawValue;
+          if (key.includes('color')) directCandidate.color = rawValue;
+        }
+        if (typeof directCandidate.text !== 'undefined') {
+          bucket.push(directCandidate);
+          return;
+        }
+
+        const values = Object.values(input as Record<string, any>);
+        values.forEach((value) => collectVideoTextItems(value, bucket));
+
+        // Some serializers place JSON payload in object keys.
+        Object.keys(input as Record<string, any>).forEach((key) => {
+          const trimmed = key.trim();
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              collectVideoTextItems(parsed, bucket);
+            } catch {
+              // Ignore malformed key payloads.
+            }
+          }
+        });
+      };
+
+      const extractedVideoTextItems: Record<string, any>[] = [];
+      collectVideoTextItems(videoTextItems, extractedVideoTextItems);
+
+      if (extractedVideoTextItems.length === 0 && rawBody && typeof rawBody === 'object') {
+        const directRawVideoTextItems = (rawBody as any).videoTextItems;
+        if (typeof directRawVideoTextItems === 'string' && directRawVideoTextItems.trim() !== '') {
+          try {
+            const parsed = JSON.parse(directRawVideoTextItems);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((entry) => {
+                if (entry && typeof entry === 'object') extractedVideoTextItems.push(entry as Record<string, any>);
+              });
+            } else if (parsed && typeof parsed === 'object') {
+              extractedVideoTextItems.push(parsed as Record<string, any>);
+            }
+          } catch {
+            // Keep fallback chain going.
+          }
+        }
+
+        const groupedByIndex: Record<string, Record<string, any>> = {};
+        const bracketPattern = /^videoTextItems\[(\d+)\]\[(\w+)\]$/;
+
+        for (const [key, value] of Object.entries(rawBody)) {
+          const match = key.match(bracketPattern);
+          if (!match) continue;
+          const [, index, prop] = match;
+          groupedByIndex[index] = groupedByIndex[index] || {};
+          groupedByIndex[index][prop] = value;
+        }
+
+        Object.keys(groupedByIndex)
+          .sort((a, b) => Number(a) - Number(b))
+          .forEach((index) => {
+            extractedVideoTextItems.push(groupedByIndex[index]);
+          });
+      }
+
+      const normalizedVideoTextItems = extractedVideoTextItems
+        .map((item) => ({
+          text: String(item.text || '').trim(),
+          xPercent: Number(item.xPercent),
+          yPercent: Number(item.yPercent),
+          fontSize: Number(item.fontSize),
+          color: String(item.color || 'white').trim() || 'white',
+        }))
+        .filter((item) => item.text.length > 0);
+      const shouldApplyVideoText = videoText === true;
       const normalizedFormat = format?.trim().toLowerCase();
       const postFormat: PostFormat | undefined =
         normalizedFormat === 'image' || normalizedFormat === 'video'
           ? (normalizedFormat as PostFormat)
           : undefined;
 
+      let mediaFiles = files;
+      if (shouldApplyVideoText) {
+        if (!mediaFiles || mediaFiles.length === 0) {
+          throw new BadRequestException('Video file is required when videoText=true');
+        }
+
+        if (normalizedVideoTextItems.length === 0) {
+          console.log('videoTextItems normalization failed', {
+            rawType: typeof videoTextItems,
+            isArray: Array.isArray(videoTextItems),
+            rawValue: videoTextItems,
+            rawBody,
+            extractedCount: extractedVideoTextItems.length,
+            extractedPreview: extractedVideoTextItems.slice(0, 2),
+          });
+          throw new BadRequestException('videoTextItems is required when videoText=true');
+        }
+
+        const hasVideoFile = mediaFiles.some((file) => file.mimetype?.startsWith('video/'));
+        if (!hasVideoFile) {
+          throw new BadRequestException('At least one video file is required when videoText=true');
+        }
+
+        mediaFiles = await Promise.all(
+          mediaFiles.map(async (file) => {
+            if (!file.mimetype?.startsWith('video/')) return file;
+            return applyVideoTextOverlays(file, normalizedVideoTextItems);
+          }),
+        );
+      }
+
       // Upload files to S3 and collect URLs
-      if (files && files.length > 0) {
+      if (mediaFiles && mediaFiles.length > 0) {
         try {
           const uploadedResults = await Promise.all(
-            files.map(async (file) => {
+            mediaFiles.map(async (file) => {
               const mediaUrl = await uploadImageToS3(file, 'post-images');
               let thumbnailUrl: string;
 
@@ -406,7 +552,9 @@ export class PostService {
             type,
             privateCircleId,
             isTrustPost,
-          },
+            videoText: shouldApplyVideoText,
+            videoTextItems: shouldApplyVideoText ? (normalizedVideoTextItems as any) : null,
+          } as any,
         });
       }, {
         timeout: 15000 // Increased timeout
@@ -483,6 +631,8 @@ export class PostService {
       return {
         ...createdPost,
         private_circle: this.isPrivateCircleVisibility(createdPost.visibleTo),
+        videoText: shouldApplyVideoText,
+        videoTextItems: shouldApplyVideoText ? normalizedVideoTextItems : [],
       };
 
     } catch (error) {
