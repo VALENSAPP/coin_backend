@@ -1561,19 +1561,42 @@ export class UserService {
     };
   }
 
+  // async accountDelete(userId: string) {
+  //   if (!userId) throw new BadRequestException('User ID required');
+
+  //   const user = await this.prisma.user.findUnique({ where: { id: userId } });
+  //   if (!user) throw new BadRequestException('User not found');
+
+  //   await this.prisma.user.update({
+  //     where: { id: userId },
+  //     data: { isDeleted: 1 },
+  //   });
+
+  //   return { message: 'Account deleted successfully' };
+  // }
+
   async accountDelete(userId: string) {
-    if (!userId) throw new BadRequestException('User ID required');
+    if (!userId) {
+      throw new BadRequestException('User ID required');
+    }
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new BadRequestException('User not found');
-
-    await this.prisma.user.update({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      data: { isDeleted: 1 },
     });
 
-    return { message: 'Account deleted successfully' };
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+
+    return {
+      message: 'Account deleted successfully',
+    };
   }
+
 
   async reactivateAccount(data: {
     email?: string;
