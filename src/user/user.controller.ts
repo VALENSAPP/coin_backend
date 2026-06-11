@@ -434,7 +434,7 @@ export class UserController {
     console.log("LLLLLLLLLLLLLLLLLLLL", req.user, userId);
 
     const user = await this.userService.editProfile(userId, dto, image);
-    return { message: 'Profile updated', user };
+    return { message: 'Profile updated' };
   }
 
   @Patch('first-log/after-kyc')
