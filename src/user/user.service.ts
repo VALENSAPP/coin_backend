@@ -1093,12 +1093,69 @@ export class UserService {
     return result;
   }
 
+  // async getFollowersList(userId: string) {
+  //   return this.prisma.followerAndFollowing.findMany({
+  //     where: { followingId: userId, status: 'ACCEPTED' },
+  //     include: { follower: true },
+  //   });
+  // }
+
+
   async getFollowersList(userId: string) {
     return this.prisma.followerAndFollowing.findMany({
-      where: { followingId: userId, status: 'ACCEPTED' },
-      include: { follower: true },
+      where: {
+        followingId: userId,
+        status: 'ACCEPTED',
+      },
+      select: {
+        id: true,
+        followerId: true,
+        followingId: true,
+        status: true,
+        createdAt: true,
+        follower: {
+          select: {
+            id: true,
+            email: true,
+            registrationType: true,
+            createdAt: true,
+            updatedAt: true,
+            age: true,
+            gender: true,
+            image: true,
+            phoneNumber: true,
+            isDeleted: true,
+            verifyEmail: true,
+            bio: true,
+            displayName: true,
+            userName: true,
+            profile: true,
+            currentPeriodEnd: true,
+            subscriptionEnd: true,
+            subscriptionStart: true,
+            subscriptionStatus: true,
+            kyc: true,
+            first_log: true,
+            profileStatus: true,
+            fansPage: true,
+            twoFact: true,
+            website_link: true,
+            social_media_links: true,
+            canAccessPlatform: true,
+            referCode: true,
+            referPoints: true,
+            totalPlatformPoints: true,
+            walletAddress: true,
+          },
+        },
+      },
     });
   }
+
+
+
+
+
 
   async getFollowersGraph(userId: string, range: 'daily' | 'weekly' = 'weekly') {
     if (!userId) throw new BadRequestException('User ID required');
