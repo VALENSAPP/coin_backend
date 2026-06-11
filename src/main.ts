@@ -8,6 +8,7 @@ import { join } from 'path';
 import { Server, Socket } from 'socket.io';
 import { PostService } from './post/post.service';
 import { createRateLimitMiddleware } from './common/rate-limit.middleware';
+const basicAuth = require('express-basic-auth');
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -70,6 +71,24 @@ async function bootstrap() {
   });
 
   app.useGlobalInterceptors(new ResponseInterceptor());
+
+  const swaggerUsername = process.env.SWAGGER_USERNAME;
+  const swaggerPassword = process.env.SWAGGER_PASSWORD;
+
+  if (!swaggerUsername || !swaggerPassword) {
+    throw new Error('SWAGGER_USERNAME and SWAGGER_PASSWORD must be set to protect Swagger.');
+  }
+
+  app.use(
+    '/api',
+    basicAuth({
+      users: {
+        [swaggerUsername]: swaggerPassword,
+      },
+      challenge: true,
+    }),
+  );
+
   setupSwagger(app);
 
   const port = process.env.PORT || 3002;
