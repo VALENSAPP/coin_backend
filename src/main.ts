@@ -12,6 +12,9 @@ import { createRateLimitMiddleware } from './common/rate-limit.middleware';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
+  app.disable('x-powered-by');
+
+
   // Get PostService instance
   const postService = app.get(PostService);
 
