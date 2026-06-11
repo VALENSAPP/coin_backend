@@ -1278,7 +1278,7 @@ export class BattleService {
         : normalizedFilter === 'battle_arena'
           ? {
             status: BattleStatus.LIVE,
-            // creatorId: { not: userId },
+            creatorId: { not: userId },
             ...myBattleEngagementWhere,
           }
           : {
