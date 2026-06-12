@@ -888,6 +888,7 @@ export class PostService {
       id: post.id,
       text: post.text,
       images: post.images,
+      isTrustPost: post.isTrustPost,
       thumbnails: post.thumbnails,
       caption: post.caption,
       hashtag: post.hashtag,
