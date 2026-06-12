@@ -1952,12 +1952,6 @@ export class PostService {
         },
       });
 
-      try {
-        await this.notificationService.sendDropTrendingIfNeeded(postId, userId);
-      } catch (error) {
-        console.error('Failed to send drop trending notification:', error);
-      }
-
       return { message: 'Post liked successfully', liked: true };
     }
   }
@@ -2165,12 +2159,6 @@ export class PostService {
     const createdComment = await this.prisma.postComment.create({
       data: { postId, userId, comment, parentId: parentCommentId || null },
     });
-
-    try {
-      await this.notificationService.sendDropTrendingIfNeeded(postId, userId);
-    } catch (error) {
-      console.error('Failed to send drop trending notification:', error);
-    }
 
     try {
       await Promise.all([

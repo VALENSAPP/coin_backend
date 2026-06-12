@@ -724,23 +724,24 @@ export class NotificationService {
     );
   }
 
-  async sendDropTrendingIfNeeded(postId: string, actorId: string): Promise<void> {
+  async sendDropTrendingIfNeeded(storyId: string, actorId: string): Promise<void> {
     const milestones = [1, 25, 50, 100, 250, 500, 1000];
 
-    const [post, actor, reactionCount, commentCount] = await Promise.all([
-      this.prisma.post.findUnique({
-        where: { id: postId, deletedAt: null },
-        select: { id: true, userId: true, text: true, caption: true, type: true },
+    const [story, actor, reactionCount, commentCount, viewsCount] = await Promise.all([
+      this.prisma.story.findUnique({
+        where: { id: storyId },
+        select: { id: true, userId: true, caption: true, deletedAt: true },
       }),
       this.prisma.user.findUnique({
         where: { id: actorId },
         select: { id: true, userName: true, displayName: true, image: true },
       }),
-      this.prisma.postLike.count({ where: { postId } }),
-      this.prisma.postComment.count({ where: { postId } }),
+      this.prisma.storyLike.count({ where: { storyId } }),
+      this.prisma.storyComment.count({ where: { storyId } }),
+      this.prisma.storyView.count({ where: { storyId } }),
     ]);
 
-    if (!post || post.userId === actorId) return;
+    if (!story || story.deletedAt || story.userId === actorId) return;
 
     const totalInteractions = reactionCount + commentCount;
     const milestone = milestones
@@ -751,7 +752,7 @@ export class NotificationService {
     if (!milestone) return;
 
     const recentNotifications = await this.prisma.notification.findMany({
-      where: { userId: post.userId },
+      where: { userId: story.userId },
       select: { data: true },
       orderBy: { createdAt: 'desc' },
       take: 200,
@@ -759,7 +760,7 @@ export class NotificationService {
 
     const alreadySent = recentNotifications.some((notification) => {
       const data = notification.data as Record<string, string> | null;
-      return data?.type === 'drop_trending' && data?.postId === postId && data?.milestone === String(milestone);
+      return data?.type === 'drop_trending' && data?.storyId === storyId && data?.milestone === String(milestone);
     });
 
     if (alreadySent) return;
@@ -768,30 +769,30 @@ export class NotificationService {
     const actorHandle = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
     const othersCount = Math.max(0, totalInteractions - 1);
     const actorText = othersCount > 0 ? `${actorHandle} and ${othersCount} others` : actorHandle;
-    const dropTitle = (post.caption || post.text || 'Your Drop').trim();
+    const dropTitle = (story.caption || 'Your Drop Story').trim();
     const displayDropTitle = dropTitle.length > 80 ? `${dropTitle.slice(0, 77)}...` : dropTitle;
 
     return this.sendNotificationToUser(
-      post.userId,
+      story.userId,
       '\uD83C\uDFAC Your Drop is trending!',
-      `${actorText} reacted to your Drop. It's getting traction!`,
+      `${actorText} reacted to your Drop Story. It's getting traction!`,
       {
         type: 'drop_trending',
-        postId,
-        creatorId: post.userId,
+        storyId,
+        creatorId: story.userId,
         actorId,
         actorUserName: actorHandle,
         actorDisplayName: actor?.displayName || '',
         actorImage: actor?.image || '',
         milestone: String(milestone),
         notificationCategory: 'DROP_TRENDING',
-        deepLink: `valens://drop/${postId}`,
+        deepLink: `valens://story/${storyId}`,
         expandedTitle: 'DROP TRENDING',
         dropTitle: displayDropTitle,
         reactionCount: String(reactionCount),
         commentCount: String(commentCount),
         totalInteractions: String(totalInteractions),
-        views: '0',
+        views: String(viewsCount),
         primaryAction: 'VIEW_DROP',
       },
     );

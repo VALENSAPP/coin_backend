@@ -13,7 +13,7 @@ export class StoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
-  ) {}
+  ) { }
 
   private normalizeStoryType(type?: string): StoryType {
     if (!type || type.trim() === '') return 'normal';
@@ -197,36 +197,36 @@ export class StoryService {
   }
 
   async followingStory(userId: string, time?: string) {
-  if (!userId) throw new BadRequestException('User ID required');
-  const isAll = (time || '').toLowerCase() === 'all';
-  const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    if (!userId) throw new BadRequestException('User ID required');
+    const isAll = (time || '').toLowerCase() === 'all';
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // Find who this user is following
-  const followings = await this.prisma.followerAndFollowing.findMany({
-    where: { followerId: userId },
-    select: { followingId: true }, // select only what you need
-  });
+    // Find who this user is following
+    const followings = await this.prisma.followerAndFollowing.findMany({
+      where: { followerId: userId },
+      select: { followingId: true }, // select only what you need
+    });
 
-  const followingUserIds = followings.map(f => f.followingId);
+    const followingUserIds = followings.map(f => f.followingId);
 
-  if (followingUserIds.length === 0) {
-    return []; // user isn't following anyone
+    if (followingUserIds.length === 0) {
+      return []; // user isn't following anyone
+    }
+
+    // Fetch stories from those users
+    return this.prisma.story.findMany({
+      where: {
+        userId: { in: followingUserIds },
+        deletedAt: null,
+        ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
+        AND: [this.buildAccessibleStoryWhere(userId)],
+      },
+      include: {
+        user: true, // optional: to return story owner details
+      },
+      orderBy: { createdAt: 'asc' },
+    });
   }
-
-  // Fetch stories from those users
-  return this.prisma.story.findMany({
-    where: {
-      userId: { in: followingUserIds },
-      deletedAt: null,
-      ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
-      AND: [this.buildAccessibleStoryWhere(userId)],
-    },
-    include: {
-      user: true, // optional: to return story owner details
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-}
 
   async viewStory(storyId: string, viewerId: string) {
     if (!storyId) throw new BadRequestException('Story ID required');
@@ -269,8 +269,8 @@ export class StoryService {
     return { message: 'Story viewed successfully', viewed: true, view };
   }
 
-async commentOnStory(userId: string, comment?: string, storyId?: string) {
-   if (!storyId) throw new BadRequestException('Story ID required');
+  async commentOnStory(userId: string, comment?: string, storyId?: string) {
+    if (!storyId) throw new BadRequestException('Story ID required');
     if (!userId) throw new BadRequestException('User ID required');
     if (!comment || comment.trim() === '') throw new BadRequestException('Comment required');
     // Check if story exists and is visible to this user
@@ -289,6 +289,12 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
         content: comment,
       },
     });
+
+    try {
+      await this.notificationService.sendDropTrendingIfNeeded(storyId, userId);
+    } catch (error) {
+      console.error('Failed to send drop trending notification:', error);
+    }
 
     return conversation;
   }
@@ -333,6 +339,13 @@ async commentOnStory(userId: string, comment?: string, storyId?: string) {
           userId,
         },
       });
+
+      try {
+        await this.notificationService.sendDropTrendingIfNeeded(storyId, userId);
+      } catch (error) {
+        console.error('Failed to send drop trending notification:', error);
+      }
+
       return { message: 'Story liked successfully', liked: true };
     }
   }
