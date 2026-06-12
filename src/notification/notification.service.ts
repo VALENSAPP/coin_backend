@@ -1600,6 +1600,21 @@ export class NotificationService {
 
     if (!post || post.userId === likerId) return;
 
+    const recentLikeNotifications = await this.prisma.notification.findMany({
+      where: { userId: post.userId },
+      select: { createdAt: true, data: true },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const duplicateAlreadySent = recentLikeNotifications.some((notification) => {
+      if (Date.now() - new Date(notification.createdAt).getTime() > 60 * 1000) return false;
+      const data = notification.data as Record<string, string> | null;
+      return data?.type === 'like' && data?.postId === postId && data?.likerId === likerId;
+    });
+
+    if (duplicateAlreadySent) return;
+
     const likerName = liker?.displayName || liker?.userName || 'Someone';
     const isPrivateCirclePost =
       (post.type || '').toLowerCase() === 'private' &&
