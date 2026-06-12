@@ -44,6 +44,8 @@ export class DeepLinkController {
           <meta property="og:image" content="${safeOgImage}">
           <meta property="og:image:secure_url" content="${safeOgImage}">
           <meta property="og:image:type" content="image/png">
+          <meta property="og:image:width" content="1200">
+          <meta property="og:image:height" content="630">
           <meta property="og:image:alt" content="Valens App Logo">
 
           <meta name="twitter:card" content="summary_large_image">
