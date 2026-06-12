@@ -1952,6 +1952,12 @@ export class PostService {
         },
       });
 
+      try {
+        await this.notificationService.sendPostLikeNotification(postId, userId);
+      } catch (error) {
+        console.error('Failed to send post like notification:', error);
+      }
+
       return { message: 'Post liked successfully', liked: true };
     }
   }

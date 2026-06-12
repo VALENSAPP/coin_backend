@@ -1579,6 +1579,54 @@ export class NotificationService {
     );
   }
 
+  async sendPostLikeNotification(postId: string, likerId: string): Promise<void> {
+    const [post, liker] = await Promise.all([
+      this.prisma.post.findUnique({
+        where: { id: postId, deletedAt: null },
+        select: {
+          id: true,
+          userId: true,
+          text: true,
+          caption: true,
+          type: true,
+          visibleTo: true,
+        },
+      }),
+      this.prisma.user.findUnique({
+        where: { id: likerId },
+        select: { id: true, userName: true, displayName: true, image: true },
+      }),
+    ]);
+
+    if (!post || post.userId === likerId) return;
+
+    const likerName = liker?.displayName || liker?.userName || 'Someone';
+    const isPrivateCirclePost =
+      (post.type || '').toLowerCase() === 'private' &&
+      post.visibleTo === 'PRIVATE_CIRCLE';
+    const postTitle = this.truncateText(post.caption || post.text || 'your post', 80);
+
+    return this.sendNotificationToUser(
+      post.userId,
+      'Post Liked',
+      `${likerName} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
+      {
+        type: 'like',
+        postId,
+        likerId,
+        likerUserName: this.toHandle(liker?.userName || liker?.displayName),
+        likerDisplayName: liker?.displayName || '',
+        likerImage: liker?.image || '',
+        notificationCategory: 'POST_LIKED',
+        deepLink: `valens://post/${postId}`,
+        expandedTitle: 'POST LIKED',
+        expandedBody: `${likerName} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
+        postTitle,
+        primaryAction: 'VIEW_POST',
+      },
+    );
+  }
+
   async sendPostCommentNotification(postId: string, commentId: string, commenterId: string): Promise<void> {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({
