@@ -14,12 +14,15 @@ export class DeepLinkController {
   private fallbackHtml(route: string, id: string, req: Request) {
     const appStoreUrl = process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
     const configuredBaseUrl = process.env.BASE_URL;
+    const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     const host = req.get('host');
-    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valenscorp.com');
+    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
     const encodedId = encodeURIComponent(id);
     const shareUrl = `${baseUrl}/${route}/${encodedId}`;
-    const ogImage = `${baseUrl}/share-assets/valens-share.svg`;
+    const ogImage =
+      configuredOgImageUrl ||
+      'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/a0/23/46/a02346fb-9358-fe0a-0ad5-a6256074d8f2/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg';
     const deepLinkUrl = `com.valens.app://${route}/${encodedId}`;
     const safeShareUrl = this.escapeHtml(shareUrl);
     const safeOgImage = this.escapeHtml(ogImage);
@@ -42,7 +45,10 @@ export class DeepLinkController {
           <meta property="og:url" content="${safeShareUrl}">
           <meta property="og:image" content="${safeOgImage}">
           <meta property="og:image:secure_url" content="${safeOgImage}">
-          <meta property="og:image:type" content="image/svg+xml">
+          <meta property="og:image:type" content="image/jpeg">
+          <meta property="og:image:width" content="512">
+          <meta property="og:image:height" content="512">
+          <meta property="og:image:alt" content="Valens App Icon">
 
           <meta name="twitter:card" content="summary_large_image">
           <meta name="twitter:title" content="Valens">
