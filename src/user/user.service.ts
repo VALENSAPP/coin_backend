@@ -959,11 +959,53 @@ export class UserService {
   }
 
   // Get user by ID (exclude soft-deleted)
-  async getUserById(id: string) {
-    const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
-    if (!user) throw new BadRequestException('User not found');
 
-    // Get KYC status
+  async getUserById(id: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        registrationType: true,
+        createdAt: true,
+        updatedAt: true,
+        age: true,
+        gender: true,
+        image: true,
+        phoneNumber: true,
+        isDeleted: true,
+        verifyEmail: true,
+        bio: true,
+        stripeCustomerId: true,
+        displayName: true,
+        userName: true,
+        profile: true,
+        currentPeriodEnd: true,
+        subscriptionEnd: true,
+        subscriptionStart: true,
+        subscriptionStatus: true,
+        kyc: true,
+        first_log: true,
+        profileStatus: true,
+        fansPage: true,
+        twoFact: true,
+        website_link: true,
+        social_media_links: true,
+        canAccessPlatform: true,
+        referCode: true,
+        referPoints: true,
+        totalPlatformPoints: true,
+        walletAddress: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
     const kycStatus = await this.kycService.getKycStatus(id);
 
     return {
@@ -971,6 +1013,19 @@ export class UserService {
       kycStatus: kycStatus?.status || null,
     };
   }
+
+  // async getUserById(id: string) {
+  //   const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
+  //   if (!user) throw new BadRequestException('User not found');
+
+  //   // Get KYC status
+  //   const kycStatus = await this.kycService.getKycStatus(id);
+
+  //   return {
+  //     ...user,
+  //     kycStatus: kycStatus?.status || null,
+  //   };
+  // }
 
   async isFollowing(followerId: string, followingId: string): Promise<boolean> {
     if (!followerId || !followingId) return false;
