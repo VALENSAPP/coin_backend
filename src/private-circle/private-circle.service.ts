@@ -337,6 +337,8 @@ export class PrivateCircleService {
         privateCircleId: null,
         ownerId,
         usedSlots: 0,
+        postCount: 0,
+        memberCount: 0,
         availableSlots: 0,
         members: [],
       };
@@ -358,11 +360,24 @@ export class PrivateCircleService {
       },
     });
 
+    const memberCount = members.length;
+
+    const postCount = await this.prisma.post.count({
+      where: {
+        userId: ownerId,
+        type: 'private',
+        visibleTo: 'PRIVATE_CIRCLE',
+        isDelete: 'no',
+      },
+    });
+
     const usedSlots = members.length;
     return {
       privateCircleId: circle.id,
       ownerId: circle.ownerId,
       usedSlots,
+      postCount,
+      memberCount,
       availableSlots: Math.max(circle.maxSlots - usedSlots, 0),
       members: members.map((member) => ({
         id: member.id,
