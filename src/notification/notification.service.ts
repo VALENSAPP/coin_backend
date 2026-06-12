@@ -132,6 +132,68 @@ export class NotificationService {
     }
   }
 
+  private async sendPushOnlyToUser(
+    userId: string,
+    title: string,
+    body: string,
+    data?: Record<string, string>,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { fcmToken: true },
+    });
+
+    if (!(user as any)?.fcmToken) {
+      console.log(`No FCM token found for user ${userId}`);
+      return;
+    }
+
+    const notificationCategory = this.getNotificationCategory(data);
+    const payloadData = {
+      ...(data || {}),
+      title,
+      body,
+    };
+
+    const message = {
+      token: (user as any).fcmToken,
+      data: payloadData,
+      apns: {
+        headers: {
+          'apns-push-type': 'alert',
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+            mutableContent: true,
+            contentAvailable: true,
+            ...(notificationCategory ? { category: notificationCategory } : {}),
+          },
+        },
+      },
+      android: {
+        priority: 'high' as const,
+        notification: {
+          sound: 'default',
+          ...(notificationCategory ? { clickAction: notificationCategory } : {}),
+        },
+      },
+    };
+
+    try {
+      console.log('FCM APNS debug (push-only):', {
+        userId,
+        hasToken: Boolean((user as any).fcmToken),
+        aps: message.apns.payload.aps,
+      });
+      const response = await admin.messaging().send(message);
+      console.log('Successfully sent push-only message:', response);
+    } catch (error) {
+      console.error('Error sending push-only message:', error);
+    }
+  }
+
   async sendNotificationToMultipleUsers(
     userIds: string[],
     title: string,
@@ -1600,28 +1662,13 @@ export class NotificationService {
 
     if (!post || post.userId === likerId) return;
 
-    const recentLikeNotifications = await this.prisma.notification.findMany({
-      where: { userId: post.userId },
-      select: { createdAt: true, data: true },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
-
-    const duplicateAlreadySent = recentLikeNotifications.some((notification) => {
-      if (Date.now() - new Date(notification.createdAt).getTime() > 60 * 1000) return false;
-      const data = notification.data as Record<string, string> | null;
-      return data?.type === 'like' && data?.postId === postId && data?.likerId === likerId;
-    });
-
-    if (duplicateAlreadySent) return;
-
     const likerName = liker?.displayName || liker?.userName || 'Someone';
     const isPrivateCirclePost =
       (post.type || '').toLowerCase() === 'private' &&
       post.visibleTo === 'PRIVATE_CIRCLE';
     const postTitle = this.truncateText(post.caption || post.text || 'your post', 80);
 
-    return this.sendNotificationToUser(
+    return this.sendPushOnlyToUser(
       post.userId,
       'Post Liked',
       `${likerName} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
