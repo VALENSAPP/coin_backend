@@ -293,6 +293,7 @@ export class NotificationService {
             images: true,
             createdAt: true,
             type: true,
+            visibleTo: true,
           },
         },
       },
@@ -300,22 +301,28 @@ export class NotificationService {
       take: Math.min(Math.max(1, limit), 200),
     });
 
-    return likes.map((like) => ({
-      id: like.id,
-      userId,
-      title: 'Post Liked',
-      body: `${like.user?.displayName || like.user?.userName || 'Someone'} liked your post.`,
-      data: {
-        type: 'like',
-        likerId: like.user?.id,
-        postId: like.post?.id,
-      },
-      isRead: !!(like as any).isReadByOwner,
-      createdAt: like.createdAt,
-      updatedAt: like.createdAt,
-      post: like.post,
-      liker: like.user,
-    }));
+    return likes.map((like) => {
+      const isPrivateCirclePost =
+        (like.post?.type || '').toLowerCase() === 'private' &&
+        like.post?.visibleTo === 'PRIVATE_CIRCLE';
+
+      return {
+        id: like.id,
+        userId,
+        title: 'Post Liked',
+        body: `${like.user?.displayName || like.user?.userName || 'Someone'} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
+        data: {
+          type: 'like',
+          likerId: like.user?.id,
+          postId: like.post?.id,
+        },
+        isRead: !!(like as any).isReadByOwner,
+        createdAt: like.createdAt,
+        updatedAt: like.createdAt,
+        post: like.post,
+        liker: like.user,
+      };
+    });
   }
 
   // Mission donations on the current user's posts (computed, not stored in Notification table)
