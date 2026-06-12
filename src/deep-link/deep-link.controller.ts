@@ -14,12 +14,13 @@ export class DeepLinkController {
   private fallbackHtml(route: string, id: string, req: Request) {
     const appStoreUrl = process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
     const configuredBaseUrl = process.env.BASE_URL;
+    const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     const host = req.get('host');
     const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
     const encodedId = encodeURIComponent(id);
     const shareUrl = `${baseUrl}/${route}/${encodedId}`;
-    const ogImage = `${baseUrl}/share-assets/valens-share.png`;
+    const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
     const deepLinkUrl = `com.valens.app://${route}/${encodedId}`;
     const safeShareUrl = this.escapeHtml(shareUrl);
     const safeOgImage = this.escapeHtml(ogImage);
