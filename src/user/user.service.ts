@@ -1733,6 +1733,7 @@ export class UserService {
   //   return { message: 'Account deleted successfully' };
   // }
 
+
   async accountDelete(userId: string) {
     if (!userId) {
       throw new BadRequestException('User ID required');
@@ -1746,14 +1747,48 @@ export class UserService {
       throw new BadRequestException('User not found');
     }
 
-    await this.prisma.user.delete({
-      where: { id: userId },
+    await this.prisma.$transaction(async (tx) => {
+      // Store deleted user record
+      await tx.deletedUser.create({
+        data: {
+          userId: user.id,
+          profile: user.profile,
+          email: user.email,
+        },
+      });
+
+      // Delete user from users table
+      await tx.user.delete({
+        where: { id: userId },
+      });
     });
 
     return {
       message: 'Account deleted successfully',
     };
   }
+
+  // async accountDelete(userId: string) {
+  //   if (!userId) {
+  //     throw new BadRequestException('User ID required');
+  //   }
+
+  //   const user = await this.prisma.user.findUnique({
+  //     where: { id: userId },
+  //   });
+
+  //   if (!user) {
+  //     throw new BadRequestException('User not found');
+  //   }
+
+  //   await this.prisma.user.delete({
+  //     where: { id: userId },
+  //   });
+
+  //   return {
+  //     message: 'Account deleted successfully',
+  //   };
+  // }
 
 
   async reactivateAccount(data: {

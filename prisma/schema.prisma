@@ -1007,6 +1007,19 @@ model PostTrustVote {
   @@index([postId])
 }
 
+model DeletedUser {
+  id        String   @id @default(uuid())
+  userId    String
+  profile   String?
+  email     String?
+  deletedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("deleted_users")
+}
+
 enum RegistrationType {
   NORMAL
   GOOGLE
