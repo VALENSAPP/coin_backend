@@ -1303,6 +1303,7 @@ export class PostService {
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
       deletedAt: post.deletedAt,
+      isTrustPost: post.isTrustPost,
       userId: post.userId,
       userName: post.user?.displayName || null,
       userImage: post.user?.image || null,
