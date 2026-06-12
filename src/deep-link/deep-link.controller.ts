@@ -20,9 +20,7 @@ export class DeepLinkController {
     const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
     const encodedId = encodeURIComponent(id);
     const shareUrl = `${baseUrl}/${route}/${encodedId}`;
-    const ogImage =
-      configuredOgImageUrl ||
-      'https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/a0/23/46/a02346fb-9358-fe0a-0ad5-a6256074d8f2/AppIcon-0-0-1x_U007emarketing-0-11-0-85-220.png/512x512bb.jpg';
+    const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.svg`;
     const deepLinkUrl = `com.valens.app://${route}/${encodedId}`;
     const safeShareUrl = this.escapeHtml(shareUrl);
     const safeOgImage = this.escapeHtml(ogImage);
@@ -45,10 +43,8 @@ export class DeepLinkController {
           <meta property="og:url" content="${safeShareUrl}">
           <meta property="og:image" content="${safeOgImage}">
           <meta property="og:image:secure_url" content="${safeOgImage}">
-          <meta property="og:image:type" content="image/jpeg">
-          <meta property="og:image:width" content="512">
-          <meta property="og:image:height" content="512">
-          <meta property="og:image:alt" content="Valens App Icon">
+          <meta property="og:image:type" content="image/svg+xml">
+          <meta property="og:image:alt" content="Valens App Logo">
 
           <meta name="twitter:card" content="summary_large_image">
           <meta name="twitter:title" content="Valens">
