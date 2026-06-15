@@ -1,7 +1,10 @@
-import { IsArray, IsBoolean, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Transform, Type as TransformType } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { POST_TYPES, PostType } from './post-types';
+
+const POST_FORMATS = ['image', 'video', 'reel'] as const;
+type PostFormat = (typeof POST_FORMATS)[number];
 
 export class VideoTextItemDto {
   @ApiProperty({ description: 'Text to draw on the video' })
@@ -132,11 +135,12 @@ export class CreatePostDto {
   @IsString()
   type?: PostType;
 
-  @ApiProperty({ description: 'Format of the post', required: false, default: 'image' })
+  @ApiProperty({ description: 'Format of the post', required: false, default: 'image', enum: POST_FORMATS })
   @IsOptional()
   @IsString()
+  @IsIn(POST_FORMATS)
   @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : 'image')
-  format?: string;
+  format?: PostFormat;
 
   @ApiProperty({ description: 'Raise amount for crowdfunding posts', required: false })
   @IsOptional()

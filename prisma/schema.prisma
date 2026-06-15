@@ -1119,6 +1119,7 @@ enum ReactionType {
 enum format {
   image
   video
+  reel
 }
 
 enum TrustVoteType {

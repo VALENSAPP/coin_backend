@@ -9,7 +9,7 @@ import { start } from 'repl';
 import { endWith } from 'rxjs';
 import { NotificationService } from '../notification/notification.service';
 
-type PostFormat = 'image' | 'video';
+type PostFormat = 'image' | 'video' | 'reel';
 
 @Injectable()
 export class PostService {
@@ -412,7 +412,7 @@ export class PostService {
       const shouldApplyVideoText = videoText === true;
       const normalizedFormat = format?.trim().toLowerCase();
       const postFormat: PostFormat | undefined =
-        normalizedFormat === 'image' || normalizedFormat === 'video'
+        normalizedFormat === 'image' || normalizedFormat === 'video' || normalizedFormat === 'reel'
           ? (normalizedFormat as PostFormat)
           : undefined;
 

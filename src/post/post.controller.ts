@@ -49,7 +49,7 @@ export class PostController {
           description: 'Array of image/video files',
         },
         type: { type: 'string', enum: [...POST_TYPES], description: 'Type of post' },
-        format: { type: 'string', description: 'Format of the post' },
+        format: { type: 'string', enum: ['image', 'video', 'reel'], description: 'Format of the post' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },
