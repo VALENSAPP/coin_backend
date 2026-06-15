@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
 import { BillingService } from './billing.service';
 import { BillingController } from './billing.controller';
 import { BillingWebhookController } from './billing.webhook.controller';
@@ -9,10 +8,10 @@ import { TokenPurchaseModule } from '../token-purchase/token-purchase.module';
 import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [PrismaModule, TokenPurchaseModule, NotificationModule, ScheduleModule.forRoot()],
+  imports: [PrismaModule, TokenPurchaseModule, NotificationModule],
   controllers: [BillingController, BillingWebhookController, WithdrawalPagesController],
   providers: [BillingService],
 })
-export class BillingModule {}
+export class BillingModule { }
 
 

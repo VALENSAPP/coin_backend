@@ -1482,93 +1482,108 @@ export class NotificationService {
     const remainingMs = post.end_time.getTime() - Date.now();
     if (remainingMs <= 0 || remainingMs > 24 * 60 * 60 * 1000) return;
 
-    const recentNotifications = await this.prisma.notification.findMany({
-      where: { userId: post.userId },
-      select: { data: true },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+    const lockKey = `mission_ending_soon:${postId}`;
+    const lockResult = await this.prisma.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_lock(hashtext(${lockKey})) AS locked
+    `;
+    if (!lockResult?.[0]?.locked) return;
 
-    const alreadySent = recentNotifications.some((notification) => {
-      const data = notification.data as Record<string, string> | null;
-      return data?.type === 'mission_ending_soon' && data?.postId === postId;
-    });
-    if (alreadySent) return;
+    try {
+      const [raisedResult, backersCount, followers, donors] = await Promise.all([
+        this.prisma.donationData.aggregate({
+          where: {
+            postId,
+            status: 'completed',
+            action: { in: ['missionDonation', 'donate'] },
+          },
+          _sum: { amount: true, totalAmount: true },
+        }),
+        this.prisma.donationData.count({
+          where: {
+            postId,
+            status: 'completed',
+            action: { in: ['missionDonation', 'donate'] },
+          },
+        }),
+        this.prisma.followerAndFollowing.findMany({
+          where: { followingId: post.userId, status: 'ACCEPTED' },
+          select: { followerId: true },
+        }),
+        this.prisma.donationData.findMany({
+          where: {
+            postId,
+            status: 'completed',
+            action: { in: ['missionDonation', 'donate'] },
+          },
+          select: { userId: true },
+        }),
+      ]);
 
-    const [raisedResult, backersCount, followers, donors] = await Promise.all([
-      this.prisma.donationData.aggregate({
+      const recipientIds = Array.from(
+        new Set([
+          post.userId,
+          ...followers.map((follower) => follower.followerId),
+          ...donors.map((donor) => donor.userId),
+        ]),
+      );
+      if (recipientIds.length === 0) return;
+
+      const alreadySent = await this.prisma.notification.findMany({
         where: {
-          postId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-        },
-        _sum: { amount: true, totalAmount: true },
-      }),
-      this.prisma.donationData.count({
-        where: {
-          postId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-        },
-      }),
-      this.prisma.followerAndFollowing.findMany({
-        where: { followingId: post.userId, status: 'ACCEPTED' },
-        select: { followerId: true },
-      }),
-      this.prisma.donationData.findMany({
-        where: {
-          postId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-        },
+          userId: { in: recipientIds },
+          AND: [
+            { data: { path: ['type'], equals: 'mission_ending_soon' } as any },
+            { data: { path: ['postId'], equals: postId } as any },
+          ],
+        } as any,
         select: { userId: true },
-      }),
-    ]);
+        take: recipientIds.length,
+      });
 
-    const recipientIds = Array.from(
-      new Set([
-        post.userId,
-        ...followers.map((follower) => follower.followerId),
-        ...donors.map((donor) => donor.userId),
-      ]),
-    );
-    if (recipientIds.length === 0) return;
+      const sentSet = new Set(alreadySent.map((notification) => notification.userId));
+      const pendingRecipientIds = recipientIds.filter((id) => !sentSet.has(id));
+      if (pendingRecipientIds.length === 0) return;
 
-    const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
-    const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
-    const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
-    const goalAmount = Number(post.raiseAmount || 0);
-    const fundedPercent = this.getDisplayFundedPercent(raisedAmount, goalAmount);
-    const stillNeeded = Math.max(0, goalAmount - raisedAmount);
-    const hoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+      const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
+      const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
+      const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
+      const goalAmount = Number(post.raiseAmount || 0);
+      const fundedPercent = this.getDisplayFundedPercent(raisedAmount, goalAmount);
+      const stillNeeded = Math.max(0, goalAmount - raisedAmount);
+      const hoursLeft = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
 
-    return this.sendNotificationToMultipleUsers(
-      recipientIds,
-      '\u23F0 Mission ends in 24 hours!',
-      `${creatorHandle}'s campaign closes tomorrow. Don't miss your chance to back it.`,
-      {
-        type: 'mission_ending_soon',
-        postId,
-        creatorId: post.userId,
-        creatorUserName: creatorHandle,
-        creatorDisplayName: post.user?.displayName || '',
-        creatorImage: post.user?.image || '',
-        missionTitle,
-        raised: raisedAmount.toFixed(2),
-        goal: goalAmount.toFixed(2),
-        fundedPercent: String(fundedPercent),
-        stillNeeded: stillNeeded.toFixed(2),
-        backersCount: String(backersCount),
-        hoursLeft: String(hoursLeft),
-        notificationCategory: 'MISSION_ENDING_SOON',
-        deepLink: `valens://post/${postId}`,
-        backMissionDeepLink: `valens://mission/${postId}/back`,
-        expandedTitle: 'LAST CHANCE',
-        expandedSubtitle: 'Mission ends in 24 hours',
-        primaryAction: 'BACK_THIS_MISSION_NOW',
-        secondaryAction: 'SHARE',
-      },
-    );
+      return this.sendNotificationToMultipleUsers(
+        pendingRecipientIds,
+        '\u23F0 Mission ends in 24 hours!',
+        `${creatorHandle}'s campaign closes tomorrow. Don't miss your chance to back it.`,
+        {
+          type: 'mission_ending_soon',
+          postId,
+          creatorId: post.userId,
+          creatorUserName: creatorHandle,
+          creatorDisplayName: post.user?.displayName || '',
+          creatorImage: post.user?.image || '',
+          missionTitle,
+          raised: raisedAmount.toFixed(2),
+          goal: goalAmount.toFixed(2),
+          fundedPercent: String(fundedPercent),
+          stillNeeded: stillNeeded.toFixed(2),
+          backersCount: String(backersCount),
+          hoursLeft: String(hoursLeft),
+          notificationCategory: 'MISSION_ENDING_SOON',
+          deepLink: `valens://post/${postId}`,
+          backMissionDeepLink: `valens://mission/${postId}/back`,
+          expandedTitle: 'LAST CHANCE',
+          expandedSubtitle: 'Mission ends in 24 hours',
+          primaryAction: 'BACK_THIS_MISSION_NOW',
+          secondaryAction: 'SHARE',
+        },
+      );
+    } finally {
+      await this.prisma.$queryRaw`
+        SELECT pg_advisory_unlock(hashtext(${lockKey}))
+      `;
+    }
   }
 
   async sendMissionContributionConfirmed(donationId: string): Promise<void> {
