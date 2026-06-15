@@ -339,6 +339,7 @@ export class PrivateCircleService {
         usedSlots: 0,
         postCount: 0,
         memberCount: 0,
+        isActive: false,
         availableSlots: 0,
         members: [],
       };
@@ -378,6 +379,7 @@ export class PrivateCircleService {
       usedSlots,
       postCount,
       memberCount,
+      isActive: circle.isActive,
       availableSlots: Math.max(circle.maxSlots - usedSlots, 0),
       members: members.map((member) => ({
         id: member.id,
