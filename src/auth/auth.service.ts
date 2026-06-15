@@ -13,7 +13,7 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
-  ) {}
+  ) { }
 
   private readonly locationNameCache = new Map<string, string>();
 
@@ -183,7 +183,7 @@ export class AuthService {
       return this.signInWithGoogle(loginDto.googleId, req, loginDto);
     }
 
-     if (loginDto.appleId) {
+    if (loginDto.appleId) {
       return this.signInWithApple(loginDto.appleId, req, loginDto);
     }
 
@@ -322,208 +322,208 @@ export class AuthService {
   }
 
   async signInWithGoogle(idToken: string, req?: any, loginDto?: any) {
-      try {
-        // Validate idToken input
-        if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
-          return {
-            error: true,
-            msg: 'Invalid ID token provided',
-            body: [],
-          };
-        }
-  
-        // Verify Firebase ID token
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
-      const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
-        const provider = decodedToken.firebase?.sign_in_provider;
-  
-        // Determine login type based on email domain
-        let loginType: RegistrationType = 'GOOGLE';
-        if (email && email.endsWith('.ac.jp')) {
-          loginType = 'NORMAL'; // '1' is student, but using NORMAL for now
-        }
-  
-        // Check if user exists
-        const existingUser = await this.prisma.user.findFirst({
-          where: { email },
-        });
-  
-        if (existingUser) {
-          // User exists, check if deleted
-          if (existingUser.isDeleted === 1) {
-            throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
-          }
-  
-          // Check email verification for password provider
-          if (provider === 'password' && existingUser.verifyEmail !== 1) {
-            throw new BadRequestException('Please verify your email before signing in.');
-          }
-  
-          const meta = this.buildSessionMeta(req, loginDto);
-          const tokens = await this.issueTokensForUser(existingUser, meta);
-          await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
-
-          // Save login history
-          await this.prisma.loginHistory.create({
-            data: {
-              userId: existingUser.id,
-              location: meta?.location,
-            },
-          });
-
-          return {
-            ...tokens,
-            ...existingUser
-          };
-        } else {
-          // New user registration
-          const firebaseUserId = decodedToken.uid;
-          const userId = uuidv4();
-  
-          const userData = {
-            id: userId,
-            firebaseUserId,
-            email,
-            userName:loginDto?.userName || decodedToken.name || 'Unknown User',
-            profile: loginDto?.profile || null,
-            googleId: provider === 'google.com' ? firebaseUserId : null,
-            registrationType: loginType,
-            verifyEmail: 1, // Firebase users are verified
-          };
-  
-          // Create user
-          const newUser = await this.prisma.user.create({
-            data: userData,
-          });
-  
-          const meta = this.buildSessionMeta(req, loginDto);
-          const tokens = await this.issueTokensForUser(newUser, meta);
-          await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
-          await this.userService.sendWelcomeOnboardingNotification(newUser.id);
-
-          // Save login history
-          await this.prisma.loginHistory.create({
-            data: {
-              userId: newUser.id,
-              location: meta?.location,
-            },
-          });
-
-          return {
-            ...tokens,
-            ...newUser
-          };
-        }
-      } catch (error) {
-        console.error('Firebase auth error:', error);
+    try {
+      // Validate idToken input
+      if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
         return {
           error: true,
-                    msg: error.message || 'Token verification failed',
-          body: [error],
+          msg: 'Invalid ID token provided',
+          body: [],
         };
       }
-    }
 
-    async signInWithApple(idToken: string, req?: any, loginDto?: any) {
-      try {
-        // Validate idToken input
-        if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
-          return {
-            error: true,
-            msg: 'Invalid ID token provided',
-            body: [],
-          };
-        }
-  
-        // Verify Firebase ID token
-        const decodedToken = await admin.auth().verifyIdToken(idToken);
+      // Verify Firebase ID token
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
       const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
-        const provider = decodedToken.firebase?.sign_in_provider;
-  
-        // Determine login type based on email domain
-        let loginType: RegistrationType = 'GOOGLE';
-        if (email && email.endsWith('.ac.jp')) {
-          loginType = 'NORMAL'; // '1' is student, but using NORMAL for now
+      const provider = decodedToken.firebase?.sign_in_provider;
+
+      // Determine login type based on email domain
+      let loginType: RegistrationType = 'GOOGLE';
+      if (email && email.endsWith('.ac.jp')) {
+        loginType = 'NORMAL'; // '1' is student, but using NORMAL for now
+      }
+
+      // Check if user exists
+      const existingUser = await this.prisma.user.findFirst({
+        where: { email },
+      });
+
+      if (existingUser) {
+        // User exists, check if deleted
+        if (existingUser.isDeleted === 1) {
+          throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
         }
-  
-        // Check if user exists
-        const existingUser = await this.prisma.user.findFirst({
-          where: { email },
+
+        // Check email verification for password provider
+        if (provider === 'password' && existingUser.verifyEmail !== 1) {
+          throw new BadRequestException('Please verify your email before signing in.');
+        }
+
+        const meta = this.buildSessionMeta(req, loginDto);
+        const tokens = await this.issueTokensForUser(existingUser, meta);
+        await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
+
+        // Save login history
+        await this.prisma.loginHistory.create({
+          data: {
+            userId: existingUser.id,
+            location: meta?.location,
+          },
         });
-  
-        if (existingUser) {
-          // User exists, check if deleted
-          if (existingUser.isDeleted === 1) {
-            throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
-          }
-  
-          // Check email verification for password provider
-          if (provider === 'password' && existingUser.verifyEmail !== 1) {
-            throw new BadRequestException('Please verify your email before signing in.');
-          }
-  
-          const meta = this.buildSessionMeta(req, loginDto);
-          const tokens = await this.issueTokensForUser(existingUser, meta);
 
-          // Save login history
-          await this.prisma.loginHistory.create({
-            data: {
-              userId: existingUser.id,
-              location: meta?.location,
-            },
-          });
+        return {
+          ...tokens,
+          ...existingUser
+        };
+      } else {
+        // New user registration
+        const firebaseUserId = decodedToken.uid;
+        const userId = uuidv4();
 
-          return {
-            ...tokens,
-            ...existingUser
-          };
-        } else {
-          // New user registration
-          const firebaseUserId = decodedToken.uid;
-          const userId = uuidv4();
+        const userData = {
+          id: userId,
+          firebaseUserId,
+          email,
+          userName: loginDto?.userName || decodedToken.name || 'Unknown User',
+          profile: loginDto?.profile || null,
+          googleId: provider === 'google.com' ? firebaseUserId : null,
+          registrationType: loginType,
+          verifyEmail: 1, // Firebase users are verified
+        };
 
-          const userData = {
-            id: userId,
-            firebaseUserId,
-            email,
-            userName: loginDto?.userName || decodedToken.name || 'Unknown User',
-            profile: loginDto?.profile || null,
-            googleId: provider === 'google.com' ? firebaseUserId : null,
-            registrationType: loginType,
-            verifyEmail: 1, // Firebase users are verified
-          };
+        // Create user
+        const newUser = await this.prisma.user.create({
+          data: userData,
+        });
 
-          // Create user
-          const newUser = await this.prisma.user.create({
-            data: userData,
-          });
+        const meta = this.buildSessionMeta(req, loginDto);
+        const tokens = await this.issueTokensForUser(newUser, meta);
+        await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
+        await this.userService.sendWelcomeOnboardingNotification(newUser.id);
 
-          const meta = this.buildSessionMeta(req, loginDto);
-          const tokens = await this.issueTokensForUser(newUser, meta);
-          await this.userService.sendWelcomeOnboardingNotification(newUser.id);
+        // Save login history
+        await this.prisma.loginHistory.create({
+          data: {
+            userId: newUser.id,
+            location: meta?.location,
+          },
+        });
 
-          // Save login history
-          await this.prisma.loginHistory.create({
-            data: {
-              userId: newUser.id,
-              location: meta?.location,
-            },
-          });
+        return {
+          ...tokens,
+          ...newUser
+        };
+      }
+    } catch (error) {
+      console.error('Firebase auth error:', error);
+      return {
+        error: true,
+        msg: error.message || 'Token verification failed',
+        body: [error],
+      };
+    }
+  }
 
-          return {
-            ...tokens,
-            ...newUser
-          };
-        }
-      } catch (error) {
-        console.error('Firebase auth error:', error);
+  async signInWithApple(idToken: string, req?: any, loginDto?: any) {
+    try {
+      // Validate idToken input
+      if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
         return {
           error: true,
-          msg: error.message || 'Token verification failed',
-          body: [error],
+          msg: 'Invalid ID token provided',
+          body: [],
         };
       }
+
+      // Verify Firebase ID token
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const email = decodedToken.email ? decodedToken.email.trim().toLowerCase() : undefined;
+      const provider = decodedToken.firebase?.sign_in_provider;
+
+      // Determine login type based on email domain
+      let loginType: RegistrationType = 'GOOGLE';
+      if (email && email.endsWith('.ac.jp')) {
+        loginType = 'NORMAL'; // '1' is student, but using NORMAL for now
+      }
+
+      // Check if user exists
+      const existingUser = await this.prisma.user.findFirst({
+        where: { email },
+      });
+
+      if (existingUser) {
+        // User exists, check if deleted
+        if (existingUser.isDeleted === 1) {
+          throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
+        }
+
+        // Check email verification for password provider
+        if (provider === 'password' && existingUser.verifyEmail !== 1) {
+          throw new BadRequestException('Please verify your email before signing in.');
+        }
+
+        const meta = this.buildSessionMeta(req, loginDto);
+        const tokens = await this.issueTokensForUser(existingUser, meta);
+
+        // Save login history
+        await this.prisma.loginHistory.create({
+          data: {
+            userId: existingUser.id,
+            location: meta?.location,
+          },
+        });
+
+        return {
+          ...tokens,
+          ...existingUser
+        };
+      } else {
+        // New user registration
+        const firebaseUserId = decodedToken.uid;
+        const userId = uuidv4();
+
+        const userData = {
+          id: userId,
+          firebaseUserId,
+          email,
+          userName: loginDto?.userName || decodedToken.name || 'Unknown User',
+          profile: loginDto?.profile || null,
+          googleId: provider === 'google.com' ? firebaseUserId : null,
+          registrationType: loginType,
+          verifyEmail: 1, // Firebase users are verified
+        };
+
+        // Create user
+        const newUser = await this.prisma.user.create({
+          data: userData,
+        });
+
+        const meta = this.buildSessionMeta(req, loginDto);
+        const tokens = await this.issueTokensForUser(newUser, meta);
+        await this.userService.sendWelcomeOnboardingNotification(newUser.id);
+
+        // Save login history
+        await this.prisma.loginHistory.create({
+          data: {
+            userId: newUser.id,
+            location: meta?.location,
+          },
+        });
+
+        return {
+          ...tokens,
+          ...newUser
+        };
+      }
+    } catch (error) {
+      console.error('Firebase auth error:', error);
+      return {
+        error: true,
+        msg: error.message || 'Token verification failed',
+        body: [error],
+      };
     }
+  }
   async twitterLogin(accessToken: string, req?: any, loginDto?: any) {
     try {
       if (!accessToken) {
@@ -610,6 +610,7 @@ export class AuthService {
     const sessions = await this.prisma.userSession.findMany({
       where: {
         userId,
+        deviceId: { not: null },
         revokedAt: null,
         refreshTokenExpiresAt: { gt: new Date() },
       },
