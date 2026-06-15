@@ -611,6 +611,7 @@ export class AuthService {
       where: {
         userId,
         deviceId: { not: null },
+        deviceName: { not: null },
         revokedAt: null,
         refreshTokenExpiresAt: { gt: new Date() },
       },
