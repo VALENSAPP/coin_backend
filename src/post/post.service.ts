@@ -919,6 +919,7 @@ export class PostService {
       start_time: post.start_time,
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
+      format: post.format,
     }));
   }
 
