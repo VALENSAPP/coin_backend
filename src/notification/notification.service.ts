@@ -61,6 +61,35 @@ export class NotificationService {
     return upgrades.find((upgrade) => totalFollowers === upgrade.threshold) || null;
   }
 
+  private getCredibilityScore(stats?: {
+    totalBattlePoints?: number | null;
+    totalPredictionsCorrect?: number | null;
+    totalPredictionsWrong?: number | null;
+    totalArgumentsSubmitted?: number | null;
+    totalArgumentLikes?: number | null;
+  } | null): number {
+    const totalBattlePoints = stats?.totalBattlePoints || 0;
+    const totalPredictionsCorrect = stats?.totalPredictionsCorrect || 0;
+    const totalPredictionsWrong = stats?.totalPredictionsWrong || 0;
+    const totalArgumentsSubmitted = stats?.totalArgumentsSubmitted || 0;
+    const totalArgumentLikes = stats?.totalArgumentLikes || 0;
+
+    const predictionTotal = totalPredictionsCorrect + totalPredictionsWrong;
+    const predictionAccuracyPercent =
+      predictionTotal > 0 ? Math.round((totalPredictionsCorrect / predictionTotal) * 100) : 0;
+
+    const argumentQualityScore =
+      totalArgumentsSubmitted > 0
+        ? Math.min(100, Math.round((totalArgumentLikes / totalArgumentsSubmitted) * 10))
+        : 0;
+
+    return Math.round(
+      totalBattlePoints * 0.4
+      + predictionAccuracyPercent * 0.4
+      + argumentQualityScore * 0.2,
+    );
+  }
+
   async sendNotificationToUser(
     userId: string,
     title: string,
@@ -577,26 +606,34 @@ export class NotificationService {
       }),
       this.prisma.userBattleStats.findUnique({
         where: { userId: followingId },
-        select: { totalPredictionsCorrect: true, totalPredictionsWrong: true },
+        select: {
+          totalBattlePoints: true,
+          totalPredictionsCorrect: true,
+          totalPredictionsWrong: true,
+          totalArgumentsSubmitted: true,
+          totalArgumentLikes: true,
+        },
       }),
       this.prisma.followerAndFollowing.count({
         where: { followingId: followerId, status: 'ACCEPTED' },
       }),
       this.prisma.userBattleStats.findUnique({
         where: { userId: followerId },
-        select: { totalPredictionsCorrect: true, totalPredictionsWrong: true },
+        select: {
+          totalBattlePoints: true,
+          totalPredictionsCorrect: true,
+          totalPredictionsWrong: true,
+          totalArgumentsSubmitted: true,
+          totalArgumentLikes: true,
+        },
       }),
     ]);
 
     const rawUsername = follower?.userName || follower?.displayName || 'username';
     const followerHandle = rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
 
-    const getAccuracyRate = (
-      stats?: { totalPredictionsCorrect: number; totalPredictionsWrong: number } | null,
-    ): number => {
-      const predictionTotal = (stats?.totalPredictionsCorrect || 0) + (stats?.totalPredictionsWrong || 0);
-      return predictionTotal > 0 ? Math.round(((stats?.totalPredictionsCorrect || 0) / predictionTotal) * 100) : 0;
-    };
+    const ownerCredibilityScore = this.getCredibilityScore(ownerStats);
+    const followerCredibilityScore = this.getCredibilityScore(followerStats);
 
     return this.sendNotificationToUser(
       followingId,
@@ -614,9 +651,12 @@ export class NotificationService {
         expandedTitle: 'NEW FOLLOWER',
         expandedBody: `${followerHandle} is now following you`,
         totalFollowers: String(totalFollowers),
-        accuracyRate: String(getAccuracyRate(ownerStats)),
+        credibilityScore: String(ownerCredibilityScore),
         followerTotalFollowers: String(followerTotalFollowers),
-        followerAccuracyRate: String(getAccuracyRate(followerStats)),
+        followerCredibilityScore: String(followerCredibilityScore),
+        // Backward compatibility for clients still reading the old keys.
+        accuracyRate: String(ownerCredibilityScore),
+        followerAccuracyRate: String(followerCredibilityScore),
         primaryAction: 'VIEW_PROFILE',
         secondaryAction: 'FOLLOW_BACK',
       },
