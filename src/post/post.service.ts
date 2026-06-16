@@ -1741,11 +1741,48 @@ export class PostService {
     if (!post || post.deletedAt) throw new BadRequestException('Post not found');
     if (post.userId !== userId) throw new BadRequestException('Unauthorized to edit this post');
 
+    const shouldApplyVideoText = updateData.videoText === true;
+    const normalizedVideoTextItems: VideoTextOverlayItem[] = Array.isArray(updateData.videoTextItems)
+      ? updateData.videoTextItems
+        .map((item: any) => ({
+          text: String(item?.text || '').trim(),
+          xPercent: Number(item?.xPercent),
+          yPercent: Number(item?.yPercent),
+          fontSize: Number(item?.fontSize),
+          color: String(item?.color || 'white').trim() || 'white',
+        }))
+        .filter((item: VideoTextOverlayItem) => item.text.length > 0)
+      : [];
+
+    let mediaFiles = files;
+    if (shouldApplyVideoText) {
+      if (!mediaFiles || mediaFiles.length === 0) {
+        throw new BadRequestException('Video file is required when videoText=true');
+      }
+
+      if (normalizedVideoTextItems.length === 0) {
+        throw new BadRequestException('videoTextItems is required when videoText=true');
+      }
+
+      const hasVideoFile = mediaFiles.some((file) => file.mimetype?.startsWith('video/'));
+      if (!hasVideoFile) {
+        throw new BadRequestException('At least one video file is required when videoText=true');
+      }
+
+      mediaFiles = await Promise.all(
+        mediaFiles.map(async (file) => {
+          if (!file.mimetype?.startsWith('video/')) return file;
+          return applyVideoTextOverlays(file, normalizedVideoTextItems);
+        }),
+      );
+    }
+
     // Handle new image uploads
     let imageUrls: string[] = post.images || [];
-    if (files && files.length > 0) {
-      const uploadedUrls = await Promise.all(files.map(f => uploadImageToS3(f, 'post-images')));
-      imageUrls = imageUrls.concat(uploadedUrls);
+    if (mediaFiles && mediaFiles.length > 0) {
+      const uploadedUrls = await Promise.all(mediaFiles.map(f => uploadImageToS3(f, 'post-images')));
+      const replaceExistingMedia = updateData.videoText === true;
+      imageUrls = replaceExistingMedia ? uploadedUrls : imageUrls.concat(uploadedUrls);
     }
 
     const existingTaggedPeople = Array.from(
@@ -1802,6 +1839,11 @@ export class PostService {
       updateFields.type = null;
     }
 
+    if (updateData.videoText !== undefined) {
+      updateFields.videoText = shouldApplyVideoText;
+      updateFields.videoTextItems = shouldApplyVideoText ? (normalizedVideoTextItems as any) : null;
+    }
+
     let newlyTaggedUserIds: string[] = [];
 
     // Only update taggedPeople if it's provided and not empty array
@@ -1849,8 +1891,11 @@ export class PostService {
     }
 
     // Update images if new files are uploaded
-    if (files && files.length > 0) {
+    if (mediaFiles && mediaFiles.length > 0) {
       updateFields.images = imageUrls;
+      if (updateData.videoText === true) {
+        updateFields.thumbnails = [];
+      }
     }
 
     const updatedPost = await this.prisma.post.update({

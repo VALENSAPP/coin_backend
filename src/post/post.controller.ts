@@ -137,6 +137,25 @@ export class PostController {
           items: { type: 'string', format: 'binary' },
           description: 'Array of image files',
         },
+        videoText: {
+          type: 'boolean',
+          description: 'When true, replace existing media with newly uploaded video media',
+          default: false,
+        },
+        videoTextItems: {
+          type: 'array',
+          description: 'Text overlays rendered onto uploaded videos when videoText=true',
+          items: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'Text to display' },
+              xPercent: { type: 'number', description: 'Horizontal position from 0 to 1' },
+              yPercent: { type: 'number', description: 'Vertical position from 0 to 1' },
+              fontSize: { type: 'number', description: 'Font size in px' },
+              color: { type: 'string', description: 'Text color, e.g. white or #FFFFFF' },
+            },
+          },
+        },
         type: { type: 'string', enum: [...POST_TYPES], description: 'Type of post' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },

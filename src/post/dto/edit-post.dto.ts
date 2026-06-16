@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsArray, ArrayMaxSize } from 'class-validator';
+import { IsOptional, IsString, IsArray, ArrayMaxSize, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { POST_TYPES, PostType } from './post-types';
@@ -77,4 +77,63 @@ export class EditPostDto {
     return [value];
   })
   images?: any[];
+
+  @ApiProperty({
+    description: 'When true during edit, replace existing media with new uploaded video/text-rendered output',
+    required: false,
+    type: Boolean,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }: { value: any }) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+    return Boolean(value);
+  })
+  videoText?: boolean;
+
+  @ApiProperty({
+    description: 'Text overlays for video rendering. Supports JSON string or array.',
+    required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'Text to display' },
+        xPercent: { type: 'number', description: 'Horizontal position from 0 to 1' },
+        yPercent: { type: 'number', description: 'Vertical position from 0 to 1' },
+        fontSize: { type: 'number', description: 'Font size in px' },
+        color: { type: 'string', description: 'Text color, e.g. white or #FFFFFF' },
+      },
+    },
+  })
+  @IsOptional()
+  @IsArray()
+  @Transform(({ value }: { value: any }) => {
+    if (value === null || value === undefined || value === '') return [];
+    if (Array.isArray(value)) return value;
+
+    if (typeof value === 'object') {
+      return [value];
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed && typeof parsed === 'object') return [parsed];
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  })
+  videoTextItems?: Array<{
+    text: string;
+    xPercent: number;
+    yPercent: number;
+    fontSize: number;
+    color: string;
+  }>;
 } 
