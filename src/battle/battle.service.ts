@@ -1,8 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
-import { BattleStatus } from '@prisma/client';
-import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleStatus, Prisma } from '@prisma/client';
+import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
 
@@ -1086,6 +1086,161 @@ export class BattleService {
         battleId: dto.battleId,
         isPin: false,
       },
+    };
+  }
+
+  async highlightComment(userId: string, dto: BattleCommentHighlightDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId || !dto?.commentId) {
+      throw new BadRequestException('Battle ID and comment ID required');
+    }
+    if (!Array.isArray(dto.highlights)) {
+      throw new BadRequestException('Highlights must be an array');
+    }
+
+    const comment = await this.prisma.battleComment.findUnique({
+      where: { id: dto.commentId },
+      select: {
+        id: true,
+        battleId: true,
+        userId: true,
+        comment: true,
+        battle: {
+          select: {
+            creatorId: true,
+            format: true,
+            invites: {
+              select: {
+                invitedUserId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!comment || comment.battleId !== dto.battleId) {
+      throw new NotFoundException('Comment not found for this battle');
+    }
+
+    const isBattleCreator = comment.battle.creatorId === userId;
+    const isCommentOwner = comment.userId === userId;
+    const isInvitedUser = comment.battle.invites.some((invite) => invite.invitedUserId === userId);
+
+    const canHighlight =
+      comment.battle.format === 'POLL'
+        ? (isBattleCreator || isCommentOwner)
+        : comment.battle.format === 'HEAD_TO_HEAD'
+          ? (isBattleCreator || isInvitedUser || isCommentOwner)
+          : false;
+
+    if (!canHighlight) {
+      throw new ForbiddenException('You are not allowed to highlight this comment');
+    }
+
+    const normalizedHighlights = dto.highlights
+      .map((range) => ({
+        startIndex: Number(range.startIndex),
+        endIndex: Number(range.endIndex),
+      }))
+      .sort((a, b) => a.startIndex - b.startIndex);
+
+    const commentLength = comment.comment.length;
+
+    for (let i = 0; i < normalizedHighlights.length; i += 1) {
+      const range = normalizedHighlights[i];
+      if (!Number.isInteger(range.startIndex) || !Number.isInteger(range.endIndex)) {
+        throw new BadRequestException('Highlight indexes must be integers');
+      }
+      if (range.startIndex < 0 || range.endIndex <= range.startIndex) {
+        throw new BadRequestException('Each highlight must satisfy startIndex >= 0 and endIndex > startIndex');
+      }
+      if (range.endIndex > commentLength) {
+        throw new BadRequestException('Highlight range exceeds comment length');
+      }
+      if (i > 0 && range.startIndex < normalizedHighlights[i - 1].endIndex) {
+        throw new BadRequestException('Highlight ranges cannot overlap');
+      }
+    }
+
+    const updatedComment = await this.prisma.battleComment.update({
+      where: { id: dto.commentId },
+      data: {
+        highlight: normalizedHighlights,
+      },
+      select: {
+        id: true,
+        battleId: true,
+        highlight: true,
+      },
+    });
+
+    return {
+      message: 'Comment highlights updated successfully',
+      comment: updatedComment,
+    };
+  }
+
+  async removeCommentHighlight(userId: string, dto: BattleCommentRemoveHighlightDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.battleId || !dto?.commentId) {
+      throw new BadRequestException('Battle ID and comment ID required');
+    }
+
+    const comment = await this.prisma.battleComment.findUnique({
+      where: { id: dto.commentId },
+      select: {
+        id: true,
+        battleId: true,
+        userId: true,
+        battle: {
+          select: {
+            creatorId: true,
+            format: true,
+            invites: {
+              select: {
+                invitedUserId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!comment || comment.battleId !== dto.battleId) {
+      throw new NotFoundException('Comment not found for this battle');
+    }
+
+    const isBattleCreator = comment.battle.creatorId === userId;
+    const isCommentOwner = comment.userId === userId;
+    const isInvitedUser = comment.battle.invites.some((invite) => invite.invitedUserId === userId);
+
+    const canHighlight =
+      comment.battle.format === 'POLL'
+        ? (isBattleCreator || isCommentOwner)
+        : comment.battle.format === 'HEAD_TO_HEAD'
+          ? (isBattleCreator || isInvitedUser || isCommentOwner)
+          : false;
+
+    if (!canHighlight) {
+      throw new ForbiddenException('You are not allowed to remove highlight from this comment');
+    }
+
+    const updatedComment = await this.prisma.battleComment.update({
+      where: { id: dto.commentId },
+      data: {
+        highlight: Prisma.DbNull,
+      },
+      select: {
+        id: true,
+        battleId: true,
+        highlight: true,
+      },
+    });
+
+    return {
+      message: 'Comment highlights removed successfully',
+      comment: updatedComment,
     };
   }
 

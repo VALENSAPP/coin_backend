@@ -1,4 +1,5 @@
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { Type as TransformType } from 'class-transformer';
+import { IsArray, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class BattleInviteDto {
@@ -103,6 +104,47 @@ export class BattleCommentPinDto {
 }
 
 export class BattleCommentUnpinDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty()
+  @IsString()
+  commentId!: string;
+}
+
+export class BattleCommentHighlightRangeDto {
+  @ApiProperty({ description: 'Inclusive start index of highlighted text' })
+  @IsInt()
+  @Min(0)
+  startIndex!: number;
+
+  @ApiProperty({ description: 'Exclusive end index of highlighted text' })
+  @IsInt()
+  @Min(1)
+  endIndex!: number;
+}
+
+export class BattleCommentHighlightDto {
+  @ApiProperty()
+  @IsString()
+  battleId!: string;
+
+  @ApiProperty()
+  @IsString()
+  commentId!: string;
+
+  @ApiProperty({
+    type: [BattleCommentHighlightRangeDto],
+    description: 'Highlighted text ranges to store as JSON array',
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @TransformType(() => BattleCommentHighlightRangeDto)
+  highlights!: BattleCommentHighlightRangeDto[];
+}
+
+export class BattleCommentRemoveHighlightDto {
   @ApiProperty()
   @IsString()
   battleId!: string;

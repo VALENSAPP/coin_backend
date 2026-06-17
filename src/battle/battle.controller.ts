@@ -4,7 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
-import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentUnpinDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 
 @ApiTags('battle')
@@ -250,6 +250,24 @@ export class BattleController {
   async unpinComment(@Req() req: Request, @Body() dto: BattleCommentUnpinDto) {
     const userId = (req.user as any)?.userId;
     return this.battleService.unpinComment(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('comment/highlight')
+  @ApiOperation({ summary: 'Highlight text ranges in a battle comment' })
+  async highlightComment(@Req() req: Request, @Body() dto: BattleCommentHighlightDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.highlightComment(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('comment/highlight/remove')
+  @ApiOperation({ summary: 'Remove all text highlights from a battle comment' })
+  async removeCommentHighlight(@Req() req: Request, @Body() dto: BattleCommentRemoveHighlightDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.removeCommentHighlight(userId, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))
