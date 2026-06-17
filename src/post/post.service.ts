@@ -2571,7 +2571,6 @@ export class PostService {
       });
       if (!post) throw new BadRequestException('Post not found');
       await this.ensureCanViewPost(post, sharedUserId);
-      await this.ensureCanViewPost(post, receiverUserId);
 
       // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
       const existingPostShare = await this.prisma.postShare.findUnique({
