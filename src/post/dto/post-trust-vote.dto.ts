@@ -22,7 +22,7 @@ export class PostTrustVoteDto {
     voteType!: PostTrustVoteType;
 
     @ApiProperty({
-        description: 'Optional comment to add when voteType is AGREE',
+        description: 'Optional comment to add with trust vote (AGREE, DISAGREE, or NOT_SURE)',
         required: false,
         example: 'I trust this post because it includes evidence.',
     })

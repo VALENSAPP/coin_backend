@@ -2077,13 +2077,13 @@ export class PostService {
         });
 
         let createdTrustComment = null;
-        if (voteType === 'AGREE' && sanitizedComment) {
+        if (sanitizedComment) {
           createdTrustComment = await tx.postComment.create({
             data: {
               postId,
               userId,
               comment: sanitizedComment,
-              commentType: 'AGREE',
+              commentType: voteType,
             },
           });
         }
