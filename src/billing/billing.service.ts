@@ -514,6 +514,7 @@ export class BillingService {
     };
 
     const startOfUtcMonth = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     const addUtcMonths = (d: Date, months: number) => {
       const copy = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
@@ -545,7 +546,11 @@ export class BillingService {
       const points = Array.from({ length: days }, (_, i) => {
         const dayDate = addUtcDays(startDay, i);
         const day = formatDayKey(dayDate);
-        return { day, amount: amountByDay.get(day) ?? 0 };
+        return {
+          day,
+          dayname: dayNames[dayDate.getUTCDay()],
+          amount: amountByDay.get(day) ?? 0,
+        };
       });
 
       const totalAmount = points.reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -691,14 +696,14 @@ export class BillingService {
           data: { stripeAccountId },
         });
       } catch (error: any) {
-       console.error('Stripe error creating account:', {
-    message: error.message,
-    type: error.type,
-    code: error.code,
-    requestId: error.requestId,
-    raw: error.raw,
-  });
-  throw error;
+        console.error('Stripe error creating account:', {
+          message: error.message,
+          type: error.type,
+          code: error.code,
+          requestId: error.requestId,
+          raw: error.raw,
+        });
+        throw error;
       }
     }
 
@@ -1261,9 +1266,9 @@ export class BillingService {
 
     return {
 
-    totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
+      totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
 
-      
+
     };
   }
 
@@ -1371,7 +1376,7 @@ export class BillingService {
       if (!receipt) {
         throw new BadRequestException('Transaction not found or not yet mined');
       }
-      
+
       if (receipt.status !== 1) {
         throw new BadRequestException('Transaction failed on-chain');
       }
