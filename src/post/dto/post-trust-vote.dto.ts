@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export enum PostTrustVoteType {
     AGREE = 'AGREE',
@@ -20,6 +20,15 @@ export class PostTrustVoteDto {
     })
     @IsEnum(PostTrustVoteType)
     voteType!: PostTrustVoteType;
+
+    @ApiProperty({
+        description: 'Optional comment to add when voteType is AGREE',
+        required: false,
+        example: 'I trust this post because it includes evidence.',
+    })
+    @IsOptional()
+    @IsString()
+    comment?: string;
 }
 
 export class GetPostTrustScoreDto {

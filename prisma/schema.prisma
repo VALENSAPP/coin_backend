@@ -253,6 +253,7 @@ model PostComment {
   userId    String
   comment   String
   parentId  String?
+commentType cmntType          @default(NORMAL)
   createdAt DateTime              @default(now())
   post      Post                  @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1124,6 +1125,13 @@ enum format {
 }
 
 enum TrustVoteType {
+  AGREE
+  DISAGREE
+  NOT_SURE
+}
+
+enum cmntType {
+  NORMAL
   AGREE
   DISAGREE
   NOT_SURE

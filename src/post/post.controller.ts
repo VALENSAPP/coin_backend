@@ -262,14 +262,14 @@ export class PostController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('postTrustVote')
-  @ApiOperation({ summary: 'Create or update trust vote on a trust post' })
+  @ApiOperation({ summary: 'Create trust vote on a trust post (one vote per user)' })
   @ApiBody({ type: PostTrustVoteDto })
   async postTrustVote(
     @Req() req: Request,
     @Body(new ValidationPipe({ whitelist: true })) body: PostTrustVoteDto,
   ) {
     const userId = (req.user as any).userId;
-    return this.postService.postTrustVote(body.postId, userId, body.voteType);
+    return this.postService.postTrustVote(body.postId, userId, body.voteType, body.comment);
   }
 
   @UseGuards(AuthGuard('jwt'))

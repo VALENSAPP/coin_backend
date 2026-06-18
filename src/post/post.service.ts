@@ -2010,7 +2010,12 @@ export class PostService {
     }
   }
 
-  async postTrustVote(postId: string, userId: string, voteType: 'AGREE' | 'DISAGREE' | 'NOT_SURE') {
+  async postTrustVote(
+    postId: string,
+    userId: string,
+    voteType: 'AGREE' | 'DISAGREE' | 'NOT_SURE',
+    comment?: string,
+  ) {
     if (!postId) throw new BadRequestException('Post ID required');
     if (!userId) throw new BadRequestException('User ID required');
 
@@ -2039,26 +2044,56 @@ export class PostService {
       select: { id: true },
     });
 
-    const vote = await prismaClient.postTrustVote.upsert({
-      where: {
-        userId_postId: {
-          userId,
-          postId,
-        },
-      },
-      create: {
-        userId,
-        postId,
-        voteType,
-      },
-      update: {
-        voteType,
-      },
-    });
+    if (existingVote) {
+      throw new BadRequestException('You have already voted on this post');
+    }
+
+    const sanitizedComment = typeof comment === 'string' ? comment.trim() : '';
+
+    let vote: any;
+    let trustComment: any = null;
+
+    try {
+      const transactionResult = await prismaClient.$transaction(async (tx: any) => {
+        const createdVote = await tx.postTrustVote.create({
+          data: {
+            userId,
+            postId,
+            voteType,
+          },
+        });
+
+        let createdTrustComment = null;
+        if (voteType === 'AGREE' && sanitizedComment) {
+          createdTrustComment = await tx.postComment.create({
+            data: {
+              postId,
+              userId,
+              comment: sanitizedComment,
+              commentType: 'AGREE',
+            },
+          });
+        }
+
+        return {
+          vote: createdVote,
+          trustComment: createdTrustComment,
+        };
+      });
+
+      vote = transactionResult.vote;
+      trustComment = transactionResult.trustComment;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new BadRequestException('You have already voted on this post');
+      }
+      throw error;
+    }
 
     return {
-      message: existingVote ? 'Trust vote updated successfully' : 'Trust vote added successfully',
+      message: 'Trust vote added successfully',
       vote,
+      trustComment,
     };
   }
 
@@ -2382,6 +2417,7 @@ export class PostService {
         userId: c.userId,
         displayName: c.user.displayName,
         image: c.user.image,
+        commentType: c.commentType,
         likeCount: reactionCounts.likeCount,
         dislikeCount: reactionCounts.dislikeCount,
         userReaction: viewerReactionMap.get(c.id) || 'NONE',
