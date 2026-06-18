@@ -2045,7 +2045,20 @@ export class PostService {
     });
 
     if (existingVote) {
-      throw new BadRequestException('You have already voted on this post');
+      console.warn('[postTrustVote] Existing vote found in pre-check', {
+        userId,
+        postId,
+        existingVoteId: existingVote.id,
+      });
+      throw new BadRequestException({
+        message: 'You have already voted on this post',
+        debug: {
+          reason: 'existing_vote_precheck',
+          userId,
+          postId,
+          existingVoteId: existingVote.id,
+        },
+      });
     }
 
     const sanitizedComment = typeof comment === 'string' ? comment.trim() : '';
