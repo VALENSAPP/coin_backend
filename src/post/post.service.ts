@@ -2085,7 +2085,26 @@ export class PostService {
       trustComment = transactionResult.trustComment;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new BadRequestException('You have already voted on this post');
+        const targetColumns = Array.isArray((error.meta as any)?.target)
+          ? (error.meta as any).target.map((col: any) => String(col))
+          : [];
+
+        const hasUserId = targetColumns.includes('userId');
+        const hasPostId = targetColumns.includes('postId');
+
+        if (hasPostId && !hasUserId) {
+          throw new BadRequestException(
+            'Vote conflict due to DB unique constraint on postId. Please apply latest Prisma migrations so uniqueness is on userId+postId.',
+          );
+        }
+
+        if (hasUserId && hasPostId) {
+          throw new BadRequestException('You have already voted on this post');
+        }
+
+        throw new BadRequestException(
+          `Vote conflict due to unique constraint (${targetColumns.join(', ') || 'unknown target'}).`,
+        );
       }
       throw error;
     }
