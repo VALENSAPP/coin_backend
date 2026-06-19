@@ -6,7 +6,7 @@ import { ApiBearerAuth, ApiTags, ApiBody, ApiQuery } from '@nestjs/swagger';
 @ApiTags('notifications')
 @Controller('notifications')
 export class NotificationController {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly notificationService: NotificationService) { }
 
   // protect route with JWT like your post APIs
   @Get()
@@ -19,7 +19,24 @@ export class NotificationController {
     const likePostNotifications = await this.notificationService.getLikePostNotifications(userId);
     const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId);
     const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId);
-    const combined = [...notifications, ...likePostNotifications, ...missionDonationNotifications, ...payFollowingNotifications].sort(
+
+    // Prefer computed like notifications and remove duplicate like rows by actor+post.
+    const filteredStoredNotifications = notifications.filter(
+      (n: any) => (n?.data as any)?.type !== 'like',
+    );
+
+    const dedupedLikes = likePostNotifications.filter((n: any, index: number, arr: any[]) => {
+      const postId = (n?.data as any)?.postId || n?.post?.id || '';
+      const likerId = (n?.data as any)?.likerId || n?.liker?.id || '';
+      const key = `${postId}:${likerId}`;
+      return index === arr.findIndex((x: any) => {
+        const xPostId = (x?.data as any)?.postId || x?.post?.id || '';
+        const xLikerId = (x?.data as any)?.likerId || x?.liker?.id || '';
+        return `${xPostId}:${xLikerId}` === key;
+      });
+    });
+
+    const combined = [...filteredStoredNotifications, ...dedupedLikes, ...missionDonationNotifications, ...payFollowingNotifications].sort(
       (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
     return { notifications: combined };
