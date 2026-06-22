@@ -405,7 +405,7 @@ export class NotificationService {
       return {
         id: like.id,
         userId,
-        // title: 'Post Liked',
+        title: 'Post Liked',
         body: `${like.user?.displayName || like.user?.userName || 'Someone'} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
         data: {
           type: 'like',
@@ -1761,9 +1761,9 @@ export class NotificationService {
         likerUserName: this.toHandle(liker?.userName || liker?.displayName),
         likerDisplayName: liker?.displayName || '',
         likerImage: liker?.image || '',
-        // notificationCategory: 'POST_LIKED',
+        notificationCategory: 'POST_LIKED',
         deepLink: `valens://post/${postId}`,
-        // expandedTitle: 'POST LIKED',
+        expandedTitle: 'POST LIKED',
         expandedBody: `${likerName} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
         postTitle,
         primaryAction: 'VIEW_POST',
