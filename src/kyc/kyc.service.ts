@@ -128,7 +128,7 @@ export class KycService {
   async handleWebhook(verification: any) {
     const { id, action, code } = verification;
 
-    console.log(`🔍 Processing webhook for session ${id} with action: ${action}, code: ${code}`);
+    // console.log(`🔍 Processing webhook for session ${id} with action: ${action}, code: ${code}`);
 
     const kycRecord = await this.prisma.kyc.findFirst({
       where: {
@@ -138,7 +138,7 @@ export class KycService {
     });
 
     if (!kycRecord) {
-      console.log(`ℹ️ Skipping webhook for session ${id} - not found or already processed`);
+      // console.log(`ℹ️ Skipping webhook for session ${id} - not found or already processed`);
       return;
     }
 
@@ -151,7 +151,7 @@ export class KycService {
     else if (action === 'started' || code === 7001) mappedStatus = 'PENDING';
     else if (action === 'expired' || action === 'abandoned' || action === 'reviewed') mappedStatus = 'DECLINED';
 
-    console.log(`🔄 Mapping action '${action}' (code: ${code}) to '${mappedStatus}'`);
+    // console.log(`🔄 Mapping action '${action}' (code: ${code}) to '${mappedStatus}'`);
 
     await this.prisma.kyc.update({
       where: { id: kycRecord.id },
@@ -164,11 +164,11 @@ export class KycService {
         where: { id: kycRecord.userId },
         data: { kyc: true, canAccessPlatform: 'true' },
       });
-      console.log(`✅ User KYC status updated to true for user ${kycRecord.userId}`);
+      // console.log(`✅ User KYC status updated to true for user ${kycRecord.userId}`);
     }
 
 
-    console.log(`✅ KYC record updated: ${id} → ${mappedStatus}`);
+    // console.log(`✅ KYC record updated: ${id} → ${mappedStatus}`);
   }
 
 
@@ -219,7 +219,7 @@ export class KycService {
       }
 
       const veriffStatus = verificationData.status;
-      console.log(`🔍 Fetched Veriff status for ${sessionId}: ${veriffStatus}`);
+      // console.log(`🔍 Fetched Veriff status for ${sessionId}: ${veriffStatus}`);
 
       let reason = null;
       if (veriffStatus === 'declined') {
@@ -228,7 +228,7 @@ export class KycService {
           const decisionResponse = await axios.get(`${this.veriffBase}/v1/sessions/${sessionId}/decision`, { headers });
           const decisionData = decisionResponse.data;
           reason = this.extractDeclineReason(decisionData);
-          console.log(`📋 Fetched decline reason for ${sessionId}: ${reason}`);
+          // console.log(`📋 Fetched decline reason for ${sessionId}: ${reason}`);
         } catch (decisionError) {
           console.warn(`Could not fetch decision for declined session ${sessionId}:`, decisionError.message);
           reason = this.extractDeclineReason(verificationData);
@@ -284,7 +284,7 @@ export class KycService {
         });
       }
 
-      console.log(`✅ Synced KYC status: ${kycRecord.veriffSessionId} → ${mappedStatus}`);
+      // console.log(`✅ Synced KYC status: ${kycRecord.veriffSessionId} → ${mappedStatus}`);
       return { success: true, status: mappedStatus, updated: true, reason: mappedStatus === 'DECLINED' ? reason : null };
     }
 
@@ -335,7 +335,7 @@ export class KycService {
       }
     });
 
-    console.log(`📋 Found ${pendingRecords.length} pending/submitted KYC records to sync`);
+    // console.log(`📋 Found ${pendingRecords.length} pending/submitted KYC records to sync`);
 
     let updated = 0;
     let errors = 0;
@@ -346,7 +346,7 @@ export class KycService {
 
         const veriffData = await this.fetchVeriffStatus(record.veriffSessionId);
         if (!veriffData) {
-          console.log(`⚠️ Could not fetch status for session ${record.veriffSessionId}`);
+          // console.log(`⚠️ Could not fetch status for session ${record.veriffSessionId}`);
           errors++;
           continue;
         }
@@ -374,10 +374,10 @@ export class KycService {
             });
           }
 
-          console.log(`✅ Updated KYC ${record.veriffSessionId}: ${record.status} → ${mappedStatus}`);
+          // console.log(`✅ Updated KYC ${record.veriffSessionId}: ${record.status} → ${mappedStatus}`);
           updated++;
         } else {
-          console.log(`ℹ️ KYC ${record.veriffSessionId} status unchanged: ${mappedStatus}`);
+          // console.log(`ℹ️ KYC ${record.veriffSessionId} status unchanged: ${mappedStatus}`);
         }
       } catch (error) {
         console.error(`❌ Error syncing KYC ${record.veriffSessionId}:`, error);
@@ -385,7 +385,7 @@ export class KycService {
       }
     }
 
-    console.log(`🎯 Sync completed: ${updated} updated, ${errors} errors, ${pendingRecords.length - updated - errors} unchanged`);
+    // console.log(`🎯 Sync completed: ${updated} updated, ${errors} errors, ${pendingRecords.length - updated - errors} unchanged`);
 
     return {
       success: true,

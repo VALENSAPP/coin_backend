@@ -354,7 +354,7 @@ export class BillingService {
 
   async handleOneTimePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
     // eslint-disable-next-line no-console
-    console.log('[Billing] handleOneTimePaymentSuccess — paymentIntentId:', paymentIntent.id);
+    // console.log('[Billing] handleOneTimePaymentSuccess — paymentIntentId:', paymentIntent.id);
     const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
     if (!customerId) {
       console.warn('[Billing] handleOneTimePaymentSuccess — no customerId on PaymentIntent, skipping');
@@ -392,12 +392,12 @@ export class BillingService {
       },
     });
     // eslint-disable-next-line no-console
-    console.log('[Billing] Payment created (pay-following success): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=succeeded');
+    // console.log('[Billing] Payment created (pay-following success): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=succeeded');
   }
 
   async handleOneTimePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
     // eslint-disable-next-line no-console
-    console.log('[Billing] handleOneTimePaymentFailed — paymentIntentId:', paymentIntent.id);
+    // console.log('[Billing] handleOneTimePaymentFailed — paymentIntentId:', paymentIntent.id);
     const existing = await this.prisma.payment.findFirst({
       where: { stripePaymentIntentId: paymentIntent.id, forPayment: 'following' },
     });
@@ -407,7 +407,7 @@ export class BillingService {
         data: { status: 'failed' },
       });
       // eslint-disable-next-line no-console
-      console.log('[Billing] Payment updated to failed (pay-following): id=', existing.id);
+      // console.log('[Billing] Payment updated to failed (pay-following): id=', existing.id);
       return;
     }
     const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
@@ -447,7 +447,7 @@ export class BillingService {
       },
     });
     // eslint-disable-next-line no-console
-    console.log('[Billing] Payment created (pay-following failed): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=failed');
+    // console.log('[Billing] Payment created (pay-following failed): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=failed');
   }
 
   async getLatestTransactions(userId: string, limit: number = 50) {
@@ -789,7 +789,7 @@ export class BillingService {
     if (withdrawal && withdrawal.status === 'processing_transfer') {
       // Transfer created successfully, now wait for payout
       // Status remains processing_transfer until payout.paid or payout.failed
-      console.log(`Transfer created for withdrawal ${withdrawal.id}: ${transfer.id}`);
+      // console.log(`Transfer created for withdrawal ${withdrawal.id}: ${transfer.id}`);
     }
   }
 
@@ -922,7 +922,7 @@ export class BillingService {
       data: { fansPage: 1 } as any,
     });
 
-    console.log(`✅ Fans page subscription payment processed: User ${userId} fansPage set to 1`);
+    // console.log(`✅ Fans page subscription payment processed: User ${userId} fansPage set to 1`);
   }
 
   async handleFanSubscriptionBuyPayment(session: Stripe.Checkout.Session) {
@@ -971,7 +971,7 @@ export class BillingService {
       },
     });
     // Creator (buyUserId) receives 95% in their Stripe Connect account via destination charge; no in-app balance hold.
-    console.log(`✅ Fan subscription buy payment processed: Fan ${fanUserId} subscribed to ${buyUserId} for one month`);
+    // console.log(`✅ Fan subscription buy payment processed: Fan ${fanUserId} subscribed to ${buyUserId} for one month`);
   }
 
   async createOneTimePaymentCheckForFanSubscription(amount: number, buyUserId: string, fanUserId: string) {
@@ -1090,7 +1090,7 @@ export class BillingService {
       });
     }
 
-    console.log(`✅ Buy hit payment processed: User ${userId} received ${hitCount} hits`);
+    // console.log(`✅ Buy hit payment processed: User ${userId} received ${hitCount} hits`);
   }
 
   // Valens: withdrawals disabled; cron commented to avoid log noise.

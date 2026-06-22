@@ -20,7 +20,7 @@ export class AppController {
     try {
       // Use process.cwd() to get the project root directory
       const filePath = path.join(process.cwd(), 'public', '.well-known', 'apple-app-site-association');
-      console.log('Looking for apple-app-site-association at:', filePath);
+      // console.log('Looking for apple-app-site-association at:', filePath);
 
       if (!fs.existsSync(filePath)) {
         console.error('File does not exist at path:', filePath);

@@ -110,7 +110,7 @@ async function bootstrap() {
 
   io.on('connection', (socket: Socket) => {
     const userId = socket.handshake.query.userId as string;
-    console.log(`User ${userId} connected with socket ${socket.id}`);
+    // console.log(`User ${userId} connected with socket ${socket.id}`);
 
     if (userId) {
       connectedUsers.set(userId, socket.id);
@@ -124,7 +124,7 @@ async function bootstrap() {
           data = JSON.parse(data);
         }
 
-        console.log('getUserChatBox payload:', data, data.userId);
+        // console.log('getUserChatBox payload:', data, data.userId);
 
         const userId = data.userId;
 
@@ -143,7 +143,7 @@ async function bootstrap() {
           data = JSON.parse(data);
         }
 
-        console.log('getConversationWithUser payload:', data, data.userId);
+        // console.log('getConversationWithUser payload:', data, data.userId);
 
         const userId = data.userId;
         const otherUserId = data.otherUserId;
@@ -191,7 +191,7 @@ async function bootstrap() {
     socket.on('disconnect', () => {
       if (userId) {
         connectedUsers.delete(userId);
-        console.log(`User ${userId} disconnected`);
+        // console.log(`User ${userId} disconnected`);
       }
     });
   });

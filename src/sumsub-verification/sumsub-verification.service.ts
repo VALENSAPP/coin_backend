@@ -50,7 +50,7 @@
 //       where: { id: userId },
 //       select: { id: true, profile: true, email: true },
 //     });
-    
+
 //     if (!user) throw new BadRequestException('User not found');
 //     if (user.profile !== 'company') {
 //       throw new BadRequestException('Only company profile users can start document verification.');
@@ -355,10 +355,10 @@ export class SumsubVerificationService {
     const applicantId = payload?.applicantId;
     const externalUserId = payload?.externalUserId;
     const reviewAnswer = payload?.reviewResult?.reviewAnswer;
-    console.log('[Sumsub Company] handleWebhook:', { applicantId, externalUserId, reviewAnswer });
+    // console.log('[Sumsub Company] handleWebhook:', { applicantId, externalUserId, reviewAnswer });
 
     if (!applicantId || !reviewAnswer) {
-      console.log('[Sumsub Company] Skipped: missing applicantId or reviewAnswer');
+      // console.log('[Sumsub Company] Skipped: missing applicantId or reviewAnswer');
       return;
     }
 
@@ -383,8 +383,8 @@ export class SumsubVerificationService {
       reviewAnswer === 'GREEN'
         ? 'approved'
         : reviewAnswer === 'RED'
-        ? 'rejected'
-        : null;
+          ? 'rejected'
+          : null;
 
     if (!status) return;
 
@@ -396,13 +396,13 @@ export class SumsubVerificationService {
         documentVerificationAt: new Date(),
       },
     });
-      if (status === 'approved') {
+    if (status === 'approved') {
       await this.prisma.user.update({
         where: { id: profile.userId },
         data: { kyc: true, canAccessPlatform: 'true' },
       });
     }
-    console.log('[Sumsub Company] DB updated: profileId=', profile.id, 'userId=', profile.userId, 'status=', status);
+    // console.log('[Sumsub Company] DB updated: profileId=', profile.id, 'userId=', profile.userId, 'status=', status);
   }
 
   async getStatus(userId: string) {

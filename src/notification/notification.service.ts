@@ -117,7 +117,7 @@ export class NotificationService {
     });
 
     if (!(user as any)?.fcmToken) {
-      console.log(`No FCM token found for user ${userId}`);
+      // console.log(`No FCM token found for user ${userId}`);
       return;
     }
 
@@ -154,13 +154,13 @@ export class NotificationService {
     };
 
     try {
-      console.log('FCM APNS debug (single):', {
-        userId,
-        hasToken: Boolean((user as any).fcmToken),
-        aps: message.apns.payload.aps,
-      });
+      // console.log('FCM APNS debug (single):', {
+      //   userId,
+      //   hasToken: Boolean((user as any).fcmToken),
+      //   aps: message.apns.payload.aps,
+      // });
       const response = await admin.messaging().send(message);
-      console.log('Successfully sent message:', response);
+      // console.log('Successfully sent message:', response);
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -178,7 +178,7 @@ export class NotificationService {
     });
 
     if (!(user as any)?.fcmToken) {
-      console.log(`No FCM token found for user ${userId}`);
+      // console.log(`No FCM token found for user ${userId}`);
       return;
     }
 
@@ -216,13 +216,13 @@ export class NotificationService {
     };
 
     try {
-      console.log('FCM APNS debug (push-only):', {
-        userId,
-        hasToken: Boolean((user as any).fcmToken),
-        aps: message.apns.payload.aps,
-      });
+      // console.log('FCM APNS debug (push-only):', {
+      //   userId,
+      //   hasToken: Boolean((user as any).fcmToken),
+      //   aps: message.apns.payload.aps,
+      // });
       const response = await admin.messaging().send(message);
-      console.log('Successfully sent push-only message:', response);
+      // console.log('Successfully sent push-only message:', response);
     } catch (error) {
       console.error('Error sending push-only message:', error);
     }
@@ -256,7 +256,7 @@ export class NotificationService {
       .map((user) => (user as any).fcmToken);
 
     if (tokens.length === 0) {
-      console.log('No FCM tokens found for the users');
+      // console.log('No FCM tokens found for the users');
       return;
     }
 
@@ -293,13 +293,13 @@ export class NotificationService {
     };
 
     try {
-      console.log('FCM APNS debug (multicast):', {
-        userCount: userIds.length,
-        tokenCount: tokens.length,
-        aps: message.apns.payload.aps,
-      });
+      // console.log('FCM APNS debug (multicast):', {
+      //   userCount: userIds.length,
+      //   tokenCount: tokens.length,
+      //   aps: message.apns.payload.aps,
+      // });
       const response = await admin.messaging().sendEachForMulticast(message);
-      console.log('Successfully sent messages:', response);
+      // console.log('Successfully sent messages:', response);
     } catch (error) {
       console.error('Error sending messages:', error);
     }

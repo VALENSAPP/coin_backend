@@ -8,7 +8,7 @@ import { ApiTags, ApiOperation, ApiParam, ApiBody, ApiResponse, ApiBearerAuth } 
 @ApiTags('sumsub-user_verification')
 @Controller('sumsub-user_verification')
 export class KycController {
-  constructor(private readonly kycService: KycService) {}
+  constructor(private readonly kycService: KycService) { }
 
   @Get('token')
   @UseGuards(AuthGuard('jwt'))
@@ -23,14 +23,15 @@ export class KycController {
   @Post('start/:userId')
   @ApiOperation({ summary: 'Start KYC verification' })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiBody({ schema: { 
-      type: 'object', 
-      properties: { 
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
         documentType: { type: 'string', example: 'DRIVERS_LICENSE' },
         firstName: { type: 'string', example: 'John' },
         lastName: { type: 'string', example: 'Doe' }
-      } 
-    } 
+      }
+    }
   })
   @ApiResponse({ status: 201, description: 'KYC session created successfully (Sumsub)' })
   async startKyc(
@@ -56,39 +57,39 @@ export class KycController {
   //   return this.kycService.handleWebhook(body);
   // }
 
-@Post('webhook')
-async handleWebhook(@Req() req: any) {
-  let body = req.body;
+  @Post('webhook')
+  async handleWebhook(@Req() req: any) {
+    let body = req.body;
 
-  // If body is a buffer (raw), parse it as JSON
-  if (Buffer.isBuffer(body)) {
-    body = JSON.parse(body.toString());
+    // If body is a buffer (raw), parse it as JSON
+    if (Buffer.isBuffer(body)) {
+      body = JSON.parse(body.toString());
+    }
+
+    // console.log('📨 RAW VERIFF PAYLOAD:', JSON.stringify(body, null, 2));
+
+    // handle both formats safely
+    const verification = body.resource || body.verification || body;
+    // console.log('✅ Extracted verification object:', JSON.stringify(verification, null, 2));
+
+    const id = verification?.id;
+    const action = verification?.action;
+    const code = verification?.code;
+    const applicantId = verification?.applicantId;
+    const reviewAnswer = verification?.reviewResult?.reviewAnswer;
+    // console.log(`🔍 Webhook data - ID: ${id}, Action: ${action}, Code: ${code}, applicantId: ${applicantId}, reviewAnswer: ${reviewAnswer}`);
+
+    // Accept Veriff format (id) or Sumsub format (applicantId present)
+    const isVeriff = !!id;
+    const isSumsub = !!applicantId;
+    if (!isVeriff && !isSumsub) {
+      console.error('❌ Invalid payload: need id (Veriff) or applicantId (Sumsub)');
+      return { success: false, message: 'Invalid payload structure', body };
+    }
+
+    await this.kycService.handleWebhook(verification);
+    return { success: true };
   }
-
-  console.log('📨 RAW VERIFF PAYLOAD:', JSON.stringify(body, null, 2));
-
-  // handle both formats safely
-  const verification = body.resource || body.verification || body;
-  console.log('✅ Extracted verification object:', JSON.stringify(verification, null, 2));
-
-  const id = verification?.id;
-  const action = verification?.action;
-  const code = verification?.code;
-  const applicantId = verification?.applicantId;
-  const reviewAnswer = verification?.reviewResult?.reviewAnswer;
-  console.log(`🔍 Webhook data - ID: ${id}, Action: ${action}, Code: ${code}, applicantId: ${applicantId}, reviewAnswer: ${reviewAnswer}`);
-
-  // Accept Veriff format (id) or Sumsub format (applicantId present)
-  const isVeriff = !!id;
-  const isSumsub = !!applicantId;
-  if (!isVeriff && !isSumsub) {
-    console.error('❌ Invalid payload: need id (Veriff) or applicantId (Sumsub)');
-    return { success: false, message: 'Invalid payload structure', body };
-  }
-
-  await this.kycService.handleWebhook(verification);
-  return { success: true };
-}
 
 
 
@@ -116,4 +117,3 @@ async handleWebhook(@Req() req: any) {
     return this.kycService.syncAllPendingKyc();
   }
 }
-  

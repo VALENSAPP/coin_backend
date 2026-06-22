@@ -431,7 +431,7 @@ export class UserController {
     @UploadedFile() image: Express.Multer.File,
   ) {
     const userId = (req.user as any).userId;
-    console.log("LLLLLLLLLLLLLLLLLLLL", req.user, userId);
+    // console.log("LLLLLLLLLLLLLLLLLLLL", req.user, userId);
 
     const user = await this.userService.editProfile(userId, dto, image);
     return { message: 'Profile updated' };
@@ -821,7 +821,7 @@ export class UserController {
   @ApiParam({ name: 'userId', type: String, description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User subscriptions retrieved successfully' })
   async getSubscriptionByUserID(@Param('userId') userId: string) {
-    console.log('[getUserSubscriptions] userId:', userId);
+    // console.log('[getUserSubscriptions] userId:', userId);
 
     const subscriptions = await this.userService.getUserSubscriptions(userId);
     return { subscriptions };

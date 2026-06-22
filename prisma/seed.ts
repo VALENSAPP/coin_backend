@@ -83,10 +83,10 @@ async function main() {
         kyc: true,
       },
     });
-    console.log(`Seeded user ${i}: ${email} (profile: ${profile}, image: ${image ? 'S3 URL' : 'none'})`);
+    // console.log(`Seeded user ${i}: ${email} (profile: ${profile}, image: ${image ? 'S3 URL' : 'none'})`);
   }
 
-  console.log('Seeding complete: 20 users (5 profile "company", 15 profile "user"), images uploaded to S3.');
+  // console.log('Seeding complete: 20 users (5 profile "company", 15 profile "user"), images uploaded to S3.');
 }
 
 main()

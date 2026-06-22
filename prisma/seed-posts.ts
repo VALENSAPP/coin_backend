@@ -62,7 +62,7 @@ async function main() {
     throw new Error(`No image files found in ${IMAGES_DIR}. Add .jpg, .jpeg, .png or .webp files.`);
   }
 
-  console.log(`Found ${users.length} users (non-company) and ${imageFiles.length} images.`);
+  // console.log(`Found ${users.length} users (non-company) and ${imageFiles.length} images.`);
 
   let imageIndex = 0;
   let postCount = 0;
@@ -105,11 +105,11 @@ async function main() {
       });
 
       postCount += 1;
-      console.log(`Post ${postCount}: user ${user.userName}, image ${filename} -> S3`);
+      // console.log(`Post ${postCount}: user ${user.userName}, image ${filename} -> S3`);
     }
   }
 
-  console.log(`Post seed complete: ${postCount} posts for ${users.length} users (images from ${IMAGES_DIR}, uploaded to S3).`);
+  // console.log(`Post seed complete: ${postCount} posts for ${users.length} users (images from ${IMAGES_DIR}, uploaded to S3).`);
 }
 
 main()

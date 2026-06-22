@@ -169,10 +169,10 @@ export class PostController {
     @Body(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })) body: EditPostDto,
     @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
+    // console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
 
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
-    console.log(">>>>>>>>>>>>>>>>>>>>>", userId);
+    // console.log(">>>>>>>>>>>>>>>>>>>>>", userId);
 
     return this.postService.editPost(postId, userId, body, files);
   }
@@ -184,12 +184,12 @@ export class PostController {
     @Req() req: Request,
     @Query(new ValidationPipe({ whitelist: true, transform: true })) query: GetPostByUserDto
   ) {
-    console.log('Query received:', query);
-    console.log('User from JWT:', req.user);
+    // console.log('Query received:', query);
+    // console.log('User from JWT:', req.user);
 
     // Use userId from query if provided, otherwise use the authenticated user's ID
     const targetUserId = query.userId || (req.user as any)?.userId; // Use 'sub' instead of 'userId'
-    console.log('Target user ID:', targetUserId);
+    // console.log('Target user ID:', targetUserId);
 
     const viewerUserId = (req.user as any)?.userId;
     const page = query.page ?? 1;
@@ -433,7 +433,7 @@ export class PostController {
   @Get('getSavedPost')
   @ApiOperation({ summary: 'Get saved posts for the authenticated user' })
   async getSavedPosts(@Req() req: Request) {
-    console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
+    // console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
 
     const userId = (req.user as any).userId;
     return this.postService.getSavedPostsByUser(userId, userId);

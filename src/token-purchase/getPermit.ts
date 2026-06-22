@@ -53,21 +53,21 @@ async function main() {
     deadline,
   };
 
-  console.log("Signing with account:", wallet.address);
-  console.log("Message:", message);
+  // console.log("Signing with account:", wallet.address);
+  // console.log("Message:", message);
 
   const signature = await wallet._signTypedData(domain, types, message);
   const { v, r, s } = ethers.utils.splitSignature(signature);
 
-  console.log("\n✅ Permit Signature Generated");
-  console.log("owner:", wallet.address);
-  console.log("spender:", spender);
-  console.log("value:", value.toString());
-  console.log("nonce:", nonce.toString());
-  console.log("deadline:", deadline.toString());
-  console.log("v:", v);
-  console.log("r:", r);
-  console.log("s:", s);
+  // console.log("\n✅ Permit Signature Generated");
+  // console.log("owner:", wallet.address);
+  // console.log("spender:", spender);
+  // console.log("value:", value.toString());
+  // console.log("nonce:", nonce.toString());
+  // console.log("deadline:", deadline.toString());
+  // console.log("v:", v);
+  // console.log("r:", r);
+  // console.log("s:", s);
 }
 
 main().catch(console.error);

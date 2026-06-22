@@ -13,28 +13,28 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey: process.env.JWT_SECRET || 'valens_secret',
     });
   }
-async validate(payload: any) {
-  console.log('JWT payload:', payload);
+  async validate(payload: any) {
+    // console.log('JWT payload:', payload);
 
-  // Check if user exists and is not deleted
-  const user = await this.prisma.user.findFirst({
-    where: {
-      id: payload.sub,
-      isDeleted: 0,
-    },
-  });
+    // Check if user exists and is not deleted
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: payload.sub,
+        isDeleted: 0,
+      },
+    });
 
-  if (!user) {
-    throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // console.log('Authenticated user:', { userId: payload.sub, email: payload.email, sessionId: payload.sessionId });
+
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      registrationType: payload.registrationType,
+      sessionId: payload.sessionId,
+    };
   }
-
-  console.log('Authenticated user:', { userId: payload.sub, email: payload.email, sessionId: payload.sessionId });
-
-  return {
-    userId: payload.sub,
-    email: payload.email,
-    registrationType: payload.registrationType,
-    sessionId: payload.sessionId,
-  };
-}
 }

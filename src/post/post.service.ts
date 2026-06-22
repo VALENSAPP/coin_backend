@@ -269,21 +269,21 @@ export class PostService {
       if (!userId) throw new BadRequestException('User ID required');
 
       // Log incoming data for debugging
-      console.log('Creating post with data:', {
-        userId,
-        text,
-        imagesCount: images?.length,
-        filesCount: files?.length,
-        caption,
-        hashtag,
-        type,
-        format,
-        raiseAmount,
-        isTrustPost,
-        videoText,
-        videoTextItemsCount: videoTextItems?.length,
-        rawBodyKeys: rawBody ? Object.keys(rawBody).length : 0,
-      });
+      // console.log('Creating post with data:', {
+      //   userId,
+      //   text,
+      //   imagesCount: images?.length,
+      //   filesCount: files?.length,
+      //   caption,
+      //   hashtag,
+      //   type,
+      //   format,
+      //   raiseAmount,
+      //   isTrustPost,
+      //   videoText,
+      //   videoTextItemsCount: videoTextItems?.length,
+      //   rawBodyKeys: rawBody ? Object.keys(rawBody).length : 0,
+      // });
 
       // For crowdfunding posts, check hits and validate required fields
       if (type === 'crowdfunding' || type === 'support') {
@@ -423,14 +423,14 @@ export class PostService {
         }
 
         if (normalizedVideoTextItems.length === 0) {
-          console.log('videoTextItems normalization failed', {
-            rawType: typeof videoTextItems,
-            isArray: Array.isArray(videoTextItems),
-            rawValue: videoTextItems,
-            rawBody,
-            extractedCount: extractedVideoTextItems.length,
-            extractedPreview: extractedVideoTextItems.slice(0, 2),
-          });
+          // console.log('videoTextItems normalization failed', {
+          //   rawType: typeof videoTextItems,
+          //   isArray: Array.isArray(videoTextItems),
+          //   rawValue: videoTextItems,
+          //   rawBody,
+          //   extractedCount: extractedVideoTextItems.length,
+          //   extractedPreview: extractedVideoTextItems.slice(0, 2),
+          // });
           throw new BadRequestException('videoTextItems is required when videoText=true');
         }
 
@@ -637,8 +637,8 @@ export class PostService {
 
     } catch (error) {
       console.error('Create post error:', error);
-      console.log('Error message:', error.message);
-      console.log('Error stack:', error.stack);
+      // console.log('Error message:', error.message);
+      // console.log('Error stack:', error.stack);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -1736,7 +1736,7 @@ export class PostService {
   async editPost(postId: string, userId: string, updateData: any, files?: Express.Multer.File[]) {
     // Check if post exists and belongs to user
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
-    console.log('Service received post:', post?.userId, userId);
+    // console.log('Service received post:', post?.userId, userId);
 
     if (!post || post.deletedAt) throw new BadRequestException('Post not found');
     if (post.userId !== userId) throw new BadRequestException('Unauthorized to edit this post');

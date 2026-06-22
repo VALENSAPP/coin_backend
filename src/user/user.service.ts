@@ -39,7 +39,7 @@ if (!admin.apps.length) {
         databaseURL: 'https://nexgenfren.firebaseio.com',
       });
 
-      console.log('🔥 Firebase Admin initialized successfully with environment variables');
+      // console.log('🔥 Firebase Admin initialized successfully with environment variables');
     } else {
       // Fallback to JSON file if env vars not available
       const serviceAccountPath = path.join(process.cwd(), 'config', 'service-account-key.json');
@@ -51,7 +51,7 @@ if (!admin.apps.length) {
         databaseURL: 'https://nexgenfren.firebaseio.com',
       });
 
-      console.log('🔥 Firebase Admin initialized successfully with JSON file');
+      // console.log('🔥 Firebase Admin initialized successfully with JSON file');
     }
   } catch (error) {
     console.error('❌ Firebase Admin initialization failed:', error.message);
@@ -724,7 +724,7 @@ export class UserService {
   async editProfile(userId: string, dto: any, image?: Express.Multer.File) {
     if (!userId) throw new BadRequestException('User ID required');
 
-    console.log('EditProfile DTO received:', dto);
+    // console.log('EditProfile DTO received:', dto);
 
     // Get current user to check existing wallet address
     const currentUser = await this.prisma.user.findUnique({
@@ -733,19 +733,19 @@ export class UserService {
 
     if (!currentUser) throw new BadRequestException('User not found');
 
-    console.log('Current user wallet address:', currentUser.walletAddress);
+    // console.log('Current user wallet address:', currentUser.walletAddress);
 
     // Check if user is trying to update wallet address when one already exists
     // This check should happen BEFORE any image upload to avoid delays
-    console.log('Wallet validation:', {
-      dtoWalletAddress: dto.walletAddress,
-      currentUserWalletAddress: currentUser.walletAddress,
-      hasWalletAddress: dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null,
-      hasExistingWallet: !!currentUser.walletAddress
-    });
+    // console.log('Wallet validation:', {
+    //   dtoWalletAddress: dto.walletAddress,
+    //   currentUserWalletAddress: currentUser.walletAddress,
+    //   hasWalletAddress: dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null,
+    //   hasExistingWallet: !!currentUser.walletAddress
+    // });
 
     if (dto.walletAddress !== undefined && dto.walletAddress !== '' && dto.walletAddress !== null && currentUser.walletAddress) {
-      console.log('Throwing wallet address error');
+      // console.log('Throwing wallet address error');
       throw new BadRequestException('Wallet address already exists. Please contact admin for wallet address changes.');
     }
 
