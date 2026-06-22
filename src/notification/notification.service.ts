@@ -405,7 +405,7 @@ export class NotificationService {
       return {
         id: like.id,
         userId,
-        title: 'Post Liked',
+        // title: 'Post Liked',
         body: `${like.user?.displayName || like.user?.userName || 'Someone'} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
         data: {
           type: 'like',
