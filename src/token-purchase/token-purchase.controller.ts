@@ -1,5 +1,5 @@
-import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Controller, Post, Get, Body, Req, UseGuards, HttpStatus, Query, Headers } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiHeader } from '@nestjs/swagger';
 import { TokenPurchaseService } from './token-purchase.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, GetTokenPriceDto, SellTokenDto, GetVendorTokenAmountDto, GetTokenHistoryDto, GetPostDonationTotalDto, PostDonationTotalResponseDto, DonationResponseDto, MissionDonationDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
@@ -13,7 +13,7 @@ export class TokenPurchaseController {
   constructor(
     private readonly tokenPurchaseService: TokenPurchaseService,
     private readonly tokenService: TokenService
-  ) {}
+  ) { }
 
   @Get('getTotaltoken')
   @UseGuards(AuthGuard('jwt'))
@@ -379,6 +379,38 @@ export class TokenPurchaseController {
   ): Promise<DonationResponseDto> {
     const userId = (req.user as any).userId;
     return this.tokenPurchaseService.missionPostDonation(userId, dto);
+  }
+
+  @Post('mission-donation/external')
+  @ApiBody({ type: MissionDonationDto })
+  @ApiHeader({
+    name: 'x-external-donation-key',
+    required: true,
+    description: 'External donation API key configured on backend environment',
+    schema: { type: 'string' },
+  })
+  @ApiOperation({
+    summary: 'Create an external mission donation session',
+    description: 'Creates a Stripe checkout session for mission donation without JWT auth. Requires x-external-donation-key header. Donor is stored as Unknown User.'
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'External donation session created successfully',
+    type: DonationResponseDto
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized - Invalid or missing external donation key'
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid request, mission post, or vendor configuration'
+  })
+  async createExternalMissionDonation(
+    @Body() dto: MissionDonationDto,
+    @Headers('x-external-donation-key') externalDonationKey?: string,
+  ): Promise<DonationResponseDto> {
+    return this.tokenPurchaseService.externalMissionPostDonation(dto, externalDonationKey);
   }
 
   @Get('mission-donation/received')

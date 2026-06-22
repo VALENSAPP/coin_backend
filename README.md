@@ -64,6 +64,8 @@ AWS_REGION=your_aws_region
 AWS_S3_BUCKET=your_bucket_name
 SENDGRID_API_KEY=your_sendgrid_key
 SENDGRID_FROM_EMAIL=your_verified_email
+EXTERNAL_MISSION_DONATION_KEY=your_external_donation_key
+UNKNOWN_DONOR_USER_ID=optional_existing_unknown_user_id
 ```
 
 ### 3. Run Migrations & Generate Prisma Client

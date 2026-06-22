@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto, DonationResponseDto, MissionDonationDto } from './dto/purchase-tokens.dto';
 import { TokenService } from '../token/token.service';
@@ -6,6 +6,7 @@ import { UserService } from '../user/user.service';
 import { NotificationService } from '../notification/notification.service';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
+import { timingSafeEqual } from 'crypto';
 import { decryptSecret } from '../common/crypto.util';
 
 @Injectable()
@@ -19,6 +20,192 @@ export class TokenPurchaseService {
 
   private roundCurrency(value: number): number {
     return Math.round(value * 100) / 100;
+  }
+
+  private getUnknownDonorEmail(): string {
+    return 'unknown.donor@valens.invalid';
+  }
+
+  private ensureExternalDonationKey(providedKey?: string): void {
+    const expectedKey = process.env.EXTERNAL_MISSION_DONATION_KEY;
+
+    if (!expectedKey) {
+      this.logger.error('EXTERNAL_MISSION_DONATION_KEY is not configured');
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    if (!providedKey) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    const expectedBuffer = Buffer.from(expectedKey, 'utf8');
+    const providedBuffer = Buffer.from(providedKey, 'utf8');
+
+    if (expectedBuffer.length !== providedBuffer.length) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+
+    if (!timingSafeEqual(expectedBuffer, providedBuffer)) {
+      throw new UnauthorizedException('Unauthorized');
+    }
+  }
+
+  private async getOrCreateUnknownDonorUserId(): Promise<string> {
+    const configuredUnknownUserId = process.env.UNKNOWN_DONOR_USER_ID;
+    if (configuredUnknownUserId) {
+      const existing = await this.prisma.user.findUnique({
+        where: { id: configuredUnknownUserId },
+        select: { id: true },
+      });
+      if (existing) {
+        return existing.id;
+      }
+
+      this.logger.warn(`UNKNOWN_DONOR_USER_ID is set but no user found for id ${configuredUnknownUserId}. Falling back to lookup/create.`);
+    }
+
+    const existingUnknownByEmail = await this.prisma.user.findUnique({
+      where: { email: this.getUnknownDonorEmail() },
+      select: { id: true },
+    });
+
+    if (existingUnknownByEmail) {
+      return existingUnknownByEmail.id;
+    }
+
+    const created = await this.prisma.user.create({
+      data: {
+        email: this.getUnknownDonorEmail(),
+        userName: 'Unknown User',
+        registrationType: 'NORMAL',
+      },
+      select: { id: true },
+    });
+
+    this.logger.log(`Created Unknown User donor account with id ${created.id}. Set UNKNOWN_DONOR_USER_ID to this value in environment.`);
+
+    return created.id;
+  }
+
+  private async createMissionDonationSession(userId: string, dto: MissionDonationDto, donorSource: 'internal' | 'external'): Promise<DonationResponseDto> {
+    // Validate payer exists
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Keep donation checks simple: allow only during active mission window.
+    const missionPost = await this.getMissionPostOrThrow(dto.postId, dto.vendorId);
+    const now = new Date();
+    if (missionPost.start_time! > now) {
+      throw new BadRequestException('Mission has not started yet');
+    }
+    if (missionPost.end_time! <= now) {
+      throw new BadRequestException('Mission is closed because deadline has passed');
+    }
+
+    // Vendor (recipient of 95%) must exist and have Stripe Connect ready
+    const destinationAccountId = await this.getVendorConnectAccountId(dto.vendorId);
+
+    const productName = 'Mission Donation';
+    const productDescription = `Donate $${dto.amount} to mission`;
+    const metadataType = 'MissionDonation';
+    const amountCents = Math.round(dto.amount * 100);
+    const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+    const receiverAmountCents = Math.max(0, amountCents - applicationFeeCents);
+    const totalAmount = this.roundCurrency(amountCents / 100);
+    const platformFees = this.roundCurrency(applicationFeeCents / 100);
+    const receiverAmount = this.roundCurrency(receiverAmountCents / 100);
+
+    this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor ${dto.vendorId}) [source=${donorSource}]`);
+
+    // Get success and cancel URLs from environment
+    const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+    const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+
+    // Create Stripe Checkout Session with 5% platform fee, 95% to vendor (destination charge)
+    const session = await this.stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: productName,
+              description: productDescription,
+            },
+            unit_amount: amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      payment_intent_data: {
+        application_fee_amount: applicationFeeCents,
+        transfer_data: { destination: destinationAccountId },
+        metadata: {
+          userId,
+          vendorId: dto.vendorId,
+          type: metadataType,
+          donorSource,
+        },
+      },
+      metadata: {
+        userId,
+        vendorId: dto.vendorId,
+        type: metadataType,
+        donorSource,
+      },
+      customer_email: user.email || undefined,
+    });
+
+    const paymentData: any = {
+      userId,
+      receiverId: dto.vendorId,
+      amount: receiverAmountCents,
+      platformFee: applicationFeeCents,
+      totalAmount: amountCents,
+      currency: 'usd',
+      stripePaymentIntentId: session.id,
+      status: 'pending',
+      forPayment: 'missionDonation'
+    };
+
+    await this.prisma.payment.create({
+      data: paymentData,
+    });
+
+    const donationData: any = {
+      userId,
+      vendorId: dto.vendorId,
+      postId: dto.postId,
+      amount: receiverAmount,
+      totalAmount,
+      platformFees,
+      stripeCheckoutSessionId: session.id,
+      status: 'pending',
+      action: 'missionDonation',
+      note: dto.note,
+    };
+
+    const donationRecord = await this.prisma.donationData.create({
+      data: donationData,
+    });
+
+    return {
+      id: donationRecord.id,
+      amount: donationRecord.amount,
+      totalAmount: donationRecord.totalAmount ?? totalAmount,
+      platformFees: donationRecord.platformFees ?? platformFees,
+      status: donationRecord.status,
+      sessionUrl: session.url!,
+    };
   }
 
   constructor(
@@ -663,130 +850,27 @@ export class TokenPurchaseService {
 
   async missionPostDonation(userId: string, dto: MissionDonationDto): Promise<DonationResponseDto> {
     try {
-      // Validate payer exists
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true },
-      });
-// console.log('Mission donation - payer user:', user, 'note:', dto.note);
-      if (!user) {
-        throw new BadRequestException('User not found');
-      }
-
-      // Keep donation checks simple: allow only during active mission window.
-      const missionPost = await this.getMissionPostOrThrow(dto.postId, dto.vendorId);
-      const now = new Date();
-      if (missionPost.start_time! > now) {
-        throw new BadRequestException('Mission has not started yet');
-      }
-      if (missionPost.end_time! <= now) {
-        throw new BadRequestException('Mission is closed because deadline has passed');
-      }
-
-      // Vendor (recipient of 95%) must exist and have Stripe Connect ready
-      const destinationAccountId = await this.getVendorConnectAccountId(dto.vendorId);
-
-      const productName = 'Mission Donation';
-      const productDescription = `Donate $${dto.amount} to mission`;
-      const metadataType = 'MissionDonation';
-      const amountCents = Math.round(dto.amount * 100);
-      const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
-      const receiverAmountCents = Math.max(0, amountCents - applicationFeeCents);
-      const totalAmount = this.roundCurrency(amountCents / 100);
-      const platformFees = this.roundCurrency(applicationFeeCents / 100);
-      const receiverAmount = this.roundCurrency(receiverAmountCents / 100);
-
-      this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor ${dto.vendorId})`);
-
-      // Get success and cancel URLs from environment
-      const successUrl = process.env.STRIPE_SUCCESS_URL as string;
-      const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
-
-      // Create Stripe Checkout Session with 5% platform fee, 95% to vendor (destination charge)
-      const session = await this.stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [
-          {
-            price_data: {
-              currency: 'usd',
-              product_data: {
-                name: productName,
-                description: productDescription,
-              },
-              unit_amount: amountCents,
-            },
-            quantity: 1,
-          },
-        ],
-        mode: 'payment',
-        success_url: successUrl,
-        cancel_url: cancelUrl,
-        payment_intent_data: {
-          application_fee_amount: applicationFeeCents,
-          transfer_data: { destination: destinationAccountId },
-          metadata: {
-            userId,
-            vendorId: dto.vendorId,
-            type: metadataType,
-          },
-        },
-        metadata: {
-          userId,
-          vendorId: dto.vendorId,
-          type: metadataType,
-        },
-        customer_email: user.email || undefined,
-      });
-
-      // Create payment record (same as before)
-      const paymentData: any = {
-        userId,
-        receiverId: dto.vendorId,
-        amount: receiverAmountCents,
-        platformFee: applicationFeeCents,
-        totalAmount: amountCents,
-        currency: 'usd',
-        stripePaymentIntentId: session.id,
-        status: 'pending',
-        forPayment: 'missionDonation'
-      };
-
-      await this.prisma.payment.create({
-        data: paymentData,
-      });
-
-      // Create donation record (same as before)
-      const donationData: any = {
-        userId,
-        vendorId: dto.vendorId,
-        postId: dto.postId,
-        amount: receiverAmount,
-        totalAmount,
-        platformFees,
-        stripeCheckoutSessionId: session.id,
-        status: 'pending',
-        action: 'missionDonation',
-        note: dto.note, // Optional note for the donation
-      };
-
-      const donationRecord = await this.prisma.donationData.create({
-        data: donationData,
-      });
-
-      return {
-        id: donationRecord.id,
-        amount: donationRecord.amount,
-        totalAmount: donationRecord.totalAmount ?? totalAmount,
-        platformFees: donationRecord.platformFees ?? platformFees,
-        status: donationRecord.status,
-        sessionUrl: session.url!,
-      };
+      return await this.createMissionDonationSession(userId, dto, 'internal');
     } catch (error) {
       this.logger.error('Error creating mission donation:', error);
       if (error instanceof BadRequestException) {
         throw error;
       }
       throw new BadRequestException('Failed to create mission donation');
+    }
+  }
+
+  async externalMissionPostDonation(dto: MissionDonationDto, providedKey?: string): Promise<DonationResponseDto> {
+    try {
+      this.ensureExternalDonationKey(providedKey);
+      const unknownDonorUserId = await this.getOrCreateUnknownDonorUserId();
+      return await this.createMissionDonationSession(unknownDonorUserId, dto, 'external');
+    } catch (error) {
+      this.logger.error('Error creating external mission donation:', error);
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to create external mission donation');
     }
   }
 }

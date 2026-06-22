@@ -7,6 +7,11 @@ import { Notification } from '@prisma/client';
 export class NotificationService {
   constructor(private prisma: PrismaService) { }
 
+  private getUnknownDonorUserId(): string | undefined {
+    const value = process.env.UNKNOWN_DONOR_USER_ID?.trim();
+    return value || undefined;
+  }
+
   private getNotificationCategory(data?: Record<string, string>): string | undefined {
     return data?.notificationCategory || data?.category;
   }
@@ -1233,7 +1238,12 @@ export class NotificationService {
 
     if (sentForMilestone) return;
 
-    const recipientIds = Array.from(new Set([post.userId, ...donors.map((donor) => donor.userId)]));
+    const unknownDonorUserId = this.getUnknownDonorUserId();
+    const recipientIds = Array.from(
+      new Set(
+        [post.userId, ...donors.map((donor) => donor.userId)].filter((userId) => userId && userId !== unknownDonorUserId),
+      ),
+    );
     if (recipientIds.length === 0) return;
 
     const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
@@ -1345,7 +1355,11 @@ export class NotificationService {
       return;
     }
 
-    const backerHandle = this.toHandle(donation.user?.userName || donation.user?.displayName);
+    const unknownDonorUserId = this.getUnknownDonorUserId();
+    const isUnknownBacker = Boolean(unknownDonorUserId && donation.userId === unknownDonorUserId);
+    const backerHandle = isUnknownBacker
+      ? 'Unknown User'
+      : this.toHandle(donation.user?.userName || donation.user?.displayName);
     const raisedAmount = Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
     const goalAmount = Number(post.raiseAmount || 0);
     const fundedPercent = this.getDisplayFundedPercent(raisedAmount, goalAmount);
@@ -1365,8 +1379,8 @@ export class NotificationService {
         postId: donation.postId,
         creatorId: donation.vendorId,
         backerId: donation.userId,
-        backerUserName: backerHandle,
-        backerDisplayName: donation.user?.displayName || '',
+        backerUserName: isUnknownBacker ? 'Unknown User' : backerHandle,
+        backerDisplayName: isUnknownBacker ? 'Unknown User' : (donation.user?.displayName || ''),
         backerImage: donation.user?.image || '',
         contribution: donation.amount.toFixed(2),
         totalRaised: raisedAmount.toFixed(2),
@@ -1482,7 +1496,14 @@ export class NotificationService {
       },
     );
 
-    const backerIds = Array.from(new Set(donors.map((donor) => donor.userId).filter((userId) => userId !== post.userId)));
+    const unknownDonorUserId = this.getUnknownDonorUserId();
+    const backerIds = Array.from(
+      new Set(
+        donors
+          .map((donor) => donor.userId)
+          .filter((userId) => userId !== post.userId && userId !== unknownDonorUserId),
+      ),
+    );
     if (backerIds.length === 0) return;
 
     return this.sendNotificationToMultipleUsers(
@@ -1559,13 +1580,14 @@ export class NotificationService {
         }),
       ]);
 
+      const unknownDonorUserId = this.getUnknownDonorUserId();
       const recipientIds = Array.from(
         new Set([
           post.userId,
           ...followers.map((follower) => follower.followerId),
           ...donors.map((donor) => donor.userId),
         ]),
-      );
+      ).filter((userId) => userId !== unknownDonorUserId);
       if (recipientIds.length === 0) return;
 
       const alreadySent = await this.prisma.notification.findMany({
@@ -1670,6 +1692,11 @@ export class NotificationService {
     const creatorHandle = this.toHandle(post.user?.userName || post.user?.displayName);
     const missionTitle = this.truncateText(post.caption || post.text || 'Mission Post', 120);
     const amountPaid = Number(donation.totalAmount ?? donation.amount);
+
+    const unknownDonorUserId = this.getUnknownDonorUserId();
+    if (unknownDonorUserId && donation.userId === unknownDonorUserId) {
+      return;
+    }
 
     return this.sendNotificationToUser(
       donation.userId,
