@@ -8,6 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
+import { SendTipDto } from './dto/send-tip.dto';
 import { AddDigitalBadgeDto } from './dto/add-digital-badge.dto';
 import { VerifyUsdtTransactionDto } from './dto/verify-usdt-transaction.dto';
 
@@ -27,7 +28,7 @@ export class RequestWithdrawalDto {
 @ApiTags('billing')
 @Controller('billing')
 export class BillingController {
-  constructor(private readonly billingService: BillingService) {}
+  constructor(private readonly billingService: BillingService) { }
 
   @Post('subscribe')
   @UseGuards(AuthGuard('jwt'))
@@ -62,6 +63,24 @@ export class BillingController {
     const session = await this.billingService.createOneTimePaymentCheckoutSession(
       payerUserId,
       dto.contentUserId,
+      dto.amount,
+    );
+    return { url: session.url };
+  }
+
+  @Post('send-tip')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session to send a tip (100% to receiver)' })
+  @ApiBody({ type: SendTipDto })
+  async sendTip(@Req() req: Request, @Body() dto: SendTipDto) {
+    const senderUserId = (req.user as any).userId;
+    if (dto.receiverUserId === senderUserId) {
+      throw new BadRequestException('You cannot tip yourself');
+    }
+    const session = await this.billingService.createTipCheckoutSession(
+      senderUserId,
+      dto.receiverUserId,
       dto.amount,
     );
     return { url: session.url };
@@ -295,7 +314,7 @@ export class BillingController {
   @Get('received-totals')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get totals for received mission donations, pay-following, and USDT transfers' })
+  @ApiOperation({ summary: 'Get totals for received tips, mission donations, pay-following, and USDT transfers' })
   async getReceivedTotals(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.billingService.getReceivedTotals(userId);

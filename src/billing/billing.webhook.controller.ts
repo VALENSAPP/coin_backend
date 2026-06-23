@@ -107,6 +107,8 @@ export class BillingWebhookController {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] Routing to handleOneTimePaymentSuccess (pay-following)');
         await this.billingService.handleOneTimePaymentSuccess(paymentIntent);
+      } else if (type === 'tip') {
+        await this.billingService.handleTipPaymentSuccess(paymentIntent);
       } else {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] payment_intent.succeeded — no handler for this type, skipping');
@@ -128,6 +130,8 @@ export class BillingWebhookController {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] Routing to handleOneTimePaymentFailed (pay-following)');
         await this.billingService.handleOneTimePaymentFailed(paymentIntent);
+      } else if (type === 'tip') {
+        await this.billingService.handleTipPaymentFailed(paymentIntent);
       } else {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] payment_intent.payment_failed — no handler for this type, skipping');

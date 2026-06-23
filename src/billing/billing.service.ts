@@ -101,6 +101,22 @@ export class BillingService {
     };
   }
 
+  private getTipAmountSplit(amountCents: number) {
+    const totalAmount = Math.round(amountCents / 100);
+    const platformFeeCents = 0;
+    const receiverAmountCents = Math.max(0, amountCents - platformFeeCents);
+    const platformFee = 0;
+    const receiverAmount = Math.max(0, totalAmount - platformFee);
+
+    return {
+      totalAmount,
+      platformFee,
+      receiverAmount,
+      platformFeeCents,
+      receiverAmountCents,
+    };
+  }
+
   /** Check if user has completed Stripe Connect onboarding and can receive payments. */
   async getOnboardingStatus(userId: string): Promise<{
     canReceivePayments: boolean;
@@ -209,6 +225,74 @@ export class BillingService {
         receiverAmountCents: receiverAmountCents.toString(),
       },
     });
+    return session;
+  }
+
+  async createTipCheckoutSession(
+    senderUserId: string,
+    receiverUserId: string,
+    amount: number,
+  ) {
+    const destinationAccountId = await this.requireCanReceivePayments(receiverUserId);
+    const customerId = await this.ensureStripeCustomer(senderUserId);
+    const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+    const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+    if (!successUrl || !cancelUrl) {
+      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+    }
+
+    const amountCents = Math.round(amount * 100);
+    const {
+      platformFeeCents: applicationFeeCents,
+      receiverAmountCents,
+      platformFee,
+      receiverAmount,
+      totalAmount,
+    } = this.getTipAmountSplit(amountCents);
+
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Tip Payment',
+            },
+            unit_amount: amountCents,
+          },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: {
+        application_fee_amount: applicationFeeCents,
+        transfer_data: { destination: destinationAccountId },
+        metadata: {
+          senderUserId,
+          receiverUserId,
+          type: 'tip',
+          amount: amount.toString(),
+          totalAmount: totalAmount.toString(),
+          platformFee: platformFee.toString(),
+          receiverAmount: receiverAmount.toString(),
+          receiverAmountCents: receiverAmountCents.toString(),
+        },
+      },
+      metadata: {
+        senderUserId,
+        receiverUserId,
+        type: 'tip',
+        amount: amount.toString(),
+        totalAmount: totalAmount.toString(),
+        platformFee: platformFee.toString(),
+        receiverAmount: receiverAmount.toString(),
+        receiverAmountCents: receiverAmountCents.toString(),
+      },
+    });
+
     return session;
   }
 
@@ -448,6 +532,79 @@ export class BillingService {
     });
     // eslint-disable-next-line no-console
     // console.log('[Billing] Payment created (pay-following failed): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=failed');
+  }
+
+  async handleTipPaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
+    const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
+    if (!customerId) return;
+
+    const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
+    if (!user) return;
+
+    const amountCents = paymentIntent.amount ?? 0;
+    const {
+      totalAmount,
+      platformFee,
+      receiverAmount,
+    } = this.getTipAmountSplit(amountCents);
+    const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
+    const receiverUserId = paymentIntent.metadata?.receiverUserId;
+
+    await this.prisma.payment.create({
+      data: {
+        user: { connect: { id: user.id } },
+        ...(receiverUserId && { receiver: { connect: { id: receiverUserId } } }),
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
+        currency,
+        status: 'succeeded',
+        forPayment: 'TIP',
+        stripePaymentIntentId: paymentIntent.id,
+      },
+    });
+  }
+
+  async handleTipPaymentFailed(paymentIntent: Stripe.PaymentIntent) {
+    const existing = await this.prisma.payment.findFirst({
+      where: { stripePaymentIntentId: paymentIntent.id, forPayment: 'TIP' },
+    });
+    if (existing) {
+      await this.prisma.payment.update({
+        where: { id: existing.id },
+        data: { status: 'failed' },
+      });
+      return;
+    }
+
+    const customerId = typeof paymentIntent.customer === 'string' ? paymentIntent.customer : paymentIntent.customer?.id;
+    if (!customerId) return;
+
+    const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
+    if (!user) return;
+
+    const amountCents = paymentIntent.amount ?? 0;
+    const {
+      totalAmount,
+      platformFee,
+      receiverAmount,
+    } = this.getTipAmountSplit(amountCents);
+    const currency = paymentIntent.currency?.toUpperCase() ?? 'USD';
+    const receiverUserId = paymentIntent.metadata?.receiverUserId;
+
+    await this.prisma.payment.create({
+      data: {
+        user: { connect: { id: user.id } },
+        ...(receiverUserId && { receiver: { connect: { id: receiverUserId } } }),
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
+        currency,
+        status: 'failed',
+        forPayment: 'TIP',
+        stripePaymentIntentId: paymentIntent.id,
+      },
+    });
   }
 
   async getLatestTransactions(userId: string, limit: number = 50) {
@@ -1241,11 +1398,19 @@ export class BillingService {
   }
 
   async getReceivedTotals(userId: string) {
-    const [payFollowingSum, missionDonationSum, usdtSum] = await Promise.all([
+    const [payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
           receiverId: userId,
           forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
           status: 'succeeded',
         },
         _sum: { amount: true },
@@ -1266,7 +1431,7 @@ export class BillingService {
 
     return {
 
-      totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
+      totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(tipSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
 
 
     };
@@ -1277,11 +1442,20 @@ export class BillingService {
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
     const takePerSource = safePage * safeLimit;
 
-    const [payments, donations, usdtTransfers, totalPayments, totalDonations, totalUsdtTransfers] = await Promise.all([
+    const [followingPayments, tipPayments, donations, usdtTransfers, totalFollowingPayments, totalTipPayments, totalDonations, totalUsdtTransfers] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
           receiverId: userId,
           forPayment: 'following',
+          status: 'succeeded',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
           status: 'succeeded',
         },
         orderBy: { createdAt: 'desc' },
@@ -1308,6 +1482,13 @@ export class BillingService {
           status: 'succeeded',
         },
       }),
+      this.prisma.payment.count({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+      }),
       this.prisma.donationData.count({
         where: {
           vendorId: userId,
@@ -1321,7 +1502,8 @@ export class BillingService {
     ]);
 
     const combined = [
-      ...payments.map((p) => ({ ...p, typeTransaction: 'payFollowing' })),
+      ...followingPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing' })),
+      ...tipPayments.map((p) => ({ ...p, typeTransaction: 'tip' })),
       ...donations.map((d) => ({ ...d, typeTransaction: 'donation' })),
       ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt' })),
     ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1330,7 +1512,7 @@ export class BillingService {
     const end = start + safeLimit;
     const transactions = combined.slice(start, end);
 
-    const totalItems = totalPayments + totalDonations + totalUsdtTransfers;
+    const totalItems = totalFollowingPayments + totalTipPayments + totalDonations + totalUsdtTransfers;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
 
     return {
