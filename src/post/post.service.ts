@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { uploadBufferToS3, uploadImageToS3 } from '../common/s3.util';
+import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
 import { Prisma } from '@prisma/client';
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { applyVideoTextOverlays, VideoTextOverlayItem } from '../common/video-text-overlay.util';
@@ -9,7 +9,7 @@ import { start } from 'repl';
 import { endWith } from 'rxjs';
 import { NotificationService } from '../notification/notification.service';
 
-type PostFormat = 'image' | 'video' | 'reel';
+type PostFormat = 'image' | 'video' | 'reel' | 'ebook';
 
 @Injectable()
 export class PostService {
@@ -246,7 +246,6 @@ export class PostService {
     userId: string,
     text?: string,
     images?: string[],
-    files?: Express.Multer.File[],
     caption?: string,
     hashtag?: string[],
     location?: string,
@@ -257,6 +256,9 @@ export class PostService {
     taggedPeople?: string[],
     type?: string,
     format?: string,
+    allowDownload?: boolean,
+    tableContents?: string[],
+    ebookpdfFile?: Express.Multer.File,
     raiseAmount?: number,
     start_time?: Date,
     end_time?: Date,
@@ -264,6 +266,7 @@ export class PostService {
     videoText: boolean = false,
     videoTextItems?: VideoTextOverlayItem[],
     rawBody?: Record<string, any>,
+    files?: Express.Multer.File[],
   ) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
@@ -412,9 +415,30 @@ export class PostService {
       const shouldApplyVideoText = videoText === true;
       const normalizedFormat = format?.trim().toLowerCase();
       const postFormat: PostFormat | undefined =
-        normalizedFormat === 'image' || normalizedFormat === 'video' || normalizedFormat === 'reel'
+        normalizedFormat === 'image' || normalizedFormat === 'video' || normalizedFormat === 'reel' || normalizedFormat === 'ebook'
           ? (normalizedFormat as PostFormat)
           : undefined;
+
+      const tableContent = (tableContents || [])
+        .map((item) => String(item).trim())
+        .filter(Boolean);
+
+      const resolvedAllowDownload = allowDownload === undefined || allowDownload === null ? true : Boolean(allowDownload);
+
+      let ebookpdfUrl: string | null = null;
+      if (postFormat === 'ebook') {
+        if (!ebookpdfFile) {
+          throw new BadRequestException('ebookpdf file is required when format=ebook');
+        }
+        const isPdfByMime = ebookpdfFile.mimetype === 'application/pdf';
+        const isPdfByName = ebookpdfFile.originalname?.toLowerCase().endsWith('.pdf');
+        if (!isPdfByMime && !isPdfByName) {
+          throw new BadRequestException('Only PDF files are allowed for ebookpdf');
+        }
+        ebookpdfUrl = await uploadFileToS3(ebookpdfFile, 'post-ebooks');
+      } else if (ebookpdfFile) {
+        throw new BadRequestException('ebookpdf is only allowed when format=ebook');
+      }
 
       let mediaFiles = files;
       if (shouldApplyVideoText) {
@@ -494,6 +518,9 @@ export class PostService {
         youtubeMusicMeta: youtubeMusicMeta ?? null,
         link: link?.trim() || null,
         format: postFormat,
+        ebookpdf: ebookpdfUrl,
+        tableContent,
+        allowDownload: resolvedAllowDownload,
         visibleTo: visibleTo?.trim() || null,
         hashtag: hashtag?.filter(Boolean) || [],
         taggedPeople: taggedPeople?.filter(Boolean) || [],

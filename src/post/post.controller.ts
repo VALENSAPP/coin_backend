@@ -8,7 +8,7 @@ import { EditPostDto } from './dto/edit-post.dto';
 import { SharePostDto, DeleteSharedPostDto } from './dto/share-post.dto';
 import { PostLikeByUserDto, PostLikeListDto, SavePostDto, UnsavePostDto } from './dto/post-like.dto';
 import { PostReportDto } from './dto/post-report.dto';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiConsumes, ApiBody, ApiBearerAuth, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -28,7 +28,10 @@ export class PostController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Post('create')
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'images', maxCount: 20 },
+    { name: 'ebookpdf', maxCount: 1 },
+  ]))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -48,8 +51,23 @@ export class PostController {
           items: { type: 'string', format: 'binary' },
           description: 'Array of image/video files',
         },
+        ebookpdf: {
+          type: 'string',
+          format: 'binary',
+          description: 'Ebook PDF file when format is ebook',
+        },
+        tableContents: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Table of contents entries for ebook posts',
+        },
+        allowDownload: {
+          type: 'boolean',
+          description: 'Whether ebook can be downloaded',
+          default: true,
+        },
         type: { type: 'string', enum: [...POST_TYPES], description: 'Type of post' },
-        format: { type: 'string', enum: ['image', 'video', 'reel'], description: 'Format of the post' },
+        format: { type: 'string', enum: ['image', 'video', 'reel', 'ebook'], description: 'Format of the post' },
         raiseAmount: { type: 'number', description: 'Raise amount for crowdfunding posts' },
         start_time: { type: 'string', format: 'date-time', description: 'Start time for crowdfunding posts' },
         end_time: { type: 'string', format: 'date-time', description: 'End time for crowdfunding posts' },
@@ -80,7 +98,7 @@ export class PostController {
       forbidNonWhitelisted: false,
       exceptionFactory: (errors) => new BadRequestException(errors)
     })) body: CreatePostDto,
-    @UploadedFiles() files?: Express.Multer.File[],
+    @UploadedFiles() files?: { images?: any[]; ebookpdf?: any[] },
   ) {
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
     const rawVideoTextItems = (req as any)?.body?.videoTextItems;
@@ -93,7 +111,6 @@ export class PostController {
       userId,
       body.text,
       undefined,
-      files,
       body.caption,
       body.hashtag,
       body.location,
@@ -104,6 +121,9 @@ export class PostController {
       body.taggedPeople,
       body.type,
       body.format,
+      body.allowDownload,
+      body.tableContents,
+      files?.ebookpdf?.[0],
       body.raiseAmount,
       body.start_time,
       body.end_time,
@@ -111,6 +131,7 @@ export class PostController {
       body.videoText,
       resolvedVideoTextItems,
       (req as any)?.body,
+      files?.images,
     );
   }
 
@@ -167,7 +188,7 @@ export class PostController {
     @Req() req: Request,
     @Param('postId') postId: string,
     @Body(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false })) body: EditPostDto,
-    @UploadedFiles() files?: Express.Multer.File[],
+    @UploadedFiles() files?: any[],
   ) {
     // console.log(">>>>>>>>>>>>>>>>>>>>>", req.user);
 

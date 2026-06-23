@@ -177,6 +177,9 @@ model Post {
   isTrustPost      Boolean         @default(false)
   videoText        Boolean         @default(false)
   videoTextItems   Json?
+  ebookpdf         String?
+  tableContent     String []
+  allowDownload    Boolean         @default(true)
   hides            HidePost[]
   reports          PostReport[]
   user             User          @relation(fields: [userId], references: [id])
@@ -1009,6 +1012,8 @@ model PostTrustVote {
   @@index([postId])
 }
 
+
+
 model DeletedUser {
   id        String   @id @default(uuid())
   userId    String
@@ -1122,6 +1127,7 @@ enum format {
   image
   video
   reel
+  ebook
 }
 
 enum TrustVoteType {

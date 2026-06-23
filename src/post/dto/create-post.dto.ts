@@ -3,7 +3,7 @@ import { Transform, Type as TransformType } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { POST_TYPES, PostType } from './post-types';
 
-const POST_FORMATS = ['image', 'video', 'reel'] as const;
+const POST_FORMATS = ['image', 'video', 'reel', 'ebook'] as const;
 type PostFormat = (typeof POST_FORMATS)[number];
 
 export class VideoTextItemDto {
@@ -141,6 +141,55 @@ export class CreatePostDto {
   @IsIn(POST_FORMATS)
   @Transform(({ value }: { value: any }) => value && value.trim() !== '' ? value : 'image')
   format?: PostFormat;
+
+  @ApiProperty({
+    description: 'Whether ebook can be downloaded',
+    required: false,
+    default: true,
+    type: Boolean,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }: { value: any }) => {
+    if (value === null || value === undefined || value === '') return true;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+    return Boolean(value);
+  })
+  allowDownload?: boolean;
+
+  @ApiProperty({
+    description: 'Table of contents entries for ebook posts',
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return [];
+    if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => String(item).trim()).filter(Boolean);
+        }
+      } catch {
+        return value.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      return [value.trim()].filter(Boolean);
+    }
+    return [];
+  })
+  tableContents?: string[];
+
+  @ApiProperty({
+    description: 'Ebook PDF URL after upload',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  ebookpdf?: string;
 
   @ApiProperty({ description: 'Raise amount for crowdfunding posts', required: false })
   @IsOptional()
