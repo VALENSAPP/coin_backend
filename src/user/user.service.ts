@@ -1325,6 +1325,7 @@ export class UserService {
         label: isDaily
           ? bucketStart.toISOString().slice(11, 16)
           : bucketStart.toISOString().slice(0, 10),
+        ...(isDaily ? {} : { dayName: bucketStart.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() }),
         date: bucketStart.toISOString(),
         newFollowers: 0,
         followers: followersBeforeRange,
