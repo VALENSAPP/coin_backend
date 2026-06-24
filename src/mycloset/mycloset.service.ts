@@ -4,8 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { uploadImageToS3 } from '../common/s3.util';
 import { CreateMyclosetDto } from './dto/create-mycloset.dto';
 import { UpdateMyclosetDto } from './dto/update-mycloset.dto';
+import { CreateClosetItemDto } from './dto/create-closet-item.dto';
+import { UpdateClosetItemDto } from './dto/update-closet-item.dto';
 
 const MYCLOSET_LOGOS_FOLDER = 'mycloset-logos';
+const CLOSET_ITEMS_FOLDER = 'closet-items';
 
 @Injectable()
 export class MyclosetService {
@@ -17,6 +20,34 @@ export class MyclosetService {
       throw new BadRequestException('shopLogo must be an image file');
     }
     return uploadImageToS3(file, MYCLOSET_LOGOS_FOLDER);
+  }
+
+  private async uploadItemImages(files?: Express.Multer.File[]): Promise<string[] | undefined> {
+    if (!files?.length) return undefined;
+
+    const invalidFile = files.find((file) => !file.mimetype?.startsWith('image/'));
+    if (invalidFile) {
+      throw new BadRequestException('images must contain only image files');
+    }
+
+    return Promise.all(files.map((file) => uploadImageToS3(file, CLOSET_ITEMS_FOLDER)));
+  }
+
+  private resolveShippingOption(dto: Pick<CreateClosetItemDto, 'shippingOption' | 'ahippingOption'>) {
+    return dto.shippingOption || dto.ahippingOption;
+  }
+
+  private getItemName(dto: Pick<CreateClosetItemDto, 'name' | 'category'>) {
+    return dto.name || dto.category;
+  }
+
+  private async findMineOrThrow(userId: string) {
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!closet) throw new NotFoundException('Mycloset not found');
+    return closet;
   }
 
   private handleUniqueError(error: unknown): never {
@@ -128,5 +159,107 @@ export class MyclosetService {
       where: { userId },
     });
     return { message: 'Mycloset deleted successfully' };
+  }
+
+  async createItem(userId: string, dto: CreateClosetItemDto, imageFiles?: Express.Multer.File[]) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const shippingOption = this.resolveShippingOption(dto);
+    if (!shippingOption) throw new BadRequestException('shippingOption is required');
+
+    const closet = await this.findMineOrThrow(userId);
+    const images = (await this.uploadItemImages(imageFiles)) || [];
+
+    return this.prisma.closetItems.create({
+      data: {
+        closetId: closet.id,
+        userId,
+        images,
+        name: this.getItemName(dto),
+        category: dto.category,
+        brand: dto.brand,
+        condition: dto.condition,
+        description: dto.description,
+        price: dto.price,
+        quantity: dto.quantity ?? 1,
+        shippingOption,
+        estimateShippingTime: dto.estimateShippingTime,
+        returnPolicy: dto.returnPolicy,
+      },
+    });
+  }
+
+  async findMyItems(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    await this.findMineOrThrow(userId);
+
+    return this.prisma.closetItems.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findItemsByClosetId(closetId: string) {
+    if (!closetId) throw new BadRequestException('Mycloset ID required');
+
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { id: closetId },
+      select: { id: true },
+    });
+    if (!closet) throw new NotFoundException('Mycloset not found');
+
+    return this.prisma.closetItems.findMany({
+      where: { closetId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findItemById(userId: string, itemId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!itemId) throw new BadRequestException('Closet item ID required');
+
+    const item = await this.prisma.closetItems.findFirst({
+      where: { id: itemId, userId },
+    });
+    if (!item) throw new NotFoundException('Closet item not found');
+    return item;
+  }
+
+  async updateItem(userId: string, itemId: string, dto: UpdateClosetItemDto, imageFiles?: Express.Multer.File[]) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!itemId) throw new BadRequestException('Closet item ID required');
+
+    await this.findItemById(userId, itemId);
+    const images = await this.uploadItemImages(imageFiles);
+    const shippingOption = this.resolveShippingOption(dto);
+
+    return this.prisma.closetItems.update({
+      where: { id: itemId },
+      data: {
+        ...(images !== undefined && { images }),
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.name === undefined && dto.category !== undefined && { name: this.getItemName(dto as CreateClosetItemDto) }),
+        ...(dto.brand !== undefined && { brand: dto.brand }),
+        ...(dto.condition !== undefined && { condition: dto.condition }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.price !== undefined && { price: dto.price }),
+        ...(dto.quantity !== undefined && { quantity: dto.quantity }),
+        ...(shippingOption !== undefined && { shippingOption }),
+        ...(dto.estimateShippingTime !== undefined && { estimateShippingTime: dto.estimateShippingTime }),
+        ...(dto.returnPolicy !== undefined && { returnPolicy: dto.returnPolicy }),
+      },
+    });
+  }
+
+  async removeItem(userId: string, itemId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!itemId) throw new BadRequestException('Closet item ID required');
+
+    await this.findItemById(userId, itemId);
+    await this.prisma.closetItems.delete({
+      where: { id: itemId },
+    });
+    return { message: 'Closet item deleted successfully' };
   }
 }

@@ -124,6 +124,7 @@ model User {
   deviceAccounts              DeviceAccount[]
   trustVotes                  PostTrustVote[]
   mycloset                    Mycloset?
+  closetItems                 ClosetItems[]
 }
 
 model Mycloset {
@@ -142,9 +143,36 @@ model Mycloset {
   returnPolicy    String?         @db.Text
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  closetItems     ClosetItems[]
 
   @@index([userId])
   @@index([shopUsername])
+}
+
+model ClosetItems {
+  id                   String              @id @default(uuid())
+  closetId             String
+  userId               String
+  images               String[]            @default([])
+  name                 String
+  category             String
+  brand                String?
+  condition            ClosetItemCondition
+  description          String?             @db.Text
+  price                Float
+  quantity             Int                 @default(1)
+  shippingOption       ShippingOptions
+  estimateShippingTime String?
+  returnPolicy         String?             @db.Text
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  closet               Mycloset            @relation(fields: [closetId], references: [id], onDelete: Cascade)
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([closetId])
+  @@index([userId])
+  @@index([category])
+  @@map("closetItems")
 }
 
 model CompanyProfile {
@@ -1172,4 +1200,11 @@ enum WhoCanBuy {
 enum ShippingOptions {
   ship_items
   local_pick
+}
+
+enum ClosetItemCondition {
+  New
+  Used
+  Good_condition
+  Need_attention
 }
