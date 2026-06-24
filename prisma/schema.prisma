@@ -123,6 +123,28 @@ model User {
   battleStats                 UserBattleStats?
   deviceAccounts              DeviceAccount[]
   trustVotes                  PostTrustVote[]
+  mycloset                    Mycloset?
+}
+
+model Mycloset {
+  id              String          @id @default(uuid())
+  userId          String          @unique
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopName        String
+  shopUsername    String          @unique
+  shopLogo        String?
+  description     String?         @db.Text
+  shopCategory    String?
+  location        String?
+  whoCanBuy       WhoCanBuy       @default(Everyone)
+  paymentMethod   String?
+  shippingOptions ShippingOptions @default(ship_items)
+  returnPolicy    String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([userId])
+  @@index([shopUsername])
 }
 
 model CompanyProfile {
@@ -150,15 +172,15 @@ model CompanyProfile {
 }
 
 model Post {
-  id               String        @id @default(uuid())
+  id               String          @id @default(uuid())
   text             String?
   images           String[]
-  thumbnails       String[]      @default([])
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  thumbnails       String[]        @default([])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
   userId           String
   deletedAt        DateTime?
-  isDelete         isdelete      @default(no)
+  isDelete         isdelete        @default(no)
   caption          String?
   hashtag          String[]
   location         String?
@@ -172,38 +194,39 @@ model Post {
   link             String?
   visibleTo        String?
   privateCircleId  String?
-  format           format      @default(image)
-  postHide         postHide      @default(no)
+  format           format          @default(image)
+  postHide         postHide        @default(no)
   isTrustPost      Boolean         @default(false)
   videoText        Boolean         @default(false)
   videoTextItems   Json?
   ebookpdf         String?
-  tableContent     String []
+  tableContent     String[]
   allowDownload    Boolean         @default(true)
   hides            HidePost[]
   reports          PostReport[]
-  user             User          @relation(fields: [userId], references: [id])
-  privateCircle    PrivateCircle? @relation(fields: [privateCircleId], references: [id], onDelete: SetNull)
+  user             User            @relation(fields: [userId], references: [id])
+  privateCircle    PrivateCircle?  @relation(fields: [privateCircleId], references: [id], onDelete: SetNull)
   comments         PostComment[]
   likes            PostLike[]
   shares           PostShare[]
   saves            SavePost[]
   pinnedBy         PinnedPost[]
   trustVotes       PostTrustVote[]
+
   @@index([privateCircleId])
 }
 
 model PrivateCircle {
-  id          String                @id @default(uuid())
-  ownerId     String
-  owner       User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  isActive    Boolean               @default(true)
-  minSlots    Int
-  maxSlots    Int
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-  members     PrivateCircleMember[]
-  posts       Post[]
+  id        String                @id @default(uuid())
+  ownerId   String
+  owner     User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  isActive  Boolean               @default(true)
+  minSlots  Int
+  maxSlots  Int
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  members   PrivateCircleMember[]
+  posts     Post[]
 
   @@unique([ownerId])
   @@index([ownerId])
@@ -251,18 +274,18 @@ model PostLike {
 }
 
 model PostComment {
-  id        String                @id @default(uuid())
-  postId    String
-  userId    String
-  comment   String
-  parentId  String?
-commentType cmntType          @default(NORMAL)
-  createdAt DateTime              @default(now())
-  post      Post                  @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent    PostComment?          @relation("PostCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   PostComment[]         @relation("PostCommentThread")
-  reactions PostCommentReaction[]
+  id          String                @id @default(uuid())
+  postId      String
+  userId      String
+  comment     String
+  parentId    String?
+  commentType cmntType              @default(NORMAL)
+  createdAt   DateTime              @default(now())
+  post        Post                  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent      PostComment?          @relation("PostCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     PostComment[]         @relation("PostCommentThread")
+  reactions   PostCommentReaction[]
 
   @@index([postId])
   @@index([userId])
@@ -895,16 +918,16 @@ model BattlePrediction {
 }
 
 model BattleComment {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   battleId  String
   userId    String
   comment   String
-  images    String[] @default([])
+  images    String[]  @default([])
   highlight Json?
-  isPin     Boolean  @default(false)
+  isPin     Boolean   @default(false)
   pinnedAt  DateTime?
   parentId  String?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   battle  Battle              @relation(fields: [battleId], references: [id], onDelete: Cascade)
   user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -995,24 +1018,22 @@ model BattleActivity {
 }
 
 model PostTrustVote {
-  id              String          @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId          String
-  postId          String
+  userId String
+  postId String
 
-  voteType        TrustVoteType
+  voteType TrustVoteType
 
-  post            Post            @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, postId])
   @@index([postId])
 }
-
-
 
 model DeletedUser {
   id        String   @id @default(uuid())
@@ -1141,4 +1162,14 @@ enum cmntType {
   AGREE
   DISAGREE
   NOT_SURE
+}
+
+enum WhoCanBuy {
+  Everyone
+  followers
+}
+
+enum ShippingOptions {
+  ship_items
+  local_pick
 }

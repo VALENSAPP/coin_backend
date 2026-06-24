@@ -15,6 +15,7 @@ import { SumsubUserVerificationModule } from './sumsub-user_verification/sumsub-
 import { NotificationModule } from './notification/notification.module';
 import { BattleModule } from './battle/battle.module';
 import { PrivateCircleModule } from './private-circle/private-circle.module';
+import { MyclosetModule } from './mycloset/mycloset.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkController } from './deep-link/deep-link.controller';
@@ -36,6 +37,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     NotificationModule,
     BattleModule,
     PrivateCircleModule,
+    MyclosetModule,
   ],
   controllers: [AppController, DeepLinkController],
   providers: [AppService],
