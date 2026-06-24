@@ -947,6 +947,9 @@ export class PostService {
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
       format: post.format,
+      ebookpdf: post.ebookpdf,
+      tableContent: post.tableContent,
+      allowDownload: post.allowDownload,
     }));
   }
 
