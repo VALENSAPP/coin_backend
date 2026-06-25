@@ -16,6 +16,7 @@ import { NotificationModule } from './notification/notification.module';
 import { BattleModule } from './battle/battle.module';
 import { PrivateCircleModule } from './private-circle/private-circle.module';
 import { MyclosetModule } from './mycloset/mycloset.module';
+import { CartModule } from './cart/cart.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkController } from './deep-link/deep-link.controller';
@@ -38,6 +39,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     BattleModule,
     PrivateCircleModule,
     MyclosetModule,
+    CartModule,
   ],
   controllers: [AppController, DeepLinkController],
   providers: [AppService],
