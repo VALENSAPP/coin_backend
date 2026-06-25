@@ -11,4 +11,3 @@ config/service-account-key.json
 userImage
 images
 config.bat
-.env

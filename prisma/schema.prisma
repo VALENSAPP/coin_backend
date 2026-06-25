@@ -125,6 +125,7 @@ model User {
   trustVotes                  PostTrustVote[]
   mycloset                    Mycloset?
   closetItems                 ClosetItems[]
+  carts                       Cart[]
 }
 
 model Mycloset {
@@ -168,11 +169,42 @@ model ClosetItems {
   updatedAt            DateTime            @updatedAt
   closet               Mycloset            @relation(fields: [closetId], references: [id], onDelete: Cascade)
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cartItems            CartItems[]
 
   @@index([closetId])
   @@index([userId])
   @@index([category])
   @@map("closetItems")
+}
+
+model Cart {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  cartItems CartItems[]
+
+  @@index([userId])
+  @@map("cart")
+}
+
+model CartItems {
+  id        String     @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int        @default(1)
+  price     Float
+  subtotal  Float
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  cart      Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   ClosetItems @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([cartId])
+  @@index([productId])
+  @@unique([cartId, productId])
+  @@map("cartItems")
 }
 
 model CompanyProfile {
