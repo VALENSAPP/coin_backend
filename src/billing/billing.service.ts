@@ -1442,7 +1442,24 @@ export class BillingService {
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
     const takePerSource = safePage * safeLimit;
 
-    const [followingPayments, tipPayments, donations, usdtTransfers, totalFollowingPayments, totalTipPayments, totalDonations, totalUsdtTransfers] = await Promise.all([
+    const [
+      followingPaymentsCredit,
+      followingPaymentsDebit,
+      tipPaymentsCredit,
+      tipPaymentsDebit,
+      donationsCredit,
+      donationsDebit,
+      usdtTransfersCredit,
+      usdtTransfersDebit,
+      totalFollowingPaymentsCredit,
+      totalFollowingPaymentsDebit,
+      totalTipPaymentsCredit,
+      totalTipPaymentsDebit,
+      totalDonationsCredit,
+      totalDonationsDebit,
+      totalUsdtTransfersCredit,
+      totalUsdtTransfersDebit,
+    ] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
           receiverId: userId,
@@ -1454,7 +1471,25 @@ export class BillingService {
       }),
       this.prisma.payment.findMany({
         where: {
+          userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.payment.findMany({
+        where: {
           receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          userId,
           forPayment: 'TIP',
           status: 'succeeded',
         },
@@ -1470,8 +1505,22 @@ export class BillingService {
         orderBy: { createdAt: 'desc' },
         take: takePerSource,
       }),
+      this.prisma.donationData.findMany({
+        where: {
+          userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
       this.prisma.digital_transaction.findMany({
         where: { receiverId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.digital_transaction.findMany({
+        where: { senderId: userId },
         orderBy: { createdAt: 'desc' },
         take: takePerSource,
       }),
@@ -1484,7 +1533,21 @@ export class BillingService {
       }),
       this.prisma.payment.count({
         where: {
+          userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+      }),
+      this.prisma.payment.count({
+        where: {
           receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+      }),
+      this.prisma.payment.count({
+        where: {
+          userId,
           forPayment: 'TIP',
           status: 'succeeded',
         },
@@ -1496,23 +1559,45 @@ export class BillingService {
           action: { in: ['missionDonation', 'donate'] },
         },
       }),
+      this.prisma.donationData.count({
+        where: {
+          userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
       this.prisma.digital_transaction.count({
         where: { receiverId: userId },
+      }),
+      this.prisma.digital_transaction.count({
+        where: { senderId: userId },
       }),
     ]);
 
     const combined = [
-      ...followingPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing' })),
-      ...tipPayments.map((p) => ({ ...p, typeTransaction: 'tip' })),
-      ...donations.map((d) => ({ ...d, typeTransaction: 'donation' })),
-      ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt' })),
+      ...followingPaymentsCredit.map((p) => ({ ...p, typeTransaction: 'payFollowing', type: 'credit' })),
+      ...followingPaymentsDebit.map((p) => ({ ...p, typeTransaction: 'payFollowing', type: 'debit' })),
+      ...tipPaymentsCredit.map((p) => ({ ...p, typeTransaction: 'tip', type: 'credit' })),
+      ...tipPaymentsDebit.map((p) => ({ ...p, typeTransaction: 'tip', type: 'debit' })),
+      ...donationsCredit.map((d) => ({ ...d, typeTransaction: 'donation', type: 'credit' })),
+      ...donationsDebit.map((d) => ({ ...d, typeTransaction: 'donation', type: 'debit' })),
+      ...usdtTransfersCredit.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'credit' })),
+      ...usdtTransfersDebit.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'debit' })),
     ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const start = (safePage - 1) * safeLimit;
     const end = start + safeLimit;
     const transactions = combined.slice(start, end);
 
-    const totalItems = totalFollowingPayments + totalTipPayments + totalDonations + totalUsdtTransfers;
+    const totalItems =
+      totalFollowingPaymentsCredit
+      + totalFollowingPaymentsDebit
+      + totalTipPaymentsCredit
+      + totalTipPaymentsDebit
+      + totalDonationsCredit
+      + totalDonationsDebit
+      + totalUsdtTransfersCredit
+      + totalUsdtTransfersDebit;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
 
     return {

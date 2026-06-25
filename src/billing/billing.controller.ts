@@ -323,7 +323,7 @@ export class BillingController {
   @Get('received-transactions')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get received transactions (combined) sorted by createdAt desc with pagination' })
+  @ApiOperation({ summary: 'Get credit and debit transactions (combined) sorted by createdAt desc with pagination' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
   async getReceivedTransactions(
