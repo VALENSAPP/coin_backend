@@ -7,6 +7,10 @@ import { UpdateCartItemQuantityDto } from './dto/update-cart-item-quantity.dto';
 export class CartService {
     constructor(private readonly prisma: PrismaService) { }
 
+    private roundMoney(amount: number) {
+        return Number(amount.toFixed(2));
+    }
+
     private async ensureUserExists(userId: string) {
         if (!userId) throw new BadRequestException('User ID required');
 
@@ -234,5 +238,169 @@ export class CartService {
         ]);
 
         return { message: 'Cart deleted successfully' };
+    }
+
+    async inspectCheckout(userId: string) {
+        await this.ensureUserExists(userId);
+
+        const cart = await this.prisma.cart.findFirst({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                cartItems: {
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        product: {
+                            select: {
+                                id: true,
+                                userId: true,
+                                name: true,
+                                price: true,
+                                quantity: true,
+                                shippingOption: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!cart || !cart.cartItems.length) {
+            throw new BadRequestException('Cart is empty');
+        }
+
+        const items: Array<{
+            cartItemId: string;
+            productId: string;
+            productName: string;
+            requestedQuantity: number;
+            approvedQuantity: number;
+            unitPrice: number;
+            lineTotal: number;
+            shippingOption: string;
+        }> = [];
+
+        const issues: Array<{
+            cartItemId: string;
+            productId: string;
+            code: string;
+            message: string;
+        }> = [];
+
+        const warnings: Array<{
+            cartItemId: string;
+            productId: string;
+            code: string;
+            message: string;
+        }> = [];
+
+        let itemsSubtotal = 0;
+        let totalItems = 0;
+
+        for (const cartItem of cart.cartItems) {
+            const product = cartItem.product;
+
+            if (!product) {
+                issues.push({
+                    cartItemId: cartItem.id,
+                    productId: cartItem.productId,
+                    code: 'PRODUCT_NOT_FOUND',
+                    message: 'This product is no longer available.',
+                });
+                continue;
+            }
+
+            if (product.userId === userId) {
+                issues.push({
+                    cartItemId: cartItem.id,
+                    productId: product.id,
+                    code: 'SELF_PURCHASE_NOT_ALLOWED',
+                    message: 'You cannot purchase your own product.',
+                });
+                continue;
+            }
+
+            if (product.quantity <= 0) {
+                issues.push({
+                    cartItemId: cartItem.id,
+                    productId: product.id,
+                    code: 'OUT_OF_STOCK',
+                    message: 'This product is out of stock.',
+                });
+                continue;
+            }
+
+            if (cartItem.quantity > product.quantity) {
+                issues.push({
+                    cartItemId: cartItem.id,
+                    productId: product.id,
+                    code: 'INSUFFICIENT_STOCK',
+                    message: `Requested quantity (${cartItem.quantity}) exceeds available stock (${product.quantity}).`,
+                });
+                continue;
+            }
+
+            if (Math.abs(cartItem.price - product.price) > 0.000001) {
+                warnings.push({
+                    cartItemId: cartItem.id,
+                    productId: product.id,
+                    code: 'PRICE_UPDATED',
+                    message: `Price changed from ${cartItem.price} to ${product.price}. Latest price applied.`,
+                });
+            }
+
+            const unitPrice = this.roundMoney(product.price);
+            const lineTotal = this.roundMoney(unitPrice * cartItem.quantity);
+
+            items.push({
+                cartItemId: cartItem.id,
+                productId: product.id,
+                productName: product.name,
+                requestedQuantity: cartItem.quantity,
+                approvedQuantity: cartItem.quantity,
+                unitPrice,
+                lineTotal,
+                shippingOption: product.shippingOption,
+            });
+
+            totalItems += cartItem.quantity;
+            itemsSubtotal = this.roundMoney(itemsSubtotal + lineTotal);
+        }
+
+        if (!items.length) {
+            throw new BadRequestException({
+                message: 'Checkout is not possible. Please update your cart.',
+                issues,
+            });
+        }
+
+        // Shipping/tax/fees are intentionally set to 0 until dedicated pricing rules are configured.
+        const shippingAmount = 0;
+        const taxAmount = 0;
+        const platformFee = 0;
+        const discountAmount = 0;
+        const totalAmountDue = this.roundMoney(
+            itemsSubtotal + shippingAmount + taxAmount + platformFee - discountAmount,
+        );
+
+        return {
+            checkout: {
+                isValid: issues.length === 0,
+                currency: 'USD',
+                checkedAt: new Date().toISOString(),
+                totalItems,
+                items,
+                issues,
+                warnings,
+                breakdown: {
+                    itemsSubtotal,
+                    shippingAmount,
+                    taxAmount,
+                    platformFee,
+                    discountAmount,
+                    totalAmountDue,
+                },
+            },
+        };
     }
 }

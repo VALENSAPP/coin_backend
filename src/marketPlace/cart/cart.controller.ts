@@ -75,4 +75,13 @@ export class CartController {
         const userId = (req.user as any)?.userId;
         return this.cartService.deleteCart(userId);
     }
+
+    @Post('checkout')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Final checkout inspection: validate cart and calculate final payable amount' })
+    async inspectCheckout(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.cartService.inspectCheckout(userId);
+    }
 }
