@@ -1705,7 +1705,7 @@ export class BattleService {
       }
     });
 
-    const sortPinnedThenCreatedAtDesc = (items: any[]) => {
+    const sortRepliesPinnedThenCreatedAtDesc = (items: any[]) => {
       items.sort((a, b) => {
         const pinDelta = Number(!!b.isPin) - Number(!!a.isPin);
         if (pinDelta !== 0) return pinDelta;
@@ -1713,19 +1713,68 @@ export class BattleService {
       });
       items.forEach((item) => {
         if (Array.isArray(item.replies) && item.replies.length) {
-          sortPinnedThenCreatedAtDesc(item.replies);
+          sortRepliesPinnedThenCreatedAtDesc(item.replies);
         }
       });
     };
 
-    sortPinnedThenCreatedAtDesc(nestedComments);
+    sortRepliesPinnedThenCreatedAtDesc(nestedComments);
+
+    const topLevelByCreatedAtAsc = [...nestedComments].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    const topLevelPinnedByCreatedAtDesc = [...nestedComments]
+      .filter((comment) => !!comment.isPin)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const topLevelOthersByCreatedAtDesc = [...nestedComments]
+      .filter((comment) => !comment.isPin)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const usedCommentIds = new Set<string>();
+    const orderedComments: any[] = [];
+    const pushIfUnused = (comment: any | null | undefined) => {
+      if (!comment) return;
+      if (usedCommentIds.has(comment.id)) return;
+      usedCommentIds.add(comment.id);
+      orderedComments.push(comment);
+    };
+
+    if (battle.format === 'HEAD_TO_HEAD') {
+      const invitedUserId =
+        battle.invites?.[0]?.invitedUserId
+        || battle.participants.find((participant) => participant.userId !== battle.creatorId)?.userId
+        || null;
+
+      const creatorFirstComment =
+        topLevelByCreatedAtAsc.find((comment) => comment.userId === battle.creatorId) || null;
+      const invitedUserFirstComment = invitedUserId
+        ? topLevelByCreatedAtAsc.find((comment) => comment.userId === invitedUserId) || null
+        : null;
+
+      pushIfUnused(creatorFirstComment);
+      pushIfUnused(invitedUserFirstComment);
+      topLevelPinnedByCreatedAtDesc.forEach((comment) => pushIfUnused(comment));
+      topLevelOthersByCreatedAtDesc.forEach((comment) => pushIfUnused(comment));
+    } else if (battle.format === 'POLL') {
+      const creatorFirstComment =
+        topLevelByCreatedAtAsc.find((comment) => comment.userId === battle.creatorId) || null;
+
+      pushIfUnused(creatorFirstComment);
+      topLevelPinnedByCreatedAtDesc.forEach((comment) => pushIfUnused(comment));
+      topLevelOthersByCreatedAtDesc.forEach((comment) => pushIfUnused(comment));
+    } else {
+      topLevelPinnedByCreatedAtDesc.forEach((comment) => pushIfUnused(comment));
+      topLevelOthersByCreatedAtDesc.forEach((comment) => pushIfUnused(comment));
+    }
 
     return {
       ...battle,
       headToHeadSides: this.buildHeadToHeadSides(battle),
       predictionCounts: effectivePredictionCounts,
       voteCounts,
-      comments: nestedComments,
+      comments: orderedComments,
     };
 
   }
