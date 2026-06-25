@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PrismaModule } from '../prisma/prisma.module';
+import { PrismaModule } from '../../prisma/prisma.module';
 import { MyclosetController } from './mycloset.controller';
 import { MyclosetService } from './mycloset.service';
 
@@ -9,4 +9,4 @@ import { MyclosetService } from './mycloset.service';
   providers: [MyclosetService],
   exports: [MyclosetService],
 })
-export class MyclosetModule {}
+export class MyclosetModule { }

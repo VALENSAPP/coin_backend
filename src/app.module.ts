@@ -15,9 +15,9 @@ import { SumsubUserVerificationModule } from './sumsub-user_verification/sumsub-
 import { NotificationModule } from './notification/notification.module';
 import { BattleModule } from './battle/battle.module';
 import { PrivateCircleModule } from './private-circle/private-circle.module';
-import { MyclosetModule } from './mycloset/mycloset.module';
-import { CartModule } from './cart/cart.module';
-import { AddressModule } from './address/address.module';
+import { MyclosetModule } from './marketPlace/mycloset/mycloset.module';
+import { CartModule } from './marketPlace/cart/cart.module';
+import { AddressModule } from './marketPlace/address/address.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkController } from './deep-link/deep-link.controller';

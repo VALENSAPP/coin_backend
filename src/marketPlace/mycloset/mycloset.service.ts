@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { uploadImageToS3 } from '../common/s3.util';
+import { PrismaService } from '../../prisma/prisma.service';
+import { uploadImageToS3 } from '../../common/s3.util';
 import { CreateMyclosetDto } from './dto/create-mycloset.dto';
 import { UpdateMyclosetDto } from './dto/update-mycloset.dto';
 import { CreateClosetItemDto } from './dto/create-closet-item.dto';
