@@ -18,6 +18,7 @@ import { PrivateCircleModule } from './private-circle/private-circle.module';
 import { MyclosetModule } from './marketPlace/mycloset/mycloset.module';
 import { CartModule } from './marketPlace/cart/cart.module';
 import { AddressModule } from './marketPlace/address/address.module';
+import { PaymentModule } from './marketPlace/payment/payment.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkController } from './deep-link/deep-link.controller';
@@ -42,6 +43,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     MyclosetModule,
     CartModule,
     AddressModule,
+    PaymentModule,
   ],
   controllers: [AppController, DeepLinkController],
   providers: [AppService],

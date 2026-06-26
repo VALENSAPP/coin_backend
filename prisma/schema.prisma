@@ -126,6 +126,7 @@ model User {
   mycloset                    Mycloset?
   closetItems                 ClosetItems[]
   carts                       Cart[]
+  marketPlaceOrders           MarketPlaceOrder[]
   userAddrees                 UserAddrees[]
 }
 
@@ -163,6 +164,9 @@ model ClosetItems {
   description          String?             @db.Text
   price                Float
   quantity             Int                 @default(1)
+  isActive             Boolean             @default(true)
+  isDeleted            Boolean             @default(false)
+  soldCount            Int                 @default(0)
   shippingOption       ShippingOptions
   estimateShippingTime String?
   returnPolicy         String?             @db.Text
@@ -171,6 +175,7 @@ model ClosetItems {
   closet               Mycloset            @relation(fields: [closetId], references: [id], onDelete: Cascade)
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   cartItems            CartItems[]
+  orderItems           MarketPlaceOrderItem[]
 
   @@index([closetId])
   @@index([userId])
@@ -538,19 +543,60 @@ model Payment {
 
 model MarketPlacePayments {
   id              String   @id @default(uuid())
-  orderId         String   @unique
+  userId          String?
+  cartId          String?
+  orderId         String?  @unique
   transactionId   String?
   paymentIntentId String?  @unique
   amount          Int
   currency        String
   provider        String
-  status          String
+  status          String   @default("PENDING")
+  metadata        Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@index([userId])
+  @@index([cartId])
   @@index([status])
   @@index([createdAt])
   @@map("marketPlacePayments")
+}
+
+model MarketPlaceOrder {
+  id              String                 @id @default(uuid())
+  userId          String
+  paymentId       String                 @unique
+  paymentIntentId String?                @unique
+  totalAmount     Int
+  currency        String
+  status          String                 @default("PAID")
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           MarketPlaceOrderItem[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("marketPlaceOrder")
+}
+
+model MarketPlaceOrderItem {
+  id         String          @id @default(uuid())
+  orderId    String
+  productId  String
+  sellerId   String
+  quantity   Int
+  unitPrice  Int
+  subtotal   Int
+  createdAt  DateTime        @default(now())
+  order      MarketPlaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    ClosetItems      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([sellerId])
+  @@map("marketPlaceOrderItem")
 }
 
 model TokenPurchase {

@@ -4,6 +4,7 @@ import { Request } from 'express';
 import Stripe from 'stripe';
 import { BillingService } from './billing.service';
 import { TokenPurchaseService } from '../token-purchase/token-purchase.service';
+import { PaymentService } from '../marketPlace/payment/payment.service';
 
 @ApiExcludeController()
 @Controller('billing')
@@ -12,7 +13,8 @@ export class BillingWebhookController {
 
   constructor(
     private readonly billingService: BillingService,
-    private readonly tokenPurchaseService: TokenPurchaseService
+    private readonly tokenPurchaseService: TokenPurchaseService,
+    private readonly marketPlacePaymentService: PaymentService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -109,6 +111,8 @@ export class BillingWebhookController {
         await this.billingService.handleOneTimePaymentSuccess(paymentIntent);
       } else if (type === 'tip') {
         await this.billingService.handleTipPaymentSuccess(paymentIntent);
+      } else if (type === 'marketplace_mycloset') {
+        await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
       } else {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] payment_intent.succeeded — no handler for this type, skipping');
@@ -132,6 +136,8 @@ export class BillingWebhookController {
         await this.billingService.handleOneTimePaymentFailed(paymentIntent);
       } else if (type === 'tip') {
         await this.billingService.handleTipPaymentFailed(paymentIntent);
+      } else if (type === 'marketplace_mycloset') {
+        await this.marketPlacePaymentService.markMarketplacePaymentFailed(paymentIntent);
       } else {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] payment_intent.payment_failed — no handler for this type, skipping');
