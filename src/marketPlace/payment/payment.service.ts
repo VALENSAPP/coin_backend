@@ -407,4 +407,13 @@ export class PaymentService {
 
         return payment;
     }
+
+    async getPaymentDetailsForUser(userId: string) {
+        if (!userId) throw new UnauthorizedException('User not authenticated');
+
+        return this.prisma.marketPlacePayments.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
 }

@@ -34,4 +34,13 @@ export class PaymentController {
         const userId = (req.user as any)?.userId;
         return this.paymentService.getPaymentDetailsById(userId, paymentId);
     }
+
+    @Get('me/list')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get marketplace payment details for authenticated user' })
+    async getMyPaymentDetails(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.paymentService.getPaymentDetailsForUser(userId);
+    }
 }
