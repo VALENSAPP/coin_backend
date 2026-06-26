@@ -55,6 +55,13 @@ export class BillingWebhookController {
         } else if (session.metadata?.type === 'MissionDonation') {
           // console.log(`Webhook: Handling mission donation for session ${session.id}`);
           await this.tokenPurchaseService.handleMissionDonationPayment(session);
+        } else if (session.metadata?.type === 'marketplace_mycloset') {
+          const paymentIntentId =
+            typeof session.payment_intent === 'string' ? session.payment_intent : null;
+          if (paymentIntentId) {
+            const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+            await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
+          }
         } else {
           await this.billingService.handleCheckoutSessionCompleted(session);
         }

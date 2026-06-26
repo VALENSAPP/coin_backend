@@ -13,12 +13,12 @@ export class PaymentController {
     @Post('create')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Create Stripe Payment Intent for My Closet cart checkout' })
-    async createPaymentIntent(
+    @ApiOperation({ summary: 'Create Stripe Checkout Session for My Closet cart checkout' })
+    async createCheckoutSession(
         @Req() req: Request,
         @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: CreateMarketplacePaymentDto,
     ) {
         const userId = (req.user as any)?.userId;
-        return this.paymentService.createPaymentIntentForCart(userId, dto);
+        return this.paymentService.createCheckoutSessionForCart(userId, dto);
     }
 }

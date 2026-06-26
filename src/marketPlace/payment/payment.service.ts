@@ -31,7 +31,7 @@ export class PaymentService {
         return 0;
     }
 
-    async createPaymentIntentForCart(userId: string, dto: CreateMarketplacePaymentDto) {
+    async createCheckoutSessionForCart(userId: string, dto: CreateMarketplacePaymentDto) {
         if (!userId) throw new UnauthorizedException('User not authenticated');
 
         const user = await this.prisma.user.findUnique({
@@ -126,56 +126,82 @@ export class PaymentService {
 
         const currency = (dto.currency || 'usd').trim().toLowerCase();
 
-        let paymentIntent: Stripe.PaymentIntent;
-        try {
-            paymentIntent = await this.stripe.paymentIntents.create({
-                amount: grandTotalMinor,
-                currency,
-                automatic_payment_methods: { enabled: true },
-                metadata: {
-                    type: this.marketplaceType,
-                    userId,
-                    cartId: cart.id,
-                },
-            });
-        } catch {
-            throw new BadRequestException('Stripe API failure while creating payment intent');
+        const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+        const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+        if (!successUrl || !cancelUrl) {
+            throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
         }
-
-        const paymentData: Prisma.InputJsonObject = {
-            userId,
-            cartId: cart.id,
-            subtotalMinor,
-            shippingMinor,
-            platformFeeMinor,
-            grandTotalMinor,
-            items: validatedItems,
-        };
 
         const payment = await this.prisma.marketPlacePayments.create({
             data: {
                 userId,
                 cartId: cart.id,
-                paymentIntentId: paymentIntent.id,
                 amount: grandTotalMinor,
                 currency,
                 provider: this.provider,
                 status: 'PENDING',
-                metadata: paymentData,
+                metadata: {
+                    userId,
+                    cartId: cart.id,
+                    subtotalMinor,
+                    shippingMinor,
+                    platformFeeMinor,
+                    grandTotalMinor,
+                    items: validatedItems,
+                },
             },
             select: { id: true },
         });
 
-        await this.stripe.paymentIntents.update(paymentIntent.id, {
-            metadata: {
-                ...paymentIntent.metadata,
-                paymentId: payment.id,
+        let session: Stripe.Checkout.Session;
+        try {
+            session = await this.stripe.checkout.sessions.create({
+                mode: 'payment',
+                success_url: successUrl,
+                cancel_url: cancelUrl,
+                line_items: [
+                    {
+                        quantity: 1,
+                        price_data: {
+                            currency,
+                            unit_amount: grandTotalMinor,
+                            product_data: {
+                                name: `My Closet Checkout (${cart.cartItems.length} item${cart.cartItems.length > 1 ? 's' : ''})`,
+                            },
+                        },
+                    },
+                ],
+                metadata: {
+                    type: this.marketplaceType,
+                    paymentId: payment.id,
+                    userId,
+                    cartId: cart.id,
+                },
+                payment_intent_data: {
+                    metadata: {
+                        type: this.marketplaceType,
+                        paymentId: payment.id,
+                        userId,
+                        cartId: cart.id,
+                    },
+                },
+            });
+        } catch {
+            await this.prisma.marketPlacePayments.delete({ where: { id: payment.id } });
+            throw new BadRequestException('Stripe API failure while creating checkout session');
+        }
+
+        await this.prisma.marketPlacePayments.update({
+            where: { id: payment.id },
+            data: {
+                paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
             },
         });
 
         return {
-            clientSecret: paymentIntent.client_secret,
-            paymentIntentId: paymentIntent.id,
+            checkoutUrl: session.url,
+            checkoutSessionId: session.id,
+            paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
             amount: grandTotalMinor / 100,
             currency,
         };
