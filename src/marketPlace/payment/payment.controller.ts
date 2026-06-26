@@ -1,5 +1,5 @@
-import { Body, Controller, Post, Req, UseGuards, ValidationPipe } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Req, UseGuards, ValidationPipe } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { CreateMarketplacePaymentDto } from './dto/create-marketplace-payment.dto';
@@ -20,5 +20,18 @@ export class PaymentController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.paymentService.createCheckoutSessionForCart(userId, dto);
+    }
+
+    @Get(':paymentId')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiParam({ name: 'paymentId', description: 'Marketplace payment ID' })
+    @ApiOperation({ summary: 'Get marketplace payment details by paymentId' })
+    async getPaymentDetails(
+        @Req() req: Request,
+        @Param('paymentId') paymentId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.paymentService.getPaymentDetailsById(userId, paymentId);
     }
 }

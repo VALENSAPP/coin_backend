@@ -388,4 +388,23 @@ export class PaymentService {
             data: { status: 'FAILED' },
         });
     }
+
+    async getPaymentDetailsById(userId: string, paymentId: string) {
+        if (!userId) throw new UnauthorizedException('User not authenticated');
+        if (!paymentId) throw new BadRequestException('paymentId is required');
+
+        const payment = await this.prisma.marketPlacePayments.findUnique({
+            where: { id: paymentId },
+        });
+
+        if (!payment) {
+            throw new NotFoundException('Payment not found');
+        }
+
+        if (payment.userId && payment.userId !== userId) {
+            throw new UnauthorizedException('You are not allowed to access this payment');
+        }
+
+        return payment;
+    }
 }
