@@ -536,6 +536,23 @@ model Payment {
   @@index([receiverId])
 }
 
+model MarketPlacePayments {
+  id              String   @id @default(uuid())
+  orderId         String   @unique
+  transactionId   String?
+  paymentIntentId String?  @unique
+  amount          Int
+  currency        String
+  provider        String
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("marketPlacePayments")
+}
+
 model TokenPurchase {
   id                      String    @id @default(uuid())
   userId                  String
