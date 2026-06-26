@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Prisma, ShippingOptions } from '@prisma/client';
 import Stripe from 'stripe';
-import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OrderService } from '../order/order.service';
 import { CreateMarketplacePaymentDto } from './dto/create-marketplace-payment.dto';
 
 @Injectable()
@@ -13,7 +13,7 @@ export class PaymentService {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly notificationService: NotificationService,
+        private readonly orderService: OrderService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -66,6 +66,14 @@ export class PaymentService {
 
         if (!cart || !cart.cartItems.length) {
             return { message: 'Cart is empty.' };
+        }
+
+        const address = await this.prisma.userAddrees.findFirst({
+            where: { id: dto.addressId, userId },
+            select: { id: true },
+        });
+        if (!address) {
+            throw new BadRequestException('Invalid shipping address');
         }
 
         const validatedItems: Array<{
@@ -143,6 +151,7 @@ export class PaymentService {
                 metadata: {
                     userId,
                     cartId: cart.id,
+                    addressId: address.id,
                     subtotalMinor,
                     shippingMinor,
                     platformFeeMinor,
@@ -176,6 +185,7 @@ export class PaymentService {
                     paymentId: payment.id,
                     userId,
                     cartId: cart.id,
+                    addressId: address.id,
                 },
                 payment_intent_data: {
                     metadata: {
@@ -183,6 +193,7 @@ export class PaymentService {
                         paymentId: payment.id,
                         userId,
                         cartId: cart.id,
+                        addressId: address.id,
                     },
                 },
             });
@@ -208,162 +219,7 @@ export class PaymentService {
     }
 
     async finalizeMarketplacePayment(paymentIntent: Stripe.PaymentIntent) {
-        if (paymentIntent.status !== 'succeeded') return;
-        const type = paymentIntent.metadata?.type;
-        if (type !== this.marketplaceType) return;
-
-        const paymentRecord = await this.prisma.marketPlacePayments.findFirst({
-            where: {
-                OR: [
-                    { paymentIntentId: paymentIntent.id },
-                    ...(paymentIntent.metadata?.paymentId ? [{ id: paymentIntent.metadata.paymentId }] : []),
-                ],
-            },
-        });
-
-        if (!paymentRecord) {
-            throw new NotFoundException('Marketplace payment record not found');
-        }
-
-        if (paymentRecord.status === 'PAID') {
-            return;
-        }
-
-        const metadata = (paymentRecord.metadata as Prisma.JsonObject | null) || null;
-        const itemsRaw = (metadata?.items as Prisma.JsonArray | undefined) || [];
-
-        if (!paymentRecord.userId || !paymentRecord.cartId || !itemsRaw.length) {
-            throw new BadRequestException('Payment metadata is incomplete for finalization');
-        }
-
-        const buyerUserId = paymentRecord.userId;
-        const buyerCartId = paymentRecord.cartId;
-
-        let createdOrderId: string | null = null;
-        let sellerIdsToNotify: string[] = [];
-
-        await this.prisma.$transaction(async (tx) => {
-            const existingOrder = await tx.marketPlaceOrder.findFirst({
-                where: {
-                    OR: [
-                        { paymentId: paymentRecord.id },
-                        { paymentIntentId: paymentIntent.id },
-                    ],
-                },
-            });
-            if (existingOrder) {
-                await tx.marketPlacePayments.update({
-                    where: { id: paymentRecord.id },
-                    data: {
-                        status: 'PAID',
-                        transactionId: paymentIntent.latest_charge as string | null,
-                        paymentIntentId: paymentIntent.id,
-                        orderId: existingOrder.id,
-                    },
-                });
-                return;
-            }
-
-            const parsedItems = itemsRaw.map((entry) => {
-                const item = entry as Prisma.JsonObject;
-                return {
-                    productId: String(item.productId),
-                    sellerId: String(item.sellerId),
-                    quantity: Number(item.quantity),
-                    unitPriceMinor: Number(item.unitPriceMinor),
-                    subtotalMinor: Number(item.subtotalMinor),
-                };
-            });
-
-            // Re-validate stock before mutating inventory.
-            for (const item of parsedItems) {
-                const product = await tx.closetItems.findUnique({
-                    where: { id: item.productId },
-                    select: {
-                        id: true,
-                        name: true,
-                        quantity: true,
-                        isActive: true,
-                        isDeleted: true,
-                    },
-                });
-
-                if (!product) throw new NotFoundException(`Product not found: ${item.productId}`);
-                if (!product.isActive || product.isDeleted) {
-                    throw new BadRequestException(`Product unavailable: ${product.name}`);
-                }
-                if (product.quantity < item.quantity) {
-                    throw new BadRequestException(`Only ${product.quantity} quantity available for ${product.name}`);
-                }
-            }
-
-            const order = await tx.marketPlaceOrder.create({
-                data: {
-                    userId: buyerUserId,
-                    paymentId: paymentRecord.id,
-                    paymentIntentId: paymentIntent.id,
-                    totalAmount: paymentRecord.amount,
-                    currency: paymentRecord.currency,
-                    status: 'PAID',
-                },
-            });
-            createdOrderId = order.id;
-            sellerIdsToNotify = [...new Set(parsedItems.map((i) => i.sellerId))];
-
-            for (const item of parsedItems) {
-                await tx.marketPlaceOrderItem.create({
-                    data: {
-                        orderId: order.id,
-                        productId: item.productId,
-                        sellerId: item.sellerId,
-                        quantity: item.quantity,
-                        unitPrice: item.unitPriceMinor,
-                        subtotal: item.subtotalMinor,
-                    },
-                });
-
-                await tx.closetItems.update({
-                    where: { id: item.productId },
-                    data: {
-                        quantity: { decrement: item.quantity },
-                        soldCount: { increment: item.quantity },
-                    },
-                });
-            }
-
-            await tx.cartItems.deleteMany({
-                where: { cartId: buyerCartId },
-            });
-
-            await tx.cart.deleteMany({
-                where: { id: buyerCartId },
-            });
-
-            await tx.marketPlacePayments.update({
-                where: { id: paymentRecord.id },
-                data: {
-                    status: 'PAID',
-                    transactionId: paymentIntent.latest_charge as string | null,
-                    paymentIntentId: paymentIntent.id,
-                    orderId: order.id,
-                },
-            });
-        });
-
-        if (createdOrderId && sellerIdsToNotify.length) {
-            for (const sellerId of sellerIdsToNotify) {
-                await this.notificationService.sendNotificationToUser(
-                    sellerId,
-                    'New marketplace order',
-                    'A buyer has placed an order for your closet item(s).',
-                    {
-                        type: 'marketplace_order_paid',
-                        orderId: createdOrderId,
-                        paymentId: paymentRecord.id,
-                    },
-                );
-            }
-        }
+        await this.orderService.createOrderFromPaymentIntent(paymentIntent);
     }
 
     async markMarketplacePaymentFailed(paymentIntent: Stripe.PaymentIntent) {

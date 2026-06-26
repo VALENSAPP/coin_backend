@@ -22,6 +22,15 @@ export class PaymentController {
         return this.paymentService.createCheckoutSessionForCart(userId, dto);
     }
 
+    @Get('me/list')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get marketplace payment details for authenticated user' })
+    async getMyPaymentDetails(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.paymentService.getPaymentDetailsForUser(userId);
+    }
+
     @Get(':paymentId')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
@@ -33,14 +42,5 @@ export class PaymentController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.paymentService.getPaymentDetailsById(userId, paymentId);
-    }
-
-    @Get('me/list')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get marketplace payment details for authenticated user' })
-    async getMyPaymentDetails(@Req() req: Request) {
-        const userId = (req.user as any)?.userId;
-        return this.paymentService.getPaymentDetailsForUser(userId);
     }
 }

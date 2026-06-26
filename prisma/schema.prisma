@@ -127,6 +127,8 @@ model User {
   closetItems                 ClosetItems[]
   carts                       Cart[]
   marketPlaceOrders           MarketPlaceOrder[]
+  ordersAsBuyer               Order[]                  @relation("OrderBuyer")
+  ordersAsSeller              Order[]                  @relation("OrderSeller")
   userAddrees                 UserAddrees[]
 }
 
@@ -147,6 +149,7 @@ model Mycloset {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   closetItems     ClosetItems[]
+  orders          Order[]
 
   @@index([userId])
   @@index([shopUsername])
@@ -176,6 +179,7 @@ model ClosetItems {
   user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   cartItems            CartItems[]
   orderItems           MarketPlaceOrderItem[]
+  orderSnapshots       OrderItem[]
 
   @@index([closetId])
   @@index([userId])
@@ -229,6 +233,7 @@ model UserAddrees {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders          Order[]
 
   @@index([userId])
   @@index([isDefault])
@@ -555,12 +560,61 @@ model MarketPlacePayments {
   metadata        Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  orders          Order[]
 
   @@index([userId])
   @@index([cartId])
   @@index([status])
   @@index([createdAt])
   @@map("marketPlacePayments")
+}
+
+model Order {
+  id                String        @id @default(uuid())
+  orderNumber       String        @unique
+  buyerId           String
+  sellerId          String
+  closetId          String
+  addressId         String
+  paymentId         String?
+  subtotal          Float
+  shippingCost      Float
+  serviceFee        Float
+  total             Float
+  paymentMethod     String
+  paymentStatus     PaymentStatus
+  orderStatus       OrderStatus
+  shippingCarrier   String?
+  trackingNumber    String?
+  estimatedDelivery DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  buyer             User          @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller            User          @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  closet            Mycloset      @relation(fields: [closetId], references: [id], onDelete: Restrict)
+  address           UserAddrees   @relation(fields: [addressId], references: [id], onDelete: Restrict)
+  payment           MarketPlacePayments? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  items             OrderItem[]
+
+  @@index([buyerId, createdAt])
+  @@index([sellerId, orderStatus])
+  @@index([paymentId])
+}
+
+model OrderItem {
+  id           String     @id @default(uuid())
+  orderId      String
+  productId    String
+  productName  String
+  productImage String
+  quantity     Int
+  price        Float
+  subtotal     Float
+  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      ClosetItems @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 model MarketPlaceOrder {
@@ -1324,4 +1378,20 @@ enum ClosetItemCondition {
   Used
   Good_condition
   Need_attention
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }

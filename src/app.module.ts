@@ -19,6 +19,7 @@ import { MyclosetModule } from './marketPlace/mycloset/mycloset.module';
 import { CartModule } from './marketPlace/cart/cart.module';
 import { AddressModule } from './marketPlace/address/address.module';
 import { PaymentModule } from './marketPlace/payment/payment.module';
+import { OrderModule } from './marketPlace/order/order.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkController } from './deep-link/deep-link.controller';
@@ -44,6 +45,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     CartModule,
     AddressModule,
     PaymentModule,
+    OrderModule,
   ],
   controllers: [AppController, DeepLinkController],
   providers: [AppService],
