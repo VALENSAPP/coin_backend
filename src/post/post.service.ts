@@ -3258,6 +3258,7 @@ export class PostService {
         id: conv.id,
         type: conv.type,
         content: conv.content,
+        music: post?.music ?? null,
         createdAt: conv.createdAt,
         isSeen: conv.isSeen,
         sender: conv.sender,
