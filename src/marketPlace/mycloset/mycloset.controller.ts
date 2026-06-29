@@ -23,6 +23,7 @@ import { CreateMyclosetDto } from './dto/create-mycloset.dto';
 import { UpdateMyclosetDto } from './dto/update-mycloset.dto';
 import { CreateClosetItemDto } from './dto/create-closet-item.dto';
 import { UpdateClosetItemDto } from './dto/update-closet-item.dto';
+import { FindClosetByUserDto } from './dto/find-closet-by-user.dto';
 
 @ApiTags('mycloset')
 @Controller('mycloset')
@@ -195,6 +196,16 @@ export class MyclosetController {
   @ApiOperation({ summary: 'Get Mycloset by ID' })
   async findById(@Param('id') id: string) {
     return this.myclosetService.findById(id);
+  }
+
+  @Post('by-user')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get Mycloset by user ID' })
+  async findByUserId(
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: FindClosetByUserDto,
+  ) {
+    return this.myclosetService.findByUserId(dto.userId);
   }
 
   @Patch()

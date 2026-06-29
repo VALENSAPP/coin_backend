@@ -114,6 +114,21 @@ export class MyclosetService {
     return closet;
   }
 
+  async findByUserId(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { userId },
+    });
+
+    if (!closet) throw new NotFoundException('Mycloset not found');
+
+    return {
+      closetId: closet.id,
+      closetDetails: closet,
+    };
+  }
+
 
 
   async update(userId: string, dto: UpdateMyclosetDto, logoFile?: Express.Multer.File) {
