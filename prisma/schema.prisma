@@ -1371,6 +1371,7 @@ enum WhoCanBuy {
 enum ShippingOptions {
   ship_items
   local_pick
+  both
 }
 
 enum ClosetItemCondition {
