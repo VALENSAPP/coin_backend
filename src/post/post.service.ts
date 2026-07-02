@@ -8,6 +8,7 @@ import { profile } from 'console';
 import { start } from 'repl';
 import { endWith } from 'rxjs';
 import { NotificationService } from '../notification/notification.service';
+import { format } from 'path';
 
 type PostFormat = 'image' | 'video' | 'reel' | 'ebook';
 
@@ -2621,6 +2622,7 @@ export class PostService {
         raiseAmount: post.raiseAmount,
         type: post.type,
         link: post.link,
+        format: post.format,
         visibleTo: (post as any).visibleTo,
         private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
         start_time: post.start_time,
