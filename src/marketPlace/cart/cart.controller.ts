@@ -39,9 +39,9 @@ export class CartController {
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Get authenticated user cart' })
-    async getCart(@Req() req: Request) {
+    async getCart(@Req() req: Request, @Query('sellerId') sellerId?: string) {
         const userId = (req.user as any)?.userId;
-        return this.cartService.getCart(userId);
+        return this.cartService.getCart(userId, sellerId);
     }
 
     @Patch('items/:cartItemId')

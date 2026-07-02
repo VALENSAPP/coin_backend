@@ -101,11 +101,14 @@ export class CartService {
         return this.getCart(userId);
     }
 
-    async getCart(userId: string) {
+    async getCart(userId: string, sellerId?: string) {
         await this.ensureUserExists(userId);
 
         const carts = await this.prisma.cart.findMany({
-            where: { userId },
+            where: {
+                userId,
+                ...(sellerId ? { sellerId } : {}),
+            },
             orderBy: { createdAt: 'desc' },
             include: {
                 cartItems: {
