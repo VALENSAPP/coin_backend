@@ -2623,6 +2623,8 @@ export class PostService {
         type: post.type,
         link: post.link,
         format: post.format,
+        tableContent: post.tableContent,
+        ebookpdf: post.ebookpdf,
         visibleTo: (post as any).visibleTo,
         private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
         start_time: post.start_time,
