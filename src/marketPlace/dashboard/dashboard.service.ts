@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardItemsQueryDto } from './dto/dashboard-items-query.dto';
+import { MarketPlaceOverviewFilterDto, MarketPlaceOverviewRange } from './dto/marketplace-overview-filter.dto';
 import { DashboardPaginationDto } from './dto/dashboard-pagination.dto';
 
 @Injectable()
@@ -30,6 +31,74 @@ export class DashboardService {
         return this.prisma.closetView.count({
             where: { closetId },
         });
+    }
+
+    private getRangeDates(range?: MarketPlaceOverviewRange) {
+        const now = new Date();
+        const days = range === MarketPlaceOverviewRange.MONTHLY ? 30 : 7;
+        const fromDate = new Date(now);
+        fromDate.setUTCDate(fromDate.getUTCDate() - (days - 1));
+        fromDate.setUTCHours(0, 0, 0, 0);
+
+        return {
+            range: range || MarketPlaceOverviewRange.WEEKLY,
+            fromDate,
+            toDate: now,
+        };
+    }
+
+    async getMarketPlaceOverview(userId?: string, query?: MarketPlaceOverviewFilterDto) {
+        const sellerId = this.assertUserId(userId);
+        const closet = await this.getSellerClosetOrThrow(sellerId);
+        const { range, fromDate, toDate } = this.getRangeDates(query?.range);
+
+        const dateWhere = {
+            gte: fromDate,
+            lte: toDate,
+        };
+
+        const [viewsCount, likesCount, ordersCount, revenueAgg] = await Promise.all([
+            this.prisma.closetView.count({
+                where: {
+                    closetId: closet.id,
+                    createdAt: dateWhere,
+                },
+            }),
+            this.prisma.closetItemLike.count({
+                where: {
+                    createdAt: dateWhere,
+                    closetItem: {
+                        closetId: closet.id,
+                    },
+                },
+            }),
+            this.prisma.order.count({
+                where: {
+                    sellerId,
+                    createdAt: dateWhere,
+                },
+            }),
+            this.prisma.order.aggregate({
+                where: {
+                    sellerId,
+                    paymentStatus: PaymentStatus.PAID,
+                    createdAt: dateWhere,
+                },
+                _sum: {
+                    total: true,
+                },
+            }),
+        ]);
+
+        return {
+            range,
+            fromDate,
+            toDate,
+            viewsCount,
+            likesCount,
+            ordersCount,
+            revenue: Number(revenueAgg._sum.total || 0),
+        };
     }
 
     async getOverview(userId?: string) {

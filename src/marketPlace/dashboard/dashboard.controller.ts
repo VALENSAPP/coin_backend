@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { Request } from 'express';
 import { DashboardItemsQueryDto } from './dto/dashboard-items-query.dto';
 import { DashboardPaginationDto } from './dto/dashboard-pagination.dto';
+import { MarketPlaceOverviewFilterDto, MarketPlaceOverviewRange } from './dto/marketplace-overview-filter.dto';
 import { DashboardService } from './dashboard.service';
 
 @ApiTags('seller-dashboard')
@@ -18,6 +19,22 @@ export class DashboardController {
     async getOverview(@Req() req: Request) {
         const userId = (req.user as any)?.userId;
         return this.dashboardService.getOverview(userId);
+    }
+
+    @Get('marketPlaceOverview')
+    @ApiOperation({ summary: 'Get marketplace overview (views, likes, orders, revenue) by range' })
+    @ApiQuery({
+        name: 'range',
+        required: false,
+        enum: MarketPlaceOverviewRange,
+        description: 'weekly (last 7 days) or monthly (last 30 days)',
+    })
+    async getMarketPlaceOverview(
+        @Req() req: Request,
+        @Query(new ValidationPipe({ whitelist: true, transform: true })) query: MarketPlaceOverviewFilterDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.dashboardService.getMarketPlaceOverview(userId, query);
     }
 
     @Get('recent-orders')
