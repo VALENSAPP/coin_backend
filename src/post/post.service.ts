@@ -2625,6 +2625,7 @@ export class PostService {
         format: post.format,
         tableContent: post.tableContent,
         ebookpdf: post.ebookpdf,
+        allowDownload: post.allowDownload,
         visibleTo: (post as any).visibleTo,
         private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
         start_time: post.start_time,
