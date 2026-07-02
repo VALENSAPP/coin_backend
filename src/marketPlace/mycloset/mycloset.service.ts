@@ -399,4 +399,66 @@ export class MyclosetService {
     });
     return { message: 'Closet item deleted successfully' };
   }
+
+  async likeClosetItemByUser(itemId: string, userId: string) {
+    if (!itemId) throw new BadRequestException('Closet item ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const item = await this.prisma.closetItems.findUnique({
+      where: { id: itemId },
+      select: {
+        id: true,
+        isActive: true,
+        isDeleted: true,
+      },
+    });
+
+    if (!item || !item.isActive || item.isDeleted) {
+      throw new NotFoundException('Closet item not found');
+    }
+
+    const existingLike = await this.prisma.closetItemLike.findUnique({
+      where: {
+        closetItemId_userId: {
+          closetItemId: itemId,
+          userId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingLike) {
+      await this.prisma.closetItemLike.delete({
+        where: {
+          closetItemId_userId: {
+            closetItemId: itemId,
+            userId,
+          },
+        },
+      });
+
+      const totalLikes = await this.prisma.closetItemLike.count({ where: { closetItemId: itemId } });
+
+      return {
+        message: 'Closet item unliked successfully',
+        liked: false,
+        totalLikes,
+      };
+    }
+
+    await this.prisma.closetItemLike.create({
+      data: {
+        closetItemId: itemId,
+        userId,
+      },
+    });
+
+    const totalLikes = await this.prisma.closetItemLike.count({ where: { closetItemId: itemId } });
+
+    return {
+      message: 'Closet item liked successfully',
+      liked: true,
+      totalLikes,
+    };
+  }
 }

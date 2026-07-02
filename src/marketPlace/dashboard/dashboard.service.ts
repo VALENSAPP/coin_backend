@@ -36,7 +36,7 @@ export class DashboardService {
         const sellerId = this.assertUserId(userId);
         const closet = await this.getSellerClosetOrThrow(sellerId);
 
-        const [totalItems, totalOrders, revenueAggregate, soldAggregate, views] = await Promise.all([
+        const [totalItems, totalOrders, revenueAggregate, soldAggregate, views, totalLikes] = await Promise.all([
             this.prisma.closetItems.count({ where: { closetId: closet.id } }),
             this.prisma.order.count({ where: { sellerId } }),
             this.prisma.order.aggregate({
@@ -55,6 +55,13 @@ export class DashboardService {
                 _sum: { quantity: true },
             }),
             this.getClosetViewsTotal(closet.id),
+            this.prisma.closetItemLike.count({
+                where: {
+                    closetItem: {
+                        closetId: closet.id,
+                    },
+                },
+            }),
         ]);
 
         return {
@@ -63,6 +70,7 @@ export class DashboardService {
             revenue: Number(revenueAggregate._sum.total || 0),
             sold: Number(soldAggregate._sum.quantity || 0),
             views,
+            likes: totalLikes,
         };
     }
 
@@ -150,6 +158,11 @@ export class DashboardService {
                     isActive: true,
                     category: true,
                     createdAt: true,
+                    _count: {
+                        select: {
+                            likes: true,
+                        },
+                    },
                 },
             }),
         ]);
@@ -163,6 +176,7 @@ export class DashboardService {
                 availableQuantity: item.quantity,
                 soldCount: item.soldCount,
                 views: 0,
+                likes: item._count.likes,
                 isActive: item.isActive,
                 category: item.category,
                 createdAt: item.createdAt,

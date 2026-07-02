@@ -126,6 +126,7 @@ model User {
   mycloset                    Mycloset?
   closetItems                 ClosetItems[]
   closetViews                 ClosetView[]
+  closetItemLikes             ClosetItemLike[]
   carts                       Cart[]
   marketPlaceOrders           MarketPlaceOrder[]
   ordersAsBuyer               Order[]               @relation("OrderBuyer")
@@ -197,6 +198,7 @@ model ClosetItems {
   closet               Mycloset               @relation(fields: [closetId], references: [id], onDelete: Cascade)
   user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   cartItems            CartItems[]
+  likes                ClosetItemLike[]
   orderItems           MarketPlaceOrderItem[]
   orderSnapshots       OrderItem[]
 
@@ -204,6 +206,19 @@ model ClosetItems {
   @@index([userId])
   @@index([category])
   @@map("closetItems")
+}
+
+model ClosetItemLike {
+  id           String      @id @default(uuid())
+  closetItemId String
+  userId       String
+  createdAt    DateTime    @default(now())
+  closetItem   ClosetItems @relation(fields: [closetItemId], references: [id], onDelete: Cascade)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([closetItemId, userId])
+  @@index([closetItemId])
+  @@index([userId])
 }
 
 model Cart {

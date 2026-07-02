@@ -217,6 +217,16 @@ export class MyclosetController {
     return this.myclosetService.removeItem(userId, itemId);
   }
 
+  @Post('items/:itemId/like')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiParam({ name: 'itemId', type: 'string' })
+  @ApiOperation({ summary: 'Like or unlike closet item (toggle)' })
+  async likeClosetItem(@Req() req: Request, @Param('itemId') itemId: string) {
+    const userId = (req.user as any)?.userId;
+    return this.myclosetService.likeClosetItemByUser(itemId, userId);
+  }
+
   @Get(':closetId/items')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
