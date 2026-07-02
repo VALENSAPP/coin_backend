@@ -140,6 +140,83 @@ export class MyclosetService {
     return closet;
   }
 
+  async trackClosetView(viewerId: string, closetId: string) {
+    if (!viewerId) throw new BadRequestException('Viewer user ID required');
+    if (!closetId) throw new BadRequestException('Mycloset ID required');
+
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { id: closetId },
+      select: { id: true, userId: true },
+    });
+
+    if (!closet) throw new NotFoundException('Mycloset not found');
+
+    // Do not count owner visiting own closet.
+    if (closet.userId === viewerId) {
+      const uniqueViewers = await this.prisma.closetView.count({ where: { closetId } });
+      return {
+        tracked: false,
+        reason: 'SELF_VIEW_IGNORED',
+        closetId,
+        uniqueViewers,
+      };
+    }
+
+    await this.prisma.closetView.upsert({
+      where: {
+        closetId_viewerId: {
+          closetId,
+          viewerId,
+        },
+      },
+      update: {},
+      create: {
+        closetId,
+        viewerId,
+      },
+    });
+
+    const uniqueViewers = await this.prisma.closetView.count({ where: { closetId } });
+
+    return {
+      tracked: true,
+      closetId,
+      uniqueViewers,
+    };
+  }
+
+  async getClosetUniqueViewCount(closetId: string) {
+    if (!closetId) throw new BadRequestException('Mycloset ID required');
+
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { id: closetId },
+      select: { id: true },
+    });
+    if (!closet) throw new NotFoundException('Mycloset not found');
+
+    const uniqueViewers = await this.prisma.closetView.count({ where: { closetId } });
+    return {
+      closetId,
+      uniqueViewers,
+    };
+  }
+
+  async getMyClosetUniqueViewCount(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    if (!closet) throw new NotFoundException('Mycloset not found');
+
+    const uniqueViewers = await this.prisma.closetView.count({ where: { closetId: closet.id } });
+    return {
+      closetId: closet.id,
+      uniqueViewers,
+    };
+  }
+
   async findByUserId(userId: string) {
     if (!userId) throw new BadRequestException('User ID required');
 

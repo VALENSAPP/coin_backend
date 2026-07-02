@@ -27,19 +27,9 @@ export class DashboardService {
     }
 
     private async getClosetViewsTotal(closetId: string): Promise<number> {
-        try {
-            const rows = await this.prisma.$queryRaw<Array<{ totalViews: bigint | number | null }>>`
-        SELECT COALESCE(SUM("views"), 0) AS "totalViews"
-        FROM "closetItems"
-        WHERE "closetId" = ${closetId}
-      `;
-
-            const rawTotal = rows[0]?.totalViews ?? 0;
-            return Number(rawTotal);
-        } catch {
-            // Some environments may not yet have a `views` column on closetItems.
-            return 0;
-        }
+        return this.prisma.closetView.count({
+            where: { closetId },
+        });
     }
 
     async getOverview(userId?: string) {
