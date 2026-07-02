@@ -42,22 +42,52 @@ export class DashboardService {
 
         return {
             range: range || MarketPlaceOverviewRange.WEEKLY,
+            days,
             fromDate,
             toDate: now,
         };
     }
 
+    private calculatePercentageChange(current: number, previous: number) {
+        if (previous === 0) {
+            if (current === 0) return 0;
+            return 100;
+        }
+
+        return Number((((current - previous) / previous) * 100).toFixed(2));
+    }
+
     async getMarketPlaceOverview(userId?: string, query?: MarketPlaceOverviewFilterDto) {
         const sellerId = this.assertUserId(userId);
         const closet = await this.getSellerClosetOrThrow(sellerId);
-        const { range, fromDate, toDate } = this.getRangeDates(query?.range);
+        const { range, days, fromDate, toDate } = this.getRangeDates(query?.range);
+
+        const previousToDate = new Date(fromDate);
+        previousToDate.setMilliseconds(previousToDate.getMilliseconds() - 1);
+        const previousFromDate = new Date(previousToDate);
+        previousFromDate.setUTCDate(previousFromDate.getUTCDate() - (days - 1));
+        previousFromDate.setUTCHours(0, 0, 0, 0);
 
         const dateWhere = {
             gte: fromDate,
             lte: toDate,
         };
 
-        const [viewsCount, likesCount, ordersCount, revenueAgg] = await Promise.all([
+        const previousDateWhere = {
+            gte: previousFromDate,
+            lte: previousToDate,
+        };
+
+        const [
+            viewsCount,
+            likesCount,
+            ordersCount,
+            revenueAgg,
+            previousViewsCount,
+            previousLikesCount,
+            previousOrdersCount,
+            previousRevenueAgg,
+        ] = await Promise.all([
             this.prisma.closetView.count({
                 where: {
                     closetId: closet.id,
@@ -88,7 +118,40 @@ export class DashboardService {
                     total: true,
                 },
             }),
+            this.prisma.closetView.count({
+                where: {
+                    closetId: closet.id,
+                    createdAt: previousDateWhere,
+                },
+            }),
+            this.prisma.closetItemLike.count({
+                where: {
+                    createdAt: previousDateWhere,
+                    closetItem: {
+                        closetId: closet.id,
+                    },
+                },
+            }),
+            this.prisma.order.count({
+                where: {
+                    sellerId,
+                    createdAt: previousDateWhere,
+                },
+            }),
+            this.prisma.order.aggregate({
+                where: {
+                    sellerId,
+                    paymentStatus: PaymentStatus.PAID,
+                    createdAt: previousDateWhere,
+                },
+                _sum: {
+                    total: true,
+                },
+            }),
         ]);
+
+        const revenue = Number(revenueAgg._sum.total || 0);
+        const previousRevenue = Number(previousRevenueAgg._sum.total || 0);
 
         return {
             range,
@@ -97,7 +160,21 @@ export class DashboardService {
             viewsCount,
             likesCount,
             ordersCount,
-            revenue: Number(revenueAgg._sum.total || 0),
+            revenue,
+            previousPeriod: {
+                fromDate: previousFromDate,
+                toDate: previousToDate,
+                viewsCount: previousViewsCount,
+                likesCount: previousLikesCount,
+                ordersCount: previousOrdersCount,
+                revenue: previousRevenue,
+            },
+            changes: {
+                viewsPercent: this.calculatePercentageChange(viewsCount, previousViewsCount),
+                likesPercent: this.calculatePercentageChange(likesCount, previousLikesCount),
+                ordersPercent: this.calculatePercentageChange(ordersCount, previousOrdersCount),
+                revenuePercent: this.calculatePercentageChange(revenue, previousRevenue),
+            },
         };
     }
 
