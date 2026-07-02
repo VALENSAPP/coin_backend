@@ -97,6 +97,94 @@ export class DashboardService {
         return points;
     }
 
+    private async getTopPerformingItem(
+        closetId: string,
+        sellerId: string,
+        fromDate: Date,
+        toDate: Date,
+    ) {
+        const [items, likesGrouped, ordersGrouped] = await Promise.all([
+            this.prisma.closetItems.findMany({
+                where: { closetId },
+                select: {
+                    id: true,
+                    name: true,
+                    images: true,
+                    price: true,
+                    soldCount: true,
+                    createdAt: true,
+                },
+            }),
+            this.prisma.closetItemLike.groupBy({
+                by: ['closetItemId'],
+                where: {
+                    createdAt: { gte: fromDate, lte: toDate },
+                    closetItem: { closetId },
+                },
+                _count: { closetItemId: true },
+            }),
+            this.prisma.orderItem.groupBy({
+                by: ['productId'],
+                where: {
+                    order: {
+                        sellerId,
+                        paymentStatus: PaymentStatus.PAID,
+                        createdAt: { gte: fromDate, lte: toDate },
+                    },
+                    product: { closetId },
+                },
+                _count: { productId: true },
+                _sum: { quantity: true },
+            }),
+        ]);
+
+        if (!items.length) {
+            return null;
+        }
+
+        const likesMap = new Map<string, number>(
+            likesGrouped.map((row) => [row.closetItemId, row._count.closetItemId]),
+        );
+        const ordersMap = new Map<string, { orderCount: number; quantitySold: number }>(
+            ordersGrouped.map((row) => [
+                row.productId,
+                {
+                    orderCount: row._count.productId,
+                    quantitySold: Number(row._sum.quantity || 0),
+                },
+            ]),
+        );
+
+        const ranked = items
+            .map((item) => {
+                const orderStats = ordersMap.get(item.id);
+                return {
+                    ...item,
+                    orderCount: orderStats?.orderCount || 0,
+                    likeCount: likesMap.get(item.id) || 0,
+                    quantitySoldInRange: orderStats?.quantitySold || 0,
+                };
+            })
+            .sort((a, b) => {
+                if (b.orderCount !== a.orderCount) return b.orderCount - a.orderCount;
+                if (b.likeCount !== a.likeCount) return b.likeCount - a.likeCount;
+                if (b.quantitySoldInRange !== a.quantitySoldInRange) return b.quantitySoldInRange - a.quantitySoldInRange;
+                return b.createdAt.getTime() - a.createdAt.getTime();
+            });
+
+        const top = ranked[0];
+
+        return {
+            id: top.id,
+            name: top.name,
+            image: top.images[0] || null,
+            price: top.price,
+            orderCount: top.orderCount,
+            likeCount: top.likeCount,
+            quantitySoldInRange: top.quantitySoldInRange,
+        };
+    }
+
     async getMarketPlaceOverview(userId?: string, query?: MarketPlaceOverviewFilterDto) {
         const sellerId = this.assertUserId(userId);
         const closet = await this.getSellerClosetOrThrow(sellerId);
@@ -223,9 +311,10 @@ export class DashboardService {
         const closet = await this.getSellerClosetOrThrow(sellerId);
         const { range, fromDate, toDate } = this.getRangeDates(query?.range);
 
-        const [overview, performance] = await Promise.all([
+        const [overview, performance, topPerformingItem] = await Promise.all([
             this.getMarketPlaceOverview(userId, query),
             this.getDailyViewPoints(closet.id, fromDate, toDate),
+            this.getTopPerformingItem(closet.id, sellerId, fromDate, toDate),
         ]);
 
         return {
@@ -245,6 +334,7 @@ export class DashboardService {
                 ordersPercent: overview.changes.ordersPercent,
                 revenuePercent: overview.changes.revenuePercent,
             },
+            topPerformingItem,
         };
     }
 
