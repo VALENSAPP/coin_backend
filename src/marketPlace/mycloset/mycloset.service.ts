@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, ShippingOptions } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uploadImageToS3 } from '../../common/s3.util';
 import { CreateMyclosetDto } from './dto/create-mycloset.dto';
@@ -39,6 +39,32 @@ export class MyclosetService {
 
   private getItemName(dto: Pick<CreateClosetItemDto, 'name' | 'category'>) {
     return dto.name || dto.category;
+  }
+
+  private validateItemDeliveryDetails(
+    shippingOption: ShippingOptions,
+    values: Pick<CreateClosetItemDto, 'shippingFee' | 'estimateShippingTime' | 'pickupAddress' | 'pickupAvailableHours' | 'buyerChatEnabled'>,
+  ) {
+    if (shippingOption === ShippingOptions.ship_items || shippingOption === ShippingOptions.both) {
+      if (values.shippingFee === undefined) {
+        throw new BadRequestException('shippingFee is required for ship_items and both');
+      }
+      if (!values.estimateShippingTime) {
+        throw new BadRequestException('estimateShippingTime is required for ship_items and both');
+      }
+    }
+
+    if (shippingOption === ShippingOptions.local_pick || shippingOption === ShippingOptions.both) {
+      if (!values.pickupAddress) {
+        throw new BadRequestException('pickupAddress is required for local_pick and both');
+      }
+      if (!values.pickupAvailableHours) {
+        throw new BadRequestException('pickupAvailableHours is required for local_pick and both');
+      }
+      if (values.buyerChatEnabled === undefined) {
+        throw new BadRequestException('buyerChatEnabled is required for local_pick and both');
+      }
+    }
   }
 
   private async findMineOrThrow(userId: string) {
@@ -182,6 +208,8 @@ export class MyclosetService {
     const shippingOption = this.resolveShippingOption(dto);
     if (!shippingOption) throw new BadRequestException('shippingOption is required');
 
+    this.validateItemDeliveryDetails(shippingOption, dto);
+
     const closet = await this.findMineOrThrow(userId);
     const images = (await this.uploadItemImages(imageFiles)) || [];
 
@@ -198,7 +226,11 @@ export class MyclosetService {
         price: dto.price,
         quantity: dto.quantity ?? 1,
         shippingOption,
+        shippingFee: dto.shippingFee,
         estimateShippingTime: dto.estimateShippingTime,
+        pickupAddress: dto.pickupAddress,
+        pickupAvailableHours: dto.pickupAvailableHours,
+        buyerChatEnabled: dto.buyerChatEnabled,
         returnPolicy: dto.returnPolicy,
       },
     });
@@ -244,9 +276,18 @@ export class MyclosetService {
     if (!userId) throw new BadRequestException('User ID required');
     if (!itemId) throw new BadRequestException('Closet item ID required');
 
-    await this.findItemById(userId, itemId);
+    const existingItem = await this.findItemById(userId, itemId);
     const images = await this.uploadItemImages(imageFiles);
     const shippingOption = this.resolveShippingOption(dto);
+    const effectiveShippingOption = shippingOption ?? existingItem.shippingOption;
+
+    this.validateItemDeliveryDetails(effectiveShippingOption, {
+      shippingFee: dto.shippingFee ?? existingItem.shippingFee ?? undefined,
+      estimateShippingTime: dto.estimateShippingTime ?? existingItem.estimateShippingTime ?? undefined,
+      pickupAddress: dto.pickupAddress ?? existingItem.pickupAddress ?? undefined,
+      pickupAvailableHours: dto.pickupAvailableHours ?? existingItem.pickupAvailableHours ?? undefined,
+      buyerChatEnabled: dto.buyerChatEnabled ?? existingItem.buyerChatEnabled ?? undefined,
+    });
 
     return this.prisma.closetItems.update({
       where: { id: itemId },
@@ -261,7 +302,11 @@ export class MyclosetService {
         ...(dto.price !== undefined && { price: dto.price }),
         ...(dto.quantity !== undefined && { quantity: dto.quantity }),
         ...(shippingOption !== undefined && { shippingOption }),
+        ...(dto.shippingFee !== undefined && { shippingFee: dto.shippingFee }),
         ...(dto.estimateShippingTime !== undefined && { estimateShippingTime: dto.estimateShippingTime }),
+        ...(dto.pickupAddress !== undefined && { pickupAddress: dto.pickupAddress }),
+        ...(dto.pickupAvailableHours !== undefined && { pickupAvailableHours: dto.pickupAvailableHours }),
+        ...(dto.buyerChatEnabled !== undefined && { buyerChatEnabled: dto.buyerChatEnabled }),
         ...(dto.returnPolicy !== undefined && { returnPolicy: dto.returnPolicy }),
       },
     });

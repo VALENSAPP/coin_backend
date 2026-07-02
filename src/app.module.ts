@@ -21,6 +21,7 @@ import { AddressModule } from './marketPlace/address/address.module';
 import { PaymentModule } from './marketPlace/payment/payment.module';
 import { OrderModule } from './marketPlace/order/order.module';
 import { DashboardModule } from './marketPlace/dashboard/dashboard.module';
+import { EarningsModule } from './marketPlace/earnings/earnings.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkController } from './deep-link/deep-link.controller';
@@ -48,6 +49,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     PaymentModule,
     OrderModule,
     DashboardModule,
+    EarningsModule,
   ],
   controllers: [AppController, DeepLinkController],
   providers: [AppService],

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { ClosetItemCondition, ShippingOptions } from '@prisma/client';
 
 export class CreateClosetItemDto {
@@ -53,6 +53,13 @@ export class CreateClosetItemDto {
   @IsEnum(ShippingOptions)
   shippingOption?: ShippingOptions;
 
+  @ApiProperty({ required: false, example: 5.99 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  shippingFee?: number;
+
   @ApiProperty({ required: false, enum: ShippingOptions, description: 'Accepted for frontend typo compatibility.' })
   @IsOptional()
   @IsEnum(ShippingOptions)
@@ -64,6 +71,26 @@ export class CreateClosetItemDto {
   @MaxLength(80)
   @Transform(({ value }: { value: any }) => (value ? String(value).trim() : undefined))
   estimateShippingTime?: string;
+
+  @ApiProperty({ required: false, example: '108 Westwood Blvd, Los Angeles, CA 90024' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @Transform(({ value }: { value: any }) => (value ? String(value).trim() : undefined))
+  pickupAddress?: string;
+
+  @ApiProperty({ required: false, example: 'Mon-Fri 10:00 AM - 6:00 PM; Sat-Sun 11:00 AM - 4:00 PM' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(250)
+  @Transform(({ value }: { value: any }) => (value ? String(value).trim() : undefined))
+  pickupAvailableHours?: string;
+
+  @ApiProperty({ required: false, example: true })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => (typeof value === 'string' ? value.toLowerCase() === 'true' : value))
+  @IsBoolean()
+  buyerChatEnabled?: boolean;
 
   @ApiProperty({ required: false, example: 'Returns accepted within 7 days.' })
   @IsOptional()

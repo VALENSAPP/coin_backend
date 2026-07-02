@@ -171,7 +171,11 @@ model ClosetItems {
   isDeleted            Boolean             @default(false)
   soldCount            Int                 @default(0)
   shippingOption       ShippingOptions
+  shippingFee          Float?
   estimateShippingTime String?
+  pickupAddress        String?             @db.Text
+  pickupAvailableHours String?
+  buyerChatEnabled     Boolean?
   returnPolicy         String?             @db.Text
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -598,6 +602,7 @@ model Order {
 
   @@index([buyerId, createdAt])
   @@index([sellerId, orderStatus])
+  @@index([sellerId, paymentStatus, createdAt])
   @@index([paymentId])
 }
 
