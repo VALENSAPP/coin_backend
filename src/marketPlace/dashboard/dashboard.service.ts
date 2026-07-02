@@ -57,6 +57,46 @@ export class DashboardService {
         return Number((((current - previous) / previous) * 100).toFixed(2));
     }
 
+    private async getDailyViewPoints(closetId: string, fromDate: Date, toDate: Date) {
+        const rows = await this.prisma.$queryRaw<Array<{ day: Date; count: bigint | number }>>`
+            SELECT DATE("createdAt") AS day, COUNT(*)::bigint AS count
+            FROM "ClosetView"
+            WHERE "closetId" = ${closetId}
+              AND "createdAt" >= ${fromDate}
+              AND "createdAt" <= ${toDate}
+            GROUP BY DATE("createdAt")
+            ORDER BY day ASC
+        `;
+
+        const countMap = new Map<string, number>();
+        for (const row of rows) {
+            const key = row.day.toISOString().slice(0, 10);
+            countMap.set(key, Number(row.count));
+        }
+
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'UTC',
+        });
+
+        const points: Array<{ date: string; views: number }> = [];
+        const cursor = new Date(fromDate);
+        cursor.setUTCHours(0, 0, 0, 0);
+
+        while (cursor <= toDate) {
+            const key = cursor.toISOString().slice(0, 10);
+            points.push({
+                date: formatter.format(cursor),
+                views: countMap.get(key) || 0,
+            });
+
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+
+        return points;
+    }
+
     async getMarketPlaceOverview(userId?: string, query?: MarketPlaceOverviewFilterDto) {
         const sellerId = this.assertUserId(userId);
         const closet = await this.getSellerClosetOrThrow(sellerId);
@@ -174,6 +214,36 @@ export class DashboardService {
                 likesPercent: this.calculatePercentageChange(likesCount, previousLikesCount),
                 ordersPercent: this.calculatePercentageChange(ordersCount, previousOrdersCount),
                 revenuePercent: this.calculatePercentageChange(revenue, previousRevenue),
+            },
+        };
+    }
+
+    async getMarketPlaceAnalytics(userId?: string, query?: MarketPlaceOverviewFilterDto) {
+        const sellerId = this.assertUserId(userId);
+        const closet = await this.getSellerClosetOrThrow(sellerId);
+        const { range, fromDate, toDate } = this.getRangeDates(query?.range);
+
+        const [overview, performance] = await Promise.all([
+            this.getMarketPlaceOverview(userId, query),
+            this.getDailyViewPoints(closet.id, fromDate, toDate),
+        ]);
+
+        return {
+            range: overview.range,
+            fromDate: overview.fromDate,
+            toDate: overview.toDate,
+            performance,
+            summary: {
+                totalViews: overview.viewsCount,
+                totalLikes: overview.likesCount,
+                totalOrders: overview.ordersCount,
+                totalRevenue: overview.revenue,
+            },
+            changes: {
+                viewsPercent: overview.changes.viewsPercent,
+                likesPercent: overview.changes.likesPercent,
+                ordersPercent: overview.changes.ordersPercent,
+                revenuePercent: overview.changes.revenuePercent,
             },
         };
     }

@@ -37,6 +37,22 @@ export class DashboardController {
         return this.dashboardService.getMarketPlaceOverview(userId, query);
     }
 
+    @Get('marketPlaceAnalytics')
+    @ApiOperation({ summary: 'Get marketplace analytics (chart + summary + change percentages) by range' })
+    @ApiQuery({
+        name: 'range',
+        required: false,
+        enum: MarketPlaceOverviewRange,
+        description: 'weekly (last 7 days) or monthly (last 30 days)',
+    })
+    async getMarketPlaceAnalytics(
+        @Req() req: Request,
+        @Query(new ValidationPipe({ whitelist: true, transform: true })) query: MarketPlaceOverviewFilterDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.dashboardService.getMarketPlaceAnalytics(userId, query);
+    }
+
     @Get('recent-orders')
     @ApiOperation({ summary: 'Get seller recent orders' })
     @ApiQuery({ name: 'page', required: false, example: 1 })
