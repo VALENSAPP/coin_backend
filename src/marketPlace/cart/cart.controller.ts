@@ -6,6 +6,7 @@ import {
     Param,
     Patch,
     Post,
+    Query,
     Req,
     UseGuards,
     ValidationPipe,
@@ -80,8 +81,8 @@ export class CartController {
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Final checkout inspection: validate cart and calculate final payable amount' })
-    async inspectCheckout(@Req() req: Request) {
+    async inspectCheckout(@Req() req: Request, @Query('cartId') cartId?: string) {
         const userId = (req.user as any)?.userId;
-        return this.cartService.inspectCheckout(userId);
+        return this.cartService.inspectCheckout(userId, cartId);
     }
 }

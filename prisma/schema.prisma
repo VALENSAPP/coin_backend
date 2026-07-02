@@ -127,8 +127,8 @@ model User {
   closetItems                 ClosetItems[]
   carts                       Cart[]
   marketPlaceOrders           MarketPlaceOrder[]
-  ordersAsBuyer               Order[]                  @relation("OrderBuyer")
-  ordersAsSeller              Order[]                  @relation("OrderSeller")
+  ordersAsBuyer               Order[]               @relation("OrderBuyer")
+  ordersAsSeller              Order[]               @relation("OrderSeller")
   userAddrees                 UserAddrees[]
 }
 
@@ -156,31 +156,31 @@ model Mycloset {
 }
 
 model ClosetItems {
-  id                   String              @id @default(uuid())
+  id                   String                 @id @default(uuid())
   closetId             String
   userId               String
-  images               String[]            @default([])
+  images               String[]               @default([])
   name                 String
   category             String
   brand                String?
   condition            ClosetItemCondition
-  description          String?             @db.Text
+  description          String?                @db.Text
   price                Float
-  quantity             Int                 @default(1)
-  isActive             Boolean             @default(true)
-  isDeleted            Boolean             @default(false)
-  soldCount            Int                 @default(0)
+  quantity             Int                    @default(1)
+  isActive             Boolean                @default(true)
+  isDeleted            Boolean                @default(false)
+  soldCount            Int                    @default(0)
   shippingOption       ShippingOptions
   shippingFee          Float?
   estimateShippingTime String?
-  pickupAddress        String?             @db.Text
+  pickupAddress        String?                @db.Text
   pickupAvailableHours String?
   buyerChatEnabled     Boolean?
-  returnPolicy         String?             @db.Text
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  closet               Mycloset            @relation(fields: [closetId], references: [id], onDelete: Cascade)
-  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  returnPolicy         String?                @db.Text
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  closet               Mycloset               @relation(fields: [closetId], references: [id], onDelete: Cascade)
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   cartItems            CartItems[]
   orderItems           MarketPlaceOrderItem[]
   orderSnapshots       OrderItem[]
@@ -194,30 +194,35 @@ model ClosetItems {
 model Cart {
   id        String      @id @default(uuid())
   userId    String
+  sellerId  String
+  closetId  String
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   cartItems CartItems[]
 
+  @@unique([userId, sellerId, closetId])
   @@index([userId])
+  @@index([sellerId])
+  @@index([closetId])
   @@map("cart")
 }
 
 model CartItems {
-  id        String     @id @default(uuid())
+  id        String      @id @default(uuid())
   cartId    String
   productId String
-  quantity  Int        @default(1)
+  quantity  Int         @default(1)
   price     Float
   subtotal  Float
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  cart      Cart       @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  cart      Cart        @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product   ClosetItems @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@unique([cartId, productId])
   @@index([cartId])
   @@index([productId])
-  @@unique([cartId, productId])
   @@map("cartItems")
 }
 
@@ -574,8 +579,8 @@ model MarketPlacePayments {
 }
 
 model Order {
-  id                String        @id @default(uuid())
-  orderNumber       String        @unique
+  id                String               @id @default(uuid())
+  orderNumber       String               @unique
   buyerId           String
   sellerId          String
   closetId          String
@@ -591,12 +596,12 @@ model Order {
   shippingCarrier   String?
   trackingNumber    String?
   estimatedDelivery DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  buyer             User          @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
-  seller            User          @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Cascade)
-  closet            Mycloset      @relation(fields: [closetId], references: [id], onDelete: Restrict)
-  address           UserAddrees   @relation(fields: [addressId], references: [id], onDelete: Restrict)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  buyer             User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller            User                 @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  closet            Mycloset             @relation(fields: [closetId], references: [id], onDelete: Restrict)
+  address           UserAddrees          @relation(fields: [addressId], references: [id], onDelete: Restrict)
   payment           MarketPlacePayments? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   items             OrderItem[]
 
@@ -607,7 +612,7 @@ model Order {
 }
 
 model OrderItem {
-  id           String     @id @default(uuid())
+  id           String      @id @default(uuid())
   orderId      String
   productId    String
   productName  String
@@ -615,7 +620,7 @@ model OrderItem {
   quantity     Int
   price        Float
   subtotal     Float
-  order        Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product      ClosetItems @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
@@ -641,16 +646,16 @@ model MarketPlaceOrder {
 }
 
 model MarketPlaceOrderItem {
-  id         String          @id @default(uuid())
-  orderId    String
-  productId  String
-  sellerId   String
-  quantity   Int
-  unitPrice  Int
-  subtotal   Int
-  createdAt  DateTime        @default(now())
-  order      MarketPlaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product    ClosetItems      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id        String           @id @default(uuid())
+  orderId   String
+  productId String
+  sellerId  String
+  quantity  Int
+  unitPrice Int
+  subtotal  Int
+  createdAt DateTime         @default(now())
+  order     MarketPlaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   ClosetItems      @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([productId])

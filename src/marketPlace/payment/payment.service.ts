@@ -41,8 +41,7 @@ export class PaymentService {
         if (!user) throw new UnauthorizedException('User not authenticated');
 
         const cart = await this.prisma.cart.findFirst({
-            where: { userId },
-            orderBy: { createdAt: 'desc' },
+            where: { id: dto.cartId, userId },
             include: {
                 cartItems: {
                     include: {
@@ -50,6 +49,7 @@ export class PaymentService {
                             select: {
                                 id: true,
                                 userId: true,
+                                closetId: true,
                                 name: true,
                                 price: true,
                                 quantity: true,
@@ -108,6 +108,12 @@ export class PaymentService {
                 throw new BadRequestException(`Only ${product.quantity} quantity available for ${product.name}`);
             }
 
+            if (product.userId !== cart.sellerId || product.closetId !== cart.closetId) {
+                throw new BadRequestException(
+                    `Cart contains product not matching cart seller/closet: ${product.name}`,
+                );
+            }
+
             const latestPriceMinor = this.toMinorUnits(product.price);
             const itemSubtotalMinor = latestPriceMinor * cartItem.quantity;
             const itemShippingMinor = this.toMinorUnits(this.getShippingCost(product.shippingOption));
@@ -151,6 +157,8 @@ export class PaymentService {
                 metadata: {
                     userId,
                     cartId: cart.id,
+                    sellerId: cart.sellerId,
+                    closetId: cart.closetId,
                     addressId: address.id,
                     subtotalMinor,
                     shippingMinor,
@@ -185,6 +193,8 @@ export class PaymentService {
                     paymentId: payment.id,
                     userId,
                     cartId: cart.id,
+                    sellerId: cart.sellerId,
+                    closetId: cart.closetId,
                     addressId: address.id,
                 },
                 payment_intent_data: {
@@ -193,6 +203,8 @@ export class PaymentService {
                         paymentId: payment.id,
                         userId,
                         cartId: cart.id,
+                        sellerId: cart.sellerId,
+                        closetId: cart.closetId,
                         addressId: address.id,
                     },
                 },

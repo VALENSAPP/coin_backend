@@ -22,18 +22,18 @@ export class CartService {
         if (!user) throw new NotFoundException('User not found');
     }
 
-    private async getOrCreateCart(userId: string) {
+    private async getOrCreateCart(userId: string, sellerId: string, closetId: string) {
         const existingCart = await this.prisma.cart.findFirst({
-            where: { userId },
+            where: { userId, sellerId, closetId },
             orderBy: { createdAt: 'desc' },
-            select: { id: true, userId: true },
+            select: { id: true, userId: true, sellerId: true, closetId: true },
         });
 
         if (existingCart) return existingCart;
 
         return this.prisma.cart.create({
-            data: { userId },
-            select: { id: true, userId: true },
+            data: { userId, sellerId, closetId },
+            select: { id: true, userId: true, sellerId: true, closetId: true },
         });
     }
 
@@ -45,6 +45,7 @@ export class CartService {
             select: {
                 id: true,
                 userId: true,
+                closetId: true,
                 quantity: true,
                 price: true,
                 name: true,
@@ -57,7 +58,7 @@ export class CartService {
             throw new BadRequestException('Requested quantity exceeds available stock');
         }
 
-        const cart = await this.getOrCreateCart(userId);
+        const cart = await this.getOrCreateCart(userId, product.userId, product.closetId);
 
         const existingItem = await this.prisma.cartItems.findUnique({
             where: {
@@ -103,7 +104,7 @@ export class CartService {
     async getCart(userId: string) {
         await this.ensureUserExists(userId);
 
-        const cart = await this.prisma.cart.findFirst({
+        const carts = await this.prisma.cart.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
             include: {
@@ -127,24 +128,46 @@ export class CartService {
             },
         });
 
-        if (!cart) {
+        if (!carts.length) {
             return {
-                cart: null,
+                carts: [],
                 totals: {
                     totalItems: 0,
                     totalAmount: 0,
+                    totalCarts: 0,
                 },
             };
         }
 
-        const totalItems = cart.cartItems.reduce((sum, item) => sum + item.quantity, 0);
-        const totalAmount = Number(cart.cartItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2));
+        const totalItems = carts.reduce(
+            (sum, cart) => sum + cart.cartItems.reduce((itemSum, item) => itemSum + item.quantity, 0),
+            0,
+        );
+        const totalAmount = Number(
+            carts
+                .reduce((sum, cart) => sum + cart.cartItems.reduce((itemSum, item) => itemSum + item.subtotal, 0), 0)
+                .toFixed(2),
+        );
+
+        const cartGroups = carts.map((cart) => {
+            const groupTotalItems = cart.cartItems.reduce((sum, item) => sum + item.quantity, 0);
+            const groupTotalAmount = Number(cart.cartItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2));
+
+            return {
+                ...cart,
+                totals: {
+                    totalItems: groupTotalItems,
+                    totalAmount: groupTotalAmount,
+                },
+            };
+        });
 
         return {
-            cart,
+            carts: cartGroups,
             totals: {
                 totalItems,
                 totalAmount,
+                totalCarts: carts.length,
             },
         };
     }
@@ -240,11 +263,11 @@ export class CartService {
         return { message: 'Cart deleted successfully' };
     }
 
-    async inspectCheckout(userId: string) {
+    async inspectCheckout(userId: string, cartId?: string) {
         await this.ensureUserExists(userId);
 
         const cart = await this.prisma.cart.findFirst({
-            where: { userId },
+            where: { userId, ...(cartId ? { id: cartId } : {}) },
             orderBy: { createdAt: 'desc' },
             include: {
                 cartItems: {
