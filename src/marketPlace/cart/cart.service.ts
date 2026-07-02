@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { CartItemShippingChoice, ShippingOptions } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
+import { UpdateCartItemShippingChoiceDto } from './dto/update-cart-item-shipping-choice.dto';
 import { UpdateCartItemQuantityDto } from './dto/update-cart-item-quantity.dto';
 
 @Injectable()
@@ -9,6 +11,55 @@ export class CartService {
 
     private roundMoney(amount: number) {
         return Number(amount.toFixed(2));
+    }
+
+    private resolveShippingSelection(
+        sellerShippingOption: ShippingOptions,
+        selectedChoice: CartItemShippingChoice | null | undefined,
+        shippingFee: number | null | undefined,
+    ) {
+        const normalizedShippingFee = this.roundMoney(shippingFee ?? 0);
+
+        if (sellerShippingOption === 'both') {
+            if (!selectedChoice) {
+                return {
+                    selectedShippingChoice: null,
+                    selectedShippingFee: 0,
+                };
+            }
+
+            if (selectedChoice === 'ship_items') {
+                return {
+                    selectedShippingChoice: CartItemShippingChoice.ship_items,
+                    selectedShippingFee: normalizedShippingFee,
+                };
+            }
+
+            return {
+                selectedShippingChoice: CartItemShippingChoice.local_pick,
+                selectedShippingFee: 0,
+            };
+        }
+
+        if (sellerShippingOption === 'ship_items') {
+            if (selectedChoice && selectedChoice !== CartItemShippingChoice.ship_items) {
+                throw new BadRequestException('Only shipping_items is allowed for this product');
+            }
+
+            return {
+                selectedShippingChoice: CartItemShippingChoice.ship_items,
+                selectedShippingFee: normalizedShippingFee,
+            };
+        }
+
+        if (selectedChoice && selectedChoice !== CartItemShippingChoice.local_pick) {
+            throw new BadRequestException('Only local_pick is allowed for this product');
+        }
+
+        return {
+            selectedShippingChoice: CartItemShippingChoice.local_pick,
+            selectedShippingFee: 0,
+        };
     }
 
     private async ensureUserExists(userId: string) {
@@ -49,6 +100,8 @@ export class CartService {
                 quantity: true,
                 price: true,
                 name: true,
+                shippingOption: true,
+                shippingFee: true,
             },
         });
 
@@ -67,7 +120,7 @@ export class CartService {
                     productId: product.id,
                 },
             },
-            select: { id: true, quantity: true },
+            select: { id: true, quantity: true, selectedShippingChoice: true },
         });
 
         const nextQuantity = existingItem ? existingItem.quantity + dto.quantity : dto.quantity;
@@ -76,6 +129,11 @@ export class CartService {
         }
 
         const subtotal = Number((nextQuantity * product.price).toFixed(2));
+        const shippingSelection = this.resolveShippingSelection(
+            product.shippingOption,
+            existingItem?.selectedShippingChoice,
+            product.shippingFee,
+        );
 
         if (existingItem) {
             await this.prisma.cartItems.update({
@@ -84,6 +142,8 @@ export class CartService {
                     quantity: nextQuantity,
                     price: product.price,
                     subtotal,
+                    selectedShippingChoice: shippingSelection.selectedShippingChoice,
+                    selectedShippingFee: shippingSelection.selectedShippingFee,
                 },
             });
         } else {
@@ -94,6 +154,8 @@ export class CartService {
                     quantity: nextQuantity,
                     price: product.price,
                     subtotal,
+                    selectedShippingChoice: shippingSelection.selectedShippingChoice,
+                    selectedShippingFee: shippingSelection.selectedShippingFee,
                 },
             });
         }
@@ -124,6 +186,7 @@ export class CartService {
                                 price: true,
                                 quantity: true,
                                 shippingOption: true,
+                                shippingFee: true,
                             },
                         },
                     },
@@ -194,7 +257,7 @@ export class CartService {
 
         const product = await this.prisma.closetItems.findUnique({
             where: { id: cartItem.productId },
-            select: { id: true, quantity: true, price: true },
+            select: { id: true, quantity: true, price: true, shippingOption: true, shippingFee: true },
         });
 
         if (!product) throw new NotFoundException('Product not found');
@@ -203,6 +266,11 @@ export class CartService {
         }
 
         const subtotal = Number((dto.quantity * product.price).toFixed(2));
+        const shippingSelection = this.resolveShippingSelection(
+            product.shippingOption,
+            cartItem.selectedShippingChoice,
+            product.shippingFee,
+        );
 
         await this.prisma.cartItems.update({
             where: { id: cartItem.id },
@@ -210,6 +278,56 @@ export class CartService {
                 quantity: dto.quantity,
                 price: product.price,
                 subtotal,
+                selectedShippingChoice: shippingSelection.selectedShippingChoice,
+                selectedShippingFee: shippingSelection.selectedShippingFee,
+            },
+        });
+
+        return this.getCart(userId);
+    }
+
+    async updateShippingChoice(userId: string, cartItemId: string, dto: UpdateCartItemShippingChoiceDto) {
+        await this.ensureUserExists(userId);
+        if (!cartItemId) throw new BadRequestException('Cart item ID required');
+
+        const cartItem = await this.prisma.cartItems.findUnique({
+            where: { id: cartItemId },
+            include: {
+                cart: {
+                    select: { userId: true },
+                },
+                product: {
+                    select: {
+                        id: true,
+                        name: true,
+                        isActive: true,
+                        isDeleted: true,
+                        shippingOption: true,
+                        shippingFee: true,
+                    },
+                },
+            },
+        });
+
+        if (!cartItem || cartItem.cart.userId !== userId) {
+            throw new NotFoundException('Cart item not found');
+        }
+
+        if (!cartItem.product || !cartItem.product.isActive || cartItem.product.isDeleted) {
+            throw new BadRequestException('Product is unavailable for shipping selection');
+        }
+
+        const shippingSelection = this.resolveShippingSelection(
+            cartItem.product.shippingOption,
+            dto.shippingChoice,
+            cartItem.product.shippingFee,
+        );
+
+        await this.prisma.cartItems.update({
+            where: { id: cartItem.id },
+            data: {
+                selectedShippingChoice: shippingSelection.selectedShippingChoice,
+                selectedShippingFee: shippingSelection.selectedShippingFee,
             },
         });
 
@@ -284,6 +402,7 @@ export class CartService {
                                 price: true,
                                 quantity: true,
                                 shippingOption: true,
+                                shippingFee: true,
                             },
                         },
                     },
@@ -303,7 +422,9 @@ export class CartService {
             approvedQuantity: number;
             unitPrice: number;
             lineTotal: number;
-            shippingOption: string;
+            sellerShippingOption: string;
+            selectedShippingChoice: CartItemShippingChoice | null;
+            lineShippingFee: number;
         }> = [];
 
         const issues: Array<{
@@ -321,6 +442,7 @@ export class CartService {
         }> = [];
 
         let itemsSubtotal = 0;
+        let shippingAmount = 0;
         let totalItems = 0;
 
         for (const cartItem of cart.cartItems) {
@@ -377,6 +499,54 @@ export class CartService {
 
             const unitPrice = this.roundMoney(product.price);
             const lineTotal = this.roundMoney(unitPrice * cartItem.quantity);
+            const normalizedProductShippingFee = this.roundMoney(product.shippingFee ?? 0);
+
+            let selectedShippingChoice: CartItemShippingChoice | null = cartItem.selectedShippingChoice;
+            let lineShippingFee = 0;
+
+            if (product.shippingOption === 'both') {
+                if (!selectedShippingChoice) {
+                    issues.push({
+                        cartItemId: cartItem.id,
+                        productId: product.id,
+                        code: 'SHIPPING_CHOICE_REQUIRED',
+                        message: 'Select shipping option (ship_items or local_pick) for this item.',
+                    });
+                    continue;
+                }
+
+                if (selectedShippingChoice === CartItemShippingChoice.ship_items) {
+                    lineShippingFee = this.roundMoney(normalizedProductShippingFee * cartItem.quantity);
+                } else {
+                    lineShippingFee = 0;
+                }
+            } else if (product.shippingOption === 'ship_items') {
+                if (selectedShippingChoice && selectedShippingChoice !== CartItemShippingChoice.ship_items) {
+                    issues.push({
+                        cartItemId: cartItem.id,
+                        productId: product.id,
+                        code: 'INVALID_SHIPPING_CHOICE',
+                        message: 'Only ship_items is allowed for this item.',
+                    });
+                    continue;
+                }
+
+                selectedShippingChoice = CartItemShippingChoice.ship_items;
+                lineShippingFee = this.roundMoney(normalizedProductShippingFee * cartItem.quantity);
+            } else {
+                if (selectedShippingChoice && selectedShippingChoice !== CartItemShippingChoice.local_pick) {
+                    issues.push({
+                        cartItemId: cartItem.id,
+                        productId: product.id,
+                        code: 'INVALID_SHIPPING_CHOICE',
+                        message: 'Only local_pick is allowed for this item.',
+                    });
+                    continue;
+                }
+
+                selectedShippingChoice = CartItemShippingChoice.local_pick;
+                lineShippingFee = 0;
+            }
 
             items.push({
                 cartItemId: cartItem.id,
@@ -386,11 +556,14 @@ export class CartService {
                 approvedQuantity: cartItem.quantity,
                 unitPrice,
                 lineTotal,
-                shippingOption: product.shippingOption,
+                sellerShippingOption: product.shippingOption,
+                selectedShippingChoice,
+                lineShippingFee,
             });
 
             totalItems += cartItem.quantity;
             itemsSubtotal = this.roundMoney(itemsSubtotal + lineTotal);
+            shippingAmount = this.roundMoney(shippingAmount + lineShippingFee);
         }
 
         if (!items.length) {
@@ -400,8 +573,6 @@ export class CartService {
             });
         }
 
-        // Shipping/tax/fees are intentionally set to 0 until dedicated pricing rules are configured.
-        const shippingAmount = 0;
         const taxAmount = 0;
         const platformFee = 0;
         const discountAmount = 0;

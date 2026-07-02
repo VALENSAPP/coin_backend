@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Request } from 'express';
 import { CartService } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
+import { UpdateCartItemShippingChoiceDto } from './dto/update-cart-item-shipping-choice.dto';
 import { UpdateCartItemQuantityDto } from './dto/update-cart-item-quantity.dto';
 
 @ApiTags('cart')
@@ -56,6 +57,20 @@ export class CartController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.cartService.updateQuantity(userId, cartItemId, dto);
+    }
+
+    @Patch('items/:cartItemId/shipping-choice')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiParam({ name: 'cartItemId', type: 'string' })
+    @ApiOperation({ summary: 'Set buyer shipping choice for a cart item' })
+    async updateShippingChoice(
+        @Req() req: Request,
+        @Param('cartItemId') cartItemId: string,
+        @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: UpdateCartItemShippingChoiceDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.cartService.updateShippingChoice(userId, cartItemId, dto);
     }
 
     @Delete('items/:cartItemId')

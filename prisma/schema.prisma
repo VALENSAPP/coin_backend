@@ -215,6 +215,8 @@ model CartItems {
   quantity  Int         @default(1)
   price     Float
   subtotal  Float
+  selectedShippingChoice CartItemShippingChoice?
+  selectedShippingFee   Float       @default(0)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   cart      Cart        @relation(fields: [cartId], references: [id], onDelete: Cascade)
@@ -1382,6 +1384,11 @@ enum ShippingOptions {
   ship_items
   local_pick
   both
+}
+
+enum CartItemShippingChoice {
+  ship_items
+  local_pick
 }
 
 enum ClosetItemCondition {

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { Prisma, ShippingOptions } from '@prisma/client';
+import { CartItemShippingChoice, Prisma, ShippingOptions } from '@prisma/client';
 import Stripe from 'stripe';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrderService } from '../order/order.service';
@@ -24,11 +24,52 @@ export class PaymentService {
         return Math.round(Number(value.toFixed(2)) * 100);
     }
 
-    private getShippingCost(option: ShippingOptions) {
-        // Placeholder deterministic shipping rule until shipping matrix is available.
-        if (option === 'ship_items') return 0;
-        if (option === 'local_pick') return 0;
-        return 0;
+    private resolveShippingForPayment(
+        sellerShippingOption: ShippingOptions,
+        selectedShippingChoice: CartItemShippingChoice | null,
+        shippingFee: number | null,
+        quantity: number,
+        productName: string,
+    ) {
+        const unitShippingFeeMinor = this.toMinorUnits(shippingFee ?? 0);
+
+        if (sellerShippingOption === 'both') {
+            if (!selectedShippingChoice) {
+                throw new BadRequestException(`Select shipping option for ${productName}`);
+            }
+
+            if (selectedShippingChoice === CartItemShippingChoice.local_pick) {
+                return {
+                    selectedShippingChoice: CartItemShippingChoice.local_pick,
+                    shippingMinor: 0,
+                };
+            }
+
+            return {
+                selectedShippingChoice: CartItemShippingChoice.ship_items,
+                shippingMinor: unitShippingFeeMinor * quantity,
+            };
+        }
+
+        if (sellerShippingOption === 'ship_items') {
+            if (selectedShippingChoice && selectedShippingChoice !== CartItemShippingChoice.ship_items) {
+                throw new BadRequestException(`Only ship_items is allowed for ${productName}`);
+            }
+
+            return {
+                selectedShippingChoice: CartItemShippingChoice.ship_items,
+                shippingMinor: unitShippingFeeMinor * quantity,
+            };
+        }
+
+        if (selectedShippingChoice && selectedShippingChoice !== CartItemShippingChoice.local_pick) {
+            throw new BadRequestException(`Only local_pick is allowed for ${productName}`);
+        }
+
+        return {
+            selectedShippingChoice: CartItemShippingChoice.local_pick,
+            shippingMinor: 0,
+        };
     }
 
     async createCheckoutSessionForCart(userId: string, dto: CreateMarketplacePaymentDto) {
@@ -56,6 +97,7 @@ export class PaymentService {
                                 isActive: true,
                                 isDeleted: true,
                                 shippingOption: true,
+                                shippingFee: true,
                             },
                         },
                     },
@@ -83,6 +125,7 @@ export class PaymentService {
             unitPriceMinor: number;
             subtotalMinor: number;
             shippingMinor: number;
+            selectedShippingChoice: CartItemShippingChoice;
             name: string;
         }> = [];
 
@@ -116,7 +159,14 @@ export class PaymentService {
 
             const latestPriceMinor = this.toMinorUnits(product.price);
             const itemSubtotalMinor = latestPriceMinor * cartItem.quantity;
-            const itemShippingMinor = this.toMinorUnits(this.getShippingCost(product.shippingOption));
+            const shipping = this.resolveShippingForPayment(
+                product.shippingOption,
+                cartItem.selectedShippingChoice,
+                product.shippingFee,
+                cartItem.quantity,
+                product.name,
+            );
+            const itemShippingMinor = shipping.shippingMinor;
 
             subtotalMinor += itemSubtotalMinor;
             shippingMinor += itemShippingMinor;
@@ -128,6 +178,7 @@ export class PaymentService {
                 unitPriceMinor: latestPriceMinor,
                 subtotalMinor: itemSubtotalMinor,
                 shippingMinor: itemShippingMinor,
+                selectedShippingChoice: shipping.selectedShippingChoice,
                 name: product.name,
             });
         }
