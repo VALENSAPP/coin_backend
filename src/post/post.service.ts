@@ -2770,10 +2770,19 @@ export class PostService {
     });
 
     // Fetch media data separately based on mediaType
-    const mediaIds: string[] = conversations.map(c => c.mediaId).filter((id): id is string => id !== null);
-    const posts = await this.prisma.post.findMany({
+    const mediaConversations = conversations.filter(c => c.type === 'MEDIA');
+    const postIds = mediaConversations
+      .filter(c => c.mediaType === 'POST' || c.mediaType === 'REEL')
+      .map(c => c.mediaId)
+      .filter((id): id is string => id !== null);
+    const storyIds = mediaConversations
+      .filter(c => c.mediaType === 'STORY')
+      .map(c => c.mediaId)
+      .filter((id): id is string => id !== null);
+
+    const posts = postIds.length > 0 ? await this.prisma.post.findMany({
       where: {
-        id: { in: mediaIds },
+        id: { in: postIds },
         deletedAt: null,
         AND: [this.buildPostVisibilityWhere(userId)],
       },
@@ -2781,12 +2790,24 @@ export class PostService {
         user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
         _count: { select: { likes: true, comments: true, shares: true } },
       },
-    });
+    }) : [];
+
+    const stories = storyIds.length > 0 ? await this.prisma.story.findMany({
+      where: {
+        id: { in: storyIds },
+        deletedAt: null,
+      },
+      include: {
+        user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
+      },
+    }) : [];
 
     const postMap = new Map(posts.map(p => [p.id, p]));
+    const storyMap = new Map(stories.map(s => [s.id, s]));
 
     return conversations.map(conv => {
       const post = conv.mediaId ? postMap.get(conv.mediaId) : null;
+      const story = conv.mediaId ? storyMap.get(conv.mediaId) : null;
       return {
         id: conv.id,
         sharedAt: conv.createdAt,
@@ -2816,6 +2837,20 @@ export class PostService {
           visibleTo: (post as any).visibleTo,
           private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
           type: post.type,
+        },
+        story: story && {
+          id: story.id,
+          caption: story.caption,
+          media: story.media,
+          thumbnails: story.thumbnails,
+          storyMeta: story.storyMeta,
+          createdAt: story.createdAt,
+          updatedAt: story.updatedAt,
+          userId: story.userId,
+          userName: story.user?.displayName || null,
+          userImage: story.user?.image || null,
+          profileStatus: story.user?.profileStatus || null,
+          profile: story.user?.profile || null,
         },
         sharedBy: {
           id: conv.senderId,
@@ -3249,6 +3284,7 @@ export class PostService {
               caption: s.caption,
               media: s.media,
               thumbnails: s.thumbnails,
+              storyMeta: s.storyMeta,
               createdAt: s.createdAt,
               updatedAt: s.updatedAt,
               userId: s.userId,
