@@ -2874,6 +2874,7 @@ export class PostService {
           likeCount: post._count.likes,
           commentCount: post._count.comments,
           shareCount: post._count.shares,
+          isTrustPost: post.isTrustPost,
           visibleTo: (post as any).visibleTo,
           private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
           type: post.type,
