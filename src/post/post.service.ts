@@ -2206,6 +2206,46 @@ export class PostService {
     };
   }
 
+  async getTrustVoteBypostId(postId: string, userId: string) {
+    if (!postId) throw new BadRequestException('Post ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, isTrustPost: true, deletedAt: true, isDelete: true },
+    });
+
+    if (!post || post.deletedAt || post.isDelete === 'yes') {
+      throw new BadRequestException('Post not found');
+    }
+
+    if (!post.isTrustPost) {
+      throw new BadRequestException('This post is not a trust post');
+    }
+
+    const prismaClient = this.prisma as any;
+
+    const vote = await prismaClient.postTrustVote.findUnique({
+      where: {
+        userId_postId: {
+          userId,
+          postId,
+        },
+      },
+      select: {
+        id: true,
+        voteType: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      postId,
+      hasSubmittedVote: !!vote,
+      vote: vote || null,
+    };
+  }
+
   async removePostTrustVote(postId: string, userId: string) {
     if (!postId) throw new BadRequestException('Post ID required');
     if (!userId) throw new BadRequestException('User ID required');

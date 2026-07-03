@@ -306,6 +306,19 @@ export class PostController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Post('getTrustVoteBypostId')
+  @ApiOperation({ summary: 'Check whether logged-in user has submitted trust vote for a post' })
+  @ApiBody({ type: GetPostTrustScoreDto })
+  async getTrustVoteBypostId(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true })) body: GetPostTrustScoreDto,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.postService.getTrustVoteBypostId(body.postId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Post('removePostTrustVote')
   @ApiOperation({ summary: 'Remove trust vote of logged-in user for a post' })
   @ApiBody({ type: RemovePostTrustVoteDto })
