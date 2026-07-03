@@ -31,6 +31,16 @@ export class PaymentController {
         return this.paymentService.getPaymentDetailsForUser(userId);
     }
 
+    @Get('me/list/recent')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get recent marketplace payment details for authenticated user' })
+    async getMyRecentPaymentDetails(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.paymentService.getRecentPaymentDetailsForUser(userId);
+    }
+
+
     @Get(':paymentId')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()

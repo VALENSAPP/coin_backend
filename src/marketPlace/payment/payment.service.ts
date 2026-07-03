@@ -335,4 +335,15 @@ export class PaymentService {
             orderBy: { createdAt: 'desc' },
         });
     }
+
+    async getRecentPaymentDetailsForUser(userId: string) {
+        if (!userId) throw new UnauthorizedException('User not authenticated');
+
+        return this.prisma.marketPlacePayments.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 1, // Adjust the number of recent payments to retrieve
+        });
+    }
+
 }
