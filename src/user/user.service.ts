@@ -1062,6 +1062,11 @@ export class UserService {
         referPoints: true,
         totalPlatformPoints: true,
         walletAddress: true,
+        mycloset: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -1071,8 +1076,11 @@ export class UserService {
 
     const kycStatus = await this.kycService.getKycStatus(id);
 
+    const { mycloset, ...userData } = user;
+
     return {
-      ...user,
+      ...userData,
+      closetId: mycloset?.id || null,
       kycStatus: kycStatus?.status || null,
     };
   }
