@@ -48,7 +48,11 @@ export class MarketplaceBattlesController {
     @Post()
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Create draft marketplace battle with exactly two products' })
+    @ApiOperation({
+        summary: 'Create and publish marketplace battle with exactly two products',
+        description:
+            'Direct publish flow. If startAt is omitted or now/past, battle starts as LIVE; if startAt is in the future, battle is created as SCHEDULED.',
+    })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
     @ApiBadRequestResponse({ description: 'Validation or business-rule error' })
     @ApiNotFoundResponse({ description: 'Mycloset not found' })

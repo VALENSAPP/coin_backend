@@ -443,10 +443,14 @@ describe('MarketplaceBattlesService (Step 3)', () => {
             id: 'b1',
             sellerId: 'seller-1',
             closetId: 'c1',
-            status: MarketplaceBattleStatus.DRAFT,
+            status: MarketplaceBattleStatus.LIVE,
             outcome: MarketplaceBattleOutcome.PENDING,
             participants: [],
         });
+
+        const fixedNow = new Date('2026-07-06T10:00:00.000Z');
+        jest.useFakeTimers();
+        jest.setSystemTime(fixedNow);
 
         await service.createDraftBattle('seller-1', {
             title: 't',
@@ -456,15 +460,19 @@ describe('MarketplaceBattlesService (Step 3)', () => {
                 '11111111-1111-4111-8111-111111111111',
                 '22222222-2222-4222-8222-222222222222',
             ],
+            endAt: '2026-07-06T12:00:00.000Z',
         });
+
+        jest.useRealTimers();
 
         expect(prisma.marketplaceBattle.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
                     sellerId: 'seller-1',
                     closetId: 'c1',
-                    status: MarketplaceBattleStatus.DRAFT,
+                    status: MarketplaceBattleStatus.LIVE,
                     outcome: MarketplaceBattleOutcome.PENDING,
+                    publishedAt: fixedNow,
                     totalVotes: 0,
                     totalComments: 0,
                 }),

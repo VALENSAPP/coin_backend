@@ -1550,6 +1550,32 @@ export class MarketplaceBattlesService {
 
     async createDraftBattle(userId: string, dto: CreateMarketplaceBattleDto) {
         const sellerId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const endAt = new Date(dto.endAt);
+        if (Number.isNaN(endAt.getTime())) {
+            throw new BadRequestException('Invalid endAt');
+        }
+
+        const explicitStartAt = dto.startAt ? new Date(dto.startAt) : undefined;
+        if (explicitStartAt && Number.isNaN(explicitStartAt.getTime())) {
+            throw new BadRequestException('Invalid startAt');
+        }
+
+        if (explicitStartAt && explicitStartAt.getTime() < now.getTime() - PAST_START_TOLERANCE_MS) {
+            throw new BadRequestException('startAt is too far in the past');
+        }
+
+        const effectiveStartAt = explicitStartAt ?? now;
+
+        if (endAt.getTime() <= effectiveStartAt.getTime()) {
+            throw new BadRequestException('endAt must be greater than startAt');
+        }
+
+        const targetStatus =
+            effectiveStartAt.getTime() <= now.getTime()
+                ? MarketplaceBattleStatus.LIVE
+                : MarketplaceBattleStatus.SCHEDULED;
 
         const closet = await this.prisma.mycloset.findUnique({
             where: { userId: sellerId },
@@ -1571,8 +1597,11 @@ export class MarketplaceBattlesService {
                     title: dto.title,
                     description: dto.description,
                     category: dto.category,
-                    status: MarketplaceBattleStatus.DRAFT,
+                    status: targetStatus,
                     outcome: MarketplaceBattleOutcome.PENDING,
+                    startAt: effectiveStartAt,
+                    endAt,
+                    publishedAt: now,
                     totalVotes: 0,
                     totalComments: 0,
                 },
@@ -1678,6 +1707,22 @@ export class MarketplaceBattlesService {
 
             if (!createdBattle) {
                 throw new NotFoundException('Marketplace battle not found after creation');
+            }
+
+            if (targetStatus === MarketplaceBattleStatus.LIVE) {
+                await this.createMarketplaceBattleNotification(tx, {
+                    userId: sellerId,
+                    type: 'marketplace_battle_live',
+                    title: 'Marketplace Battle Is Live',
+                    body: `Your marketplace battle "${createdBattle.title || createdBattle.id}" is now live.`,
+                    dedupeKey: `marketplace_battle_live:${createdBattle.id}`,
+                    metadata: {
+                        battleId: createdBattle.id,
+                        status: createdBattle.status,
+                        startAt: createdBattle.startAt?.toISOString(),
+                        endAt: createdBattle.endAt?.toISOString(),
+                    },
+                });
             }
 
             return createdBattle;

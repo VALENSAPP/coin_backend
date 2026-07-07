@@ -4,6 +4,7 @@ import {
     ArrayMaxSize,
     ArrayMinSize,
     ArrayUnique,
+    IsDateString,
     IsArray,
     IsNotEmpty,
     IsOptional,
@@ -57,4 +58,19 @@ export class CreateMarketplaceBattleDto {
     @ArrayUnique()
     @IsUUID('4', { each: true })
     productIds!: string[];
+
+    @ApiPropertyOptional({
+        description: 'Battle start time in ISO 8601 format. If omitted, battle is published immediately.',
+        example: '2026-07-10T10:00:00.000Z',
+    })
+    @IsOptional()
+    @IsDateString()
+    startAt?: string;
+
+    @ApiProperty({
+        description: 'Battle end time in ISO 8601 format.',
+        example: '2026-07-11T10:00:00.000Z',
+    })
+    @IsDateString()
+    endAt!: string;
 }
