@@ -117,7 +117,11 @@ export class MarketplaceBattleBoostService {
                     throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
                 }
 
-                if (!this.isBattleEligibleForBoost(battle, now)) {
+                if (
+                    battle.status !== MarketplaceBattleStatus.LIVE &&
+                    battle.status !== MarketplaceBattleStatus.SCHEDULED &&
+                    battle.status !== MarketplaceBattleStatus.COMPLETED
+                ) {
                     throw new BadRequestException('Marketplace battle is not eligible for boost');
                 }
 
@@ -700,14 +704,12 @@ export class MarketplaceBattleBoostService {
                     return;
                 }
 
-                const canActivateForCompletedWinnerBadge =
-                    lockedBoost.winnerBadge &&
-                    lockedBoost.battle.status === MarketplaceBattleStatus.COMPLETED &&
-                    lockedBoost.battle.outcome === MarketplaceBattleOutcome.WINNER;
+                const canActivateForCompletedBattle =
+                    lockedBoost.battle.status === MarketplaceBattleStatus.COMPLETED;
 
                 if (
                     !this.isBattleEligibleForBoost(lockedBoost.battle, now) &&
-                    !canActivateForCompletedWinnerBadge
+                    !canActivateForCompletedBattle
                 ) {
                     await tx.marketplaceBattleBoost.update({
                         where: { id: lockedBoost.id },
