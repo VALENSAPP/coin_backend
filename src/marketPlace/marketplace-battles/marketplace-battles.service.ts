@@ -24,7 +24,6 @@ import {
 } from './dto/closet-marketplace-battles-query.dto';
 import {
     MarketplaceBattleListQueryDto,
-    MarketplaceBattleSortField,
 } from './dto/marketplace-battle-list-query.dto';
 import {
     MarketplaceBattleExploreQueryDto,
@@ -99,18 +98,6 @@ const MARKETPLACE_BATTLE_BASE_SELECT = {
     createdAt: true,
     updatedAt: true,
 } as const;
-
-const MARKETPLACE_BATTLE_SORT_FIELD_MAP: Record<
-    MarketplaceBattleSortField,
-    Prisma.MarketplaceBattleOrderByWithRelationInput
-> = {
-    createdAt: { createdAt: 'desc' },
-    updatedAt: { updatedAt: 'desc' },
-    startAt: { startAt: 'desc' },
-    endAt: { endAt: 'desc' },
-    totalVotes: { totalVotes: 'desc' },
-    totalComments: { totalComments: 'desc' },
-};
 
 const MARKETPLACE_BATTLE_EXPLORE_SORT_FIELD_MAP: Record<
     MarketplaceBattleExploreSortField,
@@ -432,20 +419,6 @@ export class MarketplaceBattlesService {
     private assertSellerUserId(userId?: string): string {
         if (!userId) throw new UnauthorizedException('User not authenticated');
         return userId;
-    }
-
-    private getSortOrder(
-        sortByRaw: MarketplaceBattleSortField | undefined,
-        sortOrderRaw: 'asc' | 'desc' | undefined,
-    ): Prisma.MarketplaceBattleOrderByWithRelationInput {
-        const safeSortBy: MarketplaceBattleSortField =
-            sortByRaw && Object.prototype.hasOwnProperty.call(MARKETPLACE_BATTLE_SORT_FIELD_MAP, sortByRaw)
-                ? sortByRaw
-                : 'createdAt';
-        const safeSortOrder: 'asc' | 'desc' = sortOrderRaw === 'asc' ? 'asc' : 'desc';
-
-        const key = Object.keys(MARKETPLACE_BATTLE_SORT_FIELD_MAP[safeSortBy])[0] as MarketplaceBattleSortField;
-        return { [key]: safeSortOrder };
     }
 
     private getExploreSortOrder(
@@ -1742,38 +1715,8 @@ export class MarketplaceBattlesService {
         const limit = query.limit ?? 10;
         const skip = (page - 1) * limit;
 
-        const sortBy = query.sortBy;
-        const sortOrder = query.sortOrder;
-
         const where: Prisma.MarketplaceBattleWhereInput = {
             sellerId,
-            ...(query.status ? { status: query.status } : {}),
-            ...(query.category
-                ? {
-                    category: {
-                        equals: query.category,
-                        mode: 'insensitive',
-                    },
-                }
-                : {}),
-            ...(query.search
-                ? {
-                    OR: [
-                        {
-                            title: {
-                                contains: query.search,
-                                mode: 'insensitive',
-                            },
-                        },
-                        {
-                            description: {
-                                contains: query.search,
-                                mode: 'insensitive',
-                            },
-                        },
-                    ],
-                }
-                : {}),
         };
 
         const [total, battles] = await this.prisma.$transaction([
@@ -1782,7 +1725,7 @@ export class MarketplaceBattlesService {
                 where,
                 skip,
                 take: limit,
-                orderBy: this.getSortOrder(sortBy, sortOrder),
+                orderBy: { createdAt: 'desc' },
                 select: {
                     ...MARKETPLACE_BATTLE_BASE_SELECT,
                     participants: {

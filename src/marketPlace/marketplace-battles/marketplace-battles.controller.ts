@@ -73,11 +73,6 @@ export class MarketplaceBattlesController {
     @ApiOperation({ summary: 'List authenticated seller marketplace battles' })
     @ApiQuery({ name: 'page', required: false, example: 1 })
     @ApiQuery({ name: 'limit', required: false, example: 10 })
-    @ApiQuery({ name: 'status', required: false, enum: ['DRAFT', 'SCHEDULED', 'LIVE', 'COMPLETED', 'CANCELLED'] })
-    @ApiQuery({ name: 'category', required: false, example: 'Fashion' })
-    @ApiQuery({ name: 'search', required: false, example: 'summer' })
-    @ApiQuery({ name: 'sortBy', required: false, enum: ['createdAt', 'updatedAt', 'startAt', 'endAt', 'totalVotes', 'totalComments'] })
-    @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
     @ApiBadRequestResponse({ description: 'Invalid query parameters' })
     async listMyBattles(
