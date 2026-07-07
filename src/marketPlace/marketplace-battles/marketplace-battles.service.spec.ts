@@ -19,6 +19,9 @@ describe('MarketplaceBattlesService (Step 3)', () => {
             mycloset: {
                 findUnique: jest.fn(),
             },
+            followerAndFollowing: {
+                findUnique: jest.fn(),
+            },
             closetItems: {
                 findMany: jest.fn(),
             },
@@ -33,6 +36,11 @@ describe('MarketplaceBattlesService (Step 3)', () => {
             marketplaceBattleParticipant: {
                 createMany: jest.fn(),
                 deleteMany: jest.fn(),
+            },
+            marketplaceBattleView: {
+                count: jest.fn(),
+                findUnique: jest.fn(),
+                create: jest.fn(),
             },
             $transaction: jest.fn(),
         };
@@ -126,26 +134,191 @@ describe('MarketplaceBattlesService (Step 3)', () => {
         prisma.marketplaceBattle.findUnique.mockResolvedValue({
             id: 'b1',
             sellerId: 'seller-1',
+            totalVotes: 12,
+            totalComments: 5,
             participants: [],
             winnerParticipant: null,
         });
+        prisma.marketplaceBattleView.count.mockResolvedValue(3);
 
         const result = await service.getMyBattleById('seller-1', 'b1');
 
         expect(result.id).toBe('b1');
+        expect(result.viewCount).toBe(3);
+        expect(result.voteCount).toBe(12);
+        expect(result.commentCount).toBe(5);
     });
 
-    it('7) seller cannot view another seller battle', async () => {
+    it('7) authenticated user can view another seller public battle with count aliases', async () => {
+        const now = new Date();
+
+        prisma.marketplaceBattle.findUnique
+            .mockResolvedValueOnce({
+                id: 'b1',
+                sellerId: 'seller-2',
+            })
+            .mockResolvedValueOnce({
+                id: 'b1',
+                sellerId: 'seller-2',
+                title: 'Battle',
+                description: 'desc',
+                category: 'Fashion',
+                visibility: WhoCanBuy.Everyone,
+                whoCanVote: WhoCanBuy.Everyone,
+                shareToFeed: false,
+                status: MarketplaceBattleStatus.LIVE,
+                outcome: MarketplaceBattleOutcome.PENDING,
+                startAt: new Date(now.getTime() - 10 * 60 * 1000),
+                endAt: new Date(now.getTime() + 10 * 60 * 1000),
+                publishedAt: new Date(now.getTime() - 10 * 60 * 1000),
+                completedAt: null,
+                winnerParticipantId: null,
+                totalVotes: 10,
+                totalComments: 2,
+                createdAt: new Date(now.getTime() - 20 * 60 * 1000),
+                updatedAt: new Date(now.getTime() - 5 * 60 * 1000),
+                seller: {
+                    id: 'seller-2',
+                    displayName: 'Seller Name',
+                    userName: 'seller_name',
+                    image: 'seller.jpg',
+                },
+                closet: {
+                    id: 'closet-1',
+                    shopName: 'Shop',
+                    shopUsername: 'shop',
+                    shopLogo: null,
+                },
+                participants: [
+                    {
+                        id: 'p1',
+                        position: 1,
+                        voteCount: 6,
+                        isWinner: false,
+                        product: {
+                            id: 'prod-1',
+                            name: 'Prod 1',
+                            images: ['a.jpg'],
+                            price: 10,
+                            quantity: 1,
+                            category: 'Fashion',
+                            brand: 'Brand',
+                            condition: 'New',
+                            isActive: true,
+                            isDeleted: false,
+                        },
+                    },
+                    {
+                        id: 'p2',
+                        position: 2,
+                        voteCount: 4,
+                        isWinner: false,
+                        product: {
+                            id: 'prod-2',
+                            name: 'Prod 2',
+                            images: ['b.jpg'],
+                            price: 20,
+                            quantity: 1,
+                            category: 'Fashion',
+                            brand: 'Brand',
+                            condition: 'Used',
+                            isActive: true,
+                            isDeleted: false,
+                        },
+                    },
+                ],
+                winnerParticipant: null,
+            });
+        prisma.marketplaceBattleView.count.mockResolvedValue(4);
+
+        const result = await service.getMyBattleById('seller-1', 'b1');
+
+        expect(result.id).toBe('b1');
+        expect(result.viewCount).toBe(4);
+        expect(result.voteCount).toBe(10);
+        expect(result.commentCount).toBe(2);
+    });
+
+    it('8) first view is tracked once per user', async () => {
+        const now = new Date();
+
         prisma.marketplaceBattle.findUnique.mockResolvedValue({
             id: 'b1',
             sellerId: 'seller-2',
-            participants: [],
-            winnerParticipant: null,
+            visibility: WhoCanBuy.Everyone,
+            status: MarketplaceBattleStatus.LIVE,
+            startAt: new Date(now.getTime() - 10 * 60 * 1000),
+            endAt: new Date(now.getTime() + 10 * 60 * 1000),
+            participants: [
+                {
+                    product: {
+                        isActive: true,
+                        isDeleted: false,
+                        quantity: 1,
+                    },
+                },
+                {
+                    product: {
+                        isActive: true,
+                        isDeleted: false,
+                        quantity: 1,
+                    },
+                },
+            ],
         });
+        prisma.marketplaceBattleView.findUnique.mockResolvedValue(null);
+        prisma.marketplaceBattleView.create.mockResolvedValue({ id: 'v1' });
+        prisma.marketplaceBattleView.count.mockResolvedValue(1);
 
-        await expect(service.getMyBattleById('seller-1', 'b1')).rejects.toBeInstanceOf(
-            ForbiddenException,
-        );
+        const result = await service.trackMarketplaceBattleView('viewer-1', 'b1');
+
+        expect(result).toEqual({
+            tracked: true,
+            reason: 'VIEW_TRACKED',
+            battleId: 'b1',
+            viewCount: 1,
+        });
+    });
+
+    it('9) duplicate view is ignored', async () => {
+        const now = new Date();
+
+        prisma.marketplaceBattle.findUnique.mockResolvedValue({
+            id: 'b1',
+            sellerId: 'seller-2',
+            visibility: WhoCanBuy.Everyone,
+            status: MarketplaceBattleStatus.LIVE,
+            startAt: new Date(now.getTime() - 10 * 60 * 1000),
+            endAt: new Date(now.getTime() + 10 * 60 * 1000),
+            participants: [
+                {
+                    product: {
+                        isActive: true,
+                        isDeleted: false,
+                        quantity: 1,
+                    },
+                },
+                {
+                    product: {
+                        isActive: true,
+                        isDeleted: false,
+                        quantity: 1,
+                    },
+                },
+            ],
+        });
+        prisma.marketplaceBattleView.findUnique.mockResolvedValue({ id: 'v1' });
+        prisma.marketplaceBattleView.count.mockResolvedValue(7);
+
+        const result = await service.trackMarketplaceBattleView('viewer-1', 'b1');
+
+        expect(result).toEqual({
+            tracked: false,
+            reason: 'ALREADY_VIEWED',
+            battleId: 'b1',
+            viewCount: 7,
+        });
+        expect(prisma.marketplaceBattleView.create).not.toHaveBeenCalled();
     });
 
     it('8) seller can update draft metadata', async () => {

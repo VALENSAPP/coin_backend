@@ -123,6 +123,7 @@ model User {
   marketplaceBattlesCreated   MarketplaceBattle[]        @relation("MarketplaceBattleSeller")
   marketplaceBattleVotes      MarketplaceBattleVote[]    @relation("MarketplaceBattleVoter")
   marketplaceBattleComments   MarketplaceBattleComment[] @relation("MarketplaceBattleCommentAuthor")
+  marketplaceBattleViews      MarketplaceBattleView[]
   marketplaceWinnerPromotions MarketplaceWinnerPromotion[]
   marketplaceBattleBoosts     MarketplaceBattleBoost[]
   battleStats                 UserBattleStats?
@@ -1296,6 +1297,7 @@ model MarketplaceBattle {
   participants      MarketplaceBattleParticipant[] @relation("MarketplaceBattleParticipants")
   votes             MarketplaceBattleVote[]
   comments          MarketplaceBattleComment[]
+  views             MarketplaceBattleView[]
   winnerParticipant MarketplaceBattleParticipant?  @relation("MarketplaceBattleWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
   winnerPromotion   MarketplaceWinnerPromotion?
   boosts            MarketplaceBattleBoost[]
@@ -1367,6 +1369,20 @@ model MarketplaceBattleComment {
   @@index([userId])
   @@index([createdAt])
   @@index([battleId, createdAt])
+}
+
+model MarketplaceBattleView {
+  id        String   @id @default(uuid())
+  battleId  String
+  viewerId  String
+  createdAt DateTime @default(now())
+
+  battle MarketplaceBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  viewer User             @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, viewerId])
+  @@index([battleId])
+  @@index([viewerId])
 }
 
 model MarketplaceWinnerPromotion {

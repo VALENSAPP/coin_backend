@@ -94,6 +94,10 @@ async function bootstrap() {
     windowMs: 60 * 1000,
     max: 120,
   });
+  applyMethodRateLimit('/marketplace-battles/:battleId/view', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 120,
+  });
   applyMethodRateLimit('/marketplace-battles/:battleId/comments', ['POST'], {
     windowMs: 60 * 1000,
     max: 120,

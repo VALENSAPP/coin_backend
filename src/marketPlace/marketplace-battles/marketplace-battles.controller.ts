@@ -96,17 +96,31 @@ export class MarketplaceBattlesController {
     @Get('me/:battleId')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get one seller-owned marketplace battle details' })
+    @ApiOperation({ summary: 'Get one marketplace battle details for authenticated user' })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle not found or not publicly visible' })
     async getMyBattleById(
         @Req() req: Request,
         @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
     ) {
         const userId = (req.user as any)?.userId;
         return this.marketplaceBattlesService.getMyBattleById(userId, battleId);
+    }
+
+    @Post(':battleId/view')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Track one unique marketplace battle view per authenticated user' })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle not found or not publicly visible' })
+    async trackBattleView(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.trackMarketplaceBattleView(userId, battleId);
     }
 
     @Patch(':battleId')

@@ -1892,8 +1892,136 @@ export class MarketplaceBattlesService {
     }
 
     async getMyBattleById(userId: string, battleId: string) {
-        const sellerId = this.assertSellerUserId(userId);
-        return this.getSellerBattleDetailsOrThrow(sellerId, battleId);
+        const viewerUserId = this.assertSellerUserId(userId);
+
+        const battle = await this.prisma.marketplaceBattle.findUnique({
+            where: { id: battleId },
+            select: {
+                id: true,
+                sellerId: true,
+            },
+        });
+
+        if (!battle) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        const viewCount = await this.prisma.marketplaceBattleView.count({
+            where: { battleId },
+        });
+
+        if (battle.sellerId === viewerUserId) {
+            const sellerBattle = await this.getSellerBattleDetailsOrThrow(viewerUserId, battleId);
+            return {
+                ...sellerBattle,
+                viewCount,
+                voteCount: sellerBattle.totalVotes,
+                commentCount: sellerBattle.totalComments,
+            };
+        }
+
+        const publicBattle = await this.getPublicBattleById(battleId, viewerUserId);
+        return {
+            ...publicBattle,
+            viewCount,
+            voteCount: publicBattle.totalVotes,
+            commentCount: publicBattle.totalComments,
+        };
+    }
+
+    async trackMarketplaceBattleView(userId: string, battleId: string) {
+        const viewerId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        return this.prisma.$transaction(async (tx) => {
+            const battle = await tx.marketplaceBattle.findUnique({
+                where: { id: battleId },
+                select: {
+                    id: true,
+                    sellerId: true,
+                    visibility: true,
+                    status: true,
+                    startAt: true,
+                    endAt: true,
+                    participants: {
+                        select: {
+                            product: {
+                                select: {
+                                    isActive: true,
+                                    isDeleted: true,
+                                    quantity: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+
+            if (!battle) {
+                throw new NotFoundException('Marketplace battle not found');
+            }
+
+            if (
+                battle.status !== MarketplaceBattleStatus.LIVE &&
+                battle.status !== MarketplaceBattleStatus.SCHEDULED &&
+                battle.status !== MarketplaceBattleStatus.COMPLETED
+            ) {
+                throw new NotFoundException('Marketplace battle not found');
+            }
+
+            if (!this.shouldExposeByStatusAndTime(battle, now)) {
+                throw new NotFoundException('Marketplace battle not found');
+            }
+
+            if (!this.hasPubliclyEligibleProductsForActiveOrScheduled(battle)) {
+                throw new NotFoundException('Marketplace battle not found');
+            }
+
+            await this.assertBattleVisibleToViewer(tx, battle.visibility, battle.sellerId, viewerId);
+
+            if (battle.sellerId === viewerId) {
+                const viewCount = await tx.marketplaceBattleView.count({
+                    where: { battleId },
+                });
+
+                return {
+                    tracked: false,
+                    reason: 'SELF_VIEW_IGNORED',
+                    battleId,
+                    viewCount,
+                };
+            }
+
+            const existingView = await tx.marketplaceBattleView.findUnique({
+                where: {
+                    battleId_viewerId: {
+                        battleId,
+                        viewerId,
+                    },
+                },
+                select: { id: true },
+            });
+
+            if (!existingView) {
+                await tx.marketplaceBattleView.create({
+                    data: {
+                        battleId,
+                        viewerId,
+                    },
+                });
+            }
+
+            const viewCount = await tx.marketplaceBattleView.count({
+                where: { battleId },
+            });
+
+            return {
+                tracked: !existingView,
+                reason: existingView ? 'ALREADY_VIEWED' : 'VIEW_TRACKED',
+                battleId,
+                viewCount,
+            };
+        });
     }
 
     async updateDraftBattle(userId: string, battleId: string, dto: UpdateMarketplaceBattleDto) {
