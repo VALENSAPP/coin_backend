@@ -31,6 +31,7 @@ import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto'
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleListQueryDto } from './dto/marketplace-battle-list-query.dto';
+import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
 
@@ -187,7 +188,7 @@ export class MarketplaceBattlesController {
     @ApiOperation({ summary: 'Vote in a live marketplace battle' })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Sellers cannot vote in their own marketplace battle' })
+    @ApiForbiddenResponse({ description: 'Only followers can vote in this marketplace battle' })
     @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
     @ApiBadRequestResponse({
         description:
@@ -224,6 +225,69 @@ export class MarketplaceBattlesController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.marketplaceBattlesService.removeMarketplaceBattleVote(userId, battleId);
+    }
+
+    @Get(':battleId/voters')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'List voters for a marketplace battle',
+        description:
+            'Returns paginated voter list with selected participant and product details for authenticated users who can view the battle.',
+    })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+    @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'], example: 'desc' })
+    @ApiOkResponse({
+        description: 'Marketplace battle voters retrieved successfully',
+        schema: {
+            example: {
+                battleId: '718451bf-0775-4d17-ac3a-7d6960ecb68d',
+                total: 2,
+                page: 1,
+                limit: 20,
+                totalPages: 1,
+                voters: [
+                    {
+                        voteId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+                        votedAt: '2026-07-07T09:12:00.000Z',
+                        user: {
+                            id: '9a9b9c9d-7777-8888-9999-000011112222',
+                            name: 'John Doe',
+                            profileImage: 'https://cdn.example.com/avatar.png',
+                        },
+                        participant: {
+                            id: '1a2b3c4d-1111-2222-3333-444455556666',
+                            position: 1,
+                            product: {
+                                id: 'product-1',
+                                name: 'Blue Dress',
+                                images: ['https://cdn.example.com/p1.jpg'],
+                            },
+                        },
+                    },
+                ],
+            },
+        },
+    })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
+    @ApiBadRequestResponse({ description: 'Invalid query parameters' })
+    async listBattleVoters(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+        @Query(
+            new ValidationPipe({
+                whitelist: true,
+                forbidNonWhitelisted: true,
+                transform: true,
+            }),
+        )
+        query: MarketplaceBattleVotersQueryDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.listMarketplaceBattleVoters(userId, battleId, query);
     }
 
     @UseGuards(AuthGuard('jwt'))

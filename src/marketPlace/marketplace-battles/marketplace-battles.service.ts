@@ -36,6 +36,7 @@ import {
 import { NotificationService } from '../../notification/notification.service';
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
+import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
 
 type PrismaTx = PrismaService | Prisma.TransactionClient;
@@ -1943,10 +1944,6 @@ export class MarketplaceBattlesService {
                     if (!battle) throw new NotFoundException('Marketplace battle not found');
                     this.ensureVotingWindowOpen(battle, now);
 
-                    if (battle.sellerId === voterUserId) {
-                        throw new ForbiddenException('Sellers cannot vote in their own marketplace battle');
-                    }
-
                     if (battle.whoCanVote === WhoCanBuy.followers) {
                         const isFollower = await this.isAcceptedFollower(tx, voterUserId, battle.sellerId);
                         if (!isFollower) {
@@ -2222,6 +2219,121 @@ export class MarketplaceBattlesService {
             }
             throw error;
         }
+    }
+
+    async listMarketplaceBattleVoters(
+        userId: string,
+        battleId: string,
+        query: MarketplaceBattleVotersQueryDto,
+    ) {
+        const viewerId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const battle = await this.prisma.marketplaceBattle.findUnique({
+            where: { id: battleId },
+            select: {
+                id: true,
+                sellerId: true,
+                visibility: true,
+                status: true,
+                startAt: true,
+                endAt: true,
+                participants: {
+                    select: {
+                        product: {
+                            select: {
+                                isActive: true,
+                                isDeleted: true,
+                                quantity: true,
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!battle) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        if (
+            battle.status !== MarketplaceBattleStatus.LIVE &&
+            battle.status !== MarketplaceBattleStatus.SCHEDULED &&
+            battle.status !== MarketplaceBattleStatus.COMPLETED
+        ) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        if (!this.shouldExposeByStatusAndTime(battle, now)) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        if (!this.hasPubliclyEligibleProductsForActiveOrScheduled(battle)) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        await this.assertBattleVisibleToViewer(this.prisma, battle.visibility, battle.sellerId, viewerId);
+
+        const page = query.page ?? 1;
+        const limit = query.limit ?? 20;
+        const sortOrder: 'asc' | 'desc' = query.sortOrder === 'asc' ? 'asc' : 'desc';
+        const skip = (page - 1) * limit;
+
+        const where: Prisma.MarketplaceBattleVoteWhereInput = {
+            battleId,
+        };
+
+        const [total, votes] = await this.prisma.$transaction([
+            this.prisma.marketplaceBattleVote.count({ where }),
+            this.prisma.marketplaceBattleVote.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: [{ createdAt: sortOrder }, { id: sortOrder }],
+                select: {
+                    id: true,
+                    createdAt: true,
+                    user: {
+                        select: MARKETPLACE_BATTLE_COMMENT_AUTHOR_SELECT,
+                    },
+                    participant: {
+                        select: {
+                            id: true,
+                            position: true,
+                            product: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    images: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            }),
+        ]);
+
+        return {
+            battleId,
+            total,
+            page,
+            limit,
+            totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+            voters: votes.map((vote) => ({
+                voteId: vote.id,
+                votedAt: vote.createdAt,
+                user: this.mapPublicCommentUser(vote.user),
+                participant: {
+                    id: vote.participant.id,
+                    position: vote.participant.position,
+                    product: {
+                        id: vote.participant.product.id,
+                        name: vote.participant.product.name,
+                        images: vote.participant.product.images,
+                    },
+                },
+            })),
+        };
     }
 
     async createMarketplaceBattleComment(userId: string, battleId: string, dto: CreateMarketplaceBattleCommentDto) {
