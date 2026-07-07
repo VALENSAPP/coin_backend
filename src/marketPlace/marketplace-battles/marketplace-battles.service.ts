@@ -9,9 +9,11 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import {
+    FollowStatus,
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
     Prisma,
+    WhoCanBuy,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto';
@@ -85,6 +87,9 @@ const MARKETPLACE_BATTLE_BASE_SELECT = {
     title: true,
     description: true,
     category: true,
+    visibility: true,
+    whoCanVote: true,
+    shareToFeed: true,
     status: true,
     outcome: true,
     startAt: true,
@@ -145,9 +150,13 @@ const MARKETPLACE_BATTLE_WINNERS_SORT_FIELD_MAP: Record<
 
 const MARKETPLACE_BATTLE_PUBLIC_SELECT = {
     id: true,
+    sellerId: true,
     title: true,
     description: true,
     category: true,
+    visibility: true,
+    whoCanVote: true,
+    shareToFeed: true,
     status: true,
     outcome: true,
     startAt: true,
@@ -548,6 +557,72 @@ export class MarketplaceBattlesService {
         return Math.max(0, Math.floor((startAt.getTime() - now.getTime()) / 1000));
     }
 
+    private async isAcceptedFollower(
+        tx: Prisma.TransactionClient | PrismaService,
+        followerId: string,
+        followingId: string,
+    ): Promise<boolean> {
+        if (!followerId || !followingId) return false;
+        if (followerId === followingId) return true;
+
+        const follow = await tx.followerAndFollowing.findUnique({
+            where: {
+                followerId_followingId: {
+                    followerId,
+                    followingId,
+                },
+            },
+            select: {
+                status: true,
+            },
+        });
+
+        return follow?.status === FollowStatus.ACCEPTED;
+    }
+
+    private async assertBattleVisibleToViewer(
+        tx: Prisma.TransactionClient | PrismaService,
+        visibility: WhoCanBuy | null | undefined,
+        sellerId: string,
+        viewerUserId?: string,
+    ): Promise<void> {
+        if (!visibility || visibility === WhoCanBuy.Everyone) return;
+        if (viewerUserId && viewerUserId === sellerId) return;
+
+        if (!viewerUserId) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        const isFollower = await this.isAcceptedFollower(tx, viewerUserId, sellerId);
+        if (!isFollower) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+    }
+
+    private getVisibilityWhere(viewerUserId?: string): Prisma.MarketplaceBattleWhereInput {
+        if (!viewerUserId) {
+            return { visibility: WhoCanBuy.Everyone };
+        }
+
+        return {
+            OR: [
+                { visibility: WhoCanBuy.Everyone },
+                { sellerId: viewerUserId },
+                {
+                    visibility: WhoCanBuy.followers,
+                    seller: {
+                        followers: {
+                            some: {
+                                followerId: viewerUserId,
+                                status: FollowStatus.ACCEPTED,
+                            },
+                        },
+                    },
+                },
+            ],
+        };
+    }
+
     private shouldExposeByStatusAndTime(
         battle: {
             status: string;
@@ -595,9 +670,13 @@ export class MarketplaceBattlesService {
     private mapPublicBattleResponse(
         battle: {
             id: string;
+            sellerId: string;
             title: string;
             description: string | null;
             category: string | null;
+            visibility: WhoCanBuy;
+            whoCanVote: WhoCanBuy;
+            shareToFeed: boolean;
             status: string;
             outcome: string;
             startAt: Date | null;
@@ -722,6 +801,9 @@ export class MarketplaceBattlesService {
             title: battle.title,
             description: battle.description,
             category: battle.category,
+            visibility: battle.visibility,
+            whoCanVote: battle.whoCanVote,
+            shareToFeed: battle.shareToFeed,
             status: battle.status,
             outcome: battle.outcome,
             startAt: battle.startAt,
@@ -1597,6 +1679,9 @@ export class MarketplaceBattlesService {
                     title: dto.title,
                     description: dto.description,
                     category: dto.category,
+                    visibility: dto.visibility ?? WhoCanBuy.Everyone,
+                    whoCanVote: dto.whoCanVote ?? WhoCanBuy.Everyone,
+                    shareToFeed: dto.shareToFeed ?? false,
                     status: targetStatus,
                     outcome: MarketplaceBattleOutcome.PENDING,
                     startAt: effectiveStartAt,
@@ -2000,6 +2085,7 @@ export class MarketplaceBattlesService {
                         select: {
                             id: true,
                             sellerId: true,
+                            whoCanVote: true,
                             status: true,
                             startAt: true,
                             endAt: true,
@@ -2011,6 +2097,13 @@ export class MarketplaceBattlesService {
 
                     if (battle.sellerId === voterUserId) {
                         throw new ForbiddenException('Sellers cannot vote in their own marketplace battle');
+                    }
+
+                    if (battle.whoCanVote === WhoCanBuy.followers) {
+                        const isFollower = await this.isAcceptedFollower(tx, voterUserId, battle.sellerId);
+                        if (!isFollower) {
+                            throw new ForbiddenException('Only followers can vote in this marketplace battle');
+                        }
                     }
 
                     const participant = await tx.marketplaceBattleParticipant.findFirst({
@@ -2559,7 +2652,7 @@ export class MarketplaceBattlesService {
         }
     }
 
-    async explorePublicBattles(query: MarketplaceBattleExploreQueryDto) {
+    async explorePublicBattles(query: MarketplaceBattleExploreQueryDto, viewerUserId?: string) {
         const now = new Date();
 
         const page = query.page ?? 1;
@@ -2570,6 +2663,7 @@ export class MarketplaceBattlesService {
             status: MarketplaceBattleStatus.LIVE,
             startAt: { lte: now },
             endAt: { gt: now },
+            AND: [this.getVisibilityWhere(viewerUserId)],
             ...(query.category
                 ? {
                     category: {
@@ -2629,7 +2723,11 @@ export class MarketplaceBattlesService {
         };
     }
 
-    async getClosetPublicBattles(closetId: string, query: ClosetMarketplaceBattlesQueryDto) {
+    async getClosetPublicBattles(
+        closetId: string,
+        query: ClosetMarketplaceBattlesQueryDto,
+        viewerUserId?: string,
+    ) {
         const now = new Date();
 
         const closet = await this.prisma.mycloset.findUnique({
@@ -2701,6 +2799,7 @@ export class MarketplaceBattlesService {
 
         const where: Prisma.MarketplaceBattleWhereInput = {
             closetId,
+            AND: [this.getVisibilityWhere(viewerUserId)],
             ...(statusFilter
                 ? getStatusWhere(statusFilter)
                 : {
@@ -2737,7 +2836,7 @@ export class MarketplaceBattlesService {
         };
     }
 
-    async getPublicBattleById(battleId: string) {
+    async getPublicBattleById(battleId: string, viewerUserId?: string) {
         const now = new Date();
 
         const battle = await this.prisma.marketplaceBattle.findUnique({
@@ -2762,6 +2861,13 @@ export class MarketplaceBattlesService {
         if (!this.hasPubliclyEligibleProductsForActiveOrScheduled(battle)) {
             throw new NotFoundException('Marketplace battle not found');
         }
+
+        await this.assertBattleVisibleToViewer(
+            this.prisma,
+            battle.visibility,
+            battle.sellerId,
+            viewerUserId,
+        );
 
         return this.mapPublicBattleResponse(battle, now);
     }

@@ -5,7 +5,7 @@ import {
     InternalServerErrorException,
     NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, WhoCanBuy } from '@prisma/client';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
 
 describe('MarketplaceBattlesService (Step 7 Voting)', () => {
@@ -55,6 +55,9 @@ describe('MarketplaceBattlesService (Step 7 Voting)', () => {
             marketplaceBattle: {
                 findUnique: jest.fn(),
                 updateMany: jest.fn(),
+            },
+            followerAndFollowing: {
+                findUnique: jest.fn(),
             },
             marketplaceBattleParticipant: {
                 findFirst: jest.fn(),
@@ -166,6 +169,34 @@ describe('MarketplaceBattlesService (Step 7 Voting)', () => {
         await expect(
             service.voteMarketplaceBattle('user-1', battleId, { participantId: participantAId }),
         ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('6.1) followers-only battle allows accepted follower vote', async () => {
+        prisma.marketplaceBattle.findUnique
+            .mockResolvedValueOnce(makeLiveBattle({ whoCanVote: WhoCanBuy.followers }))
+            .mockResolvedValueOnce(makeBattleAfterVote());
+        prisma.followerAndFollowing.findUnique.mockResolvedValue({ status: 'ACCEPTED' });
+        prisma.marketplaceBattleParticipant.findFirst.mockResolvedValue(makeParticipant());
+        prisma.marketplaceBattleVote.findUnique.mockResolvedValue(null);
+        prisma.marketplaceBattleVote.create.mockResolvedValue({ id: 'vote-1' });
+        prisma.marketplaceBattleParticipant.updateMany.mockResolvedValue({ count: 1 });
+        prisma.marketplaceBattle.updateMany.mockResolvedValue({ count: 1 });
+
+        const result = await service.voteMarketplaceBattle('user-1', battleId, { participantId: participantAId });
+
+        expect(result.message).toBe('Vote submitted successfully');
+        expect(prisma.followerAndFollowing.findUnique).toHaveBeenCalled();
+    });
+
+    it('6.2) followers-only battle rejects non-follower vote', async () => {
+        prisma.marketplaceBattle.findUnique.mockResolvedValueOnce(
+            makeLiveBattle({ whoCanVote: WhoCanBuy.followers }),
+        );
+        prisma.followerAndFollowing.findUnique.mockResolvedValue(null);
+
+        await expect(
+            service.voteMarketplaceBattle('user-1', battleId, { participantId: participantAId }),
+        ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('7) User cannot vote in SCHEDULED battle', async () => {

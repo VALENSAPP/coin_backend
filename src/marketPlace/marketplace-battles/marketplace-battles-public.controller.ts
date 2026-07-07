@@ -4,6 +4,8 @@ import {
     ParseUUIDPipe,
     Param,
     Query,
+    Req,
+    UseGuards,
     ValidationPipe,
 } from '@nestjs/common';
 import {
@@ -19,6 +21,7 @@ import { ClosetMarketplaceBattlesQueryDto } from './dto/closet-marketplace-battl
 import { MarketplaceBattleExploreQueryDto } from './dto/marketplace-battle-explore-query.dto';
 import { MarketplaceBattleWinnersQueryDto } from './dto/marketplace-battle-winners-query.dto';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 
 @ApiTags('marketplace-battles-public')
 @Controller()
@@ -26,6 +29,7 @@ export class MarketplaceBattlesPublicController {
     constructor(private readonly marketplaceBattlesService: MarketplaceBattlesService) { }
 
     @Get('marketplace-battles/explore')
+    @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Explore public LIVE marketplace battles' })
     @ApiQuery({ name: 'page', required: false, example: 1 })
     @ApiQuery({ name: 'limit', required: false, example: 10 })
@@ -35,13 +39,15 @@ export class MarketplaceBattlesPublicController {
     @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
     @ApiBadRequestResponse({ description: 'Invalid query parameters' })
     async exploreBattles(
+        @Req() req: any,
         @Query(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
         query: MarketplaceBattleExploreQueryDto,
     ) {
-        return this.marketplaceBattlesService.explorePublicBattles(query);
+        return this.marketplaceBattlesService.explorePublicBattles(query, req?.user?.userId);
     }
 
     @Get('mycloset/:closetId/marketplace-battles')
+    @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Get public marketplace battles for a closet' })
     @ApiParam({ name: 'closetId', description: 'Closet id' })
     @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -52,11 +58,12 @@ export class MarketplaceBattlesPublicController {
     @ApiBadRequestResponse({ description: 'Invalid query parameters' })
     @ApiNotFoundResponse({ description: 'Mycloset not found' })
     async getClosetBattles(
+        @Req() req: any,
         @Param('closetId', new ParseUUIDPipe({ version: '4' })) closetId: string,
         @Query(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
         query: ClosetMarketplaceBattlesQueryDto,
     ) {
-        return this.marketplaceBattlesService.getClosetPublicBattles(closetId, query);
+        return this.marketplaceBattlesService.getClosetPublicBattles(closetId, query, req?.user?.userId);
     }
 
     @Get('mycloset/:closetId/marketplace-battle-winners')
@@ -117,11 +124,15 @@ export class MarketplaceBattlesPublicController {
     }
 
     @Get('marketplace-battles/public/:battleId')
+    @UseGuards(OptionalJwtAuthGuard)
     @ApiOperation({ summary: 'Get public marketplace battle details' })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
     @ApiNotFoundResponse({ description: 'Marketplace battle not found or not publicly visible' })
-    async getPublicBattleById(@Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string) {
-        return this.marketplaceBattlesService.getPublicBattleById(battleId);
+    async getPublicBattleById(
+        @Req() req: any,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        return this.marketplaceBattlesService.getPublicBattleById(battleId, req?.user?.userId);
     }
 
     @Get('marketplace-battles/:battleId/results')

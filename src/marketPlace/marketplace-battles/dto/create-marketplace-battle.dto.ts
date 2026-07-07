@@ -6,12 +6,15 @@ import {
     ArrayUnique,
     IsDateString,
     IsArray,
+    IsBoolean,
+    IsEnum,
     IsNotEmpty,
     IsOptional,
     IsString,
     IsUUID,
     MaxLength,
 } from 'class-validator';
+import { WhoCanBuy } from '@prisma/client';
 
 export class CreateMarketplaceBattleDto {
     @ApiProperty({ example: 'Summer Style Battle' })
@@ -42,6 +45,32 @@ export class CreateMarketplaceBattleDto {
     })
     @MaxLength(120)
     category?: string;
+
+    @ApiPropertyOptional({
+        enum: WhoCanBuy,
+        default: WhoCanBuy.Everyone,
+        description: 'Who can view this battle in public APIs.',
+    })
+    @IsOptional()
+    @IsEnum(WhoCanBuy)
+    visibility?: WhoCanBuy;
+
+    @ApiPropertyOptional({
+        enum: WhoCanBuy,
+        default: WhoCanBuy.Everyone,
+        description: 'Who can vote in this battle.',
+    })
+    @IsOptional()
+    @IsEnum(WhoCanBuy)
+    whoCanVote?: WhoCanBuy;
+
+    @ApiPropertyOptional({
+        default: false,
+        description: 'If true, battle can be shared to feed according to product flow.',
+    })
+    @IsOptional()
+    @IsBoolean()
+    shareToFeed?: boolean;
 
     @ApiProperty({
         type: [String],

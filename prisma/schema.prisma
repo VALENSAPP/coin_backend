@@ -1276,6 +1276,9 @@ model MarketplaceBattle {
   title               String
   description         String?                  @db.Text
   category            String?
+  visibility          WhoCanBuy                @default(Everyone)
+  whoCanVote          WhoCanBuy                @default(Everyone)
+  shareToFeed         Boolean                  @default(false)
   status              MarketplaceBattleStatus  @default(DRAFT)
   outcome             MarketplaceBattleOutcome @default(PENDING)
   startAt             DateTime?

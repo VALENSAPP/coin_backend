@@ -2,6 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import {
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
+    WhoCanBuy,
 } from '@prisma/client';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
 
@@ -16,9 +17,13 @@ describe('MarketplaceBattlesService (Step 6 Public APIs)', () => {
         overrides: Record<string, any> = {},
     ) => ({
         id: 'battle-1',
+        sellerId: 'seller-1',
         title: 'Summer Battle',
         description: 'desc',
         category: 'Fashion',
+        visibility: WhoCanBuy.Everyone,
+        whoCanVote: WhoCanBuy.Everyone,
+        shareToFeed: false,
         status,
         outcome: MarketplaceBattleOutcome.PENDING,
         startAt: new Date('2026-07-06T09:00:00.000Z'),
@@ -92,6 +97,9 @@ describe('MarketplaceBattlesService (Step 6 Public APIs)', () => {
             marketplaceBattle: {
                 count: jest.fn(),
                 findMany: jest.fn(),
+                findUnique: jest.fn(),
+            },
+            followerAndFollowing: {
                 findUnique: jest.fn(),
             },
             mycloset: {
@@ -525,5 +533,27 @@ describe('MarketplaceBattlesService (Step 6 Public APIs)', () => {
                 }),
             }),
         );
+    });
+
+    it('34) Public details hides followers-only battle for anonymous viewer', async () => {
+        prisma.marketplaceBattle.findUnique.mockResolvedValue(
+            makeBattle(MarketplaceBattleStatus.LIVE, {
+                visibility: WhoCanBuy.followers,
+            }),
+        );
+
+        await expect(service.getPublicBattleById('battle-1')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('35) Public details allows followers-only battle for accepted follower viewer', async () => {
+        prisma.marketplaceBattle.findUnique.mockResolvedValue(
+            makeBattle(MarketplaceBattleStatus.LIVE, {
+                visibility: WhoCanBuy.followers,
+            }),
+        );
+        prisma.followerAndFollowing.findUnique.mockResolvedValue({ status: 'ACCEPTED' });
+
+        const result = await service.getPublicBattleById('battle-1', 'viewer-1');
+        expect(result.status).toBe('LIVE');
     });
 });

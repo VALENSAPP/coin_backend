@@ -6,6 +6,7 @@ import {
 import {
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
+    WhoCanBuy,
 } from '@prisma/client';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
 
@@ -456,6 +457,9 @@ describe('MarketplaceBattlesService (Step 3)', () => {
             title: 't',
             description: 'd',
             category: 'Fashion',
+            visibility: WhoCanBuy.followers,
+            whoCanVote: WhoCanBuy.followers,
+            shareToFeed: true,
             productIds: [
                 '11111111-1111-4111-8111-111111111111',
                 '22222222-2222-4222-8222-222222222222',
@@ -470,6 +474,9 @@ describe('MarketplaceBattlesService (Step 3)', () => {
                 data: expect.objectContaining({
                     sellerId: 'seller-1',
                     closetId: 'c1',
+                    visibility: WhoCanBuy.followers,
+                    whoCanVote: WhoCanBuy.followers,
+                    shareToFeed: true,
                     status: MarketplaceBattleStatus.LIVE,
                     outcome: MarketplaceBattleOutcome.PENDING,
                     publishedAt: fixedNow,
