@@ -13,7 +13,8 @@
     "start:debug": "node --max-old-space-size=4096 node_modules/@nestjs/cli/bin/nest.js start --debug --watch",
     "start:prod": "node --max-old-space-size=4096 dist/main",
     "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
-    "seed:posts": "ts-node prisma/seed-posts.ts"
+    "seed:posts": "ts-node prisma/seed-posts.ts",
+    "seed:boost-packages": "ts-node prisma/seed-marketplace-boost-packages.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
