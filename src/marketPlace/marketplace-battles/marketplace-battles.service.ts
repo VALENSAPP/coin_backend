@@ -1362,6 +1362,11 @@ export class MarketplaceBattlesService {
             ? Math.max(0, Math.floor((battle.endAt.getTime() - battle.startAt.getTime()) / 1000))
             : 0;
 
+        const viewCount = await this.prisma.marketplaceBattleView.count({
+            where: { battleId },
+        });
+        const voteCount = battle.totalVotes;
+        const commentCount = battle.totalComments;
         const engagementCount = battle.totalVotes + battle.totalComments;
 
         let winner: {
@@ -1428,6 +1433,9 @@ export class MarketplaceBattlesService {
             endAt: battle.endAt,
             completedAt: battle.completedAt,
             durationSeconds,
+            viewCount,
+            voteCount,
+            commentCount,
             totalVotes: battle.totalVotes,
             totalComments: battle.totalComments,
             engagementCount,
