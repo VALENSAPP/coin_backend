@@ -2681,6 +2681,8 @@ export class PostService {
     if (!sharedUserId) throw new BadRequestException('Sender user ID required');
     if (!receiverUserId) throw new BadRequestException('Receiver user ID required');
 
+    let isTrustPost: boolean | null = null;
+
     // Prevent sharing to self
     if (sharedUserId === receiverUserId) {
       throw new BadRequestException('Cannot share media to yourself');
@@ -2714,6 +2716,7 @@ export class PostService {
       });
       if (!post) throw new BadRequestException('Post not found');
       await this.ensureCanViewPost(post, sharedUserId);
+      isTrustPost = post.isTrustPost;
 
       // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
       const existingPostShare = await this.prisma.postShare.findUnique({
@@ -2750,7 +2753,7 @@ export class PostService {
       },
     });
 
-    return { message: 'Media shared successfully', conversationId: conversation.id };
+    return { message: 'Media shared successfully', conversationId: conversation.id, isTrustPost };
   }
 
   async sharePostToUsers(
@@ -2769,7 +2772,13 @@ export class PostService {
       throw new BadRequestException('Receiver user IDs required');
     }
 
-    const results: Array<{ receiverUserId: string; message?: string; conversationId?: string; error?: string }> = [];
+    const results: Array<{
+      receiverUserId: string;
+      message?: string;
+      conversationId?: string;
+      isTrustPost?: boolean | null;
+      error?: string;
+    }> = [];
 
     for (const receiverUserId of uniqueReceiverIds) {
       try {
