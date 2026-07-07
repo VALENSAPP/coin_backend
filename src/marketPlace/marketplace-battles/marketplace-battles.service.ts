@@ -711,6 +711,8 @@ export class MarketplaceBattlesService {
                 }
                 : null;
 
+        const winnerProductId = winner?.product?.id ?? null;
+
         return {
             id: battle.id,
             title: battle.title,
@@ -743,6 +745,7 @@ export class MarketplaceBattlesService {
                 shopLogo: battle.closet.shopLogo,
             },
             participants,
+            winnerProductId,
             winner,
         };
     }
@@ -1257,6 +1260,7 @@ export class MarketplaceBattlesService {
             };
         } | null = null;
         let voteDifference = 0;
+        let winnerProductId: string | null = null;
 
         if (battle.outcome === MarketplaceBattleOutcome.WINNER) {
             const winnerParticipant = mappedParticipants.find(
@@ -1271,6 +1275,7 @@ export class MarketplaceBattlesService {
                 participantId: winnerParticipant.id,
                 product: winnerParticipant.product,
             };
+            winnerProductId = winnerParticipant.product.id ?? null;
         }
 
         return {
@@ -1288,6 +1293,7 @@ export class MarketplaceBattlesService {
             totalVotes: battle.totalVotes,
             totalComments: battle.totalComments,
             voteDifference,
+            winnerProductId,
             seller: {
                 id: battle.seller.id,
                 name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
@@ -1370,6 +1376,7 @@ export class MarketplaceBattlesService {
         } | null = null;
         let voteDifference = 0;
         let winningMarginPercentagePoints = 0;
+        let winnerProductId: string | null = null;
 
         if (battle.outcome === MarketplaceBattleOutcome.WINNER) {
             const winnerParticipant = mappedParticipants.find(
@@ -1390,6 +1397,7 @@ export class MarketplaceBattlesService {
                 voteCount: winnerParticipant.voteCount,
                 votePercentage: winnerParticipant.votePercentage,
             };
+            winnerProductId = winnerParticipant.product.id;
             loser = {
                 participantId: loserParticipant.participantId,
                 product: loserParticipant.product,
@@ -1410,6 +1418,7 @@ export class MarketplaceBattlesService {
             totalVotes: battle.totalVotes,
             totalComments: battle.totalComments,
             engagementCount,
+            winnerProductId,
             participants: mappedParticipants,
             winner,
             loser,
@@ -1776,11 +1785,16 @@ export class MarketplaceBattlesService {
 
         if (battle.sellerId === viewerUserId) {
             const sellerBattle = await this.getSellerBattleDetailsOrThrow(viewerUserId, battleId);
+            const winnerProductId =
+                sellerBattle.winnerParticipant?.product?.id ??
+                sellerBattle.participants.find((participant) => participant.isWinner)?.product?.id ??
+                null;
             return {
                 ...sellerBattle,
                 viewCount,
                 voteCount: sellerBattle.totalVotes,
                 commentCount: sellerBattle.totalComments,
+                winnerProductId,
             };
         }
 
