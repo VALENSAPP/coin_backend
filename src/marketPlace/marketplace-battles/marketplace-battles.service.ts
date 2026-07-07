@@ -2848,6 +2848,8 @@ export class MarketplaceBattlesService {
                 battleId: true,
                 pinOnTop: true,
                 winnerBadge: true,
+                startAt: true,
+                endAt: true,
                 pinStartAt: true,
                 pinEndAt: true,
                 badgeStartAt: true,
@@ -2872,19 +2874,35 @@ export class MarketplaceBattlesService {
 
             const pinActive = Boolean(
                 boost.pinOnTop &&
-                boost.pinStartAt &&
-                boost.pinEndAt &&
-                boost.pinStartAt <= now &&
-                boost.pinEndAt > now,
+                ((
+                    boost.pinStartAt &&
+                    boost.pinEndAt &&
+                    boost.pinStartAt <= now &&
+                    boost.pinEndAt > now
+                ) || (
+                        !boost.pinStartAt &&
+                        !!boost.startAt &&
+                        !!boost.endAt &&
+                        boost.startAt <= now &&
+                        boost.endAt > now
+                    )),
             );
 
             const badgeActive = Boolean(
                 boost.winnerBadge &&
                 battle.status === MarketplaceBattleStatus.COMPLETED &&
-                boost.badgeStartAt &&
-                boost.badgeEndAt &&
-                boost.badgeStartAt <= now &&
-                boost.badgeEndAt > now,
+                ((
+                    boost.badgeStartAt &&
+                    boost.badgeEndAt &&
+                    boost.badgeStartAt <= now &&
+                    boost.badgeEndAt > now
+                ) || (
+                        !boost.badgeStartAt &&
+                        !!boost.startAt &&
+                        !!boost.endAt &&
+                        boost.startAt <= now &&
+                        boost.endAt > now
+                    )),
             );
 
             current.isPinnedOnTop = current.isPinnedOnTop || pinActive;

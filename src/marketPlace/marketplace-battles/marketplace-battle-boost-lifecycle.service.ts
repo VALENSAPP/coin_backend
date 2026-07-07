@@ -67,8 +67,7 @@ export class MarketplaceBattleBoostLifecycleService {
                             !boost.badgeStartAt &&
                             boost.battle.status === MarketplaceBattleStatus.COMPLETED &&
                             boost.battle.outcome === MarketplaceBattleOutcome.WINNER &&
-                            !!boost.badgeEndAt &&
-                            boost.badgeEndAt > now
+                            ((!!boost.badgeEndAt && boost.badgeEndAt > now) || (!!boost.endAt && boost.endAt > now))
                         ) {
                             await this.prisma.marketplaceBattleBoost.updateMany({
                                 where: {
@@ -78,6 +77,7 @@ export class MarketplaceBattleBoostLifecycleService {
                                 },
                                 data: {
                                     badgeStartAt: now,
+                                    badgeEndAt: boost.badgeEndAt ?? boost.endAt,
                                 },
                             });
                         }
