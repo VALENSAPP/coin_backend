@@ -3324,6 +3324,7 @@ export class PostService {
               start_time: p.start_time,
               end_time: p.end_time,
               raiseAmount: p.raiseAmount,
+              isTrustPost: p.isTrustPost,
             };
           }
         } else if (conv.mediaType === 'STORY') {
