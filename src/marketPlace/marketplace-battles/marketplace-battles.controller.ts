@@ -3,7 +3,6 @@ import {
     Get,
     ParseUUIDPipe,
     Param,
-    Patch,
     Query,
     Body,
     Controller,
@@ -29,12 +28,9 @@ import {
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto';
-import { ChallengeMarketplaceBattleDto } from './dto/challenge-marketplace-battle.dto';
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleListQueryDto } from './dto/marketplace-battle-list-query.dto';
-import { PublishMarketplaceBattleDto } from './dto/publish-marketplace-battle.dto';
-import { UpdateMarketplaceBattleDto } from './dto/update-marketplace-battle.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
 
@@ -123,163 +119,13 @@ export class MarketplaceBattlesController {
         return this.marketplaceBattlesService.trackMarketplaceBattleView(userId, battleId);
     }
 
-    @Patch(':battleId')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Update draft seller marketplace battle' })
-    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
-    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
-    @ApiBadRequestResponse({ description: 'Invalid update payload or battle is not draft' })
-    async updateDraftBattle(
-        @Req() req: Request,
-        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
-        @Body(
-            new ValidationPipe({
-                whitelist: true,
-                forbidNonWhitelisted: true,
-                transform: true,
-            }),
-        )
-        dto: UpdateMarketplaceBattleDto,
-    ) {
-        const userId = (req.user as any)?.userId;
-        return this.marketplaceBattlesService.updateDraftBattle(userId, battleId, dto);
-    }
-
-    @Delete(':battleId')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Hard delete draft seller marketplace battle' })
-    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
-    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
-    @ApiBadRequestResponse({ description: 'Only draft marketplace battles can be deleted' })
-    async deleteDraftBattle(
-        @Req() req: Request,
-        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
-    ) {
-        const userId = (req.user as any)?.userId;
-        return this.marketplaceBattlesService.deleteDraftBattle(userId, battleId);
-    }
-
-    @Post(':battleId/publish')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Publish a draft marketplace battle as LIVE or SCHEDULED' })
-    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
-    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
-    @ApiBadRequestResponse({
-        description:
-            'Invalid dates, invalid participants/products, or battle not in DRAFT status',
-    })
-    async publishDraftBattle(
-        @Req() req: Request,
-        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
-        @Body(
-            new ValidationPipe({
-                whitelist: true,
-                forbidNonWhitelisted: true,
-                transform: true,
-            }),
-        )
-        dto: PublishMarketplaceBattleDto,
-    ) {
-        const userId = (req.user as any)?.userId;
-        return this.marketplaceBattlesService.publishDraftBattle(userId, battleId, dto);
-    }
-
-    @Post(':battleId/challenge')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({
-        summary: 'Create a draft marketplace challenge battle from a completed winner battle (Step 11)',
-        description:
-            'Seller-only endpoint. Creates a new DRAFT battle using the stored winner product from the source COMPLETED WINNER battle versus a challenger product from the same closet.',
-    })
-    @ApiParam({ name: 'battleId', description: 'Source marketplace battle id' })
-    @ApiCreatedResponse({
-        description: 'Marketplace challenge battle created successfully',
-        schema: {
-            example: {
-                message: 'Marketplace challenge battle created successfully',
-                sourceBattle: {
-                    id: 'battle-source-1',
-                    winnerParticipantId: 'participant-winner-1',
-                    winnerProductId: 'product-winner-1',
-                },
-                battle: {
-                    id: 'battle-new-1',
-                    title: 'Can the Champion Win Again?',
-                    description: 'The previous winner faces another product',
-                    category: 'Fashion',
-                    status: 'DRAFT',
-                    outcome: 'PENDING',
-                    startAt: null,
-                    endAt: null,
-                    publishedAt: null,
-                    completedAt: null,
-                    winnerParticipantId: null,
-                    totalVotes: 0,
-                    totalComments: 0,
-                    participants: [
-                        {
-                            position: 1,
-                            voteCount: 0,
-                            isWinner: false,
-                            product: {
-                                id: 'product-winner-1',
-                                name: 'Previous Winner',
-                            },
-                        },
-                        {
-                            position: 2,
-                            voteCount: 0,
-                            isWinner: false,
-                            product: {
-                                id: 'product-challenger-1',
-                                name: 'New Challenger',
-                            },
-                        },
-                    ],
-                },
-            },
-        },
-    })
-    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: source battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
-    @ApiBadRequestResponse({
-        description:
-            'Source battle is not COMPLETED WINNER, products are invalid/ineligible, or challenger equals winner product',
-    })
-    async createChallengeBattle(
-        @Req() req: Request,
-        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
-        @Body(
-            new ValidationPipe({
-                whitelist: true,
-                forbidNonWhitelisted: true,
-                transform: true,
-            }),
-        )
-        dto: ChallengeMarketplaceBattleDto,
-    ) {
-        const userId = (req.user as any)?.userId;
-        return this.marketplaceBattlesService.createChallengeBattle(userId, battleId, dto);
-    }
-
     @Post(':battleId/cancel')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({
         summary: 'Cancel a seller-owned published marketplace battle (Step 12)',
         description:
-            'Allows cancellation only for SCHEDULED or LIVE marketplace battles. DRAFT must be deleted via draft delete endpoint. COMPLETED and already CANCELLED battles cannot be cancelled.',
+            'Allows cancellation only for SCHEDULED or LIVE marketplace battles. COMPLETED and already CANCELLED battles cannot be cancelled.',
     })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
     @ApiOkResponse({
