@@ -1329,8 +1329,18 @@ export class MarketplaceBattlesService {
             throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
         }
 
-        const battle = await this.loadCompletedMarketplaceBattle(battleId);
-        const participants = this.validateCompletedBattleIntegrity(battle);
+        const battle = await this.prisma.marketplaceBattle.findUnique({
+            where: { id: battleId },
+            select: MARKETPLACE_BATTLE_COMPLETED_RESULT_SELECT,
+        });
+
+        if (!battle) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        const participants = battle.status === MarketplaceBattleStatus.COMPLETED
+            ? this.validateCompletedBattleIntegrity(battle)
+            : battle.participants;
 
         const mappedParticipants = this.mapResultParticipants(participants, battle.totalVotes).map(
             (participant) => ({
@@ -1347,10 +1357,9 @@ export class MarketplaceBattlesService {
             }),
         );
 
-        const durationSeconds = Math.max(
-            0,
-            Math.floor((battle.endAt!.getTime() - battle.startAt!.getTime()) / 1000),
-        );
+        const durationSeconds = battle.startAt && battle.endAt
+            ? Math.max(0, Math.floor((battle.endAt.getTime() - battle.startAt.getTime()) / 1000))
+            : 0;
 
         const engagementCount = battle.totalVotes + battle.totalComments;
 
@@ -1378,7 +1387,10 @@ export class MarketplaceBattlesService {
         let winningMarginPercentagePoints = 0;
         let winnerProductId: string | null = null;
 
-        if (battle.outcome === MarketplaceBattleOutcome.WINNER) {
+        if (
+            battle.status === MarketplaceBattleStatus.COMPLETED &&
+            battle.outcome === MarketplaceBattleOutcome.WINNER
+        ) {
             const winnerParticipant = mappedParticipants.find(
                 (participant) => participant.participantId === battle.winnerParticipantId,
             )!;
