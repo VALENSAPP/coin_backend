@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { MarketplaceBattleBoostStatus, MarketplaceBattleStatus } from '@prisma/client';
+import { MarketplaceBattleBoostStatus, MarketplaceBattleOutcome, MarketplaceBattleStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const BOOST_LIFECYCLE_BATCH_SIZE = 100;
@@ -42,9 +42,13 @@ export class MarketplaceBattleBoostLifecycleService {
                     select: {
                         id: true,
                         endAt: true,
+                        winnerBadge: true,
+                        badgeStartAt: true,
+                        badgeEndAt: true,
                         battle: {
                             select: {
                                 status: true,
+                                outcome: true,
                                 endAt: true,
                             },
                         },
@@ -58,11 +62,28 @@ export class MarketplaceBattleBoostLifecycleService {
                 for (const boost of batch) {
                     processed.add(boost.id);
                     try {
+                        if (
+                            boost.winnerBadge &&
+                            !boost.badgeStartAt &&
+                            boost.battle.status === MarketplaceBattleStatus.COMPLETED &&
+                            boost.battle.outcome === MarketplaceBattleOutcome.WINNER &&
+                            !!boost.badgeEndAt &&
+                            boost.badgeEndAt > now
+                        ) {
+                            await this.prisma.marketplaceBattleBoost.updateMany({
+                                where: {
+                                    id: boost.id,
+                                    status: MarketplaceBattleBoostStatus.ACTIVE,
+                                    badgeStartAt: null,
+                                },
+                                data: {
+                                    badgeStartAt: now,
+                                },
+                            });
+                        }
+
                         const shouldExpireByTime = !!boost.endAt && boost.endAt <= now;
-                        const shouldExpireByBattle =
-                            boost.battle.status === MarketplaceBattleStatus.COMPLETED ||
-                            boost.battle.status === MarketplaceBattleStatus.CANCELLED ||
-                            (!!boost.battle.endAt && boost.battle.endAt <= now);
+                        const shouldExpireByBattle = boost.battle.status === MarketplaceBattleStatus.CANCELLED;
 
                         if (!shouldExpireByTime && !shouldExpireByBattle) {
                             stats.skipped += 1;

@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import {
     FollowStatus,
+    MarketplaceBattleBoostStatus,
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
     Prisma,
@@ -22,6 +23,7 @@ import {
     ClosetMarketplaceBattleSortField,
     ClosetMarketplaceBattlePublicStatus,
 } from './dto/closet-marketplace-battles-query.dto';
+import { ClosetPriorityBattlesQueryDto } from './dto/closet-priority-battles-query.dto';
 import {
     MarketplaceBattleListQueryDto,
 } from './dto/marketplace-battle-list-query.dto';
@@ -2797,6 +2799,132 @@ export class MarketplaceBattlesService {
 
         return {
             battles: mappedBattles,
+            total,
+            page,
+            limit,
+            totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        };
+    }
+
+    async getClosetPriorityBattles(
+        closetId: string,
+        query: ClosetPriorityBattlesQueryDto,
+        viewerUserId?: string,
+    ) {
+        const now = new Date();
+
+        const closet = await this.prisma.mycloset.findUnique({
+            where: { id: closetId },
+            select: { id: true },
+        });
+
+        if (!closet) throw new NotFoundException('Mycloset not found');
+
+        const battles = await this.prisma.marketplaceBattle.findMany({
+            where: {
+                closetId,
+                status: {
+                    in: [MarketplaceBattleStatus.LIVE, MarketplaceBattleStatus.COMPLETED],
+                },
+                AND: [this.getVisibilityWhere(viewerUserId)],
+            },
+            orderBy: { createdAt: 'desc' },
+            select: MARKETPLACE_BATTLE_PUBLIC_SELECT,
+        });
+
+        const visibleBattles = battles
+            .filter((battle) => this.shouldExposeByStatusAndTime(battle, now))
+            .filter((battle) => this.hasPubliclyEligibleProductsForActiveOrScheduled(battle));
+
+        const boosts = await this.prisma.marketplaceBattleBoost.findMany({
+            where: {
+                closetId,
+                status: MarketplaceBattleBoostStatus.ACTIVE,
+                endAt: { gt: now },
+                battleId: { in: visibleBattles.map((battle) => battle.id) },
+                OR: [{ pinOnTop: true }, { winnerBadge: true }],
+            },
+            select: {
+                battleId: true,
+                pinOnTop: true,
+                winnerBadge: true,
+                pinStartAt: true,
+                pinEndAt: true,
+                badgeStartAt: true,
+                badgeEndAt: true,
+            },
+        });
+
+        const featureByBattle = new Map<string, { isPinnedOnTop: boolean; hasWinnerBadge: boolean }>();
+
+        for (const battle of visibleBattles) {
+            featureByBattle.set(battle.id, { isPinnedOnTop: false, hasWinnerBadge: false });
+        }
+
+        for (const boost of boosts) {
+            const battle = visibleBattles.find((item) => item.id === boost.battleId);
+            if (!battle) continue;
+
+            const current = featureByBattle.get(boost.battleId) ?? {
+                isPinnedOnTop: false,
+                hasWinnerBadge: false,
+            };
+
+            const pinActive = Boolean(
+                boost.pinOnTop &&
+                boost.pinStartAt &&
+                boost.pinEndAt &&
+                boost.pinStartAt <= now &&
+                boost.pinEndAt > now,
+            );
+
+            const badgeActive = Boolean(
+                boost.winnerBadge &&
+                battle.status === MarketplaceBattleStatus.COMPLETED &&
+                boost.badgeStartAt &&
+                boost.badgeEndAt &&
+                boost.badgeStartAt <= now &&
+                boost.badgeEndAt > now,
+            );
+
+            current.isPinnedOnTop = current.isPinnedOnTop || pinActive;
+            current.hasWinnerBadge = current.hasWinnerBadge || badgeActive;
+
+            featureByBattle.set(boost.battleId, current);
+        }
+
+        const mapped = visibleBattles.map((battle) => {
+            const base = this.mapPublicBattleResponse(battle, now);
+            const feature = featureByBattle.get(battle.id) ?? {
+                isPinnedOnTop: false,
+                hasWinnerBadge: false,
+            };
+
+            return {
+                ...base,
+                isPinnedOnTop: feature.isPinnedOnTop,
+                hasWinnerBadge: feature.hasWinnerBadge,
+            };
+        });
+
+        mapped.sort((a, b) => {
+            const aRank = a.isPinnedOnTop ? 0 : a.hasWinnerBadge ? 1 : 2;
+            const bRank = b.isPinnedOnTop ? 0 : b.hasWinnerBadge ? 1 : 2;
+
+            if (aRank !== bRank) {
+                return aRank - bRank;
+            }
+
+            return b.createdAt.getTime() - a.createdAt.getTime();
+        });
+
+        const page = query.page ?? 1;
+        const limit = query.limit ?? 10;
+        const skip = (page - 1) * limit;
+        const total = mapped.length;
+
+        return {
+            battles: mapped.slice(skip, skip + limit),
             total,
             page,
             limit,

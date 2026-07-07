@@ -1443,10 +1443,18 @@ model MarketplaceBattleBoost {
   amount   Decimal @db.Decimal(12, 2)
   currency String
 
+  pinOnTop    Boolean @default(false)
+  winnerBadge Boolean @default(false)
+
   paymentProvider String?
 
   startAt DateTime?
   endAt   DateTime?
+
+  pinStartAt   DateTime?
+  pinEndAt     DateTime?
+  badgeStartAt DateTime?
+  badgeEndAt   DateTime?
 
   activatedAt DateTime?
   expiredAt   DateTime?
@@ -1469,6 +1477,8 @@ model MarketplaceBattleBoost {
   @@index([paymentId])
   @@index([status, startAt])
   @@index([status, endAt])
+  @@index([pinOnTop, pinStartAt, pinEndAt])
+  @@index([winnerBadge, badgeStartAt, badgeEndAt])
 }
 
 model PostTrustVote {

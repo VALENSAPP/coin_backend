@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { IsBoolean, IsUUID } from 'class-validator';
 
 export class CreateMarketplaceBattleBoostDto {
     @ApiProperty({
@@ -8,4 +8,18 @@ export class CreateMarketplaceBattleBoostDto {
     })
     @IsUUID('4')
     packageId!: string;
+
+    @ApiProperty({
+        description: 'Whether to enable pin-on-top placement for this boost',
+        example: true,
+    })
+    @IsBoolean()
+    pinOnTop!: boolean;
+
+    @ApiProperty({
+        description: 'Whether to enable winner badge feature for this boost',
+        example: false,
+    })
+    @IsBoolean()
+    winnerBadge!: boolean;
 }

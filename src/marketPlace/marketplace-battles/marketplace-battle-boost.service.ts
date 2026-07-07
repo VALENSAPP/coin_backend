@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {
     MarketplaceBattleBoostStatus,
+    MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
     Prisma,
 } from '@prisma/client';
@@ -134,6 +135,10 @@ export class MarketplaceBattleBoostService {
                     throw new BadRequestException('Marketplace battle boost package is not available');
                 }
 
+                if (!dto.pinOnTop && !dto.winnerBadge) {
+                    throw new BadRequestException('At least one boost feature must be enabled');
+                }
+
                 if (boostPackage.price.lte(0)) {
                     throw new BadRequestException('Invalid boost package price');
                 }
@@ -170,6 +175,8 @@ export class MarketplaceBattleBoostService {
                         status: MarketplaceBattleBoostStatus.PENDING_PAYMENT,
                         amount: boostPackage.price,
                         currency: normalizedCurrency,
+                        pinOnTop: dto.pinOnTop,
+                        winnerBadge: dto.winnerBadge,
                     },
                     select: {
                         id: true,
@@ -181,9 +188,15 @@ export class MarketplaceBattleBoostService {
                         status: true,
                         amount: true,
                         currency: true,
+                        pinOnTop: true,
+                        winnerBadge: true,
                         paymentProvider: true,
                         startAt: true,
                         endAt: true,
+                        pinStartAt: true,
+                        pinEndAt: true,
+                        badgeStartAt: true,
+                        badgeEndAt: true,
                         activatedAt: true,
                         expiredAt: true,
                         cancelledAt: true,
@@ -274,6 +287,8 @@ export class MarketplaceBattleBoostService {
                     boostId: boost.id,
                     battleId: boost.battleId,
                     sellerId,
+                    pinOnTop: boost.pinOnTop,
+                    winnerBadge: boost.winnerBadge,
                     idempotencyKey: `marketplace-battle-boost:${boost.id}:payment`,
                 },
             },
@@ -301,6 +316,8 @@ export class MarketplaceBattleBoostService {
                 boostId: boost.id,
                 battleId: boost.battleId,
                 sellerId,
+                pinOnTop: String(Boolean(boost.pinOnTop)),
+                winnerBadge: String(Boolean(boost.winnerBadge)),
             },
             payment_intent_data: {
                 metadata: {
@@ -309,6 +326,8 @@ export class MarketplaceBattleBoostService {
                     boostId: boost.id,
                     battleId: boost.battleId,
                     sellerId,
+                    pinOnTop: String(Boolean(boost.pinOnTop)),
+                    winnerBadge: String(Boolean(boost.winnerBadge)),
                 },
             },
         });
@@ -324,6 +343,8 @@ export class MarketplaceBattleBoostService {
                         boostId: boost.id,
                         battleId: boost.battleId,
                         sellerId,
+                        pinOnTop: boost.pinOnTop,
+                        winnerBadge: boost.winnerBadge,
                         idempotencyKey: `marketplace-battle-boost:${boost.id}:payment`,
                         checkoutSessionId: session.id,
                         checkoutUrl: session.url,
@@ -464,8 +485,9 @@ export class MarketplaceBattleBoostService {
         const boosts = await this.prisma.marketplaceBattleBoost.findMany({
             where: {
                 status: MarketplaceBattleBoostStatus.ACTIVE,
-                startAt: { lte: now },
-                endAt: { gt: now },
+                pinOnTop: true,
+                pinStartAt: { lte: now },
+                pinEndAt: { gt: now },
                 battle: {
                     status: MarketplaceBattleStatus.LIVE,
                     startAt: { lte: now },
@@ -521,6 +543,8 @@ export class MarketplaceBattleBoostService {
         const data = all.slice(skip, skip + limit).map((boost) => ({
             boostId: boost.id,
             boostEndAt: boost.endAt,
+            pinOnTop: boost.pinOnTop,
+            winnerBadge: boost.winnerBadge,
             remainingBoostSeconds: Math.max(
                 0,
                 Math.floor(((boost.endAt as Date).getTime() - now.getTime()) / 1000),
@@ -574,6 +598,7 @@ export class MarketplaceBattleBoostService {
                             select: {
                                 id: true,
                                 status: true,
+                                outcome: true,
                                 startAt: true,
                                 endAt: true,
                             },
@@ -600,6 +625,7 @@ export class MarketplaceBattleBoostService {
                             select: {
                                 id: true,
                                 status: true,
+                                outcome: true,
                                 startAt: true,
                                 endAt: true,
                             },
@@ -674,7 +700,15 @@ export class MarketplaceBattleBoostService {
                     return;
                 }
 
-                if (!this.isBattleEligibleForBoost(lockedBoost.battle, now)) {
+                const canActivateForCompletedWinnerBadge =
+                    lockedBoost.winnerBadge &&
+                    lockedBoost.battle.status === MarketplaceBattleStatus.COMPLETED &&
+                    lockedBoost.battle.outcome === MarketplaceBattleOutcome.WINNER;
+
+                if (
+                    !this.isBattleEligibleForBoost(lockedBoost.battle, now) &&
+                    !canActivateForCompletedWinnerBadge
+                ) {
                     await tx.marketplaceBattleBoost.update({
                         where: { id: lockedBoost.id },
                         data: {
@@ -706,24 +740,10 @@ export class MarketplaceBattleBoostService {
                     return;
                 }
 
-                if (!lockedBoost.battle.endAt) {
-                    await tx.marketplaceBattleBoost.update({
-                        where: { id: lockedBoost.id },
-                        data: {
-                            status: MarketplaceBattleBoostStatus.FAILED,
-                            failedAt: now,
-                        },
-                    });
-                    return;
-                }
-
                 const computedEndAtByPackage = new Date(
                     now.getTime() + lockedBoost.package.durationHours * 60 * 60 * 1000,
                 );
-                const computedEndAt =
-                    computedEndAtByPackage < lockedBoost.battle.endAt
-                        ? computedEndAtByPackage
-                        : lockedBoost.battle.endAt;
+                const computedEndAt = computedEndAtByPackage;
 
                 if (computedEndAt <= now) {
                     await tx.marketplaceBattleBoost.update({
@@ -746,6 +766,15 @@ export class MarketplaceBattleBoostService {
                         paymentProvider: provider,
                         startAt: now,
                         endAt: computedEndAt,
+                        pinStartAt: lockedBoost.pinOnTop ? now : null,
+                        pinEndAt: lockedBoost.pinOnTop ? computedEndAt : null,
+                        badgeStartAt:
+                            lockedBoost.winnerBadge &&
+                                lockedBoost.battle.status === MarketplaceBattleStatus.COMPLETED &&
+                                lockedBoost.battle.outcome === MarketplaceBattleOutcome.WINNER
+                                ? now
+                                : null,
+                        badgeEndAt: lockedBoost.winnerBadge ? computedEndAt : null,
                         activatedAt: now,
                     },
                 });

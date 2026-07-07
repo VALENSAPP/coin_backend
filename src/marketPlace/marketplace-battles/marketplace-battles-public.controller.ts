@@ -17,6 +17,7 @@ import {
     ApiQuery,
     ApiTags,
 } from '@nestjs/swagger';
+import { ClosetPriorityBattlesQueryDto } from './dto/closet-priority-battles-query.dto';
 import { ClosetMarketplaceBattlesQueryDto } from './dto/closet-marketplace-battles-query.dto';
 import { MarketplaceBattleExploreQueryDto } from './dto/marketplace-battle-explore-query.dto';
 import { MarketplaceBattleWinnersQueryDto } from './dto/marketplace-battle-winners-query.dto';
@@ -64,6 +65,25 @@ export class MarketplaceBattlesPublicController {
         query: ClosetMarketplaceBattlesQueryDto,
     ) {
         return this.marketplaceBattlesService.getClosetPublicBattles(closetId, query, req?.user?.userId);
+    }
+
+    @Get('mycloset/:closetId/marketplace-battles-priority')
+    @UseGuards(OptionalJwtAuthGuard)
+    @ApiOperation({
+        summary: 'Get closet marketplace battles ordered by pin, badge, then createdAt desc',
+    })
+    @ApiParam({ name: 'closetId', description: 'Closet id' })
+    @ApiQuery({ name: 'page', required: false, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, example: 10 })
+    @ApiBadRequestResponse({ description: 'Invalid query parameters' })
+    @ApiNotFoundResponse({ description: 'Mycloset not found' })
+    async getClosetPriorityBattles(
+        @Req() req: any,
+        @Param('closetId', new ParseUUIDPipe({ version: '4' })) closetId: string,
+        @Query(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+        query: ClosetPriorityBattlesQueryDto,
+    ) {
+        return this.marketplaceBattlesService.getClosetPriorityBattles(closetId, query, req?.user?.userId);
     }
 
     @Get('mycloset/:closetId/marketplace-battle-winners')
