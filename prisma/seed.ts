@@ -86,6 +86,50 @@ async function main() {
     // console.log(`Seeded user ${i}: ${email} (profile: ${profile}, image: ${image ? 'S3 URL' : 'none'})`);
   }
 
+  const devBoostPackages = [
+    {
+      id: '9f91b8e1-45dc-4fb6-8abf-4b7f2ab9f101',
+      name: 'DEV Boost 6h',
+      description: 'Development/test package. Configure price via env for non-production usage.',
+      price: process.env.DEV_MARKETPLACE_BOOST_PRICE_6H || '4.99',
+      currency: (process.env.DEV_MARKETPLACE_BOOST_CURRENCY || 'USD').toUpperCase(),
+      durationHours: 6,
+      isActive: true,
+    },
+    {
+      id: 'cb57ecf5-c53d-4f31-ab70-7690d1212102',
+      name: 'DEV Boost 24h',
+      description: 'Development/test package. Configure price via env for non-production usage.',
+      price: process.env.DEV_MARKETPLACE_BOOST_PRICE_24H || '12.99',
+      currency: (process.env.DEV_MARKETPLACE_BOOST_CURRENCY || 'USD').toUpperCase(),
+      durationHours: 24,
+      isActive: true,
+    },
+  ];
+
+  for (const pkg of devBoostPackages) {
+    await (prisma as any).marketplaceBattleBoostPackage.upsert({
+      where: { id: pkg.id },
+      update: {
+        name: pkg.name,
+        description: pkg.description,
+        price: pkg.price,
+        currency: pkg.currency,
+        durationHours: pkg.durationHours,
+        isActive: pkg.isActive,
+      },
+      create: {
+        id: pkg.id,
+        name: pkg.name,
+        description: pkg.description,
+        price: pkg.price,
+        currency: pkg.currency,
+        durationHours: pkg.durationHours,
+        isActive: pkg.isActive,
+      },
+    });
+  }
+
   // console.log('Seeding complete: 20 users (5 profile "company", 15 profile "user"), images uploaded to S3.');
 }
 

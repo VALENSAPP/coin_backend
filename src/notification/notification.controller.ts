@@ -1,4 +1,4 @@
-import { Controller, Get, Put, UseGuards, Req, BadRequestException, Body, Query } from '@nestjs/common';
+import { Controller, Get, Put, UseGuards, Req, BadRequestException, Body, Query, Param } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags, ApiBody, ApiQuery } from '@nestjs/swagger';
@@ -12,10 +12,38 @@ export class NotificationController {
   @Get()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  async getNotifications(@Req() req: any) {
+  @ApiQuery({ name: 'limit', required: false, type: 'number' })
+  @ApiQuery({ name: 'page', required: false, type: 'number' })
+  @ApiQuery({ name: 'isRead', required: false, type: 'string', enum: ['true', 'false'] })
+  async getNotifications(
+    @Req() req: any,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('isRead') isRead?: string,
+  ) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
-    const notifications = await this.notificationService.getNotifications(userId);
+
+    const parsedLimit = limit ? Number(limit) : undefined;
+    const parsedPage = page ? Number(page) : undefined;
+    const parsedIsRead =
+      isRead === undefined
+        ? undefined
+        : isRead === 'true'
+          ? true
+          : isRead === 'false'
+            ? false
+            : undefined;
+
+    if (isRead !== undefined && parsedIsRead === undefined) {
+      throw new BadRequestException('isRead must be either true or false');
+    }
+
+    const notifications = await this.notificationService.getNotifications(userId, {
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      page: Number.isFinite(parsedPage) ? parsedPage : undefined,
+      isRead: parsedIsRead,
+    });
     const likePostNotifications = await this.notificationService.getLikePostNotifications(userId);
     const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId);
     const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId);
@@ -83,6 +111,33 @@ export class NotificationController {
 
     const result = await this.notificationService.markNotificationAsRead(userId, body.notificationIds);
     return { message: 'Notifications marked as read', count: result.total };
+  }
+
+  @Put('read/:notificationId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async markSingleAsRead(@Req() req: any, @Param('notificationId') notificationId: string) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+
+    if (!userId) throw new BadRequestException('User not authenticated');
+    if (!notificationId) throw new BadRequestException('notificationId is required');
+
+    const result = await this.notificationService.markSingleNotificationAsRead(userId, notificationId);
+    if (!result.updated) {
+      return { message: 'Notification already read or not found', updated: false };
+    }
+    return { message: 'Notification marked as read', updated: true };
+  }
+
+  @Put('read-all')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  async markAllAsRead(@Req() req: any) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    if (!userId) throw new BadRequestException('User not authenticated');
+
+    const result = await this.notificationService.markAllNotificationsAsRead(userId);
+    return { message: 'All notifications marked as read', count: result.total };
   }
 
   @Get('unread-count')

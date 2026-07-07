@@ -1,11 +1,49 @@
 import { Injectable } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { PrismaService } from '../prisma/prisma.service';
-import { Notification } from '@prisma/client';
+import { Notification, Prisma } from '@prisma/client';
+
+type NotificationPrismaClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class NotificationService {
   constructor(private prisma: PrismaService) { }
+
+  async createInAppNotificationIfAbsent(
+    prismaClient: NotificationPrismaClient,
+    payload: {
+      userId: string;
+      type: string;
+      title: string;
+      body: string;
+      dedupeKey: string;
+      metadata?: Record<string, any>;
+    },
+  ): Promise<{ created: boolean; notificationId: string }> {
+    try {
+      const notification = await prismaClient.notification.create({
+        data: {
+          // Reuse existing Notification.id uniqueness for atomic idempotency without extra schema changes.
+          id: payload.dedupeKey,
+          userId: payload.userId,
+          title: payload.title,
+          body: payload.body,
+          data: {
+            type: payload.type,
+            ...(payload.metadata || {}),
+          },
+        },
+        select: { id: true },
+      });
+
+      return { created: true, notificationId: notification.id };
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        return { created: false, notificationId: payload.dedupeKey };
+      }
+      throw error;
+    }
+  }
 
   private getUnknownDonorUserId(): string | undefined {
     const value = process.env.UNKNOWN_DONOR_USER_ID?.trim();
@@ -305,16 +343,32 @@ export class NotificationService {
     }
   }
 
-  async getNotifications(userId: string, limit: number = 100): Promise<Notification[]> {
+  async getNotifications(
+    userId: string,
+    options?: {
+      limit?: number;
+      page?: number;
+      isRead?: boolean;
+    },
+  ): Promise<Notification[]> {
+    const page = options?.page && options.page > 0 ? options.page : 1;
+    const limit = options?.limit && options.limit > 0 ? options.limit : 100;
+    const take = Math.min(limit, 200);
+    const skip = (page - 1) * take;
+
     return this.prisma.notification.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(options?.isRead === undefined ? {} : { isRead: options.isRead }),
+      },
       orderBy: { createdAt: 'desc' },
-      take: Math.min(Math.max(1, limit), 200),
+      skip,
+      take,
     });
   }
 
   async getBattleNotifications(userId: string, limit: number = 100): Promise<any[]> {
-    const notifications = await this.getNotifications(userId, limit);
+    const notifications = await this.getNotifications(userId, { limit });
     const battleNotifs = notifications.filter((n) => {
       const type = (n as any)?.data?.type;
       return typeof type === 'string' && type.startsWith('battle_');
@@ -2463,5 +2517,46 @@ export class NotificationService {
     ]);
 
     return notifCount + likeCount + donationCount + paymentCount;
+  }
+
+  async markSingleNotificationAsRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<{ updated: boolean }> {
+    const updated = await this.prisma.notification.updateMany({
+      where: {
+        id: notificationId,
+        userId,
+        isRead: false,
+      },
+      data: {
+        isRead: true,
+      },
+    });
+
+    return { updated: updated.count === 1 };
+  }
+
+  async markAllNotificationsAsRead(userId: string): Promise<{ total: number }> {
+    const [notifUpdate, likeUpdate, donationUpdate, paymentUpdate] = await Promise.all([
+      this.prisma.notification.updateMany({
+        where: { userId, isRead: false },
+        data: { isRead: true },
+      }),
+      this.prisma.postLike.updateMany({
+        where: { userId: { not: userId }, post: { userId, deletedAt: null }, isReadByOwner: false },
+        data: { isReadByOwner: true },
+      }),
+      this.prisma.donationData.updateMany({
+        where: { vendorId: userId, status: 'completed', action: 'missionDonation', isReadByOwner: false },
+        data: { isReadByOwner: true },
+      }),
+      this.prisma.payment.updateMany({
+        where: { receiverId: userId, forPayment: 'following', status: 'succeeded', isReadByOwner: false },
+        data: { isReadByOwner: true },
+      }),
+    ]);
+
+    return { total: notifUpdate.count + likeUpdate.count + donationUpdate.count + paymentUpdate.count };
   }
 }

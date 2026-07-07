@@ -1,20 +1,31 @@
-import { Controller, Headers, HttpCode, Post, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Headers,
+  HttpCode,
+  Logger,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Request } from 'express';
 import Stripe from 'stripe';
 import { BillingService } from './billing.service';
 import { TokenPurchaseService } from '../token-purchase/token-purchase.service';
+import { MarketplaceBattleBoostService } from '../marketPlace/marketplace-battles/marketplace-battle-boost.service';
 import { PaymentService } from '../marketPlace/payment/payment.service';
 
 @ApiExcludeController()
 @Controller('billing')
 export class BillingWebhookController {
+  private readonly logger = new Logger(BillingWebhookController.name);
   private stripe: Stripe;
 
   constructor(
     private readonly billingService: BillingService,
     private readonly tokenPurchaseService: TokenPurchaseService,
     private readonly marketPlacePaymentService: PaymentService,
+    private readonly marketplaceBattleBoostService: MarketplaceBattleBoostService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -29,9 +40,8 @@ export class BillingWebhookController {
     try {
       event = this.stripe.webhooks.constructEvent((req as any).body, signature, endpointSecret);
     } catch (err: any) {
-      // eslint-disable-next-line no-console
-      console.error('Webhook signature verification failed.', err.message);
-      return { received: true };
+      this.logger.warn(`Stripe webhook signature verification failed: ${err?.message || 'unknown_error'}`);
+      throw new BadRequestException('Invalid webhook signature');
     }
 
     // eslint-disable-next-line no-console
@@ -61,6 +71,13 @@ export class BillingWebhookController {
           if (paymentIntentId) {
             const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
             await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
+          }
+        } else if (session.metadata?.type === 'marketplace_battle_boost') {
+          const paymentIntentId =
+            typeof session.payment_intent === 'string' ? session.payment_intent : null;
+          if (paymentIntentId) {
+            const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+            await this.marketplaceBattleBoostService.handleVerifiedPaymentSuccess(paymentIntent);
           }
         } else {
           await this.billingService.handleCheckoutSessionCompleted(session);
@@ -120,12 +137,17 @@ export class BillingWebhookController {
         await this.billingService.handleTipPaymentSuccess(paymentIntent);
       } else if (type === 'marketplace_mycloset') {
         await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
+      } else if (type === 'marketplace_battle_boost') {
+        await this.marketplaceBattleBoostService.handleVerifiedPaymentSuccess(paymentIntent);
       } else {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] payment_intent.succeeded — no handler for this type, skipping');
       }
     } catch (error) {
-      console.error('Error handling payment intent success:', error);
+      this.logger.error(
+        `Error handling payment_intent.succeeded for ${paymentIntent.id}: ${(error as any)?.message || error
+        }`,
+      );
     }
   }
 
@@ -145,12 +167,17 @@ export class BillingWebhookController {
         await this.billingService.handleTipPaymentFailed(paymentIntent);
       } else if (type === 'marketplace_mycloset') {
         await this.marketPlacePaymentService.markMarketplacePaymentFailed(paymentIntent);
+      } else if (type === 'marketplace_battle_boost') {
+        await this.marketplaceBattleBoostService.handleVerifiedPaymentFailure(paymentIntent);
       } else {
         // eslint-disable-next-line no-console
         // console.log('[Stripe Webhook] payment_intent.payment_failed — no handler for this type, skipping');
       }
     } catch (error) {
-      console.error('Error handling payment intent failure:', error);
+      this.logger.error(
+        `Error handling payment_intent.payment_failed for ${paymentIntent.id}: ${(error as any)?.message || error
+        }`,
+      );
     }
   }
 
@@ -159,9 +186,14 @@ export class BillingWebhookController {
       // Check if this is a token purchase by looking at metadata
       if (session.metadata?.type === 'token_purchase') {
         await this.tokenPurchaseService.handleCheckoutSessionExpired(session.id);
+      } else if (session.metadata?.type === 'marketplace_battle_boost') {
+        await this.marketplaceBattleBoostService.handleCheckoutExpired(session);
       }
     } catch (error) {
-      console.error('Error handling checkout session expiration:', error);
+      this.logger.error(
+        `Error handling checkout.session.expired for ${session.id}: ${(error as any)?.message || error
+        }`,
+      );
     }
   }
 }

@@ -6,10 +6,11 @@ import { WithdrawalPagesController } from './withdrawal-pages.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TokenPurchaseModule } from '../token-purchase/token-purchase.module';
 import { NotificationModule } from '../notification/notification.module';
+import { MarketplaceBattlesModule } from '../marketPlace/marketplace-battles/marketplace-battles.module';
 import { PaymentModule } from '../marketPlace/payment/payment.module';
 
 @Module({
-  imports: [PrismaModule, TokenPurchaseModule, NotificationModule, PaymentModule],
+  imports: [PrismaModule, TokenPurchaseModule, NotificationModule, PaymentModule, MarketplaceBattlesModule],
   controllers: [BillingController, BillingWebhookController, WithdrawalPagesController],
   providers: [BillingService],
 })

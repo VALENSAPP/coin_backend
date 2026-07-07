@@ -8,6 +8,7 @@ import { join } from 'path';
 import { Server, Socket } from 'socket.io';
 import { PostService } from './post/post.service';
 import { createRateLimitMiddleware } from './common/rate-limit.middleware';
+import type { NextFunction, Request, Response } from 'express';
 const basicAuth = require('express-basic-auth');
 
 async function bootstrap() {
@@ -56,6 +57,59 @@ async function bootstrap() {
       max: 5,
     }),
   );
+
+  const applyMethodRateLimit = (
+    path: string,
+    methods: Array<'POST' | 'PATCH' | 'PUT' | 'DELETE'>,
+    options: { windowMs: number; max: number },
+  ) => {
+    const limiter = createRateLimitMiddleware(options);
+    app.use(path, (req: Request, res: Response, next: NextFunction) => {
+      if (!methods.includes(req.method as any)) {
+        return next();
+      }
+      return limiter(req, res, next);
+    });
+  };
+
+  // Marketplace Battle abuse protection (reuse existing limiter, do not affect workers/webhooks).
+  applyMethodRateLimit('/marketplace-battles', ['POST'], { windowMs: 60 * 1000, max: 20 });
+  applyMethodRateLimit('/marketplace-battles/:battleId', ['PATCH', 'DELETE'], {
+    windowMs: 60 * 1000,
+    max: 30,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/publish', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 20,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/challenge', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 20,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/cancel', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 20,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/vote', ['POST', 'DELETE'], {
+    windowMs: 60 * 1000,
+    max: 120,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/comments', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 120,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/comments/:commentId', ['DELETE'], {
+    windowMs: 60 * 1000,
+    max: 120,
+  });
+  applyMethodRateLimit('/marketplace-battles/:battleId/boosts', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 30,
+  });
+  applyMethodRateLimit('/marketplace-battle-boosts/:boostId/payment', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 30,
+  });
 
   // Serve static files from the public directory
   app.useStaticAssets(join(__dirname, '..', 'public'));
