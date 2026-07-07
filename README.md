@@ -151,3 +151,11 @@ Get-ChildItem -Path ./coin_backend/src -Include *.js,*.d.ts -Recurse | Remove-It
 ## License
 
 MIT
+
+
+
+
+
+# seeder
+
+npm run seed:boost-packages  - # run this file to add the data of the packages in the db
