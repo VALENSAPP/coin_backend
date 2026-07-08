@@ -3037,6 +3037,8 @@ export class MarketplaceBattlesService {
                 isPinnedOnTop: boolean;
                 hasWinnerBadge: boolean;
                 hasWinnerPromotion: boolean;
+                hasTenPercentOffPromotion: boolean;
+                hasFreeShippingPromotion: boolean;
                 winnerPromotions: Array<{
                     id: string;
                     participantId: string;
@@ -3060,6 +3062,8 @@ export class MarketplaceBattlesService {
                 isPinnedOnTop: false,
                 hasWinnerBadge: false,
                 hasWinnerPromotion: false,
+                hasTenPercentOffPromotion: false,
+                hasFreeShippingPromotion: false,
                 winnerPromotions: [],
             });
         }
@@ -3072,6 +3076,8 @@ export class MarketplaceBattlesService {
                 isPinnedOnTop: false,
                 hasWinnerBadge: false,
                 hasWinnerPromotion: false,
+                hasTenPercentOffPromotion: false,
+                hasFreeShippingPromotion: false,
                 winnerPromotions: [],
             };
 
@@ -3119,6 +3125,13 @@ export class MarketplaceBattlesService {
             if (!current) continue;
 
             current.hasWinnerPromotion = true;
+            current.hasTenPercentOffPromotion =
+                current.hasTenPercentOffPromotion ||
+                promotion.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
+            current.hasFreeShippingPromotion =
+                current.hasFreeShippingPromotion ||
+                promotion.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING ||
+                promotion.freeShipping;
             current.winnerPromotions.push({
                 id: promotion.id,
                 participantId: promotion.participantId,
@@ -3147,6 +3160,8 @@ export class MarketplaceBattlesService {
                 isPinnedOnTop: false,
                 hasWinnerBadge: false,
                 hasWinnerPromotion: false,
+                hasTenPercentOffPromotion: false,
+                hasFreeShippingPromotion: false,
                 winnerPromotions: [],
             };
 
@@ -3155,6 +3170,8 @@ export class MarketplaceBattlesService {
                 isPinnedOnTop: feature.isPinnedOnTop,
                 hasWinnerBadge: feature.hasWinnerBadge,
                 hasWinnerPromotion: feature.hasWinnerPromotion,
+                hasTenPercentOffPromotion: feature.hasTenPercentOffPromotion,
+                hasFreeShippingPromotion: feature.hasFreeShippingPromotion,
                 winnerPromotions: feature.winnerPromotions,
             };
         });
