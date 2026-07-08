@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { CartItemShippingChoice, Prisma, ShippingOptions } from '@prisma/client';
+import {
+    CartItemShippingChoice,
+    MarketplaceWinnerPromotionStatus,
+    MarketplaceWinnerPromotionType,
+    Prisma,
+    ShippingOptions,
+} from '@prisma/client';
 import Stripe from 'stripe';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrderService } from '../order/order.service';
@@ -72,6 +78,46 @@ export class PaymentService {
         };
     }
 
+    private resolveWinnerPromotionPricing(
+        product: {
+            id: string;
+            price: number;
+            shippingFee: number | null;
+        },
+        promotions: Array<{
+            id: string;
+            promoType: MarketplaceWinnerPromotionType | null;
+            discountPercent: number | null;
+            freeShipping: boolean;
+        }>,
+    ) {
+        const discountPromotion = promotions.find(
+            (promotion) => promotion.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H,
+        );
+        const freeShippingPromotion = promotions.find(
+            (promotion) =>
+                promotion.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING ||
+                promotion.freeShipping,
+        );
+
+        const discountPercent = discountPromotion?.discountPercent ?? 0;
+        const unitPrice = discountPercent > 0
+            ? Number((product.price * (1 - discountPercent / 100)).toFixed(2))
+            : product.price;
+        const shippingFee = freeShippingPromotion ? 0 : product.shippingFee;
+
+        return {
+            unitPrice,
+            shippingFee,
+            appliedWinnerPromotions: promotions.map((promotion) => ({
+                id: promotion.id,
+                promoType: promotion.promoType,
+                discountPercent: promotion.discountPercent,
+                freeShipping: promotion.freeShipping,
+            })),
+        };
+    }
+
     async createCheckoutSessionForCart(userId: string, dto: CreateMarketplacePaymentDto) {
         if (!userId) throw new UnauthorizedException('User not authenticated');
 
@@ -110,6 +156,29 @@ export class PaymentService {
             return { message: 'Cart is empty.' };
         }
 
+        const now = new Date();
+        const activePromotions = await this.prisma.marketplaceWinnerPromotion.findMany({
+            where: {
+                productId: { in: cart.cartItems.map((item) => item.productId) },
+                status: MarketplaceWinnerPromotionStatus.ACTIVE,
+                startAt: { lte: now },
+                endAt: { gt: now },
+            },
+            select: {
+                id: true,
+                productId: true,
+                promoType: true,
+                discountPercent: true,
+                freeShipping: true,
+            },
+        });
+        const promotionsByProductId = new Map<string, typeof activePromotions>();
+        for (const promotion of activePromotions) {
+            const existing = promotionsByProductId.get(promotion.productId) ?? [];
+            existing.push(promotion);
+            promotionsByProductId.set(promotion.productId, existing);
+        }
+
         const address = await this.prisma.userAddrees.findFirst({
             where: { id: dto.addressId, userId },
             select: { id: true },
@@ -127,6 +196,12 @@ export class PaymentService {
             shippingMinor: number;
             selectedShippingChoice: CartItemShippingChoice;
             name: string;
+            appliedWinnerPromotions: Array<{
+                id: string;
+                promoType: MarketplaceWinnerPromotionType | null;
+                discountPercent: number | null;
+                freeShipping: boolean;
+            }>;
         }> = [];
 
         let subtotalMinor = 0;
@@ -157,12 +232,16 @@ export class PaymentService {
                 );
             }
 
-            const latestPriceMinor = this.toMinorUnits(product.price);
+            const promotionPricing = this.resolveWinnerPromotionPricing(
+                product,
+                promotionsByProductId.get(product.id) ?? [],
+            );
+            const latestPriceMinor = this.toMinorUnits(promotionPricing.unitPrice);
             const itemSubtotalMinor = latestPriceMinor * cartItem.quantity;
             const shipping = this.resolveShippingForPayment(
                 product.shippingOption,
                 cartItem.selectedShippingChoice,
-                product.shippingFee,
+                promotionPricing.shippingFee,
                 cartItem.quantity,
                 product.name,
             );
@@ -180,6 +259,7 @@ export class PaymentService {
                 shippingMinor: itemShippingMinor,
                 selectedShippingChoice: shipping.selectedShippingChoice,
                 name: product.name,
+                appliedWinnerPromotions: promotionPricing.appliedWinnerPromotions,
             });
         }
 

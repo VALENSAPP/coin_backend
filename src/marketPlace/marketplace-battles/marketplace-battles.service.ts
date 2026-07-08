@@ -13,6 +13,8 @@ import {
     MarketplaceBattleBoostStatus,
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
+    MarketplaceWinnerPromotionStatus,
+    MarketplaceWinnerPromotionType,
     Prisma,
     WhoCanBuy,
 } from '@prisma/client';
@@ -40,6 +42,7 @@ import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-batt
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
+import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
 
 type PrismaTx = PrismaService | Prisma.TransactionClient;
 
@@ -353,6 +356,8 @@ const MARKETPLACE_BATTLE_WINNER_CAROUSEL_SELECT = {
 
 const PAST_START_TOLERANCE_MS = 60_000;
 const MARKETPLACE_BATTLE_WINNERS_FETCH_CHUNK_SIZE = 100;
+const WINNER_PROMOTION_DURATION_HOURS = 24;
+const WINNER_PROMOTION_DISCOUNT_PERCENT = 10;
 
 type CompletedBattleIntegrityInput = {
     id: string;
@@ -1448,6 +1453,149 @@ export class MarketplaceBattlesService {
             voteDifference,
             winningMarginPercentagePoints,
         };
+    }
+
+    async createWinnerPromotion(
+        userId: string,
+        battleId: string,
+        dto: CreateMarketplaceWinnerPromotionDto,
+    ) {
+        const sellerId = this.assertSellerUserId(userId);
+        const now = new Date();
+        const endAt = new Date(now.getTime() + WINNER_PROMOTION_DURATION_HOURS * 60 * 60 * 1000);
+
+        return this.prisma.$transaction(
+            async (tx) => {
+                await tx.$queryRaw`
+                    SELECT id
+                    FROM "MarketplaceBattle"
+                    WHERE id = ${battleId}
+                    FOR UPDATE
+                `;
+
+                const battle = await tx.marketplaceBattle.findUnique({
+                    where: { id: battleId },
+                    select: {
+                        id: true,
+                        sellerId: true,
+                        closetId: true,
+                        status: true,
+                        outcome: true,
+                        winnerParticipantId: true,
+                    },
+                });
+
+                if (!battle) {
+                    throw new NotFoundException('Marketplace battle not found');
+                }
+
+                this.ensureOwnership(battle, sellerId);
+
+                if (
+                    battle.status !== MarketplaceBattleStatus.COMPLETED ||
+                    battle.outcome !== MarketplaceBattleOutcome.WINNER ||
+                    !battle.winnerParticipantId
+                ) {
+                    throw new BadRequestException('Winner promotion requires a completed marketplace battle with a winner');
+                }
+
+                const winnerParticipant = await tx.marketplaceBattleParticipant.findUnique({
+                    where: { id: battle.winnerParticipantId },
+                    select: {
+                        id: true,
+                        battleId: true,
+                        productId: true,
+                        isWinner: true,
+                        product: {
+                            select: {
+                                id: true,
+                                userId: true,
+                                closetId: true,
+                                price: true,
+                                shippingFee: true,
+                                isActive: true,
+                                isDeleted: true,
+                                quantity: true,
+                            },
+                        },
+                    },
+                });
+
+                if (
+                    !winnerParticipant ||
+                    winnerParticipant.battleId !== battle.id ||
+                    !winnerParticipant.isWinner ||
+                    !winnerParticipant.product
+                ) {
+                    throw new BadRequestException('Winning product is not available for promotion');
+                }
+
+                if (
+                    winnerParticipant.product.userId !== sellerId ||
+                    winnerParticipant.product.closetId !== battle.closetId
+                ) {
+                    throw new BadRequestException('Winning product does not belong to this seller closet');
+                }
+
+                if (
+                    !winnerParticipant.product.isActive ||
+                    winnerParticipant.product.isDeleted ||
+                    winnerParticipant.product.quantity <= 0
+                ) {
+                    throw new BadRequestException('Winning product is not eligible for promotion');
+                }
+
+                const existingSameType = await tx.marketplaceWinnerPromotion.findFirst({
+                    where: {
+                        battleId: battle.id,
+                        promoType: dto.promoType,
+                        status: MarketplaceWinnerPromotionStatus.ACTIVE,
+                        startAt: { lte: now },
+                        endAt: { gt: now },
+                    },
+                    select: { id: true },
+                });
+
+                if (existingSameType) {
+                    throw new ConflictException('This winner promotion type is already active for this battle');
+                }
+
+                const originalPrice = Number(winnerParticipant.product.price);
+                const originalShippingFee = winnerParticipant.product.shippingFee ?? 0;
+                const isDiscount = dto.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
+                const isFreeShipping = dto.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING;
+                const promoPrice = isDiscount
+                    ? Number((originalPrice * (1 - WINNER_PROMOTION_DISCOUNT_PERCENT / 100)).toFixed(2))
+                    : originalPrice;
+                const promoShippingFee = isFreeShipping ? 0 : originalShippingFee;
+
+                return tx.marketplaceWinnerPromotion.create({
+                    data: {
+                        sellerId,
+                        closetId: battle.closetId,
+                        battleId: battle.id,
+                        participantId: winnerParticipant.id,
+                        productId: winnerParticipant.productId,
+                        promoType: dto.promoType,
+                        discountPercent: isDiscount ? WINNER_PROMOTION_DISCOUNT_PERCENT : null,
+                        freeShipping: isFreeShipping,
+                        originalPrice,
+                        promoPrice,
+                        originalShippingFee,
+                        promoShippingFee,
+                        status: MarketplaceWinnerPromotionStatus.ACTIVE,
+                        startAt: now,
+                        endAt,
+                    },
+                    include: {
+                        product: {
+                            select: MARKETPLACE_BATTLE_LIST_PRODUCT_SELECT,
+                        },
+                    },
+                });
+            },
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
     }
 
     private ensureOwnership(battle: { sellerId: string }, sellerId: string) {
@@ -2857,10 +3005,63 @@ export class MarketplaceBattlesService {
             },
         });
 
-        const featureByBattle = new Map<string, { isPinnedOnTop: boolean; hasWinnerBadge: boolean }>();
+        const winnerPromotions = await this.prisma.marketplaceWinnerPromotion.findMany({
+            where: {
+                closetId,
+                status: MarketplaceWinnerPromotionStatus.ACTIVE,
+                startAt: { lte: now },
+                endAt: { gt: now },
+                battleId: { in: visibleBattles.map((battle) => battle.id) },
+            },
+            orderBy: [{ createdAt: 'desc' }],
+            select: {
+                id: true,
+                battleId: true,
+                participantId: true,
+                productId: true,
+                promoType: true,
+                discountPercent: true,
+                freeShipping: true,
+                originalPrice: true,
+                promoPrice: true,
+                originalShippingFee: true,
+                promoShippingFee: true,
+                startAt: true,
+                endAt: true,
+            },
+        });
+
+        const featureByBattle = new Map<
+            string,
+            {
+                isPinnedOnTop: boolean;
+                hasWinnerBadge: boolean;
+                hasWinnerPromotion: boolean;
+                winnerPromotions: Array<{
+                    id: string;
+                    participantId: string;
+                    productId: string;
+                    promoType: MarketplaceWinnerPromotionType | null;
+                    discountPercent: number | null;
+                    freeShipping: boolean;
+                    originalPrice: number | null;
+                    promoPrice: number | null;
+                    originalShippingFee: number | null;
+                    promoShippingFee: number | null;
+                    startAt: Date;
+                    endAt: Date;
+                    remainingSeconds: number;
+                }>;
+            }
+        >();
 
         for (const battle of visibleBattles) {
-            featureByBattle.set(battle.id, { isPinnedOnTop: false, hasWinnerBadge: false });
+            featureByBattle.set(battle.id, {
+                isPinnedOnTop: false,
+                hasWinnerBadge: false,
+                hasWinnerPromotion: false,
+                winnerPromotions: [],
+            });
         }
 
         for (const boost of boosts) {
@@ -2870,6 +3071,8 @@ export class MarketplaceBattlesService {
             const current = featureByBattle.get(boost.battleId) ?? {
                 isPinnedOnTop: false,
                 hasWinnerBadge: false,
+                hasWinnerPromotion: false,
+                winnerPromotions: [],
             };
 
             const pinActive = Boolean(
@@ -2911,23 +3114,54 @@ export class MarketplaceBattlesService {
             featureByBattle.set(boost.battleId, current);
         }
 
+        for (const promotion of winnerPromotions) {
+            const current = featureByBattle.get(promotion.battleId);
+            if (!current) continue;
+
+            current.hasWinnerPromotion = true;
+            current.winnerPromotions.push({
+                id: promotion.id,
+                participantId: promotion.participantId,
+                productId: promotion.productId,
+                promoType: promotion.promoType,
+                discountPercent: promotion.discountPercent,
+                freeShipping: promotion.freeShipping,
+                originalPrice: promotion.originalPrice,
+                promoPrice: promotion.promoPrice,
+                originalShippingFee: promotion.originalShippingFee,
+                promoShippingFee: promotion.promoShippingFee,
+                startAt: promotion.startAt,
+                endAt: promotion.endAt,
+                remainingSeconds: Math.max(
+                    0,
+                    Math.floor((promotion.endAt.getTime() - now.getTime()) / 1000),
+                ),
+            });
+
+            featureByBattle.set(promotion.battleId, current);
+        }
+
         const mapped = visibleBattles.map((battle) => {
             const base = this.mapPublicBattleResponse(battle, now);
             const feature = featureByBattle.get(battle.id) ?? {
                 isPinnedOnTop: false,
                 hasWinnerBadge: false,
+                hasWinnerPromotion: false,
+                winnerPromotions: [],
             };
 
             return {
                 ...base,
                 isPinnedOnTop: feature.isPinnedOnTop,
                 hasWinnerBadge: feature.hasWinnerBadge,
+                hasWinnerPromotion: feature.hasWinnerPromotion,
+                winnerPromotions: feature.winnerPromotions,
             };
         });
 
         mapped.sort((a, b) => {
-            const aRank = a.isPinnedOnTop ? 0 : a.hasWinnerBadge ? 1 : 2;
-            const bRank = b.isPinnedOnTop ? 0 : b.hasWinnerBadge ? 1 : 2;
+            const aRank = a.isPinnedOnTop ? 0 : a.hasWinnerBadge ? 1 : a.hasWinnerPromotion ? 2 : 3;
+            const bRank = b.isPinnedOnTop ? 0 : b.hasWinnerBadge ? 1 : b.hasWinnerPromotion ? 2 : 3;
 
             if (aRank !== bRank) {
                 return aRank - bRank;

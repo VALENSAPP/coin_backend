@@ -1299,7 +1299,7 @@ model MarketplaceBattle {
   comments          MarketplaceBattleComment[]
   views             MarketplaceBattleView[]
   winnerParticipant MarketplaceBattleParticipant?  @relation("MarketplaceBattleWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
-  winnerPromotion   MarketplaceWinnerPromotion?
+  winnerPromotions  MarketplaceWinnerPromotion[]
   boosts            MarketplaceBattleBoost[]
 
   @@index([sellerId])
@@ -1389,9 +1389,16 @@ model MarketplaceWinnerPromotion {
   id            String                          @id @default(uuid())
   sellerId      String
   closetId      String
-  battleId      String                          @unique
+  battleId      String
   participantId String
   productId     String
+  promoType     MarketplaceWinnerPromotionType?
+  discountPercent Int?
+  freeShipping Boolean                         @default(false)
+  originalPrice Float?
+  promoPrice    Float?
+  originalShippingFee Float?
+  promoShippingFee Float?
   status        MarketplaceWinnerPromotionStatus @default(ACTIVE)
   startAt       DateTime
   endAt         DateTime
@@ -1622,6 +1629,11 @@ enum MarketplaceWinnerPromotionStatus {
   ACTIVE
   EXPIRED
   CANCELLED
+}
+
+enum MarketplaceWinnerPromotionType {
+  DISCOUNT_10_PERCENT_24H
+  FREE_SHIPPING
 }
 
 enum MarketplaceBattleBoostStatus {

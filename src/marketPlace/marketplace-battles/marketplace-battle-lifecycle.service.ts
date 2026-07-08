@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import {
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
+    MarketplaceWinnerPromotionStatus,
     Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -22,6 +23,7 @@ type CompletionResult = {
 type LifecycleRunStats = {
     activated: number;
     completed: number;
+    winnerPromotionsExpired: number;
     skipped: number;
     failed: number;
 };
@@ -61,6 +63,7 @@ export class MarketplaceBattleLifecycleService {
             return {
                 activated: 0,
                 completed: 0,
+                winnerPromotionsExpired: 0,
                 skipped: 0,
                 failed: 0,
             };
@@ -71,6 +74,7 @@ export class MarketplaceBattleLifecycleService {
         const stats: LifecycleRunStats = {
             activated: 0,
             completed: 0,
+            winnerPromotionsExpired: 0,
             skipped: 0,
             failed: 0,
         };
@@ -81,9 +85,10 @@ export class MarketplaceBattleLifecycleService {
             await this.processScheduledActivations(now, stats);
             await this.processExpiredScheduledBattles(now, stats);
             await this.processExpiredLiveBattles(now, stats);
+            await this.processExpiredWinnerPromotions(now, stats);
 
             this.logger.debug(
-                `Marketplace lifecycle worker finished: activated=${stats.activated}, completed=${stats.completed}, skipped=${stats.skipped}, failed=${stats.failed}`,
+                `Marketplace lifecycle worker finished: activated=${stats.activated}, completed=${stats.completed}, winnerPromotionsExpired=${stats.winnerPromotionsExpired}, skipped=${stats.skipped}, failed=${stats.failed}`,
             );
 
             return stats;
@@ -494,5 +499,19 @@ export class MarketplaceBattleLifecycleService {
 
             if (batch.length < MARKETPLACE_BATTLE_LIFECYCLE_BATCH_SIZE) break;
         }
+    }
+
+    private async processExpiredWinnerPromotions(now: Date, stats: LifecycleRunStats) {
+        const updated = await this.prisma.marketplaceWinnerPromotion.updateMany({
+            where: {
+                status: MarketplaceWinnerPromotionStatus.ACTIVE,
+                endAt: { lte: now },
+            },
+            data: {
+                status: MarketplaceWinnerPromotionStatus.EXPIRED,
+            },
+        });
+
+        stats.winnerPromotionsExpired += updated.count;
     }
 }
