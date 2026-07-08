@@ -17,7 +17,7 @@ export class DeepLinkController {
     const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     const host = req.get('host');
-    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
+    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://prod-api.valens.app');
     const encodedId = encodeURIComponent(id);
     const shareUrl = `${baseUrl}/${route}/${encodedId}`;
     const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
@@ -77,7 +77,7 @@ export class DeepLinkController {
     const configuredHomeDeepLink = process.env.HOME_DEEP_LINK_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     const host = req.get('host');
-    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
+    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://prod-api.valens.app');
     const shareUrl = `${baseUrl}/callback`;
     const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
     const deepLinkUrl = configuredHomeDeepLink || 'com.valens://callback';
