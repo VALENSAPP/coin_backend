@@ -1442,6 +1442,7 @@ model MarketplaceWinnerPromotion {
   participantId String
   productId     String
   promoType     MarketplaceWinnerPromotionType?
+  message       String?
   discountPercent Int?
   freeShipping Boolean                         @default(false)
   originalPrice Float?

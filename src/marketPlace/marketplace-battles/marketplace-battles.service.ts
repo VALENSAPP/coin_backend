@@ -1463,6 +1463,7 @@ export class MarketplaceBattlesService {
         dto: CreateMarketplaceWinnerPromotionDto,
     ) {
         const sellerId = this.assertSellerUserId(userId);
+        const normalizedMessage = dto.message?.trim() || null;
         const now = new Date();
         const endAt = new Date(now.getTime() + WINNER_PROMOTION_DURATION_HOURS * 60 * 60 * 1000);
 
@@ -1579,6 +1580,7 @@ export class MarketplaceBattlesService {
                         participantId: winnerParticipant.id,
                         productId: winnerParticipant.productId,
                         promoType: dto.promoType,
+                        message: normalizedMessage,
                         discountPercent: isDiscount ? WINNER_PROMOTION_DISCOUNT_PERCENT : null,
                         freeShipping: isFreeShipping,
                         originalPrice,
@@ -3022,6 +3024,7 @@ export class MarketplaceBattlesService {
                 participantId: true,
                 productId: true,
                 promoType: true,
+                message: true,
                 discountPercent: true,
                 freeShipping: true,
                 originalPrice: true,
@@ -3046,6 +3049,7 @@ export class MarketplaceBattlesService {
                     participantId: string;
                     productId: string;
                     promoType: MarketplaceWinnerPromotionType | null;
+                    message: string | null;
                     discountPercent: number | null;
                     freeShipping: boolean;
                     originalPrice: number | null;
@@ -3139,6 +3143,7 @@ export class MarketplaceBattlesService {
                 participantId: promotion.participantId,
                 productId: promotion.productId,
                 promoType: promotion.promoType,
+                message: promotion.message,
                 discountPercent: promotion.discountPercent,
                 freeShipping: promotion.freeShipping,
                 originalPrice: promotion.originalPrice,

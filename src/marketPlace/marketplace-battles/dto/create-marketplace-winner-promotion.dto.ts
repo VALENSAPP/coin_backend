@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { MarketplaceWinnerPromotionType } from '@prisma/client';
-import { IsEnum } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateMarketplaceWinnerPromotionDto {
     @ApiProperty({
@@ -10,4 +10,14 @@ export class CreateMarketplaceWinnerPromotionDto {
     })
     @IsEnum(MarketplaceWinnerPromotionType)
     promoType!: MarketplaceWinnerPromotionType;
+
+    @ApiProperty({
+        description: 'Optional message to display with winner promotion',
+        example: 'Winner pick! 10% off for the next 24 hours.',
+        required: false,
+    })
+    @IsOptional()
+    @IsString()
+    @MaxLength(500)
+    message?: string;
 }
