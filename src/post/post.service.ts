@@ -259,6 +259,8 @@ export class PostService {
     format?: string,
     allowDownload?: boolean,
     tableContents?: string[],
+    amount?: number | null,
+    promoCode?: string | null,
     ebookpdfFile?: Express.Multer.File,
     raiseAmount?: number,
     start_time?: Date,
@@ -425,6 +427,11 @@ export class PostService {
         .filter(Boolean);
 
       const resolvedAllowDownload = allowDownload === undefined || allowDownload === null ? true : Boolean(allowDownload);
+      const resolvedAmount = amount === undefined || amount === null ? null : Number(amount);
+      if (resolvedAmount !== null && (Number.isNaN(resolvedAmount) || resolvedAmount < 0)) {
+        throw new BadRequestException('Invalid amount');
+      }
+      const resolvedPromoCode = promoCode ? String(promoCode).trim() : null;
 
       let ebookpdfUrl: string | null = null;
       if (postFormat === 'ebook') {
@@ -522,6 +529,8 @@ export class PostService {
         ebookpdf: ebookpdfUrl,
         tableContent,
         allowDownload: resolvedAllowDownload,
+        amount: resolvedAmount,
+        promoCode: resolvedPromoCode,
         visibleTo: visibleTo?.trim() || null,
         hashtag: hashtag?.filter(Boolean) || [],
         taggedPeople: taggedPeople?.filter(Boolean) || [],

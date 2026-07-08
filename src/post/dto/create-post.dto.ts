@@ -184,6 +184,33 @@ export class CreatePostDto {
   tableContents?: string[];
 
   @ApiProperty({
+    description: 'Optional ebook amount when format is ebook',
+    required: false,
+    type: Number,
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return null;
+    return Number(value);
+  })
+  @IsNumber()
+  @Min(0)
+  amount?: number | null;
+
+  @ApiProperty({
+    description: 'Optional seller promo code for ebook posts',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  @Transform(({ value }: { value: any }) => {
+    if (value === '' || value === null || value === undefined) return null;
+    return String(value).trim();
+  })
+  promoCode?: string | null;
+
+  @ApiProperty({
     description: 'Ebook PDF URL after upload',
     required: false,
   })

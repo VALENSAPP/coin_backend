@@ -346,6 +346,8 @@ model Post {
   ebookpdf         String?
   tableContent     String[]
   allowDownload    Boolean         @default(true)
+  amount           Float?
+  promoCode        String?
   hides            HidePost[]
   reports          PostReport[]
   user             User            @relation(fields: [userId], references: [id])
