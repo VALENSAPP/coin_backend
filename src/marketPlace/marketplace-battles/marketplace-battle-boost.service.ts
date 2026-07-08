@@ -84,6 +84,28 @@ export class MarketplaceBattleBoostService {
         });
     }
 
+    async getBoostByBattleId(battleId: string) {
+        const boost = await this.prisma.marketplaceBattleBoost.findFirst({
+            where: { battleId },
+            orderBy: [{ createdAt: 'desc' }],
+            select: {
+                id: true,
+                status: true,
+                createdAt: true,
+                endAt: true,
+            },
+        });
+
+        return {
+            battleId,
+            hasBoost: Boolean(boost),
+            boostId: boost?.id ?? null,
+            status: boost?.status ?? null,
+            boostCreatedAt: boost?.createdAt ?? null,
+            boostEndAt: boost?.endAt ?? null,
+        };
+    }
+
     async createBoostIntent(userId: string, battleId: string, dto: CreateMarketplaceBattleBoostDto) {
         const sellerId = this.assertUserId(userId);
         const now = new Date();

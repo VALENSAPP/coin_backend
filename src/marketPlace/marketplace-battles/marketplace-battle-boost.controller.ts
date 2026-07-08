@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
+    ApiBody,
     ApiBadRequestResponse,
     ApiBearerAuth,
     ApiForbiddenResponse,
@@ -27,11 +28,24 @@ import { MarketplaceBattleBoostService } from './marketplace-battle-boost.servic
 import { CreateMarketplaceBattleBoostDto } from './dto/create-marketplace-battle-boost.dto';
 import { MarketplaceBattleBoostListQueryDto } from './dto/marketplace-battle-boost-list-query.dto';
 import { MarketplaceBattleBoostActiveQueryDto } from './dto/marketplace-battle-boost-active-query.dto';
+import { MarketplaceBattleBoostByBattleDto } from './dto/marketplace-battle-boost-by-battle.dto';
 
 @ApiTags('marketplace-battle-boosts')
 @Controller()
 export class MarketplaceBattleBoostController {
     constructor(private readonly marketplaceBattleBoostService: MarketplaceBattleBoostService) { }
+
+    @Post('marketplace-battle-boosts/by-battle')
+    @ApiOperation({ summary: 'Check whether a marketplace battle has a boost and return boost id if present' })
+    @ApiBody({ type: MarketplaceBattleBoostByBattleDto })
+    async getBoostByBattleId(
+        @Body(
+            new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+        )
+        dto: MarketplaceBattleBoostByBattleDto,
+    ) {
+        return this.marketplaceBattleBoostService.getBoostByBattleId(dto.battleId);
+    }
 
     @Get('marketplace-battle-boosts/packages')
     @ApiOperation({ summary: 'List active marketplace battle boost packages' })
