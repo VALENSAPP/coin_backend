@@ -1319,7 +1319,7 @@ export class MarketplaceBattlesService {
     }
 
     async getMarketplaceBattleInsights(userId: string, battleId: string) {
-        const sellerId = this.assertSellerUserId(userId);
+        const viewerUserId = this.assertSellerUserId(userId);
 
         const ownershipBattle = await this.prisma.marketplaceBattle.findUnique({
             where: { id: battleId },
@@ -1333,8 +1333,10 @@ export class MarketplaceBattlesService {
             throw new NotFoundException('Marketplace battle not found');
         }
 
-        if (ownershipBattle.sellerId !== sellerId) {
-            throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
+        // Non-owners can access insights only when the battle is visible to them
+        // under the same public visibility rules used by battle public endpoints.
+        if (ownershipBattle.sellerId !== viewerUserId) {
+            await this.getPublicBattleById(battleId, viewerUserId);
         }
 
         const battle = await this.prisma.marketplaceBattle.findUnique({

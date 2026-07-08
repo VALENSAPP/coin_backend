@@ -442,9 +442,9 @@ export class MarketplaceBattlesController {
     @Get(':battleId/insights')
     @ApiBearerAuth()
     @ApiOperation({
-        summary: 'Get seller insights for marketplace battle (Step 9)',
+        summary: 'Get marketplace battle insights (Step 9)',
         description:
-            'Seller-only read endpoint for marketplace battles. Returns live/scheduled/completed counters and participant vote stats; winner fields are populated only after completion with WINNER outcome.',
+            'Authenticated read endpoint for marketplace battle insights. Battle owner always has access; other users can access when battle visibility rules allow. Returns live/scheduled/completed counters and participant vote stats; winner fields are populated only after completion with WINNER outcome.',
     })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
     @ApiOkResponse({
@@ -517,8 +517,7 @@ export class MarketplaceBattlesController {
         },
     })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle not found or not visible to the user' })
     async getBattleInsights(
         @Req() req: any,
         @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
