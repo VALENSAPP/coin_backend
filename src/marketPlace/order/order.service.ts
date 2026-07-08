@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import Stripe from 'stripe';
+import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -12,6 +13,7 @@ export class OrderService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
+        private readonly closetChatService: ClosetChatService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -80,6 +82,7 @@ export class OrderService {
                 select: { id: true },
             });
             if (existingOrders.length) {
+                createdOrderIds = existingOrders.map((existingOrder) => existingOrder.id);
                 await tx.marketPlacePayments.update({
                     where: { id: paymentRecord.id },
                     data: {
@@ -231,6 +234,10 @@ export class OrderService {
             });
 
         });
+
+        for (const orderId of createdOrderIds) {
+            await this.closetChatService.ensureOrderPlacedThreadAndMessage(orderId);
+        }
 
         for (const sellerId of sellerIdsToNotify) {
             await this.notificationService.sendNotificationToUser(

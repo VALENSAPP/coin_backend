@@ -7,6 +7,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import { Server, Socket } from 'socket.io';
 import { PostService } from './post/post.service';
+import { ClosetChatService } from './marketPlace/closet-chat/closet-chat.service';
 import { createRateLimitMiddleware } from './common/rate-limit.middleware';
 import type { NextFunction, Request, Response } from 'express';
 const basicAuth = require('express-basic-auth');
@@ -19,6 +20,7 @@ async function bootstrap() {
 
   // Get PostService instance
   const postService = app.get(PostService);
+  const closetChatService = app.get(ClosetChatService);
 
   // Webhooks need raw body for signature verification
   app.use('/billing/webhook', bodyParser.raw({ type: '*/*' }));
@@ -241,6 +243,119 @@ async function bootstrap() {
       } catch (error) {
         console.error('markMessageSeen error:', error);
         socket.emit('messageSeenError', { message: 'Failed to update seen status' });
+      }
+    });
+
+    socket.on('getClosetChatThreads', async (data: any) => {
+      try {
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+
+        const userId = data?.userId;
+        const threads = await closetChatService.getMyThreads(userId);
+        socket.emit('closetChatThreads', threads);
+      } catch (error) {
+        console.error('getClosetChatThreads error:', error);
+        socket.emit('closetChatThreadsError', { message: 'Failed to fetch closet chat threads' });
+      }
+    });
+
+    socket.on('getClosetChatMessages', async (data: any) => {
+      try {
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+
+        const userId = data?.userId;
+        const threadId = data?.threadId;
+        const page = data?.page;
+        const limit = data?.limit;
+
+        if (!threadId) {
+          socket.emit('closetChatMessagesError', { message: 'threadId required' });
+          return;
+        }
+
+        const result = await closetChatService.getThreadMessages(userId, threadId, page, limit);
+        socket.emit('closetChatMessages', result);
+      } catch (error) {
+        console.error('getClosetChatMessages error:', error);
+        socket.emit('closetChatMessagesError', { message: 'Failed to fetch closet chat messages' });
+      }
+    });
+
+    socket.on('sendClosetChatMessage', async (data: any) => {
+      try {
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+
+        const userId = data?.userId;
+        const threadId = data?.threadId;
+        const message = data?.message;
+
+        if (!threadId) {
+          socket.emit('closetChatSendError', { message: 'threadId required' });
+          return;
+        }
+
+        if (!message || !String(message).trim()) {
+          socket.emit('closetChatSendError', { message: 'message required' });
+          return;
+        }
+
+        const createdMessage = await closetChatService.sendMessage(userId, threadId, String(message));
+        socket.emit('closetChatMessageSent', createdMessage);
+
+        const receiverSocketId = connectedUsers.get(createdMessage.receiverId);
+        if (receiverSocketId) {
+          io.to(receiverSocketId).emit('closetChatNewMessage', createdMessage);
+        }
+
+        const senderThreads = await closetChatService.getMyThreads(userId);
+        socket.emit('closetChatThreads', senderThreads);
+
+        if (receiverSocketId) {
+          const receiverThreads = await closetChatService.getMyThreads(createdMessage.receiverId);
+          io.to(receiverSocketId).emit('closetChatThreads', receiverThreads);
+        }
+      } catch (error) {
+        console.error('sendClosetChatMessage error:', error);
+        socket.emit('closetChatSendError', { message: 'Failed to send closet chat message' });
+      }
+    });
+
+    socket.on('markClosetChatMessageSeen', async (data: any) => {
+      try {
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+
+        const userId = data?.userId;
+        const messageId = data?.messageId;
+
+        if (!messageId) {
+          socket.emit('closetChatMessageSeenError', { message: 'messageId required' });
+          return;
+        }
+
+        const result = await closetChatService.markMessageSeen(userId, messageId);
+        socket.emit('closetChatMessageSeen', { messageId, ...result });
+
+        if (result?.otherUserId) {
+          const otherSocketId = connectedUsers.get(result.otherUserId);
+          if (otherSocketId) {
+            io.to(otherSocketId).emit('closetChatMessageSeen', {
+              messageId,
+              seenBy: userId,
+              ...result,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('markClosetChatMessageSeen error:', error);
+        socket.emit('closetChatMessageSeenError', { message: 'Failed to update closet chat seen status' });
       }
     });
 

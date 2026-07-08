@@ -137,6 +137,10 @@ model User {
   marketPlaceOrders           MarketPlaceOrder[]
   ordersAsBuyer               Order[]                    @relation("OrderBuyer")
   ordersAsSeller              Order[]                    @relation("OrderSeller")
+  closetChatThreadsAsBuyer    ClosetChatThread[]         @relation("ClosetChatBuyer")
+  closetChatThreadsAsSeller   ClosetChatThread[]         @relation("ClosetChatSeller")
+  closetChatMessagesSent      ClosetChatMessage[]        @relation("ClosetChatMessageSender")
+  closetChatMessagesReceived  ClosetChatMessage[]        @relation("ClosetChatMessageReceiver")
   userAddrees                 UserAddrees[]
 }
 
@@ -650,11 +654,54 @@ model Order {
   address           UserAddrees          @relation(fields: [addressId], references: [id], onDelete: Restrict)
   payment           MarketPlacePayments? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   items             OrderItem[]
+  closetChatThreads ClosetChatThread[]
 
   @@index([buyerId, createdAt])
   @@index([sellerId, orderStatus])
   @@index([sellerId, paymentStatus, createdAt])
   @@index([paymentId])
+}
+
+model ClosetChatThread {
+  id            String                 @id @default(uuid())
+  orderId       String                 @unique
+  buyerId       String
+  sellerId      String
+  closetId      String
+  status        ClosetChatThreadStatus @default(ACTIVE)
+  lastMessageAt DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  order         Order                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  buyer         User                   @relation("ClosetChatBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller        User                   @relation("ClosetChatSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  messages      ClosetChatMessage[]
+
+  @@index([buyerId, updatedAt])
+  @@index([sellerId, updatedAt])
+  @@index([closetId])
+  @@index([status])
+}
+
+model ClosetChatMessage {
+  id         String                     @id @default(uuid())
+  threadId   String
+  senderId   String
+  receiverId String
+  content    String                     @db.Text
+  type       ClosetChatMessageType      @default(USER)
+  eventType  ClosetChatMessageEventType?
+  isSeen     Boolean                    @default(false)
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+  thread     ClosetChatThread           @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender     User                       @relation("ClosetChatMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User                       @relation("ClosetChatMessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, eventType])
+  @@index([threadId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([receiverId, isSeen])
 }
 
 model OrderItem {
@@ -1708,4 +1755,18 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+enum ClosetChatThreadStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum ClosetChatMessageType {
+  USER
+  SYSTEM
+}
+
+enum ClosetChatMessageEventType {
+  ORDER_PLACED
 }
