@@ -13,4 +13,4 @@ images
 config.bat
 .env
 
-/deep-link/deep-link.controller.ts
+/src/deep-link/deep-link.controller.ts
