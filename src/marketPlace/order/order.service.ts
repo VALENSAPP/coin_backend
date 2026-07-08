@@ -250,13 +250,67 @@ export class OrderService {
     async getBuyerOrders(userId: string) {
         if (!userId) throw new UnauthorizedException('User not authenticated');
 
-        return this.prisma.order.findMany({
+        const orders = await this.prisma.order.findMany({
             where: { buyerId: userId },
             orderBy: { createdAt: 'desc' },
             include: {
-                items: { select: { id: true, quantity: true } },
+                items: {
+                    select: {
+                        id: true,
+                        productId: true,
+                        productName: true,
+                        productImage: true,
+                        quantity: true,
+                        price: true,
+                        subtotal: true,
+                        product: {
+                            select: {
+                                id: true,
+                                name: true,
+                                images: true,
+                                category: true,
+                                brand: true,
+                                condition: true,
+                                isActive: true,
+                                isDeleted: true,
+                                shippingOption: true,
+                                shippingFee: true,
+                                estimateShippingTime: true,
+                            },
+                        },
+                    },
+                },
             },
         });
+
+        return orders.map((order) => ({
+            ...order,
+            totalItemCount: order.items.length,
+            items: order.items.map((item) => ({
+                id: item.id,
+                productId: item.productId,
+                productName: item.productName,
+                productImage: item.productImage,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.subtotal,
+                product: item.product
+                    ? {
+                        id: item.product.id,
+                        name: item.product.name,
+                        images: item.product.images,
+                        category: item.product.category,
+                        brand: item.product.brand,
+                        condition: item.product.condition,
+                        isActive: item.product.isActive,
+                        isDeleted: item.product.isDeleted,
+                        shippingOption: item.product.shippingOption,
+                        shippingFee: item.product.shippingFee,
+                        estimateShippingTime: item.product.estimateShippingTime,
+                    }
+                    : null,
+            })),
+        }));
     }
 
     async getBuyerOrderDetails(userId: string, orderId: string) {
@@ -265,7 +319,32 @@ export class OrderService {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
-                items: true,
+                items: {
+                    select: {
+                        id: true,
+                        productId: true,
+                        productName: true,
+                        productImage: true,
+                        quantity: true,
+                        price: true,
+                        subtotal: true,
+                        product: {
+                            select: {
+                                id: true,
+                                name: true,
+                                images: true,
+                                category: true,
+                                brand: true,
+                                condition: true,
+                                isActive: true,
+                                isDeleted: true,
+                                shippingOption: true,
+                                shippingFee: true,
+                                estimateShippingTime: true,
+                            },
+                        },
+                    },
+                },
                 address: true,
                 payment: true,
             },
@@ -274,7 +353,34 @@ export class OrderService {
         if (!order) throw new NotFoundException('Order not found');
         if (order.buyerId !== userId) throw new UnauthorizedException('Unauthorized');
 
-        return order;
+        return {
+            ...order,
+            totalItemCount: order.items.length,
+            items: order.items.map((item) => ({
+                id: item.id,
+                productId: item.productId,
+                productName: item.productName,
+                productImage: item.productImage,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.subtotal,
+                product: item.product
+                    ? {
+                        id: item.product.id,
+                        name: item.product.name,
+                        images: item.product.images,
+                        category: item.product.category,
+                        brand: item.product.brand,
+                        condition: item.product.condition,
+                        isActive: item.product.isActive,
+                        isDeleted: item.product.isDeleted,
+                        shippingOption: item.product.shippingOption,
+                        shippingFee: item.product.shippingFee,
+                        estimateShippingTime: item.product.estimateShippingTime,
+                    }
+                    : null,
+            })),
+        };
     }
 
     async cancelOrder(userId: string, orderId: string, reason?: string) {
