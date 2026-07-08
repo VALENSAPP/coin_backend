@@ -12,3 +12,5 @@ userImage
 images
 config.bat
 .env
+
+/deep-link/deep-link.controller.ts
