@@ -19,6 +19,7 @@ import { HideChatDto } from './dto/hide-chat.dto';
 import { PinPostDto, UnpinPostDto } from './dto/pin-post.dto';
 import { GetPostTrustScoreDto, PostTrustVoteDto, RemovePostTrustVoteDto } from './dto/post-trust-vote.dto';
 import { POST_TYPES } from './dto/post-types';
+import { GetMarketPlaceEbookDto } from './dto/get-marketplace-ebook.dto';
 import { log } from 'console';
 
 @Controller('post')
@@ -261,6 +262,18 @@ export class PostController {
   async getAllReel(@Req() req: Request) {
     const viewerUserId = (req.user as any)?.userId;
     return this.postService.getAllReel(viewerUserId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('getMarketPlaceEbook')
+  @ApiQuery({ name: 'userId', type: String, required: true, description: 'Target user ID to fetch marketplace ebook posts' })
+  async getMarketPlaceEbook(
+    @Req() req: Request,
+    @Query(new ValidationPipe({ whitelist: true, transform: true })) query: GetMarketPlaceEbookDto,
+  ) {
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.getMarketPlaceEbook(query.userId, viewerUserId);
   }
 
   @UseGuards(AuthGuard('jwt'))

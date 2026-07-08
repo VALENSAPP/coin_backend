@@ -1713,6 +1713,110 @@ export class PostService {
     }));
   }
 
+  async getMarketPlaceEbook(userId: string, viewerUserId?: string) {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        isDelete: 'no',
+        deletedAt: null,
+        userId,
+        format: 'ebook',
+        AND: [this.buildPostVisibilityWhere(viewerUserId)],
+      },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+            profile: true,
+            profileStatus: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    let savedSet: Set<string> = new Set();
+    let likedSet: Set<string> = new Set();
+    let followMap: Record<string, boolean> = {};
+    let hiddenSet: Set<string> = new Set();
+
+    if (viewerUserId && posts.length > 0) {
+      const postIds = posts.map((post) => post.id);
+
+      const [saved, liked, follows, hidden] = await Promise.all([
+        this.prisma.savePost.findMany({
+          where: { userId: viewerUserId, postId: { in: postIds } },
+          select: { postId: true },
+        }),
+        this.prisma.postLike.findMany({
+          where: { userId: viewerUserId, postId: { in: postIds } },
+          select: { postId: true },
+        }),
+        this.prisma.followerAndFollowing.findMany({
+          where: { followerId: viewerUserId, followingId: userId, status: 'ACCEPTED' },
+          select: { followingId: true },
+        }),
+        this.prisma.hidePost.findMany({
+          where: { userId: viewerUserId, postId: { in: postIds } },
+          select: { postId: true },
+        }),
+      ]);
+
+      savedSet = new Set(saved.map((item) => item.postId));
+      likedSet = new Set(liked.map((item) => item.postId));
+      hiddenSet = new Set(hidden.map((item) => item.postId));
+      followMap = follows.reduce((acc, item) => {
+        acc[item.followingId] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+    }
+
+    return posts.map((post) => ({
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      profile: post.user?.profile || null,
+      profileStatus: post.user?.profileStatus || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      shareCount: post._count.shares,
+      isSaved: savedSet.has(post.id),
+      isLike: likedSet.has(post.id),
+      isFollow: !!followMap[post.userId],
+      isHide: hiddenSet.has(post.id),
+      type: post.type,
+      format: post.format,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      ebookpdf: post.ebookpdf,
+      tableContent: post.tableContent,
+      allowDownload: post.allowDownload,
+    }));
+  }
+
 
   async deletePost(postId: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
