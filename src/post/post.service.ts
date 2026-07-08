@@ -971,7 +971,6 @@ export class PostService {
       userId,
       deletedAt: null,
       isDelete: 'no' as any,
-      postHide: 'no' as any,
       type: { in: ['mission-post', 'crowdfunding', 'support'] },
     };
 
