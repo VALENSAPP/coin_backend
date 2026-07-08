@@ -1437,6 +1437,180 @@ export class BillingService {
     };
   }
 
+  async getReceivedTotalsTransactions(userId: string, page: number = 1, limit: number = 10) {
+    const safePage = Math.max(1, page || 1);
+    const safeLimit = Math.min(Math.max(1, limit || 10), 50);
+    const takePerSource = safePage * safeLimit;
+
+    const [
+      followingPayments,
+      tipPayments,
+      missionDonations,
+      usdtTransfers,
+      totalFollowingPayments,
+      totalTipPayments,
+      totalMissionDonations,
+      totalUsdtTransfers,
+      followingPaymentsSummary,
+      tipPaymentsSummary,
+      missionDonationsSummary,
+      usdtTransfersSummary,
+    ] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.donationData.findMany({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.digital_transaction.findMany({
+        where: { receiverId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.payment.count({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+      }),
+      this.prisma.payment.count({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+      }),
+      this.prisma.donationData.count({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+      }),
+      this.prisma.digital_transaction.count({
+        where: { receiverId: userId },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: {
+          amount: true,
+          platformFee: true,
+          totalAmount: true,
+        },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+        _sum: {
+          amount: true,
+          platformFee: true,
+          totalAmount: true,
+        },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        _sum: {
+          amount: true,
+          totalAmount: true,
+          platformFees: true,
+        },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: { receiverId: userId },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const combined = [
+      ...followingPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing' })),
+      ...tipPayments.map((p) => ({ ...p, typeTransaction: 'tip' })),
+      ...missionDonations.map((d) => ({ ...d, typeTransaction: 'donation' })),
+      ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt' })),
+    ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const start = (safePage - 1) * safeLimit;
+    const end = start + safeLimit;
+    const transactions = combined.slice(start, end);
+
+    const totalItems =
+      totalFollowingPayments
+      + totalTipPayments
+      + totalMissionDonations
+      + totalUsdtTransfers;
+    const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+
+    const payFollowingUserReceived = Number(followingPaymentsSummary._sum.amount ?? 0);
+    const tipUserReceived = Number(tipPaymentsSummary._sum.amount ?? 0);
+    const donationUserReceived = Number(missionDonationsSummary._sum.amount ?? 0);
+    const usdtUserReceived = Number(usdtTransfersSummary._sum.amount ?? 0);
+
+    const payFollowingPlatformFee = Number(followingPaymentsSummary._sum.platformFee ?? 0);
+    const tipPlatformFee = Number(tipPaymentsSummary._sum.platformFee ?? 0);
+    const donationPlatformFee = Number(missionDonationsSummary._sum.platformFees ?? 0);
+
+    const payFollowingTotalAmount = Number(
+      followingPaymentsSummary._sum.totalAmount
+      ?? (payFollowingUserReceived + payFollowingPlatformFee),
+    );
+    const tipTotalAmount = Number(
+      tipPaymentsSummary._sum.totalAmount
+      ?? (tipUserReceived + tipPlatformFee),
+    );
+    const donationTotalAmount = Number(
+      missionDonationsSummary._sum.totalAmount
+      ?? (donationUserReceived + donationPlatformFee),
+    );
+    const usdtTotalAmount = usdtUserReceived;
+
+    const userReceived = payFollowingUserReceived + tipUserReceived + donationUserReceived + usdtUserReceived;
+    const platformFee = payFollowingPlatformFee + tipPlatformFee + donationPlatformFee;
+    const totalAmount = payFollowingTotalAmount + tipTotalAmount + donationTotalAmount + usdtTotalAmount;
+
+    return {
+      totalAmount,
+      userReceived,
+      platformFee,
+      page: safePage,
+      limit: safeLimit,
+      totalItems,
+      totalPages,
+      transactions,
+    };
+  }
+
   async getReceivedTransactions(userId: string, page: number = 1, limit: number = 10) {
     const safePage = Math.max(1, page || 1);
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
