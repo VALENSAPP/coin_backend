@@ -141,6 +141,8 @@ model User {
   closetChatThreadsAsSeller   ClosetChatThread[]         @relation("ClosetChatSeller")
   closetChatMessagesSent      ClosetChatMessage[]        @relation("ClosetChatMessageSender")
   closetChatMessagesReceived  ClosetChatMessage[]        @relation("ClosetChatMessageReceiver")
+  ebookPaymentsAsBuyer        EbookPayments[]            @relation("EbookPaymentBuyer")
+  ebookPaymentsAsSeller       EbookPayments[]            @relation("EbookPaymentSeller")
   userAddrees                 UserAddrees[]
 }
 
@@ -352,6 +354,7 @@ model Post {
   allowDownload    Boolean         @default(true)
   amount           Float?
   promoCode        String?
+  ebookPayments    EbookPayments[]
   hides            HidePost[]
   reports          PostReport[]
   user             User            @relation(fields: [userId], references: [id])
@@ -626,6 +629,34 @@ model MarketPlacePayments {
   @@index([status])
   @@index([createdAt])
   @@map("marketPlacePayments")
+}
+
+model EbookPayments {
+  id                String   @id @default(uuid())
+  buyerId           String
+  sellerId          String
+  postId            String
+  amount            Int
+  platformFee       Int
+  sellerAmount      Int
+  currency          String   @default("usd")
+  status            String   @default("PENDING")
+  provider          String   @default("STRIPE")
+  checkoutSessionId String?  @unique
+  paymentIntentId   String?  @unique
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  buyer             User     @relation("EbookPaymentBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller            User     @relation("EbookPaymentSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  post              Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([postId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("ebookPayments")
 }
 
 model Order {

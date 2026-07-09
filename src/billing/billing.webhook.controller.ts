@@ -135,6 +135,8 @@ export class BillingWebhookController {
         await this.billingService.handleOneTimePaymentSuccess(paymentIntent);
       } else if (type === 'tip') {
         await this.billingService.handleTipPaymentSuccess(paymentIntent);
+      } else if (type === 'ebook') {
+        await this.billingService.handleEbookPaymentSuccess(paymentIntent);
       } else if (type === 'marketplace_mycloset') {
         await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
       } else if (type === 'marketplace_battle_boost') {
@@ -165,6 +167,8 @@ export class BillingWebhookController {
         await this.billingService.handleOneTimePaymentFailed(paymentIntent);
       } else if (type === 'tip') {
         await this.billingService.handleTipPaymentFailed(paymentIntent);
+      } else if (type === 'ebook') {
+        await this.billingService.handleEbookPaymentFailed(paymentIntent);
       } else if (type === 'marketplace_mycloset') {
         await this.marketPlacePaymentService.markMarketplacePaymentFailed(paymentIntent);
       } else if (type === 'marketplace_battle_boost') {

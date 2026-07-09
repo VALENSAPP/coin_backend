@@ -9,6 +9,7 @@ import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
 import { SendTipDto } from './dto/send-tip.dto';
+import { CreateEbookPaymentDto } from './dto/create-ebook-payment.dto';
 import { AddDigitalBadgeDto } from './dto/add-digital-badge.dto';
 import { VerifyUsdtTransactionDto } from './dto/verify-usdt-transaction.dto';
 
@@ -22,7 +23,7 @@ export class RequestWithdrawalDto {
   @IsNumber()
   @Min(10)
   @IsNotEmpty()
-  amount: number;
+  amount!: number;
 }
 
 @ApiTags('billing')
@@ -81,6 +82,25 @@ export class BillingController {
     const session = await this.billingService.createTipCheckoutSession(
       senderUserId,
       dto.receiverUserId,
+      dto.amount,
+    );
+    return { url: session.url };
+  }
+
+  @Post('ebook-payment')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for ebook payment (10% platform, 90% seller)' })
+  @ApiBody({ type: CreateEbookPaymentDto })
+  async createEbookPayment(@Req() req: Request, @Body() dto: CreateEbookPaymentDto) {
+    const buyerUserId = (req.user as any).userId;
+    if (dto.targetUserId === buyerUserId) {
+      throw new BadRequestException('You cannot buy your own ebook');
+    }
+    const session = await this.billingService.createEbookCheckoutSession(
+      buyerUserId,
+      dto.targetUserId,
+      dto.postId,
       dto.amount,
     );
     return { url: session.url };
