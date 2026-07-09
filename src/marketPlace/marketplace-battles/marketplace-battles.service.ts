@@ -1982,6 +1982,36 @@ export class MarketplaceBattlesService {
         };
     }
 
+    async getMarketPlaceBattleOverview(userId: string) {
+        const sellerId = this.assertSellerUserId(userId);
+
+        const [totalBattlesCreated, votesCount, viewsCount] = await Promise.all([
+            this.prisma.marketplaceBattle.count({
+                where: { sellerId },
+            }),
+            this.prisma.marketplaceBattleVote.count({
+                where: {
+                    battle: {
+                        sellerId,
+                    },
+                },
+            }),
+            this.prisma.marketplaceBattleView.count({
+                where: {
+                    battle: {
+                        sellerId,
+                    },
+                },
+            }),
+        ]);
+
+        return {
+            totalBattlesCreated,
+            totalVotes: votesCount,
+            totalViews: viewsCount,
+        };
+    }
+
     async trackMarketplaceBattleView(userId: string, battleId: string) {
         const viewerId = this.assertSellerUserId(userId);
         const now = new Date();

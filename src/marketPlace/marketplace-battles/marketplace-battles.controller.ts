@@ -86,6 +86,19 @@ export class MarketplaceBattlesController {
         return this.marketplaceBattlesService.listMyBattles(userId, query);
     }
 
+    @Get('marketPlaceBattleOverview')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary:
+            'Get authenticated seller marketplace battle overview (total created battles, votes, and views)',
+    })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    async getMarketPlaceBattleOverview(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.getMarketPlaceBattleOverview(userId);
+    }
+
     @Get('me/:battleId')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
