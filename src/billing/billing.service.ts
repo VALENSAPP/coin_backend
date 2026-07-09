@@ -867,6 +867,85 @@ export class BillingService {
     });
   }
 
+  async getMyEbookPayments(
+    userId: string,
+    role: 'buyer' | 'seller' | 'all' = 'all',
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    const safePage = Math.max(1, page || 1);
+    const safeLimit = Math.min(50, Math.max(1, limit || 10));
+    const skip = (safePage - 1) * safeLimit;
+
+    const where =
+      role === 'buyer'
+        ? { buyerId: userId }
+        : role === 'seller'
+          ? { sellerId: userId }
+          : {
+            OR: [{ buyerId: userId }, { sellerId: userId }],
+          };
+
+    const [totalCount, totals, records] = await Promise.all([
+      (this.prisma as any).ebookPayments.count({ where }),
+      (this.prisma as any).ebookPayments.aggregate({
+        where,
+        _sum: {
+          amount: true,
+          platformFee: true,
+          sellerAmount: true,
+        },
+      }),
+      (this.prisma as any).ebookPayments.findMany({
+        where,
+        include: {
+          buyer: {
+            select: {
+              id: true,
+              displayName: true,
+              image: true,
+            },
+          },
+          seller: {
+            select: {
+              id: true,
+              displayName: true,
+              image: true,
+            },
+          },
+          post: {
+            select: {
+              id: true,
+              caption: true,
+              format: true,
+              amount: true,
+              ebookpdf: true,
+              thumbnails: true,
+              images: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: safeLimit,
+      }),
+    ]);
+
+    return {
+      role,
+      page: safePage,
+      limit: safeLimit,
+      totalCount,
+      totalPages: Math.ceil(totalCount / safeLimit),
+      totals: {
+        amount: totals?._sum?.amount ?? 0,
+        platformFee: totals?._sum?.platformFee ?? 0,
+        sellerAmount: totals?._sum?.sellerAmount ?? 0,
+      },
+      records,
+    };
+  }
+
   async getPayFollowingReceivedSummary(receiverId: string, page: number = 1, pageSize: number = 10) {
     const safePage = Math.max(1, page || 1);
     const safePageSize = Math.min(Math.max(1, pageSize || 10), 50);

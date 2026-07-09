@@ -1162,6 +1162,17 @@ export class PostService {
       ? await this.prisma.hidePost.findFirst({ where: { userId: viewerId, postId } })
       : null;
 
+    const purchased = viewerId
+      ? await (this.prisma as any).ebookPayments.findFirst({
+        where: {
+          buyerId: viewerId,
+          postId,
+          status: { in: ['SUCCEEDED', 'succeeded'] },
+        },
+        select: { id: true },
+      })
+      : null;
+
     // ✅ Follow status (does viewer follow the post's author?)
     let isFollow = false;
     if (viewerId) {
@@ -1207,6 +1218,7 @@ export class PostService {
       start_time: post.start_time,
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
+      isPurchased: !!purchased,
     };
   }
 
@@ -1747,11 +1759,12 @@ export class PostService {
     let likedSet: Set<string> = new Set();
     let followMap: Record<string, boolean> = {};
     let hiddenSet: Set<string> = new Set();
+    let purchasedSet: Set<string> = new Set();
 
     if (viewerUserId && posts.length > 0) {
       const postIds = posts.map((post) => post.id);
 
-      const [saved, liked, follows, hidden] = await Promise.all([
+      const [saved, liked, follows, hidden, purchased] = await Promise.all([
         this.prisma.savePost.findMany({
           where: { userId: viewerUserId, postId: { in: postIds } },
           select: { postId: true },
@@ -1768,11 +1781,21 @@ export class PostService {
           where: { userId: viewerUserId, postId: { in: postIds } },
           select: { postId: true },
         }),
+        (this.prisma as any).ebookPayments.findMany({
+          where: {
+            buyerId: viewerUserId,
+            postId: { in: postIds },
+            status: { in: ['SUCCEEDED', 'succeeded'] },
+          },
+          select: { postId: true },
+          distinct: ['postId'],
+        }),
       ]);
 
       savedSet = new Set(saved.map((item) => item.postId));
       likedSet = new Set(liked.map((item) => item.postId));
       hiddenSet = new Set(hidden.map((item) => item.postId));
+      purchasedSet = new Set(purchased.map((item: { postId: string }) => item.postId));
       followMap = follows.reduce((acc, item) => {
         acc[item.followingId] = true;
         return acc;
@@ -1813,6 +1836,7 @@ export class PostService {
       ebookpdf: post.ebookpdf,
       tableContent: post.tableContent,
       allowDownload: post.allowDownload,
+      isPurchased: purchasedSet.has(post.id),
     }));
   }
 

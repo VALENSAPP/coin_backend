@@ -106,6 +106,32 @@ export class BillingController {
     return { url: session.url };
   }
 
+  @Get('ebook-payments/me')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get authenticated user ebook payments (buyer/seller/all)' })
+  @ApiQuery({ name: 'role', required: false, enum: ['buyer', 'seller', 'all'], example: 'all' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  async getMyEbookPayments(
+    @Req() req: Request,
+    @Query('role') role?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const userId = (req.user as any).userId;
+    const normalizedRole = (role || 'all').toString().trim().toLowerCase();
+    const parsedRole =
+      normalizedRole === 'buyer' || normalizedRole === 'seller' || normalizedRole === 'all'
+        ? (normalizedRole as 'buyer' | 'seller' | 'all')
+        : 'all';
+
+    const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit || '10', 10) || 10));
+
+    return this.billingService.getMyEbookPayments(userId, parsedRole, pageNum, limitNum);
+  }
+
   @Get('pay-following/received')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
