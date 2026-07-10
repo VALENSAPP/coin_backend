@@ -1956,6 +1956,153 @@ export class PostService {
     };
   }
 
+  async myEbookLibrary(viewerUserId?: string) {
+    if (!viewerUserId) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    const payments = await (this.prisma as any).ebookPayments.findMany({
+      where: {
+        buyerId: viewerUserId,
+        status: { in: ['SUCCEEDED', 'succeeded'] },
+      },
+      select: {
+        id: true,
+        postId: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!payments.length) {
+      return [];
+    }
+
+    const paymentByPostId = new Map<string, { paymentId: string; purchasedAt: Date }>();
+    for (const payment of payments) {
+      if (!paymentByPostId.has(payment.postId)) {
+        paymentByPostId.set(payment.postId, {
+          paymentId: payment.id,
+          purchasedAt: payment.createdAt,
+        });
+      }
+    }
+
+    const postIds = Array.from(paymentByPostId.keys());
+
+    const posts = await this.prisma.post.findMany({
+      where: {
+        id: { in: postIds },
+        isDelete: 'no',
+        deletedAt: null,
+        format: 'ebook',
+      },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+            profile: true,
+            profileStatus: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+      },
+    });
+
+    if (!posts.length) {
+      return [];
+    }
+
+    const [saved, liked, hidden, follows] = await Promise.all([
+      this.prisma.savePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map((post) => post.id) } },
+        select: { postId: true },
+      }),
+      this.prisma.postLike.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map((post) => post.id) } },
+        select: { postId: true },
+      }),
+      this.prisma.hidePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map((post) => post.id) } },
+        select: { postId: true },
+      }),
+      this.prisma.followerAndFollowing.findMany({
+        where: {
+          followerId: viewerUserId,
+          followingId: { in: Array.from(new Set(posts.map((post) => post.userId))) },
+          status: 'ACCEPTED',
+        },
+        select: { followingId: true },
+      }),
+    ]);
+
+    const savedSet = new Set(saved.map((item) => item.postId));
+    const likedSet = new Set(liked.map((item) => item.postId));
+    const hiddenSet = new Set(hidden.map((item) => item.postId));
+    const followMap = follows.reduce((acc, item) => {
+      acc[item.followingId] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+
+    const postMap = new Map(posts.map((post) => [post.id, post]));
+
+    return postIds
+      .map((postId) => {
+        const post = postMap.get(postId);
+        if (!post) return null;
+
+        const paymentMeta = paymentByPostId.get(post.id);
+
+        return {
+          id: post.id,
+          text: post.text,
+          images: post.images,
+          thumbnails: post.thumbnails,
+          caption: post.caption,
+          hashtag: post.hashtag,
+          location: post.location,
+          music: post.music,
+          youtubeMusicMeta: post.youtubeMusicMeta,
+          taggedPeople: post.taggedPeople,
+          createdAt: post.createdAt,
+          updatedAt: post.updatedAt,
+          deletedAt: post.deletedAt,
+          userId: post.userId,
+          userName: post.user?.displayName || null,
+          userImage: post.user?.image || null,
+          profile: post.user?.profile || null,
+          profileStatus: post.user?.profileStatus || null,
+          likeCount: post._count.likes,
+          commentCount: post._count.comments,
+          shareCount: post._count.shares,
+          isSaved: savedSet.has(post.id),
+          isLike: likedSet.has(post.id),
+          isFollow: !!followMap[post.userId],
+          isHide: hiddenSet.has(post.id),
+          type: post.type,
+          format: post.format,
+          link: post.link,
+          visibleTo: (post as any).visibleTo,
+          private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+          ebookpdf: post.ebookpdf,
+          tableContent: post.tableContent,
+          allowDownload: post.allowDownload,
+          amount: post.amount,
+          isPurchased: true,
+          paymentId: paymentMeta?.paymentId || null,
+          purchasedAt: paymentMeta?.purchasedAt || null,
+        };
+      })
+      .filter((item) => item !== null);
+  }
+
 
   async deletePost(postId: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });

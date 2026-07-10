@@ -291,6 +291,15 @@ export class PostController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('myEbookLibrary')
+  @ApiOperation({ summary: 'Get purchased ebooks library for authenticated user' })
+  async myEbookLibrary(@Req() req: Request) {
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.myEbookLibrary(viewerUserId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Delete('delete')
   async deletePost(@Req() req: Request, @Query(new ValidationPipe({ whitelist: true })) query: DeletePostDto) {
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
