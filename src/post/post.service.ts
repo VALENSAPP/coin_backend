@@ -1731,7 +1731,6 @@ export class PostService {
         deletedAt: null,
         userId,
         format: 'ebook',
-        AND: [this.buildPostVisibilityWhere(viewerUserId)],
       },
       include: {
         user: {
