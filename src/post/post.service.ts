@@ -1874,8 +1874,6 @@ export class PostService {
       throw new BadRequestException('Marketplace ebook post not found');
     }
 
-    await this.ensureCanViewPost(post, viewerUserId);
-
     const [saved, liked, hidden, follow, purchased] = await Promise.all([
       viewerUserId
         ? this.prisma.savePost.findFirst({
