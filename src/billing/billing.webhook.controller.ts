@@ -52,6 +52,13 @@ export class BillingWebhookController {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.metadata?.type === 'token_purchase') {
           await this.tokenPurchaseService.handleCheckoutSessionCompleted(session.id);
+        } else if (session.metadata?.type === 'ebook') {
+          const paymentIntentId =
+            typeof session.payment_intent === 'string' ? session.payment_intent : null;
+          if (paymentIntentId) {
+            const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+            await this.billingService.handleEbookPaymentSuccess(paymentIntent);
+          }
         } else if (session.metadata?.type === 'buy_hit') {
           await this.billingService.handleBuyHitPayment(session);
         } else if (session.metadata?.type === 'fans_page_subscription') {
