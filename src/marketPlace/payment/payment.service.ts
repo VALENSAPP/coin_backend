@@ -16,6 +16,8 @@ export class PaymentService {
     private readonly stripe: Stripe;
     private readonly provider = 'STRIPE';
     private readonly marketplaceType = 'marketplace_mycloset';
+    private readonly COMPANY_PLATFORM_FEE_PERCENT = 0.20;
+    private readonly USER_PLATFORM_FEE_PERCENT = 0.15;
 
     constructor(
         private readonly prisma: PrismaService,
@@ -28,6 +30,15 @@ export class PaymentService {
 
     private toMinorUnits(value: number) {
         return Math.round(Number(value.toFixed(2)) * 100);
+    }
+
+    private getMarketplacePlatformFeePercent(profile: string | null | undefined): number {
+        const normalized = (profile || '').trim().toLowerCase();
+        if (normalized === 'company' || normalized === 'business') {
+            return this.COMPANY_PLATFORM_FEE_PERCENT;
+        }
+
+        return this.USER_PLATFORM_FEE_PERCENT;
     }
 
     private resolveShippingForPayment(
@@ -263,8 +274,28 @@ export class PaymentService {
             });
         }
 
-        const platformFeeMinor = 0;
-        const grandTotalMinor = subtotalMinor + shippingMinor + platformFeeMinor;
+        const seller = await this.prisma.user.findUnique({
+            where: { id: cart.sellerId },
+            select: {
+                id: true,
+                profile: true,
+                stripeAccountId: true,
+            },
+        });
+
+        if (!seller) {
+            throw new NotFoundException('Seller not found');
+        }
+
+        if (!seller.stripeAccountId) {
+            throw new BadRequestException('Seller has not completed Stripe onboarding');
+        }
+
+        const platformFeePercent = this.getMarketplacePlatformFeePercent(seller.profile);
+        const grandTotalMinor = subtotalMinor + shippingMinor;
+        const platformFeeMinor = Math.round(grandTotalMinor * platformFeePercent);
+        const sellerAmountMinor = Math.max(0, grandTotalMinor - platformFeeMinor);
+
         if (grandTotalMinor <= 0) {
             throw new BadRequestException('Invalid cart total for payment');
         }
@@ -294,6 +325,8 @@ export class PaymentService {
                     subtotalMinor,
                     shippingMinor,
                     platformFeeMinor,
+                    platformFeePercent,
+                    sellerAmountMinor,
                     grandTotalMinor,
                     items: validatedItems,
                 },
@@ -325,18 +358,26 @@ export class PaymentService {
                     userId,
                     cartId: cart.id,
                     sellerId: cart.sellerId,
+                    sellerProfile: seller.profile || 'user',
                     closetId: cart.closetId,
                     addressId: address.id,
                 },
                 payment_intent_data: {
+                    application_fee_amount: platformFeeMinor,
+                    transfer_data: {
+                        destination: seller.stripeAccountId,
+                    },
                     metadata: {
                         type: this.marketplaceType,
                         paymentId: payment.id,
                         userId,
                         cartId: cart.id,
                         sellerId: cart.sellerId,
+                        sellerProfile: seller.profile || 'user',
                         closetId: cart.closetId,
                         addressId: address.id,
+                        platformFeeMinor: String(platformFeeMinor),
+                        sellerAmountMinor: String(sellerAmountMinor),
                     },
                 },
             });
