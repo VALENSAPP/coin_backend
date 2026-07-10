@@ -29,6 +29,7 @@ import {
 import { Request } from 'express';
 import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto';
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
+import { ReactMarketplaceBattleCommentDto } from './dto/react-marketplace-battle-comment.dto';
 import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleListQueryDto } from './dto/marketplace-battle-list-query.dto';
@@ -353,6 +354,52 @@ export class MarketplaceBattlesController {
             req.user.userId,
             battleId,
             dto,
+        );
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @Post(':battleId/comments/:commentId/reaction')
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Like, dislike, or remove reaction on marketplace battle comment',
+        description: 'Use LIKE or DISLIKE to set reaction, or NONE to remove current reaction.',
+    })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
+    @ApiParam({ name: 'commentId', description: 'Marketplace battle comment UUID' })
+    @ApiCreatedResponse({
+        description: 'Marketplace battle comment reaction updated successfully',
+        schema: {
+            example: {
+                message: 'Reaction updated successfully',
+                battleId: 'battle-uuid',
+                commentId: 'comment-uuid',
+                userReaction: 'LIKE',
+                likeCount: 12,
+                dislikeCount: 3,
+            },
+        },
+    })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle or comment not found' })
+    @ApiBadRequestResponse({ description: 'Invalid payload or battle status' })
+    async reactComment(
+        @Req() req: any,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+        @Param('commentId', new ParseUUIDPipe({ version: '4' })) commentId: string,
+        @Body(
+            new ValidationPipe({
+                whitelist: true,
+                forbidNonWhitelisted: true,
+                transform: true,
+            }),
+        )
+        dto: ReactMarketplaceBattleCommentDto,
+    ) {
+        return this.marketplaceBattlesService.reactMarketplaceBattleComment(
+            req.user.userId,
+            battleId,
+            commentId,
+            dto.reaction,
         );
     }
 

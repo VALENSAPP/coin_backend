@@ -123,6 +123,7 @@ model User {
   marketplaceBattlesCreated   MarketplaceBattle[]        @relation("MarketplaceBattleSeller")
   marketplaceBattleVotes      MarketplaceBattleVote[]    @relation("MarketplaceBattleVoter")
   marketplaceBattleComments   MarketplaceBattleComment[] @relation("MarketplaceBattleCommentAuthor")
+  marketplaceBattleCommentReactions MarketplaceBattleCommentReaction[]
   marketplaceBattleViews      MarketplaceBattleView[]
   marketplaceWinnerPromotions MarketplaceWinnerPromotion[]
   marketplaceBattleBoosts     MarketplaceBattleBoost[]
@@ -1444,11 +1445,29 @@ model MarketplaceBattleComment {
 
   battle MarketplaceBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
   user   User              @relation("MarketplaceBattleCommentAuthor", fields: [userId], references: [id], onDelete: Restrict)
+  reactions MarketplaceBattleCommentReaction[]
 
   @@index([battleId])
   @@index([userId])
   @@index([createdAt])
   @@index([battleId, createdAt])
+}
+
+model MarketplaceBattleCommentReaction {
+  id        String       @id @default(uuid())
+  commentId String
+  userId    String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  comment MarketplaceBattleComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+  @@index([type])
 }
 
 model MarketplaceBattleView {

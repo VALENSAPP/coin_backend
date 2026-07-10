@@ -41,6 +41,7 @@ import { NotificationService } from '../../notification/notification.service';
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
+import { ReactMarketplaceBattleCommentDto } from './dto/react-marketplace-battle-comment.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
 import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
 
@@ -2673,6 +2674,26 @@ export class MarketplaceBattlesService {
             }),
         ]);
 
+        const commentIds = comments.map((comment) => comment.id);
+        const reactionCounts = commentIds.length
+            ? await (this.prisma as any).marketplaceBattleCommentReaction.groupBy({
+                by: ['commentId', 'type'],
+                where: { commentId: { in: commentIds } },
+                _count: { _all: true },
+            })
+            : [];
+
+        const reactionCountMap = new Map<string, { likeCount: number; dislikeCount: number }>();
+        reactionCounts.forEach((row: any) => {
+            const current = reactionCountMap.get(row.commentId) || { likeCount: 0, dislikeCount: 0 };
+            if (row.type === 'LIKE') {
+                current.likeCount = row._count?._all || 0;
+            } else if (row.type === 'DISLIKE') {
+                current.dislikeCount = row._count?._all || 0;
+            }
+            reactionCountMap.set(row.commentId, current);
+        });
+
         return {
             comments: comments.map((comment) => ({
                 id: comment.id,
@@ -2680,11 +2701,131 @@ export class MarketplaceBattlesService {
                 createdAt: comment.createdAt,
                 updatedAt: comment.updatedAt,
                 user: this.mapPublicCommentUser(comment.user),
+                likeCount: reactionCountMap.get(comment.id)?.likeCount || 0,
+                dislikeCount: reactionCountMap.get(comment.id)?.dislikeCount || 0,
             })),
             total,
             page,
             limit,
             totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        };
+    }
+
+    async reactMarketplaceBattleComment(
+        userId: string,
+        battleId: string,
+        commentId: string,
+        reaction: ReactMarketplaceBattleCommentDto['reaction'],
+    ) {
+        const reactorId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const battle = await this.prisma.marketplaceBattle.findUnique({
+            where: { id: battleId },
+            select: {
+                id: true,
+                status: true,
+                startAt: true,
+                endAt: true,
+            },
+        });
+
+        if (!battle) throw new NotFoundException('Marketplace battle not found');
+
+        if (battle.status === MarketplaceBattleStatus.LIVE) {
+            if (!battle.startAt || !battle.endAt || battle.startAt > now || battle.endAt <= now) {
+                throw new NotFoundException('Marketplace battle not found');
+            }
+        } else if (battle.status !== MarketplaceBattleStatus.COMPLETED) {
+            throw new BadRequestException('Comment reactions are only allowed for live or completed marketplace battles');
+        }
+
+        const comment = await this.prisma.marketplaceBattleComment.findFirst({
+            where: {
+                id: commentId,
+                battleId,
+                deletedAt: null,
+            },
+            select: { id: true },
+        });
+
+        if (!comment) {
+            throw new NotFoundException('Marketplace battle comment not found');
+        }
+
+        await this.prisma.$transaction(async (tx) => {
+            const existing = await (tx as any).marketplaceBattleCommentReaction.findUnique({
+                where: {
+                    commentId_userId: {
+                        commentId,
+                        userId: reactorId,
+                    },
+                },
+            });
+
+            if (reaction === 'NONE') {
+                if (existing) {
+                    await (tx as any).marketplaceBattleCommentReaction.delete({
+                        where: {
+                            commentId_userId: {
+                                commentId,
+                                userId: reactorId,
+                            },
+                        },
+                    });
+                }
+                return;
+            }
+
+            if (!existing) {
+                await (tx as any).marketplaceBattleCommentReaction.create({
+                    data: {
+                        commentId,
+                        userId: reactorId,
+                        type: reaction,
+                    },
+                });
+                return;
+            }
+
+            if (existing.type !== reaction) {
+                await (tx as any).marketplaceBattleCommentReaction.update({
+                    where: {
+                        commentId_userId: {
+                            commentId,
+                            userId: reactorId,
+                        },
+                    },
+                    data: { type: reaction },
+                });
+            }
+        });
+
+        const [likeCount, dislikeCount, viewerReaction] = await Promise.all([
+            (this.prisma as any).marketplaceBattleCommentReaction.count({
+                where: { commentId, type: 'LIKE' },
+            }),
+            (this.prisma as any).marketplaceBattleCommentReaction.count({
+                where: { commentId, type: 'DISLIKE' },
+            }),
+            (this.prisma as any).marketplaceBattleCommentReaction.findUnique({
+                where: {
+                    commentId_userId: {
+                        commentId,
+                        userId: reactorId,
+                    },
+                },
+                select: { type: true },
+            }),
+        ]);
+
+        return {
+            message: reaction === 'NONE' ? 'Reaction removed successfully' : 'Reaction updated successfully',
+            battleId,
+            commentId,
+            userReaction: viewerReaction?.type || 'NONE',
+            likeCount,
+            dislikeCount,
         };
     }
 
