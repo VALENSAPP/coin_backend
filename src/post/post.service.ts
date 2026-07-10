@@ -1839,6 +1839,123 @@ export class PostService {
     }));
   }
 
+  async getMarketPlaceEbookById(postId: string, viewerUserId?: string) {
+    if (!postId) {
+      throw new BadRequestException('Post ID required');
+    }
+
+    const post = await this.prisma.post.findFirst({
+      where: {
+        id: postId,
+        isDelete: 'no',
+        deletedAt: null,
+        format: 'ebook',
+      },
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            image: true,
+            profile: true,
+            profileStatus: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+            shares: true,
+          },
+        },
+      },
+    });
+
+    if (!post) {
+      throw new BadRequestException('Marketplace ebook post not found');
+    }
+
+    await this.ensureCanViewPost(post, viewerUserId);
+
+    const [saved, liked, hidden, follow, purchased] = await Promise.all([
+      viewerUserId
+        ? this.prisma.savePost.findFirst({
+          where: { userId: viewerUserId, postId },
+          select: { id: true },
+        })
+        : Promise.resolve(null),
+      viewerUserId
+        ? this.prisma.postLike.findFirst({
+          where: { userId: viewerUserId, postId },
+          select: { id: true },
+        })
+        : Promise.resolve(null),
+      viewerUserId
+        ? this.prisma.hidePost.findFirst({
+          where: { userId: viewerUserId, postId },
+          select: { id: true },
+        })
+        : Promise.resolve(null),
+      viewerUserId
+        ? this.prisma.followerAndFollowing.findFirst({
+          where: {
+            followerId: viewerUserId,
+            followingId: post.userId,
+            status: 'ACCEPTED',
+          },
+          select: { id: true },
+        })
+        : Promise.resolve(null),
+      viewerUserId
+        ? (this.prisma as any).ebookPayments.findFirst({
+          where: {
+            buyerId: viewerUserId,
+            postId,
+            status: { in: ['SUCCEEDED', 'succeeded'] },
+          },
+          select: { id: true },
+        })
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      profile: post.user?.profile || null,
+      profileStatus: post.user?.profileStatus || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      shareCount: post._count.shares,
+      isSaved: !!saved,
+      isLike: !!liked,
+      isFollow: !!follow,
+      isHide: !!hidden,
+      type: post.type,
+      format: post.format,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      ebookpdf: post.ebookpdf,
+      tableContent: post.tableContent,
+      allowDownload: post.allowDownload,
+      amount: post.amount,
+      isPurchased: !!purchased,
+    };
+  }
+
 
   async deletePost(postId: string, userId: string) {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });

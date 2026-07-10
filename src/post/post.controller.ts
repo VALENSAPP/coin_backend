@@ -278,6 +278,19 @@ export class PostController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('getMarketPlaceEbookById/:postId')
+  @ApiOperation({ summary: 'Get marketplace ebook by post ID with purchase state for authenticated viewer' })
+  @ApiParam({ name: 'postId', type: 'string', description: 'Marketplace ebook post ID' })
+  async getMarketPlaceEbookById(
+    @Req() req: Request,
+    @Param(new ValidationPipe({ whitelist: true })) params: GetPostByIdDto,
+  ) {
+    const viewerUserId = (req.user as any)?.userId;
+    return this.postService.getMarketPlaceEbookById(params.postId, viewerUserId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Delete('delete')
   async deletePost(@Req() req: Request, @Query(new ValidationPipe({ whitelist: true })) query: DeletePostDto) {
     const userId = (req.user as any).userId; // Use 'sub' instead of 'userId'
