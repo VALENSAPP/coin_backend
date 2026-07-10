@@ -970,7 +970,7 @@ export class PostService {
     const whereClause: Prisma.PostWhereInput = {
       userId,
       deletedAt: null,
-      isDelete: 'no' as any,
+      // isDelete: 'no' as any,
       type: { in: ['mission-post', 'crowdfunding', 'support'] },
     };
 
