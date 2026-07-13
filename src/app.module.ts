@@ -17,6 +17,7 @@ import { BattleModule } from './battle/battle.module';
 import { PrivateCircleModule } from './private-circle/private-circle.module';
 import { MyclosetModule } from './marketPlace/mycloset/mycloset.module';
 import { CartModule } from './marketPlace/cart/cart.module';
+import { WishlistModule } from './marketPlace/wishlist/wishlist.module';
 import { AddressModule } from './marketPlace/address/address.module';
 import { PaymentModule } from './marketPlace/payment/payment.module';
 import { OrderModule } from './marketPlace/order/order.module';
@@ -47,6 +48,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     PrivateCircleModule,
     MyclosetModule,
     CartModule,
+    WishlistModule,
     AddressModule,
     PaymentModule,
     OrderModule,

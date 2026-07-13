@@ -135,6 +135,7 @@ model User {
   closetViews                 ClosetView[]
   closetItemLikes             ClosetItemLike[]
   carts                       Cart[]
+  wishlists                   Wishlist[]
   marketPlaceOrders           MarketPlaceOrder[]
   ordersAsBuyer               Order[]                    @relation("OrderBuyer")
   ordersAsSeller              Order[]                    @relation("OrderSeller")
@@ -214,6 +215,7 @@ model ClosetItems {
   closet                        Mycloset                       @relation(fields: [closetId], references: [id], onDelete: Cascade)
   user                          User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
   cartItems                     CartItems[]
+  wishlistItems                 WishlistItems[]
   likes                         ClosetItemLike[]
   orderItems                    MarketPlaceOrderItem[]
   orderSnapshots                OrderItem[]
@@ -274,6 +276,38 @@ model CartItems {
   @@index([cartId])
   @@index([productId])
   @@map("cartItems")
+}
+
+model Wishlist {
+  id            String          @id @default(uuid())
+  userId        String
+  sellerId      String
+  closetId      String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  wishlistItems WishlistItems[]
+
+  @@unique([userId, sellerId, closetId])
+  @@index([userId])
+  @@index([sellerId])
+  @@index([closetId])
+  @@map("wishlist")
+}
+
+model WishlistItems {
+  id         String      @id @default(uuid())
+  wishlistId String
+  productId  String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  wishlist   Wishlist    @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  product    ClosetItems @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([wishlistId, productId])
+  @@index([wishlistId])
+  @@index([productId])
+  @@map("wishlistItems")
 }
 
 model UserAddrees {
