@@ -59,6 +59,13 @@ export class BillingWebhookController {
             const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
             await this.billingService.handleEbookPaymentSuccess(paymentIntent);
           }
+        } else if (session.metadata?.type === 'shop_ebook') {
+          const paymentIntentId =
+            typeof session.payment_intent === 'string' ? session.payment_intent : null;
+          if (paymentIntentId) {
+            const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
+            await this.billingService.handleShopEbookPaymentSuccess(paymentIntent);
+          }
         } else if (session.metadata?.type === 'buy_hit') {
           await this.billingService.handleBuyHitPayment(session);
         } else if (session.metadata?.type === 'fans_page_subscription') {
@@ -144,6 +151,8 @@ export class BillingWebhookController {
         await this.billingService.handleTipPaymentSuccess(paymentIntent);
       } else if (type === 'ebook') {
         await this.billingService.handleEbookPaymentSuccess(paymentIntent);
+      } else if (type === 'shop_ebook') {
+        await this.billingService.handleShopEbookPaymentSuccess(paymentIntent);
       } else if (type === 'marketplace_mycloset') {
         await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
       } else if (type === 'marketplace_battle_boost') {
@@ -176,6 +185,8 @@ export class BillingWebhookController {
         await this.billingService.handleTipPaymentFailed(paymentIntent);
       } else if (type === 'ebook') {
         await this.billingService.handleEbookPaymentFailed(paymentIntent);
+      } else if (type === 'shop_ebook') {
+        await this.billingService.handleShopEbookPaymentFailed(paymentIntent);
       } else if (type === 'marketplace_mycloset') {
         await this.marketPlacePaymentService.markMarketplacePaymentFailed(paymentIntent);
       } else if (type === 'marketplace_battle_boost') {

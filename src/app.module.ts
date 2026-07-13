@@ -18,6 +18,7 @@ import { PrivateCircleModule } from './private-circle/private-circle.module';
 import { MyclosetModule } from './marketPlace/mycloset/mycloset.module';
 import { CartModule } from './marketPlace/cart/cart.module';
 import { WishlistModule } from './marketPlace/wishlist/wishlist.module';
+import { ShopEbookModule } from './marketPlace/shop-ebook/shop-ebook.module';
 import { AddressModule } from './marketPlace/address/address.module';
 import { PaymentModule } from './marketPlace/payment/payment.module';
 import { OrderModule } from './marketPlace/order/order.module';
@@ -49,6 +50,7 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     MyclosetModule,
     CartModule,
     WishlistModule,
+    ShopEbookModule,
     AddressModule,
     PaymentModule,
     OrderModule,

@@ -136,6 +136,9 @@ model User {
   closetItemLikes             ClosetItemLike[]
   carts                       Cart[]
   wishlists                   Wishlist[]
+  shopEbooks                  ShopEbook[]
+  shopEbookPaymentsAsBuyer    ShopEbookPayments[]        @relation("ShopEbookPaymentBuyer")
+  shopEbookPaymentsAsSeller   ShopEbookPayments[]        @relation("ShopEbookPaymentSeller")
   marketPlaceOrders           MarketPlaceOrder[]
   ordersAsBuyer               Order[]                    @relation("OrderBuyer")
   ordersAsSeller              Order[]                    @relation("OrderSeller")
@@ -170,6 +173,8 @@ model Mycloset {
   marketplaceBattles MarketplaceBattle[]
   winnerPromotions   MarketplaceWinnerPromotion[]
   battleBoosts       MarketplaceBattleBoost[]
+  shopEbooks         ShopEbook[]
+  shopEbookPayments  ShopEbookPayments[]
 
   @@index([userId])
   @@index([shopUsername])
@@ -308,6 +313,61 @@ model WishlistItems {
   @@index([wishlistId])
   @@index([productId])
   @@map("wishlistItems")
+}
+
+model ShopEbook {
+  id           String   @id @default(uuid())
+  userId       String
+  closetId     String
+  caption      String?
+  text         String?
+  images       String[] @default([])
+  ebookpdf     String
+  amount       Float
+  isDownload   Boolean  @default(true)
+  promoCode    String?
+  tableContent String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  closet       Mycloset @relation(fields: [closetId], references: [id], onDelete: Cascade)
+  payments     ShopEbookPayments[]
+
+  @@index([userId])
+  @@index([closetId])
+  @@index([createdAt])
+  @@map("shopEbooks")
+}
+
+model ShopEbookPayments {
+  id                String    @id @default(uuid())
+  buyerId           String
+  sellerId          String
+  closetId          String
+  ebookId           String
+  amount            Int
+  platformFee       Int
+  sellerAmount      Int
+  currency          String    @default("usd")
+  status            String    @default("PENDING")
+  provider          String    @default("STRIPE")
+  checkoutSessionId String?   @unique
+  paymentIntentId   String?   @unique
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  buyer             User      @relation("ShopEbookPaymentBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller            User      @relation("ShopEbookPaymentSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  closet            Mycloset  @relation(fields: [closetId], references: [id], onDelete: Cascade)
+  ebook             ShopEbook @relation(fields: [ebookId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([closetId])
+  @@index([ebookId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("shopEbookPayments")
 }
 
 model UserAddrees {

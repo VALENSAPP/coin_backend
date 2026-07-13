@@ -10,6 +10,7 @@ import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
 import { SendTipDto } from './dto/send-tip.dto';
 import { CreateEbookPaymentDto } from './dto/create-ebook-payment.dto';
+import { CreateShopEbookPaymentDto } from './dto/create-shop-ebook-payment.dto';
 import { AddDigitalBadgeDto } from './dto/add-digital-badge.dto';
 import { VerifyUsdtTransactionDto } from './dto/verify-usdt-transaction.dto';
 
@@ -101,6 +102,22 @@ export class BillingController {
       buyerUserId,
       dto.targetUserId,
       dto.postId,
+      dto.amount,
+    );
+    return { url: session.url };
+  }
+
+  @Post('shop-ebook-payment')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for shop ebook payment (10% platform, 90% seller)' })
+  @ApiBody({ type: CreateShopEbookPaymentDto })
+  async createShopEbookPayment(@Req() req: Request, @Body() dto: CreateShopEbookPaymentDto) {
+    const buyerUserId = (req.user as any).userId;
+    const session = await this.billingService.createShopEbookCheckoutSession(
+      buyerUserId,
+      dto.closetId,
+      dto.ebookId,
       dto.amount,
     );
     return { url: session.url };

@@ -452,6 +452,169 @@ export class BillingService {
     }
   }
 
+  async createShopEbookCheckoutSession(
+    buyerUserId: string,
+    closetId: string,
+    ebookId: string,
+    amount: number,
+  ) {
+    if (!closetId) throw new BadRequestException('closetId is required');
+    if (!ebookId) throw new BadRequestException('ebookId is required');
+    if (!amount || amount <= 0) throw new BadRequestException('Invalid amount');
+
+    const ebook = await (this.prisma as any).shopEbook.findUnique({
+      where: { id: ebookId },
+      select: {
+        id: true,
+        userId: true,
+        closetId: true,
+        amount: true,
+        caption: true,
+      },
+    });
+
+    if (!ebook) {
+      throw new BadRequestException('Shop ebook not found');
+    }
+
+    if (ebook.closetId !== closetId) {
+      throw new BadRequestException('ebookId does not belong to closetId');
+    }
+
+    if (ebook.userId === buyerUserId) {
+      throw new BadRequestException('You cannot buy your own ebook');
+    }
+
+    const closet = await this.prisma.mycloset.findUnique({
+      where: { id: closetId },
+      select: { id: true, userId: true, shopName: true },
+    });
+
+    if (!closet) {
+      throw new BadRequestException('Closet not found');
+    }
+
+    if (closet.userId !== ebook.userId) {
+      throw new BadRequestException('Closet owner does not match ebook seller');
+    }
+
+    if (Math.abs((ebook.amount ?? 0) - amount) > 0.000001) {
+      throw new BadRequestException('Amount mismatch with ebook price');
+    }
+
+    const destinationAccountId = await this.requireCanReceivePayments(ebook.userId);
+    const customerId = await this.ensureStripeCustomer(buyerUserId);
+    const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+    const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+
+    if (!successUrl || !cancelUrl) {
+      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+    }
+
+    const amountCents = Math.round(amount * 100);
+    const {
+      platformFeeCents,
+      receiverAmountCents,
+      platformFee,
+      receiverAmount,
+      totalAmount,
+    } = this.getEbookAmountSplit(amountCents);
+
+    const shopEbookPayment = await (this.prisma as any).shopEbookPayments.create({
+      data: {
+        buyerId: buyerUserId,
+        sellerId: ebook.userId,
+        closetId,
+        ebookId,
+        amount: amountCents,
+        platformFee: platformFeeCents,
+        sellerAmount: receiverAmountCents,
+        currency: 'usd',
+        provider: 'STRIPE',
+        status: 'PENDING',
+        metadata: {
+          buyerUserId,
+          sellerUserId: ebook.userId,
+          closetId,
+          ebookId,
+          amount,
+          totalAmount,
+          platformFee,
+          receiverAmount,
+          receiverAmountCents,
+        },
+      },
+      select: { id: true },
+    });
+
+    try {
+      const session = await this.stripe.checkout.sessions.create({
+        mode: 'payment',
+        customer: customerId,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: ebook.caption || 'Shop Ebook Payment',
+              },
+              unit_amount: amountCents,
+            },
+            quantity: 1,
+          },
+        ],
+        payment_intent_data: {
+          application_fee_amount: platformFeeCents,
+          transfer_data: { destination: destinationAccountId },
+          metadata: {
+            type: 'shop_ebook',
+            shopEbookPaymentId: shopEbookPayment.id,
+            buyerUserId,
+            sellerUserId: ebook.userId,
+            closetId,
+            ebookId,
+            amount: amount.toString(),
+            totalAmount: totalAmount.toString(),
+            platformFee: platformFee.toString(),
+            receiverAmount: receiverAmount.toString(),
+            receiverAmountCents: receiverAmountCents.toString(),
+          },
+        },
+        metadata: {
+          type: 'shop_ebook',
+          shopEbookPaymentId: shopEbookPayment.id,
+          buyerUserId,
+          sellerUserId: ebook.userId,
+          closetId,
+          ebookId,
+          amount: amount.toString(),
+          totalAmount: totalAmount.toString(),
+          platformFee: platformFee.toString(),
+          receiverAmount: receiverAmount.toString(),
+          receiverAmountCents: receiverAmountCents.toString(),
+        },
+      });
+
+      await (this.prisma as any).shopEbookPayments.update({
+        where: { id: shopEbookPayment.id },
+        data: {
+          checkoutSessionId: session.id,
+          paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
+        },
+      });
+
+      return session;
+    } catch {
+      await (this.prisma as any).shopEbookPayments.update({
+        where: { id: shopEbookPayment.id },
+        data: { status: 'FAILED' },
+      });
+      throw new BadRequestException('Stripe API failure while creating shop ebook checkout session');
+    }
+  }
+
   async cancelSubscriptionAtPeriodEnd(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
@@ -844,6 +1007,106 @@ export class BillingService {
         buyerId: buyerUserId,
         sellerId: targetUserId,
         postId,
+        amount: amountCents,
+        platformFee: platformFeeCents,
+        sellerAmount: receiverAmountCents,
+        currency: paymentIntent.currency?.toLowerCase() ?? 'usd',
+        provider: 'STRIPE',
+        status: 'FAILED',
+        paymentIntentId: paymentIntent.id,
+        metadata: {
+          source: 'payment_intent.payment_failed',
+          paymentIntentId: paymentIntent.id,
+        },
+      },
+    });
+  }
+
+  async handleShopEbookPaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
+    const existing = await (this.prisma as any).shopEbookPayments.findFirst({
+      where: {
+        OR: [
+          { paymentIntentId: paymentIntent.id },
+          ...(paymentIntent.metadata?.shopEbookPaymentId ? [{ id: paymentIntent.metadata.shopEbookPaymentId }] : []),
+        ],
+      },
+      select: { id: true, status: true },
+    });
+
+    if (existing) {
+      if (existing.status === 'SUCCEEDED') return;
+      await (this.prisma as any).shopEbookPayments.update({
+        where: { id: existing.id },
+        data: { status: 'SUCCEEDED', paymentIntentId: paymentIntent.id },
+      });
+      return;
+    }
+
+    const buyerUserId = paymentIntent.metadata?.buyerUserId;
+    const sellerUserId = paymentIntent.metadata?.sellerUserId;
+    const closetId = paymentIntent.metadata?.closetId;
+    const ebookId = paymentIntent.metadata?.ebookId;
+
+    if (!buyerUserId || !sellerUserId || !closetId || !ebookId) return;
+
+    const amountCents = paymentIntent.amount ?? 0;
+    const { platformFeeCents, receiverAmountCents } = this.getEbookAmountSplit(amountCents);
+
+    await (this.prisma as any).shopEbookPayments.create({
+      data: {
+        buyerId: buyerUserId,
+        sellerId: sellerUserId,
+        closetId,
+        ebookId,
+        amount: amountCents,
+        platformFee: platformFeeCents,
+        sellerAmount: receiverAmountCents,
+        currency: paymentIntent.currency?.toLowerCase() ?? 'usd',
+        provider: 'STRIPE',
+        status: 'SUCCEEDED',
+        paymentIntentId: paymentIntent.id,
+        metadata: {
+          source: 'payment_intent.succeeded',
+          paymentIntentId: paymentIntent.id,
+        },
+      },
+    });
+  }
+
+  async handleShopEbookPaymentFailed(paymentIntent: Stripe.PaymentIntent) {
+    const existing = await (this.prisma as any).shopEbookPayments.findFirst({
+      where: {
+        OR: [
+          { paymentIntentId: paymentIntent.id },
+          ...(paymentIntent.metadata?.shopEbookPaymentId ? [{ id: paymentIntent.metadata.shopEbookPaymentId }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await (this.prisma as any).shopEbookPayments.update({
+        where: { id: existing.id },
+        data: { status: 'FAILED', paymentIntentId: paymentIntent.id },
+      });
+      return;
+    }
+
+    const buyerUserId = paymentIntent.metadata?.buyerUserId;
+    const sellerUserId = paymentIntent.metadata?.sellerUserId;
+    const closetId = paymentIntent.metadata?.closetId;
+    const ebookId = paymentIntent.metadata?.ebookId;
+    if (!buyerUserId || !sellerUserId || !closetId || !ebookId) return;
+
+    const amountCents = paymentIntent.amount ?? 0;
+    const { platformFeeCents, receiverAmountCents } = this.getEbookAmountSplit(amountCents);
+
+    await (this.prisma as any).shopEbookPayments.create({
+      data: {
+        buyerId: buyerUserId,
+        sellerId: sellerUserId,
+        closetId,
+        ebookId,
         amount: amountCents,
         platformFee: platformFeeCents,
         sellerAmount: receiverAmountCents,
