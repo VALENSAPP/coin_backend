@@ -22,11 +22,24 @@ import { ShopEbookService } from './shop-ebook.service';
 export class ShopEbookController {
     constructor(private readonly shopEbookService: ShopEbookService) { }
 
+    @Get('byEbookId/:ebookId')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiParam({ name: 'ebookId', type: 'string' })
+    @ApiOperation({ summary: 'Get shop ebook by ebook ID with purchase status for logged-in user' })
+    async getByEbookId(@Req() req: Request, @Param('ebookId') ebookId: string) {
+        const userId = (req.user as any)?.userId;
+        return this.shopEbookService.getByEbookId(ebookId, userId);
+    }
+
     @Get('closet/:closetId')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
     @ApiParam({ name: 'closetId', type: 'string' })
-    @ApiOperation({ summary: 'Get all ebooks by closet ID' })
-    async getByClosetId(@Param('closetId') closetId: string) {
-        return this.shopEbookService.getByClosetId(closetId);
+    @ApiOperation({ summary: 'Get all ebooks by closet ID with purchase status for logged-in user' })
+    async getByClosetId(@Req() req: Request, @Param('closetId') closetId: string) {
+        const userId = (req.user as any)?.userId;
+        return this.shopEbookService.getByClosetId(closetId, userId);
     }
 
     @Post('create')

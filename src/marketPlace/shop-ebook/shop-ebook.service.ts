@@ -10,8 +10,34 @@ const SHOP_EBOOK_PDF_FOLDER = 'shop-ebook-pdfs';
 export class ShopEbookService {
     constructor(private readonly prisma: PrismaService) { }
 
-    async getByClosetId(closetId: string) {
+    async getByEbookId(ebookId: string, viewerUserId: string) {
+        if (!ebookId) throw new BadRequestException('ebookId is required');
+        await this.ensureUserExists(viewerUserId);
+
+        const ebook = await (this.prisma as any).shopEbook.findUnique({
+            where: { id: ebookId },
+        });
+
+        if (!ebook) throw new NotFoundException('Ebook not found');
+
+        const successfulPayment = await (this.prisma as any).shopEbookPayments.findFirst({
+            where: {
+                buyerId: viewerUserId,
+                ebookId,
+                status: 'SUCCEEDED',
+            },
+            select: { id: true },
+        });
+
+        return {
+            ebook,
+            isPurchased: !!successfulPayment,
+        };
+    }
+
+    async getByClosetId(closetId: string, viewerUserId: string) {
         if (!closetId) throw new BadRequestException('closetId is required');
+        await this.ensureUserExists(viewerUserId);
 
         const closet = await this.prisma.mycloset.findUnique({
             where: { id: closetId },
@@ -25,10 +51,32 @@ export class ShopEbookService {
             orderBy: { createdAt: 'desc' },
         });
 
+        const ebookIds = ebooks.map((ebook: any) => ebook.id);
+        let purchasedEbookSet = new Set<string>();
+
+        if (ebookIds.length) {
+            const successfulPayments = await (this.prisma as any).shopEbookPayments.findMany({
+                where: {
+                    buyerId: viewerUserId,
+                    closetId,
+                    ebookId: { in: ebookIds },
+                    status: 'SUCCEEDED',
+                },
+                select: { ebookId: true },
+            });
+
+            purchasedEbookSet = new Set(successfulPayments.map((payment: any) => payment.ebookId));
+        }
+
+        const ebooksWithDownloadAccess = ebooks.map((ebook: any) => ({
+            ...ebook,
+            isPurchased: purchasedEbookSet.has(ebook.id),
+        }));
+
         return {
             closet,
-            ebooks,
-            totalEbooks: ebooks.length,
+            ebooks: ebooksWithDownloadAccess,
+            totalEbooks: ebooksWithDownloadAccess.length,
         };
     }
 
