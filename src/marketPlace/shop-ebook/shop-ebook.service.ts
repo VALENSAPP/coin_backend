@@ -10,6 +10,39 @@ const SHOP_EBOOK_PDF_FOLDER = 'shop-ebook-pdfs';
 export class ShopEbookService {
     constructor(private readonly prisma: PrismaService) { }
 
+    async getPurchasedEbooks(viewerUserId: string) {
+        await this.ensureUserExists(viewerUserId);
+
+        const successfulPayments = await (this.prisma as any).shopEbookPayments.findMany({
+            where: {
+                buyerId: viewerUserId,
+                status: 'SUCCEEDED',
+            },
+            include: {
+                ebook: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const seenEbookIds = new Set<string>();
+        const ebooks = successfulPayments
+            .filter((payment: any) => {
+                if (!payment.ebook || seenEbookIds.has(payment.ebookId)) return false;
+                seenEbookIds.add(payment.ebookId);
+                return true;
+            })
+            .map((payment: any) => ({
+                ...payment.ebook,
+                isPurchased: true,
+                purchasedAt: payment.createdAt,
+            }));
+
+        return {
+            ebooks,
+            totalPurchasedEbooks: ebooks.length,
+        };
+    }
+
     async getByEbookId(ebookId: string, viewerUserId: string) {
         if (!ebookId) throw new BadRequestException('ebookId is required');
         await this.ensureUserExists(viewerUserId);

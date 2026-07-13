@@ -22,6 +22,15 @@ import { ShopEbookService } from './shop-ebook.service';
 export class ShopEbookController {
     constructor(private readonly shopEbookService: ShopEbookService) { }
 
+    @Get('purchasedEbook')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get all purchased shop ebooks for logged-in user' })
+    async getPurchasedEbooks(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.shopEbookService.getPurchasedEbooks(userId);
+    }
+
     @Get('byEbookId/:ebookId')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
