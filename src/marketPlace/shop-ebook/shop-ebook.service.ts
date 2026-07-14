@@ -10,6 +10,30 @@ const SHOP_EBOOK_PDF_FOLDER = 'shop-ebook-pdfs';
 export class ShopEbookService {
     constructor(private readonly prisma: PrismaService) { }
 
+    async deleteEbook(userId: string, ebookId: string) {
+        await this.ensureUserExists(userId);
+        if (!ebookId) throw new BadRequestException('ebookId is required');
+
+        const ebook = await (this.prisma as any).shopEbook.findUnique({
+            where: { id: ebookId },
+            select: { id: true, userId: true },
+        });
+
+        if (!ebook) throw new NotFoundException('Ebook not found');
+        if (ebook.userId !== userId) {
+            throw new BadRequestException('You can only delete your own ebook');
+        }
+
+        await (this.prisma as any).shopEbook.delete({
+            where: { id: ebookId },
+        });
+
+        return {
+            message: 'Shop ebook deleted successfully',
+            ebookId,
+        };
+    }
+
     async getPurchasedEbooks(viewerUserId: string) {
         await this.ensureUserExists(viewerUserId);
 

@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     Post,
@@ -21,6 +22,16 @@ import { ShopEbookService } from './shop-ebook.service';
 @Controller('marketplace-ebooks')
 export class ShopEbookController {
     constructor(private readonly shopEbookService: ShopEbookService) { }
+
+    @Delete(':ebookId')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiParam({ name: 'ebookId', type: 'string' })
+    @ApiOperation({ summary: 'Delete shop ebook by ID (owner only)' })
+    async deleteEbook(@Req() req: Request, @Param('ebookId') ebookId: string) {
+        const userId = (req.user as any)?.userId;
+        return this.shopEbookService.deleteEbook(userId, ebookId);
+    }
 
     @Get('purchasedEbook')
     @UseGuards(AuthGuard('jwt'))
