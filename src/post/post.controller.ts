@@ -258,6 +258,45 @@ export class PostController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('hashtags/search')
+  @ApiQuery({ name: 'q', type: String, required: false, description: 'Hashtag prefix query (with or without #)' })
+  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Result limit, max 50 (default 20)' })
+  async searchHashtags(@Query('q') q?: string, @Query('limit') limit?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.postService.searchHashtags(q, limitNum);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('hashtags/trending')
+  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Result limit, max 50 (default 20)' })
+  @ApiQuery({ name: 'days', type: Number, required: false, description: 'Lookback in days, max 90 (default 7)' })
+  async trendingHashtags(@Query('limit') limit?: string, @Query('days') days?: string) {
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    const daysNum = days ? parseInt(days, 10) : 7;
+    return this.postService.getTrendingHashtags(limitNum, daysNum);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('by-hashtag/:tag')
+  @ApiParam({ name: 'tag', type: String, description: 'Hashtag tag value with or without # prefix' })
+  @ApiQuery({ name: 'page', type: Number, required: false, description: 'Page number (default 1)' })
+  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Result limit, max 50 (default 20)' })
+  async getPostsByHashtag(
+    @Req() req: Request,
+    @Param('tag') tag: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const viewerUserId = (req.user as any)?.userId;
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.postService.getPostsByHashtag(tag, viewerUserId, pageNum, limitNum);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Get('getAllReel')
   async getAllReel(@Req() req: Request) {
     const viewerUserId = (req.user as any)?.userId;

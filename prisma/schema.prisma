@@ -460,8 +460,38 @@ model Post {
   saves            SavePost[]
   pinnedBy         PinnedPost[]
   trustVotes       PostTrustVote[]
+  postHashtags     PostHashtag[]
 
   @@index([privateCircleId])
+}
+
+model Hashtag {
+  id         String        @id @default(uuid())
+  tag        String        @unique
+  usageCount Int           @default(0)
+  postCount  Int           @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  posts      PostHashtag[]
+
+  @@index([usageCount])
+  @@index([postCount])
+  @@index([lastUsedAt])
+}
+
+model PostHashtag {
+  id        String   @id @default(uuid())
+  postId    String
+  hashtagId String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtag   Hashtag  @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, hashtagId])
+  @@index([postId])
+  @@index([hashtagId])
+  @@index([createdAt])
 }
 
 model PrivateCircle {

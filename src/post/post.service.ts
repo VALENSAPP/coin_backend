@@ -14,6 +14,9 @@ type PostFormat = 'image' | 'video' | 'reel' | 'ebook';
 
 @Injectable()
 export class PostService {
+  private static readonly HASHTAG_REGEX = /(^|[^A-Za-z0-9_])#([A-Za-z0-9_]{1,50})/g;
+  private static readonly MAX_HASHTAGS_PER_POST = 10;
+
   private readonly privateCircleVisibilityValues = [
     'PRIVATE_CIRCLE',
     'private_circle',
@@ -30,6 +33,141 @@ export class PostService {
   private isPrivateCircleVisibility(visibleTo?: string | null): boolean {
     const normalized = (visibleTo || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
     return normalized === 'private_circle';
+  }
+
+  private normalizeHashtagTag(raw: unknown): string | null {
+    if (raw === null || raw === undefined) return null;
+    const value = String(raw).trim();
+    if (!value) return null;
+
+    const withoutHash = value.replace(/^#+/, '');
+    const normalized = withoutHash.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    if (!normalized) return null;
+
+    return normalized.slice(0, 50);
+  }
+
+  private extractHashtagsFromText(input?: string | null): string[] {
+    if (!input || typeof input !== 'string') return [];
+    const tags: string[] = [];
+
+    for (const match of input.matchAll(PostService.HASHTAG_REGEX)) {
+      const normalized = this.normalizeHashtagTag(match[2]);
+      if (normalized) tags.push(normalized);
+    }
+
+    return tags;
+  }
+
+  private buildNormalizedPostHashtags(hashtag?: string[], text?: string, caption?: string): string[] {
+    const sourceTags: string[] = [
+      ...(Array.isArray(hashtag) ? hashtag.map((item) => String(item)) : []),
+      ...this.extractHashtagsFromText(text),
+      ...this.extractHashtagsFromText(caption),
+    ];
+
+    const uniqueTags: string[] = [];
+    const seen = new Set<string>();
+
+    for (const rawTag of sourceTags) {
+      const normalized = this.normalizeHashtagTag(rawTag);
+      if (!normalized || seen.has(normalized)) continue;
+      seen.add(normalized);
+      uniqueTags.push(normalized);
+
+      if (uniqueTags.length >= PostService.MAX_HASHTAGS_PER_POST) {
+        break;
+      }
+    }
+
+    return uniqueTags;
+  }
+
+  private async recalculateHashtagCounters(tx: Prisma.TransactionClient, hashtagId: string) {
+    const [postCount, lastLink] = await Promise.all([
+      tx.postHashtag.count({ where: { hashtagId } }),
+      tx.postHashtag.findFirst({
+        where: { hashtagId },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    if (postCount === 0) {
+      await tx.hashtag.delete({ where: { id: hashtagId } }).catch(() => undefined);
+      return;
+    }
+
+    await tx.hashtag.update({
+      where: { id: hashtagId },
+      data: {
+        usageCount: postCount,
+        postCount,
+        lastUsedAt: lastLink?.createdAt || new Date(),
+      },
+    });
+  }
+
+  private async syncPostHashtags(tx: Prisma.TransactionClient, postId: string, targetTags: string[]) {
+    const normalizedTarget = Array.from(new Set(targetTags.map((t) => t.trim()).filter(Boolean)));
+
+    const existingLinks = await tx.postHashtag.findMany({
+      where: { postId },
+      select: {
+        hashtagId: true,
+        hashtag: { select: { tag: true } },
+      },
+    });
+
+    const existingTagToId = new Map(existingLinks.map((link) => [link.hashtag.tag, link.hashtagId]));
+    const existingTagSet = new Set(existingTagToId.keys());
+
+    const toAddTags = normalizedTarget.filter((tag) => !existingTagSet.has(tag));
+    const toRemoveTags = Array.from(existingTagSet).filter((tag) => !normalizedTarget.includes(tag));
+    const affectedHashtagIds = new Set<string>();
+
+    if (toAddTags.length > 0) {
+      const upsertedHashtags = await Promise.all(
+        toAddTags.map((tag) =>
+          tx.hashtag.upsert({
+            where: { tag },
+            update: { lastUsedAt: new Date() },
+            create: { tag, lastUsedAt: new Date() },
+            select: { id: true, tag: true },
+          }),
+        ),
+      );
+
+      await tx.postHashtag.createMany({
+        data: upsertedHashtags.map((item) => ({
+          postId,
+          hashtagId: item.id,
+        })),
+        skipDuplicates: true,
+      });
+
+      upsertedHashtags.forEach((item) => affectedHashtagIds.add(item.id));
+    }
+
+    if (toRemoveTags.length > 0) {
+      const removeHashtagIds = toRemoveTags
+        .map((tag) => existingTagToId.get(tag))
+        .filter((id): id is string => Boolean(id));
+
+      if (removeHashtagIds.length > 0) {
+        await tx.postHashtag.deleteMany({
+          where: {
+            postId,
+            hashtagId: { in: removeHashtagIds },
+          },
+        });
+        removeHashtagIds.forEach((id) => affectedHashtagIds.add(id));
+      }
+    }
+
+    if (affectedHashtagIds.size > 0) {
+      await Promise.all(Array.from(affectedHashtagIds).map((id) => this.recalculateHashtagCounters(tx, id)));
+    }
   }
 
   // private buildSubscriptionContentAccessWhere(viewerUserId?: string): Prisma.PostWhereInput {
@@ -532,7 +670,7 @@ export class PostService {
         amount: resolvedAmount,
         promoCode: resolvedPromoCode,
         visibleTo: visibleTo?.trim() || null,
-        hashtag: hashtag?.filter(Boolean) || [],
+        hashtag: this.buildNormalizedPostHashtags(hashtag, text, caption),
         taggedPeople: taggedPeople?.filter(Boolean) || [],
         raiseAmount: raiseAmount ? Number(raiseAmount) : null,
         start_time: start_time ? new Date(start_time) : null,
@@ -580,7 +718,7 @@ export class PostService {
         }
 
         // Create the post
-        return tx.post.create({
+        const post = await tx.post.create({
           data: {
             userId,
             ...processedData,
@@ -593,6 +731,9 @@ export class PostService {
             videoTextItems: shouldApplyVideoText ? (normalizedVideoTextItems as any) : null,
           } as any,
         });
+
+        await this.syncPostHashtags(tx, post.id, processedData.hashtag);
+        return post;
       }, {
         timeout: 15000 // Increased timeout
       });
@@ -1382,6 +1523,11 @@ export class PostService {
   }
 
   async searchAllPost(viewerUserId?: string, search?: string) {
+    const trimmedSearch = (search || '').trim();
+    if (trimmedSearch.startsWith('#')) {
+      return this.getPostsByHashtag(trimmedSearch, viewerUserId, 1, 20);
+    }
+
     if (search && search.trim()) {
       // First, search for users by userName or displayName
       const users = await this.prisma.user.findMany({
@@ -2106,9 +2252,24 @@ export class PostService {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post || post.deletedAt) throw new BadRequestException('Post not found');
     if (post.userId !== userId) throw new BadRequestException('Unauthorized');
-    await this.prisma.post.update({
-      where: { id: postId },
-      data: { deletedAt: new Date(), isDelete: 'yes' },
+    await this.prisma.$transaction(async (tx) => {
+      const postHashtags = await tx.postHashtag.findMany({
+        where: { postId },
+        select: { hashtagId: true },
+      });
+
+      await tx.postHashtag.deleteMany({ where: { postId } });
+
+      await tx.post.update({
+        where: { id: postId },
+        data: { deletedAt: new Date(), isDelete: 'yes' },
+      });
+
+      if (postHashtags.length > 0) {
+        await Promise.all(
+          postHashtags.map((item) => this.recalculateHashtagCounters(tx, item.hashtagId)),
+        );
+      }
     });
     return true;
   }
@@ -2236,9 +2397,24 @@ export class PostService {
       updateFields.caption = null;
     }
 
+    const resolvedNextText =
+      updateData.text !== undefined
+        ? (typeof updateData.text === 'string' ? updateData.text : String(updateData.text ?? ''))
+        : post.text || '';
+    const resolvedNextCaption =
+      updateData.caption !== undefined
+        ? (typeof updateData.caption === 'string' ? updateData.caption : String(updateData.caption ?? ''))
+        : post.caption || '';
+
+    const providedHashtagInput =
+      updateData.hashtag !== undefined && Array.isArray(updateData.hashtag)
+        ? updateData.hashtag
+        : post.hashtag || [];
+    const resolvedHashtags = this.buildNormalizedPostHashtags(providedHashtagInput, resolvedNextText, resolvedNextCaption);
+
     // Only update hashtag if it's provided and not empty array
     if (updateData.hashtag !== undefined && Array.isArray(updateData.hashtag)) {
-      updateFields.hashtag = updateData.hashtag.length > 0 ? updateData.hashtag : [];
+      updateFields.hashtag = resolvedHashtags;
     }
 
     // Only update location if it's provided and not empty string
@@ -2326,9 +2502,26 @@ export class PostService {
       }
     }
 
-    const updatedPost = await this.prisma.post.update({
-      where: { id: postId },
-      data: updateFields,
+    const updatedPost = await this.prisma.$transaction(async (tx) => {
+      const nextHashtags =
+        updateData.hashtag !== undefined || updateData.text !== undefined || updateData.caption !== undefined
+          ? resolvedHashtags
+          : post.hashtag || [];
+
+      if (updateData.hashtag !== undefined || updateData.text !== undefined || updateData.caption !== undefined) {
+        updateFields.hashtag = nextHashtags;
+      }
+
+      const savedPost = await tx.post.update({
+        where: { id: postId },
+        data: updateFields,
+      });
+
+      if (updateData.hashtag !== undefined || updateData.text !== undefined || updateData.caption !== undefined) {
+        await this.syncPostHashtags(tx, postId, nextHashtags);
+      }
+
+      return savedPost;
     });
 
     if (newlyTaggedUserIds.length > 0) {
@@ -2377,6 +2570,207 @@ export class PostService {
     return {
       ...updatedPost,
       private_circle: this.isPrivateCircleVisibility(updatedPost.visibleTo),
+    };
+  }
+
+  async searchHashtags(query?: string, limit: number = 20) {
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const normalizedQuery = this.normalizeHashtagTag(query || '') || '';
+
+    const hashtags = await this.prisma.hashtag.findMany({
+      where: normalizedQuery
+        ? {
+          tag: {
+            contains: normalizedQuery,
+            mode: 'insensitive',
+          },
+        }
+        : undefined,
+      orderBy: [
+        { postCount: 'desc' },
+        { usageCount: 'desc' },
+        { lastUsedAt: 'desc' },
+      ],
+      take: normalizedLimit,
+      select: {
+        id: true,
+        tag: true,
+        postCount: true,
+        usageCount: true,
+        lastUsedAt: true,
+      },
+    });
+
+    return hashtags.map((item) => ({
+      id: item.id,
+      tag: `#${item.tag}`,
+      rawTag: item.tag,
+      postCount: item.postCount,
+      usageCount: item.usageCount,
+      lastUsedAt: item.lastUsedAt,
+    }));
+  }
+
+  async getTrendingHashtags(limit: number = 20, days: number = 7) {
+    const normalizedLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const normalizedDays = Math.min(Math.max(Number(days) || 7, 1), 90);
+    const since = new Date(Date.now() - normalizedDays * 24 * 60 * 60 * 1000);
+
+    const links = await this.prisma.postHashtag.findMany({
+      where: {
+        createdAt: { gte: since },
+      },
+      select: {
+        hashtagId: true,
+        hashtag: {
+          select: {
+            id: true,
+            tag: true,
+            postCount: true,
+            usageCount: true,
+            lastUsedAt: true,
+          },
+        },
+      },
+    });
+
+    const scoreMap = new Map<string, { hashtag: any; recentUseCount: number }>();
+    links.forEach((item) => {
+      const prev = scoreMap.get(item.hashtagId);
+      if (prev) {
+        prev.recentUseCount += 1;
+      } else {
+        scoreMap.set(item.hashtagId, { hashtag: item.hashtag, recentUseCount: 1 });
+      }
+    });
+
+    return Array.from(scoreMap.values())
+      .sort((a, b) => b.recentUseCount - a.recentUseCount || b.hashtag.postCount - a.hashtag.postCount)
+      .slice(0, normalizedLimit)
+      .map((item) => ({
+        id: item.hashtag.id,
+        tag: `#${item.hashtag.tag}`,
+        rawTag: item.hashtag.tag,
+        recentUseCount: item.recentUseCount,
+        postCount: item.hashtag.postCount,
+        usageCount: item.hashtag.usageCount,
+        lastUsedAt: item.hashtag.lastUsedAt,
+      }));
+  }
+
+  async getPostsByHashtag(tag: string, viewerUserId?: string, page: number = 1, limit: number = 20) {
+    const normalizedTag = this.normalizeHashtagTag(tag);
+    if (!normalizedTag) {
+      throw new BadRequestException('Valid hashtag is required');
+    }
+
+    const pageNum = Math.max(Number(page) || 1, 1);
+    const takeNum = Math.min(Math.max(Number(limit) || 20, 1), 50);
+    const skipNum = (pageNum - 1) * takeNum;
+
+    const hashtag = await this.prisma.hashtag.findUnique({
+      where: { tag: normalizedTag },
+      select: { id: true, tag: true },
+    });
+
+    if (!hashtag) {
+      return {
+        hashtag: `#${normalizedTag}`,
+        total: 0,
+        page: pageNum,
+        limit: takeNum,
+        posts: [],
+      };
+    }
+
+    const whereClause: Prisma.PostHashtagWhereInput = {
+      hashtagId: hashtag.id,
+      post: {
+        deletedAt: null,
+        AND: [this.buildPostVisibilityWhere(viewerUserId)],
+      },
+    };
+
+    const [total, links] = await Promise.all([
+      this.prisma.postHashtag.count({ where: whereClause }),
+      this.prisma.postHashtag.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+        skip: skipNum,
+        take: takeNum,
+        include: {
+          post: {
+            include: {
+              user: {
+                select: {
+                  displayName: true,
+                  image: true,
+                  profile: true,
+                  profileStatus: true,
+                },
+              },
+              _count: {
+                select: {
+                  likes: true,
+                  comments: true,
+                  shares: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const posts = links.map((item) => item.post);
+
+    let savedSet: Set<string> = new Set();
+    let likedSet: Set<string> = new Set();
+
+    if (viewerUserId && posts.length > 0) {
+      const [saved, liked] = await Promise.all([
+        this.prisma.savePost.findMany({
+          where: { userId: viewerUserId, postId: { in: posts.map((p) => p.id) } },
+          select: { postId: true },
+        }),
+        this.prisma.postLike.findMany({
+          where: { userId: viewerUserId, postId: { in: posts.map((p) => p.id) } },
+          select: { postId: true },
+        }),
+      ]);
+      savedSet = new Set(saved.map((item) => item.postId));
+      likedSet = new Set(liked.map((item) => item.postId));
+    }
+
+    return {
+      hashtag: `#${hashtag.tag}`,
+      total,
+      page: pageNum,
+      limit: takeNum,
+      posts: posts.map((post) => ({
+        id: post.id,
+        text: post.text,
+        caption: post.caption,
+        images: post.images,
+        thumbnails: post.thumbnails,
+        hashtag: post.hashtag,
+        createdAt: post.createdAt,
+        updatedAt: post.updatedAt,
+        userId: post.userId,
+        userName: post.user?.displayName || null,
+        userImage: post.user?.image || null,
+        profile: post.user?.profile || null,
+        profileStatus: post.user?.profileStatus || null,
+        likeCount: post._count.likes,
+        commentCount: post._count.comments,
+        shareCount: post._count.shares,
+        isSaved: savedSet.has(post.id),
+        isLike: likedSet.has(post.id),
+        type: post.type,
+        link: post.link,
+        visibleTo: (post as any).visibleTo,
+        private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      })),
     };
   }
 
