@@ -576,7 +576,6 @@ export class MarketplaceBattlesService {
             product: {
                 isActive: boolean;
                 isDeleted: boolean;
-                quantity: number;
             } | null;
         }>;
     }) {
@@ -586,8 +585,7 @@ export class MarketplaceBattlesService {
             (participant) =>
                 participant.product &&
                 participant.product.isActive &&
-                !participant.product.isDeleted &&
-                participant.product.quantity > 0,
+                !participant.product.isDeleted,
         );
     }
 
@@ -2491,11 +2489,9 @@ export class MarketplaceBattlesService {
                             id: true,
                             position: true,
                             product: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                    images: true,
-                                },
+                                id: true,
+                                name: true,
+                                images: true,
                             },
                         },
                     },
@@ -2975,14 +2971,12 @@ export class MarketplaceBattlesService {
                     product: {
                         isActive: true,
                         isDeleted: false,
-                        quantity: { gt: 0 },
                     },
                 },
                 some: {
                     product: {
                         isActive: true,
                         isDeleted: false,
-                        quantity: { gt: 0 },
                     },
                 },
             },
@@ -3044,14 +3038,12 @@ export class MarketplaceBattlesService {
                             product: {
                                 isActive: true,
                                 isDeleted: false,
-                                quantity: { gt: 0 },
                             },
                         },
                         some: {
                             product: {
                                 isActive: true,
                                 isDeleted: false,
-                                quantity: { gt: 0 },
                             },
                         },
                     },
@@ -3068,14 +3060,12 @@ export class MarketplaceBattlesService {
                             product: {
                                 isActive: true,
                                 isDeleted: false,
-                                quantity: { gt: 0 },
                             },
                         },
                         some: {
                             product: {
                                 isActive: true,
                                 isDeleted: false,
-                                quantity: { gt: 0 },
                             },
                         },
                     },
