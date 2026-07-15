@@ -163,15 +163,10 @@ export class BillingController {
   @Get('subscription-earning/graph')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get subscription earning graph (pay-following received) daily/weekly/monthly' })
-  @ApiQuery({ name: 'interval', required: false, enum: ['daily', 'weekly', 'monthly'], description: "Interval: 'daily' (last 30 days), 'weekly', 'monthly'" })
-  async getSubscriptionEarningGraph(@Req() req: Request, @Query('interval') interval?: string) {
+  @ApiOperation({ summary: 'Get subscription earning graph (pay-following received) for last 7 days' })
+  async getSubscriptionEarningGraph(@Req() req: Request) {
     const userId = (req.user as any).userId;
-    const normalized = (interval || 'daily').toString().trim().toLowerCase();
-    const parsedInterval = (normalized === 'daily' || normalized === 'weekly' || normalized === 'monthly')
-      ? (normalized as 'daily' | 'weekly' | 'monthly')
-      : 'daily';
-    return this.billingService.getSubscriptionEarningGraph(userId, parsedInterval);
+    return this.billingService.getSubscriptionEarningGraph(userId);
   }
 
   @Get('me')
