@@ -2489,9 +2489,11 @@ export class MarketplaceBattlesService {
                             id: true,
                             position: true,
                             product: {
-                                id: true,
-                                name: true,
-                                images: true,
+                                select: {
+                                    id: true,
+                                    name: true,
+                                    images: true,
+                                },
                             },
                         },
                     },
