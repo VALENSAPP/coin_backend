@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
@@ -131,6 +131,14 @@ export class AddressService {
     async deleteAddress(userId: string, addressId: string) {
         await this.ensureUserExists(userId);
         const existingAddress = await this.findAddressOrThrow(userId, addressId);
+
+        const linkedOrdersCount = await this.prisma.order.count({
+            where: { addressId: existingAddress.id },
+        });
+
+        if (linkedOrdersCount > 0) {
+            throw new ConflictException('Address is used in existing orders and cannot be deleted');
+        }
 
         await this.prisma.$transaction(async (tx) => {
             await tx.userAddrees.delete({
