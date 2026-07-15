@@ -44,6 +44,11 @@ export class ShopEbookService {
             },
             include: {
                 ebook: true,
+                seller: {
+                    select: {
+                        userName: true,
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -59,6 +64,7 @@ export class ShopEbookService {
                 ...payment.ebook,
                 isPurchased: true,
                 purchasedAt: payment.createdAt,
+                purchasedFrom: payment.seller?.userName || null,
             }));
 
         return {
