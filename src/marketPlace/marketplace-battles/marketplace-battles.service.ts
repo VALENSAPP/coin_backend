@@ -1633,7 +1633,6 @@ export class MarketplaceBattlesService {
                 closetId: true,
                 isActive: true,
                 isDeleted: true,
-                quantity: true,
             },
         });
 
@@ -1656,9 +1655,7 @@ export class MarketplaceBattlesService {
             });
         }
 
-        const unavailableProducts = products.filter(
-            (product) => !product.isActive || product.isDeleted || product.quantity <= 0,
-        );
+        const unavailableProducts = products.filter((product) => !product.isActive || product.isDeleted);
         if (unavailableProducts.length > 0) {
             throw new BadRequestException({
                 message: 'Products are not eligible for marketplace battle',
