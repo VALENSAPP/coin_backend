@@ -1979,6 +1979,87 @@ export class BillingService {
     };
   }
 
+  private async getAllTimeEarningTotals(userId: string) {
+    const [payFollowingSum, tipSum, missionDonationSum, usdtSum, paidOrdersSummary, shopEbookSummary] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: { receiverId: userId },
+        _sum: { amount: true },
+      }),
+      this.prisma.order.aggregate({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+        _sum: {
+          total: true,
+          serviceFee: true,
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.aggregate({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
+        _sum: {
+          sellerAmount: true,
+        },
+      }),
+    ]);
+
+    const payFollowingTotalAllTime = Number(payFollowingSum._sum.amount ?? 0);
+    const tipTotalAllTime = Number(tipSum._sum.amount ?? 0);
+    const missionDonationTotalAllTime = Number(missionDonationSum._sum.amount ?? 0);
+    const usdtTotalAllTime = Number(usdtSum._sum.amount ?? 0);
+    const totalShopItemsEarningAllTime = Number(
+      (Number(paidOrdersSummary._sum.total || 0) - Number(paidOrdersSummary._sum.serviceFee || 0)).toFixed(2),
+    );
+    const totalShopEbookEarningAllTime = Number((Number(shopEbookSummary._sum.sellerAmount || 0) / 100).toFixed(2));
+    const totalShopEarningAllTime = Number((totalShopItemsEarningAllTime + totalShopEbookEarningAllTime).toFixed(2));
+
+    const totalEarningAllTime = Number((
+      payFollowingTotalAllTime
+      + tipTotalAllTime
+      + missionDonationTotalAllTime
+      + usdtTotalAllTime
+      + totalShopEarningAllTime
+    ).toFixed(2));
+
+    return {
+      payFollowingTotalAllTime,
+      tipTotalAllTime,
+      missionDonationTotalAllTime,
+      usdtTotalAllTime,
+      totalShopItemsEarningAllTime,
+      totalShopEbookEarningAllTime,
+      totalShopEarningAllTime,
+      totalEarningAllTime,
+    };
+  }
+
   async getPayFollowingGraph(userId: string) {
     const now = new Date();
     const startDate = new Date(Date.UTC(
@@ -1991,7 +2072,7 @@ export class BillingService {
       0,
     ));
 
-    const [payFollowingRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+    const [payFollowingRows] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
           receiverId: userId,
@@ -2007,52 +2088,6 @@ export class BillingService {
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'following',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'TIP',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.donationData.aggregate({
-        where: {
-          vendorId: userId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.digital_transaction.aggregate({
-        where: {
-          receiverId: userId,
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
       }),
     ]);
 
@@ -2085,12 +2120,9 @@ export class BillingService {
       amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
     }));
 
-    const payFollowingTotal = Number(payFollowingSum._sum.amount ?? 0);
-    const totalEarning =
-      Number(payFollowingSum._sum.amount ?? 0)
-      + Number(tipSum._sum.amount ?? 0)
-      + Number(missionDonationSum._sum.amount ?? 0)
-      + Number(usdtSum._sum.amount ?? 0);
+    const totals = await this.getAllTimeEarningTotals(userId);
+    const payFollowingTotal = totals.payFollowingTotalAllTime;
+    const totalEarning = totals.totalEarningAllTime;
 
     const payFollowingPercentageOfTotalEarning =
       totalEarning > 0 ? Number(((payFollowingTotal / totalEarning) * 100).toFixed(2)) : 0;
@@ -2118,7 +2150,7 @@ export class BillingService {
       0,
     ));
 
-    const [tipRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+    const [tipRows] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
           receiverId: userId,
@@ -2134,52 +2166,6 @@ export class BillingService {
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'following',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'TIP',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.donationData.aggregate({
-        where: {
-          vendorId: userId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.digital_transaction.aggregate({
-        where: {
-          receiverId: userId,
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
       }),
     ]);
 
@@ -2212,12 +2198,9 @@ export class BillingService {
       amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
     }));
 
-    const totalTipEarning = Number(tipSum._sum.amount ?? 0);
-    const totalEarning =
-      Number(payFollowingSum._sum.amount ?? 0)
-      + Number(tipSum._sum.amount ?? 0)
-      + Number(missionDonationSum._sum.amount ?? 0)
-      + Number(usdtSum._sum.amount ?? 0);
+    const totals = await this.getAllTimeEarningTotals(userId);
+    const totalTipEarning = totals.tipTotalAllTime;
+    const totalEarning = totals.totalEarningAllTime;
 
     const tipPercentageOfTotalEarning =
       totalEarning > 0 ? Number(((totalTipEarning / totalEarning) * 100).toFixed(2)) : 0;
@@ -2245,7 +2228,7 @@ export class BillingService {
       0,
     ));
 
-    const [missionDonationRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+    const [missionDonationRows] = await Promise.all([
       this.prisma.donationData.findMany({
         where: {
           vendorId: userId,
@@ -2261,52 +2244,6 @@ export class BillingService {
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'following',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'TIP',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.donationData.aggregate({
-        where: {
-          vendorId: userId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.digital_transaction.aggregate({
-        where: {
-          receiverId: userId,
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
       }),
     ]);
 
@@ -2339,12 +2276,9 @@ export class BillingService {
       amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
     }));
 
-    const totalMissionDonationsEarning = Number(missionDonationSum._sum.amount ?? 0);
-    const totalEarning =
-      Number(payFollowingSum._sum.amount ?? 0)
-      + Number(tipSum._sum.amount ?? 0)
-      + Number(missionDonationSum._sum.amount ?? 0)
-      + Number(usdtSum._sum.amount ?? 0);
+    const totals = await this.getAllTimeEarningTotals(userId);
+    const totalMissionDonationsEarning = totals.missionDonationTotalAllTime;
+    const totalEarning = totals.totalEarningAllTime;
 
     const missionDonationsPercentageOfTotalEarning =
       totalEarning > 0 ? Number(((totalMissionDonationsEarning / totalEarning) * 100).toFixed(2)) : 0;
@@ -2372,16 +2306,7 @@ export class BillingService {
       0,
     ));
 
-    const [
-      paidOrders,
-      shopEbookPayments,
-      payFollowingSum,
-      tipSum,
-      missionDonationSum,
-      usdtSum,
-      paidOrdersSummary,
-      shopEbookSummary,
-    ] = await Promise.all([
+    const [paidOrders, shopEbookPayments] = await Promise.all([
       this.prisma.order.findMany({
         where: {
           sellerId: userId,
@@ -2412,79 +2337,6 @@ export class BillingService {
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'following',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'TIP',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.donationData.aggregate({
-        where: {
-          vendorId: userId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.digital_transaction.aggregate({
-        where: {
-          receiverId: userId,
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.order.aggregate({
-        where: {
-          sellerId: userId,
-          paymentStatus: 'PAID',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: {
-          total: true,
-          serviceFee: true,
-        },
-      }),
-      (this.prisma as any).shopEbookPayments.aggregate({
-        where: {
-          sellerId: userId,
-          status: 'SUCCEEDED',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: {
-          sellerAmount: true,
-        },
       }),
     ]);
 
@@ -2526,22 +2378,11 @@ export class BillingService {
       amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
     }));
 
-    const totalShopItemsEarning = Number(
-      (
-        Number(paidOrdersSummary._sum.total || 0)
-        - Number(paidOrdersSummary._sum.serviceFee || 0)
-      ).toFixed(2),
-    );
-    const totalShopEbookEarning = Number((Number(shopEbookSummary._sum.sellerAmount || 0) / 100).toFixed(2));
-    const totalShopEarning = Number((totalShopItemsEarning + totalShopEbookEarning).toFixed(2));
-
-    const totalEarning = Number((
-      Number(payFollowingSum._sum.amount ?? 0)
-      + Number(tipSum._sum.amount ?? 0)
-      + Number(missionDonationSum._sum.amount ?? 0)
-      + Number(usdtSum._sum.amount ?? 0)
-      + totalShopEarning
-    ).toFixed(2));
+    const totals = await this.getAllTimeEarningTotals(userId);
+    const totalShopItemsEarning = totals.totalShopItemsEarningAllTime;
+    const totalShopEbookEarning = totals.totalShopEbookEarningAllTime;
+    const totalShopEarning = totals.totalShopEarningAllTime;
+    const totalEarning = totals.totalEarningAllTime;
 
     const shopEarningPercentageOfTotalEarning =
       totalEarning > 0 ? Number(((totalShopEarning / totalEarning) * 100).toFixed(2)) : 0;
@@ -2571,7 +2412,7 @@ export class BillingService {
       0,
     ));
 
-    const [usdtRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+    const [usdtRows] = await Promise.all([
       this.prisma.digital_transaction.findMany({
         where: {
           receiverId: userId,
@@ -2585,52 +2426,6 @@ export class BillingService {
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'following',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          receiverId: userId,
-          forPayment: 'TIP',
-          status: 'succeeded',
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.donationData.aggregate({
-        where: {
-          vendorId: userId,
-          status: 'completed',
-          action: { in: ['missionDonation', 'donate'] },
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.digital_transaction.aggregate({
-        where: {
-          receiverId: userId,
-          createdAt: {
-            gte: startDate,
-            lte: now,
-          },
-        },
-        _sum: { amount: true },
       }),
     ]);
 
@@ -2663,12 +2458,9 @@ export class BillingService {
       amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
     }));
 
-    const totalUsdtTransferEarning = Number(usdtSum._sum.amount ?? 0);
-    const totalEarning =
-      Number(payFollowingSum._sum.amount ?? 0)
-      + Number(tipSum._sum.amount ?? 0)
-      + Number(missionDonationSum._sum.amount ?? 0)
-      + Number(usdtSum._sum.amount ?? 0);
+    const totals = await this.getAllTimeEarningTotals(userId);
+    const totalUsdtTransferEarning = totals.usdtTotalAllTime;
+    const totalEarning = totals.totalEarningAllTime;
 
     const usdtTransferPercentageOfTotalEarning =
       totalEarning > 0 ? Number(((totalUsdtTransferEarning / totalEarning) * 100).toFixed(2)) : 0;
