@@ -1992,7 +1992,7 @@ export class BillingService {
   }
 
   async getReceivedTotals(userId: string) {
-    const [payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+    const [payFollowingSum, tipSum, missionDonationSum, usdtSum, paidOrdersSummary, shopEbookSummary] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
           receiverId: userId,
@@ -2021,13 +2021,749 @@ export class BillingService {
         where: { receiverId: userId },
         _sum: { amount: true },
       }),
+      this.prisma.order.aggregate({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+        _sum: {
+          total: true,
+          serviceFee: true,
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.aggregate({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
+        _sum: {
+          sellerAmount: true,
+        },
+      }),
     ]);
 
+    const totalShopItemsEarning =
+      Number(paidOrdersSummary._sum.total || 0) - Number(paidOrdersSummary._sum.serviceFee || 0);
+    const totalShopEbookEarning = Number(shopEbookSummary._sum.sellerAmount || 0) / 100;
+    const totalShopEarning = totalShopItemsEarning + totalShopEbookEarning;
+
+    const totalReceived =
+      Number(payFollowingSum._sum.amount ?? 0)
+      + Number(tipSum._sum.amount ?? 0)
+      + Number(missionDonationSum._sum.amount ?? 0)
+      + Number(usdtSum._sum.amount ?? 0)
+      + totalShopEarning;
+
     return {
+      totalReceived: Number(totalReceived.toFixed(2)),
+      totalShopItemsEarning: Number(totalShopItemsEarning.toFixed(2)),
+      totalShopEbookEarning: Number(totalShopEbookEarning.toFixed(2)),
+      totalShopEarning: Number(totalShopEarning.toFixed(2)),
+    };
+  }
 
-      totalReceived: Number(payFollowingSum._sum.amount ?? 0) + Number(tipSum._sum.amount ?? 0) + Number(missionDonationSum._sum.amount ?? 0) + Number(usdtSum._sum.amount ?? 0),
+  async getPayFollowingGraph(userId: string) {
+    const now = new Date();
+    const startDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 6,
+      0,
+      0,
+      0,
+      0,
+    ));
 
+    const [payFollowingRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        select: {
+          amount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: {
+          receiverId: userId,
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
 
+    const dayAmountMap = new Map<string, number>();
+    const labels: string[] = [];
+
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate() + i,
+        0,
+        0,
+        0,
+        0,
+      ));
+      const key = day.toISOString().slice(0, 10);
+      labels.push(key);
+      dayAmountMap.set(key, 0);
+    }
+
+    payFollowingRows.forEach((row) => {
+      const key = row.createdAt.toISOString().slice(0, 10);
+      const current = dayAmountMap.get(key) || 0;
+      dayAmountMap.set(key, current + Number(row.amount || 0));
+    });
+
+    const graphData = labels.map((date) => ({
+      date,
+      amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
+    }));
+
+    const payFollowingTotal = Number(payFollowingSum._sum.amount ?? 0);
+    const totalEarning =
+      Number(payFollowingSum._sum.amount ?? 0)
+      + Number(tipSum._sum.amount ?? 0)
+      + Number(missionDonationSum._sum.amount ?? 0)
+      + Number(usdtSum._sum.amount ?? 0);
+
+    const payFollowingPercentageOfTotalEarning =
+      totalEarning > 0 ? Number(((payFollowingTotal / totalEarning) * 100).toFixed(2)) : 0;
+
+    return {
+      range: '7d',
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+      payFollowingTotal,
+      totalEarning,
+      payFollowingPercentageOfTotalEarning,
+      graphData,
+    };
+  }
+
+  async getTipGraph(userId: string) {
+    const now = new Date();
+    const startDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 6,
+      0,
+      0,
+      0,
+      0,
+    ));
+
+    const [tipRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        select: {
+          amount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: {
+          receiverId: userId,
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const dayAmountMap = new Map<string, number>();
+    const labels: string[] = [];
+
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate() + i,
+        0,
+        0,
+        0,
+        0,
+      ));
+      const key = day.toISOString().slice(0, 10);
+      labels.push(key);
+      dayAmountMap.set(key, 0);
+    }
+
+    tipRows.forEach((row) => {
+      const key = row.createdAt.toISOString().slice(0, 10);
+      const current = dayAmountMap.get(key) || 0;
+      dayAmountMap.set(key, current + Number(row.amount || 0));
+    });
+
+    const graphData = labels.map((date) => ({
+      date,
+      amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
+    }));
+
+    const totalTipEarning = Number(tipSum._sum.amount ?? 0);
+    const totalEarning =
+      Number(payFollowingSum._sum.amount ?? 0)
+      + Number(tipSum._sum.amount ?? 0)
+      + Number(missionDonationSum._sum.amount ?? 0)
+      + Number(usdtSum._sum.amount ?? 0);
+
+    const tipPercentageOfTotalEarning =
+      totalEarning > 0 ? Number(((totalTipEarning / totalEarning) * 100).toFixed(2)) : 0;
+
+    return {
+      range: '7d',
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+      totalTipEarning,
+      totalEarning,
+      tipPercentageOfTotalEarning,
+      graphData,
+    };
+  }
+
+  async getMissionDonationsGraph(userId: string) {
+    const now = new Date();
+    const startDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 6,
+      0,
+      0,
+      0,
+      0,
+    ));
+
+    const [missionDonationRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+      this.prisma.donationData.findMany({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        select: {
+          amount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: {
+          receiverId: userId,
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const dayAmountMap = new Map<string, number>();
+    const labels: string[] = [];
+
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate() + i,
+        0,
+        0,
+        0,
+        0,
+      ));
+      const key = day.toISOString().slice(0, 10);
+      labels.push(key);
+      dayAmountMap.set(key, 0);
+    }
+
+    missionDonationRows.forEach((row) => {
+      const key = row.createdAt.toISOString().slice(0, 10);
+      const current = dayAmountMap.get(key) || 0;
+      dayAmountMap.set(key, current + Number(row.amount || 0));
+    });
+
+    const graphData = labels.map((date) => ({
+      date,
+      amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
+    }));
+
+    const totalMissionDonationsEarning = Number(missionDonationSum._sum.amount ?? 0);
+    const totalEarning =
+      Number(payFollowingSum._sum.amount ?? 0)
+      + Number(tipSum._sum.amount ?? 0)
+      + Number(missionDonationSum._sum.amount ?? 0)
+      + Number(usdtSum._sum.amount ?? 0);
+
+    const missionDonationsPercentageOfTotalEarning =
+      totalEarning > 0 ? Number(((totalMissionDonationsEarning / totalEarning) * 100).toFixed(2)) : 0;
+
+    return {
+      range: '7d',
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+      totalMissionDonationsEarning,
+      totalEarning,
+      missionDonationsPercentageOfTotalEarning,
+      graphData,
+    };
+  }
+
+  async getShopEarningGraph(userId: string) {
+    const now = new Date();
+    const startDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 6,
+      0,
+      0,
+      0,
+      0,
+    ));
+
+    const [
+      paidOrders,
+      shopEbookPayments,
+      payFollowingSum,
+      tipSum,
+      missionDonationSum,
+      usdtSum,
+      paidOrdersSummary,
+      shopEbookSummary,
+    ] = await Promise.all([
+      this.prisma.order.findMany({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        select: {
+          total: true,
+          serviceFee: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      (this.prisma as any).shopEbookPayments.findMany({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        select: {
+          sellerAmount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: {
+          receiverId: userId,
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.order.aggregate({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: {
+          total: true,
+          serviceFee: true,
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.aggregate({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: {
+          sellerAmount: true,
+        },
+      }),
+    ]);
+
+    const dayAmountMap = new Map<string, number>();
+    const labels: string[] = [];
+
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate() + i,
+        0,
+        0,
+        0,
+        0,
+      ));
+      const key = day.toISOString().slice(0, 10);
+      labels.push(key);
+      dayAmountMap.set(key, 0);
+    }
+
+    paidOrders.forEach((order) => {
+      const key = order.createdAt.toISOString().slice(0, 10);
+      const netOrderEarning = Number(order.total || 0) - Number(order.serviceFee || 0);
+      const current = dayAmountMap.get(key) || 0;
+      dayAmountMap.set(key, current + netOrderEarning);
+    });
+
+    shopEbookPayments.forEach((payment: any) => {
+      const key = payment.createdAt.toISOString().slice(0, 10);
+      // sellerAmount is stored in minor units; convert to major units.
+      const netEbookEarning = Number(payment.sellerAmount || 0) / 100;
+      const current = dayAmountMap.get(key) || 0;
+      dayAmountMap.set(key, current + netEbookEarning);
+    });
+
+    const graphData = labels.map((date) => ({
+      date,
+      amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
+    }));
+
+    const totalShopItemsEarning = Number(
+      (
+        Number(paidOrdersSummary._sum.total || 0)
+        - Number(paidOrdersSummary._sum.serviceFee || 0)
+      ).toFixed(2),
+    );
+    const totalShopEbookEarning = Number((Number(shopEbookSummary._sum.sellerAmount || 0) / 100).toFixed(2));
+    const totalShopEarning = Number((totalShopItemsEarning + totalShopEbookEarning).toFixed(2));
+
+    const totalEarning = Number((
+      Number(payFollowingSum._sum.amount ?? 0)
+      + Number(tipSum._sum.amount ?? 0)
+      + Number(missionDonationSum._sum.amount ?? 0)
+      + Number(usdtSum._sum.amount ?? 0)
+      + totalShopEarning
+    ).toFixed(2));
+
+    const shopEarningPercentageOfTotalEarning =
+      totalEarning > 0 ? Number(((totalShopEarning / totalEarning) * 100).toFixed(2)) : 0;
+
+    return {
+      range: '7d',
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+      totalShopEarning,
+      totalShopItemsEarning,
+      totalShopEbookEarning,
+      totalEarning,
+      shopEarningPercentageOfTotalEarning,
+      graphData,
+    };
+  }
+
+  async getUsdtTransferGraph(userId: string) {
+    const now = new Date();
+    const startDate = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 6,
+      0,
+      0,
+      0,
+      0,
+    ));
+
+    const [usdtRows, payFollowingSum, tipSum, missionDonationSum, usdtSum] = await Promise.all([
+      this.prisma.digital_transaction.findMany({
+        where: {
+          receiverId: userId,
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        select: {
+          amount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'following',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          receiverId: userId,
+          forPayment: 'TIP',
+          status: 'succeeded',
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.donationData.aggregate({
+        where: {
+          vendorId: userId,
+          status: 'completed',
+          action: { in: ['missionDonation', 'donate'] },
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.digital_transaction.aggregate({
+        where: {
+          receiverId: userId,
+          createdAt: {
+            gte: startDate,
+            lte: now,
+          },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const dayAmountMap = new Map<string, number>();
+    const labels: string[] = [];
+
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth(),
+        startDate.getUTCDate() + i,
+        0,
+        0,
+        0,
+        0,
+      ));
+      const key = day.toISOString().slice(0, 10);
+      labels.push(key);
+      dayAmountMap.set(key, 0);
+    }
+
+    usdtRows.forEach((row) => {
+      const key = row.createdAt.toISOString().slice(0, 10);
+      const current = dayAmountMap.get(key) || 0;
+      dayAmountMap.set(key, current + Number(row.amount || 0));
+    });
+
+    const graphData = labels.map((date) => ({
+      date,
+      amount: Number((dayAmountMap.get(date) || 0).toFixed(2)),
+    }));
+
+    const totalUsdtTransferEarning = Number(usdtSum._sum.amount ?? 0);
+    const totalEarning =
+      Number(payFollowingSum._sum.amount ?? 0)
+      + Number(tipSum._sum.amount ?? 0)
+      + Number(missionDonationSum._sum.amount ?? 0)
+      + Number(usdtSum._sum.amount ?? 0);
+
+    const usdtTransferPercentageOfTotalEarning =
+      totalEarning > 0 ? Number(((totalUsdtTransferEarning / totalEarning) * 100).toFixed(2)) : 0;
+
+    return {
+      range: '7d',
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+      totalUsdtTransferEarning,
+      totalEarning,
+      usdtTransferPercentageOfTotalEarning,
+      graphData,
     };
   }
 

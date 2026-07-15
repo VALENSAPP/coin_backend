@@ -383,6 +383,51 @@ export class BillingController {
     return this.billingService.getReceivedTotals(userId);
   }
 
+  @Get('pay-following-graph')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get 7-day pay-following graph, total pay-following earning, and percentage of total earning' })
+  async getPayFollowingGraph(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getPayFollowingGraph(userId);
+  }
+
+  @Get('tip-graph')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get 7-day tip graph, total tip earning, and percentage of total earning' })
+  async getTipGraph(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getTipGraph(userId);
+  }
+
+  @Get('mission-donations-graph')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get 7-day mission donations graph, total mission donations earning, and percentage of total earning' })
+  async getMissionDonationsGraph(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getMissionDonationsGraph(userId);
+  }
+
+  @Get('shop-earning-graph')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get 7-day shop earning graph (shop items + shop ebooks), excluding platform fee' })
+  async getShopEarningGraph(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getShopEarningGraph(userId);
+  }
+
+  @Get('usdt-transfer-graph')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get 7-day USDT transfer graph, total USDT transfer earning, and percentage of total earning' })
+  async getUsdtTransferGraph(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getUsdtTransferGraph(userId);
+  }
+
   @Get('received-totals-transactions')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
