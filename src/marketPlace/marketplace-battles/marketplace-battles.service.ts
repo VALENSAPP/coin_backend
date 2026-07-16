@@ -1541,8 +1541,7 @@ export class MarketplaceBattlesService {
 
                 if (
                     !winnerParticipant.product.isActive ||
-                    winnerParticipant.product.isDeleted ||
-                    winnerParticipant.product.quantity <= 0
+                    winnerParticipant.product.isDeleted
                 ) {
                     throw new BadRequestException('Winning product is not eligible for promotion');
                 }
@@ -2148,27 +2147,11 @@ export class MarketplaceBattlesService {
                             id: true,
                             battleId: true,
                             productId: true,
-                            product: {
-                                select: {
-                                    isActive: true,
-                                    isDeleted: true,
-                                    quantity: true,
-                                },
-                            },
                         },
                     });
 
                     if (!participant) {
                         throw new BadRequestException('Invalid participant for this marketplace battle');
-                    }
-
-                    if (
-                        !participant.product ||
-                        !participant.product.isActive ||
-                        participant.product.isDeleted ||
-                        participant.product.quantity <= 0
-                    ) {
-                        throw new BadRequestException('Selected participant product is not eligible for voting');
                     }
 
                     const existingVote = await tx.marketplaceBattleVote.findUnique({
