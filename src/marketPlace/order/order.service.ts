@@ -326,6 +326,11 @@ export class OrderService {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
+                seller: {
+                    select: {
+                        userName: true,
+                    },
+                },
                 items: {
                     select: {
                         id: true,
@@ -368,6 +373,7 @@ export class OrderService {
                 productId: item.productId,
                 productName: item.productName,
                 productImage: item.productImage,
+                sellerUserName: order.seller?.userName || null,
                 quantity: item.quantity,
                 price: item.price,
                 subtotal: item.subtotal,
