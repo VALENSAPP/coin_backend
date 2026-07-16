@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateMarketplacePaymentDto {
@@ -10,13 +10,14 @@ export class CreateMarketplacePaymentDto {
     @IsNotEmpty()
     cartId: string;
 
-    @ApiProperty({
+    @ApiPropertyOptional({
         description: 'Selected shipping address id',
         example: 'a1d1132d-7e69-4c71-9ff1-f2ab79d9b9f5',
     })
     @IsString()
+    @IsOptional()
     @IsNotEmpty()
-    addressId: string;
+    addressId?: string;
 
     @ApiProperty({
         description: 'ISO currency code',
