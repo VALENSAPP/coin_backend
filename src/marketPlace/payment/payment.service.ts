@@ -190,14 +190,6 @@ export class PaymentService {
             promotionsByProductId.set(promotion.productId, existing);
         }
 
-        const address = await this.prisma.userAddrees.findFirst({
-            where: { id: dto.addressId, userId },
-            select: { id: true },
-        });
-        if (!address) {
-            throw new BadRequestException('Invalid shipping address');
-        }
-
         const validatedItems: Array<{
             productId: string;
             sellerId: string;
@@ -217,6 +209,7 @@ export class PaymentService {
 
         let subtotalMinor = 0;
         let shippingMinor = 0;
+        let requiresShippingAddress = false;
 
         for (const cartItem of cart.cartItems) {
             const product = cartItem.product;
@@ -256,6 +249,9 @@ export class PaymentService {
                 cartItem.quantity,
                 product.name,
             );
+            if (shipping.selectedShippingChoice === CartItemShippingChoice.ship_items) {
+                requiresShippingAddress = true;
+            }
             const itemShippingMinor = shipping.shippingMinor;
 
             subtotalMinor += itemSubtotalMinor;
@@ -272,6 +268,32 @@ export class PaymentService {
                 name: product.name,
                 appliedWinnerPromotions: promotionPricing.appliedWinnerPromotions,
             });
+        }
+
+        let address: { id: string } | null = null;
+        if (dto.addressId) {
+            address = await this.prisma.userAddrees.findFirst({
+                where: { id: dto.addressId, userId },
+                select: { id: true },
+            });
+            if (!address) {
+                throw new BadRequestException('Invalid shipping address');
+            }
+        }
+
+        if (requiresShippingAddress && !address) {
+            throw new BadRequestException('Shipping address is required for ship_items products');
+        }
+
+        if (!address) {
+            address = await this.prisma.userAddrees.findFirst({
+                where: { userId },
+                orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+                select: { id: true },
+            });
+            if (!address) {
+                throw new BadRequestException('No saved address found. Add an address to continue checkout');
+            }
         }
 
         const seller = await this.prisma.user.findUnique({
