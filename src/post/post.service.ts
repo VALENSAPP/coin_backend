@@ -1371,6 +1371,7 @@ export class PostService {
     const postWhere: Prisma.PostWhereInput = {
       deletedAt: null,
       isDelete: 'no',
+      postHide: 'no',
       type: { not: 'private' },
       AND: [this.buildPostVisibilityWhere(viewerUserId)],
     };
