@@ -45,7 +45,7 @@ export class DeepLinkController {
     const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     const host = req.get('host');
-    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://prod-api.valens.app');
+    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
     const encodedId = encodeURIComponent(id);
     const shareUrl = `${baseUrl}/${route}/${encodedId}`;
     const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
@@ -105,7 +105,7 @@ export class DeepLinkController {
     const configuredHomeDeepLink = process.env.HOME_DEEP_LINK_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
     const host = req.get('host');
-    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://prod-api.valens.app');
+    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
     const shareUrl = `${baseUrl}/callback`;
     const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
     const deepLinkUrl = configuredHomeDeepLink || 'com.valens://callback';
@@ -211,23 +211,21 @@ export class DeepLinkController {
   <link rel="canonical" href="${safeShareUrl}">
   <style>
     :root {
-      --bg: #0f1412;
-      --panel: #18201c;
-      --text: #f4f7f5;
-      --muted: #a7b3ad;
-      --line: rgba(255,255,255,0.08);
-      --accent: #3ecf8e;
-      --accent-dark: #1f9e63;
-      --danger: #ff7b72;
-      --warn: #f0c14b;
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --text: #111111;
+      --muted: #666666;
+      --line: rgba(0,0,0,0.12);
+      --accent: #1f9e63;
+      --accent-dark: #17804f;
+      --danger: #d64545;
+      --warn: #b8860b;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-      background:
-        radial-gradient(circle at top, rgba(62,207,142,0.18), transparent 42%),
-        linear-gradient(180deg, #101612 0%, #0b0f0d 100%);
+      background: #ffffff;
       color: var(--text);
       min-height: 100vh;
     }
@@ -243,7 +241,7 @@ export class DeepLinkController {
       margin-bottom: 18px;
       gap: 12px;
     }
-    .brand strong { letter-spacing: 0.08em; font-size: 14px; }
+    .brand strong { letter-spacing: 0.08em; font-size: 14px; color: #111111; }
     .open-app {
       color: var(--accent);
       text-decoration: none;
@@ -251,17 +249,17 @@ export class DeepLinkController {
       font-weight: 600;
     }
     .card {
-      background: rgba(24,32,28,0.92);
+      background: #ffffff;
       border: 1px solid var(--line);
       border-radius: 24px;
       overflow: hidden;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
     .hero {
       width: 100%;
       aspect-ratio: 16 / 10;
       object-fit: cover;
-      background: #223028;
+      background: #f0f0f0;
       display: block;
     }
     .hero-fallback {
@@ -269,7 +267,7 @@ export class DeepLinkController {
       aspect-ratio: 16 / 10;
       display: grid;
       place-items: center;
-      background: linear-gradient(135deg, #1d2a24, #101612);
+      background: #f5f5f5;
       color: var(--muted);
       font-size: 14px;
     }
@@ -285,11 +283,12 @@ export class DeepLinkController {
       height: 44px;
       border-radius: 50%;
       object-fit: cover;
-      background: #2a3831;
+      background: #e8e8e8;
     }
     .creator h2 {
       margin: 0;
       font-size: 16px;
+      color: #111111;
     }
     .creator p {
       margin: 2px 0 0;
@@ -300,6 +299,7 @@ export class DeepLinkController {
       margin: 0 0 10px;
       font-size: 26px;
       line-height: 1.25;
+      color: #111111;
     }
     .status {
       margin: 0 0 18px;
@@ -317,7 +317,7 @@ export class DeepLinkController {
       margin-bottom: 14px;
     }
     .stat {
-      background: rgba(255,255,255,0.03);
+      background: #f7f7f7;
       border: 1px solid var(--line);
       border-radius: 14px;
       padding: 12px 10px;
@@ -331,11 +331,11 @@ export class DeepLinkController {
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .stat strong { font-size: 15px; }
+    .stat strong { font-size: 15px; color: #111111; }
     .progress {
       height: 10px;
       border-radius: 999px;
-      background: rgba(255,255,255,0.08);
+      background: #ececec;
       overflow: hidden;
       margin-bottom: 8px;
     }
@@ -364,7 +364,7 @@ export class DeepLinkController {
     }
     .presets button {
       border: 1px solid var(--line);
-      background: rgba(255,255,255,0.03);
+      background: #ffffff;
       color: var(--text);
       border-radius: 12px;
       padding: 10px 0;
@@ -373,21 +373,21 @@ export class DeepLinkController {
     }
     .presets button.active {
       border-color: var(--accent);
-      background: rgba(62,207,142,0.12);
+      background: rgba(31,158,99,0.1);
       color: var(--accent);
     }
     input, textarea {
       width: 100%;
       border-radius: 14px;
       border: 1px solid var(--line);
-      background: rgba(0,0,0,0.25);
+      background: #ffffff;
       color: var(--text);
       padding: 14px 14px;
       font-size: 16px;
       margin-bottom: 12px;
       outline: none;
     }
-    input:focus, textarea:focus { border-color: rgba(62,207,142,0.55); }
+    input:focus, textarea:focus { border-color: rgba(31,158,99,0.65); }
     textarea { min-height: 88px; resize: vertical; }
     .donate-btn, .disabled-btn {
       width: 100%;
@@ -407,7 +407,7 @@ export class DeepLinkController {
       cursor: wait;
     }
     .disabled-btn {
-      background: rgba(255,255,255,0.08);
+      background: #f0f0f0;
       color: var(--muted);
       cursor: not-allowed;
     }
