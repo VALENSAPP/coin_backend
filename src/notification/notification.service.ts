@@ -133,6 +133,34 @@ export class NotificationService {
     );
   }
 
+  private getBattleSideCounts(
+    entries: Array<{ side?: string | null }> = [],
+    optionA?: string,
+    optionB?: string,
+  ): { sideACount: number; sideBCount: number } {
+    const normalizedOptionA = (optionA || '').trim().toLowerCase();
+    const normalizedOptionB = (optionB || '').trim().toLowerCase();
+
+    let sideACount = 0;
+    let sideBCount = 0;
+
+    for (const entry of entries) {
+      const rawSide = (entry?.side || '').trim();
+      if (!rawSide) continue;
+
+      const normalizedSide = rawSide.toLowerCase();
+      if (normalizedSide === 'a' || (normalizedOptionA && normalizedSide === normalizedOptionA)) {
+        sideACount += 1;
+        continue;
+      }
+      if (normalizedSide === 'b' || (normalizedOptionB && normalizedSide === normalizedOptionB)) {
+        sideBCount += 1;
+      }
+    }
+
+    return { sideACount, sideBCount };
+  }
+
   async sendNotificationToUser(
     userId: string,
     title: string,
@@ -2094,11 +2122,20 @@ export class NotificationService {
             side: true,
           },
         },
+        votes: {
+          select: {
+            side: true,
+          },
+        },
       },
     });
 
-    const sideACount = battle?.participants.filter((participant) => participant.side === 'A').length ?? 0;
-    const sideBCount = battle?.participants.filter((participant) => participant.side === 'B').length ?? 0;
+    const entries = battle?.votes?.length ? battle.votes : battle?.participants || [];
+    const { sideACount, sideBCount } = this.getBattleSideCounts(
+      entries,
+      battle?.options?.[0],
+      battle?.options?.[1],
+    );
     const remainingMs = battle?.endTime ? battle.endTime.getTime() - Date.now() : 0;
     const remainingMinutes = Math.max(0, Math.ceil(remainingMs / (60 * 1000)));
     const remainingHours = Math.max(0, Math.ceil(remainingMinutes / 60));
