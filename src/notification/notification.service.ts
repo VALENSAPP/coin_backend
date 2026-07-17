@@ -1817,7 +1817,7 @@ export class NotificationService {
         likerImage: liker?.image || '',
         notificationCategory: 'POST_LIKED',
         deepLink: `valens://post/${postId}`,
-        expandedTitle: 'POST LIKED',
+        // expandedTitle: 'POST LIKED',
         expandedBody: `${likerName} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
         postTitle,
         primaryAction: 'VIEW_POST',
