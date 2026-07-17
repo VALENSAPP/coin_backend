@@ -175,7 +175,7 @@ export class StoryService {
     const stories = await this.prisma.story.findMany({
       where: {
         userId: targetUserId,
-        deletedAt: null,
+        isDeleted: 'no',
         ...(isAll ? {} : { createdAt: { gte: last24Hours } }),
         AND: [this.buildAccessibleStoryWhere(viewerId)],
       },
@@ -189,10 +189,10 @@ export class StoryService {
     if (!userId) throw new BadRequestException('User ID required');
 
     const story = await this.prisma.story.findUnique({ where: { id: storyId } });
-    if (!story || story.deletedAt) throw new NotFoundException('Story not found');
+    if (!story || story.isDeleted === 'yes') throw new NotFoundException('Story not found');
     if (story.userId !== userId) throw new BadRequestException('Unauthorized');
 
-    await this.prisma.story.update({ where: { id: storyId }, data: { deletedAt: new Date() } });
+    await this.prisma.story.update({ where: { id: storyId }, data: { deletedAt: new Date(), isDeleted: 'yes' } });
     return { message: 'Story deleted' };
   }
 

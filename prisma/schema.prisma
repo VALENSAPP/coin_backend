@@ -673,6 +673,7 @@ model Story {
   storyMeta      Json?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
+  isDeleted      isdeleted            @default(no)
   deletedAt      DateTime?
   user           User                 @relation(fields: [userId], references: [id])
   comment        StoryComment[]
@@ -1804,6 +1805,11 @@ enum postHide {
 }
 
 enum isdelete {
+  yes
+  no
+}
+
+enum isdeleted {
   yes
   no
 }
