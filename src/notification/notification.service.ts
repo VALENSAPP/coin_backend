@@ -1819,7 +1819,7 @@ export class NotificationService {
         deepLink: `valens://post/${postId}`,
         // expandedTitle: 'POST LIKED',
         expandedBody: `${likerName} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
-        postTitle,
+        // postTitle,
         primaryAction: 'VIEW_POST',
       },
     );
