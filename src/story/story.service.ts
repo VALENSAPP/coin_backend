@@ -468,7 +468,7 @@ export class StoryService {
                 story: {
                   is: {
                     isDeleted: 'no',
-                    AND: [accessibleStoryWhere],
+                    // AND: [accessibleStoryWhere],
                   },
                 },
               },
