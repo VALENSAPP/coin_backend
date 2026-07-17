@@ -1,7 +1,24 @@
-import { Controller, Get, Param, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Param,
+  Post,
+  Req,
+  Res,
+  ValidationPipe,
+} from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
+import { WebMissionDonateDto } from './dto/web-mission-donate.dto';
+import { MissionSharePageData, MissionShareService } from './mission-share.service';
+
+@ApiTags('Deep Links')
 @Controller()
 export class DeepLinkController {
+  constructor(private readonly missionShareService: MissionShareService) {}
+
   private escapeHtml(value: string) {
     return value
       .replace(/&/g, '&amp;')
@@ -9,6 +26,17 @@ export class DeepLinkController {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  private escapeJs(value: string) {
+    return value
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e');
   }
 
   private fallbackHtml(route: string, id: string, req: Request) {
@@ -129,6 +157,444 @@ export class DeepLinkController {
     `;
   }
 
+  private money(value: number) {
+    return `$${Number(value || 0).toFixed(2)}`;
+  }
+
+  private missionDonationHtml(data: MissionSharePageData, req: Request) {
+    const configuredBaseUrl = process.env.BASE_URL;
+    const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
+    const host = req.get('host');
+    const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://prod-api.valens.app');
+    const shareUrl = `${baseUrl}/postshare/${encodeURIComponent(data.postId)}`;
+    const deepLinkUrl = `com.valens.app://postshare/${encodeURIComponent(data.postId)}`;
+    const appStoreUrl = process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
+    const playStoreUrl =
+      process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.valens.app';
+    const ogImage = data.image || process.env.OG_IMAGE_URL || `${baseUrl}/share-assets/valens-share.png`;
+    const description = `Support @${data.vendorHandle}'s mission on Valens. ${data.raisedAmount.toFixed(2)} raised of ${data.goalAmount.toFixed(2)} goal.`;
+
+    const safeShareUrl = this.escapeHtml(shareUrl);
+    const safeOgImage = this.escapeHtml(ogImage);
+    const safeTitle = this.escapeHtml(data.title);
+    const safeVendorName = this.escapeHtml(data.vendorName);
+    const safeVendorHandle = this.escapeHtml(data.vendorHandle);
+    const safeDescription = this.escapeHtml(description);
+    const safeStatusMessage = this.escapeHtml(data.statusMessage);
+    const safeImage = data.image ? this.escapeHtml(data.image) : '';
+    const safeDeepLink = this.escapeJs(deepLinkUrl);
+    const safeAppStore = this.escapeJs(appStoreUrl);
+    const safePlayStore = this.escapeJs(playStoreUrl);
+    const safePostId = this.escapeJs(data.postId);
+    const remaining = this.money(data.remainingAmount);
+    const raised = this.money(data.raisedAmount);
+    const goal = this.money(data.goalAmount);
+    const canDonate = data.canDonate;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${safeTitle} · Valens</title>
+  <meta name="description" content="${safeDescription}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Valens">
+  <meta property="og:title" content="${this.escapeHtml(`Support @${data.vendorHandle}'s Mission on Valens`)}">
+  <meta property="og:description" content="${safeDescription}">
+  <meta property="og:url" content="${safeShareUrl}">
+  <meta property="og:image" content="${safeOgImage}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${this.escapeHtml(`Support @${data.vendorHandle}'s Mission on Valens`)}">
+  <meta name="twitter:description" content="${safeDescription}">
+  <meta name="twitter:image" content="${safeOgImage}">
+  <link rel="canonical" href="${safeShareUrl}">
+  <style>
+    :root {
+      --bg: #0f1412;
+      --panel: #18201c;
+      --text: #f4f7f5;
+      --muted: #a7b3ad;
+      --line: rgba(255,255,255,0.08);
+      --accent: #3ecf8e;
+      --accent-dark: #1f9e63;
+      --danger: #ff7b72;
+      --warn: #f0c14b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(62,207,142,0.18), transparent 42%),
+        linear-gradient(180deg, #101612 0%, #0b0f0d 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap {
+      width: min(560px, 100%);
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      gap: 12px;
+    }
+    .brand strong { letter-spacing: 0.08em; font-size: 14px; }
+    .open-app {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .card {
+      background: rgba(24,32,28,0.92);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+    }
+    .hero {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      background: #223028;
+      display: block;
+    }
+    .hero-fallback {
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #1d2a24, #101612);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .content { padding: 22px 20px 24px; }
+    .creator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #2a3831;
+    }
+    .creator h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .creator p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 26px;
+      line-height: 1.25;
+    }
+    .status {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .status.goal_reached { color: var(--accent); }
+    .status.closed, .status.unavailable { color: var(--danger); }
+    .status.not_started { color: var(--warn); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stat strong { font-size: 15px; }
+    .progress {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress > i {
+      display: block;
+      height: 100%;
+      width: ${Math.max(0, Math.min(100, data.fundedPercent))}%;
+      background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+    }
+    .progress-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 20px;
+    }
+    .form label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .presets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .presets button {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .presets button.active {
+      border-color: var(--accent);
+      background: rgba(62,207,142,0.12);
+      color: var(--accent);
+    }
+    input, textarea {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      padding: 14px 14px;
+      font-size: 16px;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    input:focus, textarea:focus { border-color: rgba(62,207,142,0.55); }
+    textarea { min-height: 88px; resize: vertical; }
+    .donate-btn, .disabled-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      padding: 15px 16px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .donate-btn {
+      background: linear-gradient(180deg, #49d897, #2fb574);
+      color: #062315;
+    }
+    .donate-btn:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+    .disabled-btn {
+      background: rgba(255,255,255,0.08);
+      color: var(--muted);
+      cursor: not-allowed;
+    }
+    .error {
+      display: none;
+      margin-top: 12px;
+      color: var(--danger);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .hint {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <strong>VALENS</strong>
+      <a class="open-app" id="openAppLink" href="#">Open in app</a>
+    </div>
+    <div class="card">
+      ${
+        safeImage
+          ? `<img class="hero" src="${safeImage}" alt="${safeTitle}">`
+          : `<div class="hero-fallback">Mission on Valens</div>`
+      }
+      <div class="content">
+        <div class="creator">
+          ${
+            data.vendorImage
+              ? `<img class="avatar" src="${this.escapeHtml(data.vendorImage)}" alt="${safeVendorName}">`
+              : `<div class="avatar"></div>`
+          }
+          <div>
+            <h2>${safeVendorName}</h2>
+            <p>@${safeVendorHandle}</p>
+          </div>
+        </div>
+        <h1>${safeTitle}</h1>
+        <p class="status ${this.escapeHtml(data.status)}">${safeStatusMessage}</p>
+        <div class="stats">
+          <div class="stat"><span>Raised</span><strong>${raised}</strong></div>
+          <div class="stat"><span>Goal</span><strong>${goal}</strong></div>
+          <div class="stat"><span>Left</span><strong>${remaining}</strong></div>
+        </div>
+        <div class="progress"><i></i></div>
+        <div class="progress-label">${data.fundedPercent}% funded</div>
+        ${
+          canDonate
+            ? `<form class="form" id="donateForm">
+                <label for="amount">Donation amount (USD)</label>
+                <div class="presets">
+                  <button type="button" data-amount="5">$5</button>
+                  <button type="button" data-amount="10" class="active">$10</button>
+                  <button type="button" data-amount="25">$25</button>
+                  <button type="button" data-amount="50">$50</button>
+                </div>
+                <input id="amount" name="amount" type="number" min="0.01" step="0.01" value="10" required>
+                <label for="note">Note (optional)</label>
+                <textarea id="note" name="note" placeholder="Leave a message of support"></textarea>
+                <button class="donate-btn" id="donateBtn" type="submit">Donate securely</button>
+                <div class="error" id="errorBox"></div>
+                <p class="hint">Secure checkout powered by Stripe. Remaining goal: ${remaining}.</p>
+              </form>`
+            : `<button class="disabled-btn" type="button" disabled>${safeStatusMessage}</button>
+               <p class="hint">Open the Valens app to follow this mission.</p>`
+        }
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var deepLink = "${safeDeepLink}";
+      var appStore = "${safeAppStore}";
+      var playStore = "${safePlayStore}";
+      var postId = "${safePostId}";
+      var canDonate = ${canDonate ? 'true' : 'false'};
+      var remaining = ${Number(data.remainingAmount || 0)};
+
+      function isAndroid() {
+        return /Android/i.test(navigator.userAgent || '');
+      }
+
+      function tryOpenApp() {
+        var start = Date.now();
+        window.location.href = deepLink;
+        setTimeout(function () {
+          if (document.hidden) return;
+          if (Date.now() - start < 1600) return;
+          // Stay on webpage for mission donations when app is not installed.
+        }, 1200);
+      }
+
+      var openAppLink = document.getElementById('openAppLink');
+      if (openAppLink) {
+        openAppLink.addEventListener('click', function (e) {
+          e.preventDefault();
+          window.location.href = deepLink;
+          setTimeout(function () {
+            if (!document.hidden) {
+              window.location.href = isAndroid() ? playStore : appStore;
+            }
+          }, 1800);
+        });
+      }
+
+      tryOpenApp();
+
+      if (!canDonate) return;
+
+      var form = document.getElementById('donateForm');
+      var amountInput = document.getElementById('amount');
+      var noteInput = document.getElementById('note');
+      var donateBtn = document.getElementById('donateBtn');
+      var errorBox = document.getElementById('errorBox');
+      var presetButtons = document.querySelectorAll('.presets button');
+
+      presetButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          presetButtons.forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          amountInput.value = btn.getAttribute('data-amount');
+        });
+      });
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        errorBox.style.display = 'none';
+        errorBox.textContent = '';
+
+        var amount = Number(amountInput.value);
+        if (!amount || amount < 0.01) {
+          errorBox.textContent = 'Enter a valid donation amount.';
+          errorBox.style.display = 'block';
+          return;
+        }
+        if (remaining > 0 && amount > remaining + 0.0001) {
+          errorBox.textContent = 'Donation exceeds remaining goal amount of $' + remaining.toFixed(2) + '.';
+          errorBox.style.display = 'block';
+          return;
+        }
+
+        donateBtn.disabled = true;
+        donateBtn.textContent = 'Redirecting to checkout...';
+
+        try {
+          var response = await fetch('/postshare/' + encodeURIComponent(postId) + '/donate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              amount: amount,
+              note: (noteInput.value || '').trim() || undefined
+            })
+          });
+          var payload = await response.json();
+          var sessionUrl =
+            (payload && payload.data && payload.data.sessionUrl) ||
+            (payload && payload.sessionUrl);
+
+          if (!response.ok || !sessionUrl) {
+            var message =
+              (payload && payload.message) ||
+              (payload && payload.data && payload.data.message) ||
+              'Unable to start checkout. Please try again.';
+            if (Array.isArray(message)) message = message.join(', ');
+            throw new Error(message);
+          }
+
+          window.location.href = sessionUrl;
+        } catch (err) {
+          errorBox.textContent = (err && err.message) ? err.message : 'Unable to start checkout.';
+          errorBox.style.display = 'block';
+          donateBtn.disabled = false;
+          donateBtn.textContent = 'Donate securely';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>`;
+  }
+
   @Get('callback')
   callback(@Req() req: Request, @Res() res: Response) {
     return res.send(this.callbackFallbackHtml(req));
@@ -150,8 +616,42 @@ export class DeepLinkController {
   }
 
   @Get('postshare/:id')
-  postshare(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+  async postshare(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    try {
+      const missionData = await this.missionShareService.getMissionSharePageData(id);
+      if (missionData) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.send(this.missionDonationHtml(missionData, req));
+      }
+    } catch (error) {
+      // Non-mission or missing post falls back to default deep-link page.
+    }
+
     return res.send(this.fallbackHtml('postshare', id, req));
+  }
+
+  @Post('postshare/:id/donate')
+  @ApiOperation({
+    summary: 'Create Stripe checkout for a shared mission post (public web page)',
+  })
+  async donateFromSharePage(
+    @Param('id') id: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: WebMissionDonateDto,
+  ) {
+    try {
+      const donation = await this.missionShareService.createWebDonation(id, dto.amount, dto.note);
+      return {
+        sessionUrl: donation.sessionUrl,
+        donationId: donation.id,
+        status: donation.status,
+        remainingHint: true,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   @Get('reelshare/:id')

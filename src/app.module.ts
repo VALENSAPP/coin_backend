@@ -28,7 +28,7 @@ import { MarketplaceBattlesModule } from './marketPlace/marketplace-battles/mark
 import { ClosetChatModule } from './marketPlace/closet-chat/closet-chat.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { DeepLinkController } from './deep-link/deep-link.controller';
+import { DeepLinkModule } from './deep-link/deep-link.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -58,8 +58,9 @@ import { DeepLinkController } from './deep-link/deep-link.controller';
     EarningsModule,
     MarketplaceBattlesModule,
     ClosetChatModule,
+    DeepLinkModule,
   ],
-  controllers: [AppController, DeepLinkController],
+  controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule { }

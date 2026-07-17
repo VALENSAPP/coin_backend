@@ -116,6 +116,10 @@ async function bootstrap() {
     windowMs: 60 * 1000,
     max: 30,
   });
+  applyMethodRateLimit('/postshare/:id/donate', ['POST'], {
+    windowMs: 60 * 1000,
+    max: 20,
+  });
 
   // Serve static files from the public directory
   app.useStaticAssets(join(__dirname, '..', 'public'));

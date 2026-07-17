@@ -108,6 +108,24 @@ export class TokenPurchaseService {
       throw new BadRequestException('Mission is closed because deadline has passed');
     }
 
+    const goalAmount = Number(missionPost.raiseAmount || 0);
+    if (goalAmount > 0) {
+      const raisedAmount = await this.getCompletedMissionRaisedAmount(dto.postId);
+      const raisedCents = Math.round(raisedAmount * 100);
+      const goalCents = Math.round(goalAmount * 100);
+      const amountCents = Math.round(dto.amount * 100);
+      const remainingCents = Math.max(0, goalCents - raisedCents);
+
+      if (remainingCents <= 0) {
+        throw new BadRequestException('Mission goal has already been achieved');
+      }
+      if (amountCents > remainingCents) {
+        throw new BadRequestException(
+          `Donation exceeds remaining goal amount of $${(remainingCents / 100).toFixed(2)}`,
+        );
+      }
+    }
+
     // Vendor (recipient of 95%) must exist and have Stripe Connect ready
     const destinationAccountId = await this.getVendorConnectAccountId(dto.vendorId);
 
@@ -242,6 +260,21 @@ export class TokenPurchaseService {
     return user.stripeAccountId;
   }
 
+  private static readonly MISSION_POST_TYPES = ['crowdfunding', 'support', 'mission-post'] as const;
+
+  private async getCompletedMissionRaisedAmount(postId: string): Promise<number> {
+    const raisedResult = await this.prisma.donationData.aggregate({
+      where: {
+        postId,
+        status: 'completed',
+        action: { in: ['missionDonation', 'donate'] },
+      },
+      _sum: { amount: true, totalAmount: true },
+    });
+
+    return Number(raisedResult._sum.totalAmount ?? raisedResult._sum.amount ?? 0);
+  }
+
   private async getMissionPostOrThrow(postId: string, vendorId: string) {
     const post = await this.prisma.post.findFirst({
       where: {
@@ -250,12 +283,13 @@ export class TokenPurchaseService {
         deletedAt: null,
         isDelete: 'no',
         postHide: 'no',
-        type: { in: ['crowdfunding', 'support'] },
+        type: { in: [...TokenPurchaseService.MISSION_POST_TYPES] },
       },
       select: {
         id: true,
         start_time: true,
         end_time: true,
+        raiseAmount: true,
       },
     });
 
@@ -834,7 +868,7 @@ export class TokenPurchaseService {
           deletedAt: null,
           isDelete: 'no',
           postHide: 'no',
-          type: { in: ['crowdfunding', 'support'] },
+          type: { in: ['crowdfunding', 'support', 'mission-post'] },
           start_time: { lte: now },
           end_time: { gte: now },
         },
@@ -871,6 +905,20 @@ export class TokenPurchaseService {
         throw error;
       }
       throw new BadRequestException('Failed to create external mission donation');
+    }
+  }
+
+  /** Public web donation page — no API key; donor stored as Unknown User. */
+  async webMissionPostDonation(dto: MissionDonationDto): Promise<DonationResponseDto> {
+    try {
+      const unknownDonorUserId = await this.getOrCreateUnknownDonorUserId();
+      return await this.createMissionDonationSession(unknownDonorUserId, dto, 'external');
+    } catch (error) {
+      this.logger.error('Error creating web mission donation:', error);
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to create web mission donation');
     }
   }
 }
