@@ -255,13 +255,23 @@ export class DeepLinkController {
       overflow: hidden;
       box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
-    .hero {
+    .hero-frame {
       width: 100%;
       aspect-ratio: 16 / 10;
-      object-fit: cover;
       background: #f0f0f0;
-      display: block;
+      overflow: hidden;
+      position: relative;
     }
+    .hero {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+      display: block;
+      background: #f0f0f0;
+    }
+    .hero.hero-cover { object-fit: cover; }
+    .hero.hero-contain { object-fit: contain; }
     .hero-fallback {
       width: 100%;
       aspect-ratio: 16 / 10;
@@ -436,7 +446,7 @@ export class DeepLinkController {
     <div class="card">
       ${
         safeImage
-          ? `<img class="hero" src="${safeImage}" alt="${safeTitle}">`
+          ? `<div class="hero-frame"><img class="hero" id="heroImage" src="${safeImage}" alt="${safeTitle}"></div>`
           : `<div class="hero-fallback">Mission on Valens</div>`
       }
       <div class="content">
@@ -494,6 +504,42 @@ export class DeepLinkController {
 
       function isAndroid() {
         return /Android/i.test(navigator.userAgent || '');
+      }
+
+      function applyHeroResizeMode(img) {
+        if (!img || !img.naturalWidth || !img.naturalHeight) return;
+        var imageRatio = img.naturalWidth / img.naturalHeight;
+        var frame = img.parentElement;
+        var frameRatio = frame && frame.clientWidth && frame.clientHeight
+          ? frame.clientWidth / frame.clientHeight
+          : 16 / 10;
+        var diff = Math.abs(imageRatio - frameRatio) / frameRatio;
+
+        img.classList.remove('hero-cover', 'hero-contain');
+
+        // Portrait or strongly mismatched aspect → show full image (contain)
+        // Close to frame aspect → fill frame (cover)
+        if (imageRatio < 0.95 || diff > 0.28) {
+          img.classList.add('hero-contain');
+          img.style.objectFit = 'contain';
+        } else {
+          img.classList.add('hero-cover');
+          img.style.objectFit = 'cover';
+        }
+      }
+
+      var heroImage = document.getElementById('heroImage');
+      if (heroImage) {
+        if (heroImage.complete && heroImage.naturalWidth) {
+          applyHeroResizeMode(heroImage);
+        } else {
+          heroImage.addEventListener('load', function () {
+            applyHeroResizeMode(heroImage);
+          });
+        }
+        window.addEventListener('resize', function () {
+          applyHeroResizeMode(heroImage);
+        });
       }
 
       function tryOpenApp() {
