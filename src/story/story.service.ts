@@ -467,7 +467,7 @@ export class StoryService {
               where: {
                 story: {
                   is: {
-                    deletedAt: null,
+                    isDeleted: 'no',
                     AND: [accessibleStoryWhere],
                   },
                 },
