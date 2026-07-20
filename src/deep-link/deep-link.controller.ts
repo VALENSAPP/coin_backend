@@ -47,16 +47,43 @@ export class DeepLinkController {
     return process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.valens';
   }
 
-  /** Same flow as before: try app, then store. Android → Play Store, iOS → App Store. */
+  /**
+   * Android Chrome often ignores custom schemes. Intent URLs with package=com.valens
+   * open the installed app; browserFallbackUrl is used only if the app is missing.
+   */
+  private buildAndroidIntentUrl(schemePath: string, browserFallbackUrl: string, scheme = 'com.valens.app') {
+    const encodedFallback = encodeURIComponent(browserFallbackUrl);
+    const cleanPath = schemePath.replace(/^\/+/, '');
+    return `intent://${cleanPath}#Intent;scheme=${scheme};package=com.valens;S.browser_fallback_url=${encodedFallback};end`;
+  }
+
+  private parseCustomSchemeUrl(deepLinkUrl: string): { scheme: string; path: string } {
+    const match = deepLinkUrl.match(/^([a-z0-9.+-]+):\/\/(.*)$/i);
+    if (!match) {
+      return { scheme: 'com.valens.app', path: deepLinkUrl };
+    }
+    return { scheme: match[1], path: match[2] };
+  }
+
+  /**
+   * Normal shares: try open app, then store.
+   * Android uses Intent URL (opens installed app). iOS uses custom scheme.
+   */
   private openAppThenStoreScript(deepLinkUrl: string) {
+    const { scheme, path } = this.parseCustomSchemeUrl(deepLinkUrl);
+    const playStoreUrl = this.getPlayStoreUrl();
+    const androidIntentUrl = this.buildAndroidIntentUrl(path, playStoreUrl, scheme);
+
     const safeDeepLink = this.escapeHtml(deepLinkUrl);
+    const safeAndroidIntent = this.escapeHtml(androidIntentUrl);
     const safeAppStore = this.escapeHtml(this.getAppStoreUrl());
-    const safePlayStore = this.escapeHtml(this.getPlayStoreUrl());
+    const safePlayStore = this.escapeHtml(playStoreUrl);
 
     return `
       <script>
         (function () {
           var deepLink = "${safeDeepLink}";
+          var androidIntent = "${safeAndroidIntent}";
           var appStore = "${safeAppStore}";
           var playStore = "${safePlayStore}";
 
@@ -64,11 +91,20 @@ export class DeepLinkController {
             return /Android/i.test(navigator.userAgent || '');
           }
 
-          window.location.href = deepLink;
+          if (isAndroid()) {
+            // Intent opens installed app; if missing, browser_fallback goes to Play Store.
+            window.location.href = androidIntent;
+            setTimeout(function () {
+              if (document.hidden) return;
+              window.location.href = playStore;
+            }, 2000);
+            return;
+          }
 
+          window.location.href = deepLink;
           setTimeout(function () {
             if (document.hidden) return;
-            window.location.href = isAndroid() ? playStore : appStore;
+            window.location.href = appStore;
           }, 2000);
         })();
       </script>
@@ -186,6 +222,12 @@ export class DeepLinkController {
     const deepLinkUrl = `com.valens.app://postshare/${encodeURIComponent(data.postId)}`;
     const appStoreUrl = this.getAppStoreUrl();
     const playStoreUrl = this.getPlayStoreUrl();
+    // Donation: if app missing, come back to this webpage (not Play Store).
+    const androidIntentUrl = this.buildAndroidIntentUrl(
+      `postshare/${encodeURIComponent(data.postId)}`,
+      shareUrl,
+      'com.valens.app',
+    );
     const ogImage = data.image || process.env.OG_IMAGE_URL || `${baseUrl}/share-assets/valens-share.png`;
     const description = `Support @${data.vendorHandle}'s mission on Valens. ${data.raisedAmount.toFixed(2)} raised of ${data.goalAmount.toFixed(2)} goal.`;
 
@@ -198,6 +240,7 @@ export class DeepLinkController {
     const safeStatusMessage = this.escapeHtml(data.statusMessage);
     const safeImage = data.image ? this.escapeHtml(data.image) : '';
     const safeDeepLink = this.escapeJs(deepLinkUrl);
+    const safeAndroidIntent = this.escapeJs(androidIntentUrl);
     const safeAppStore = this.escapeJs(appStoreUrl);
     const safePlayStore = this.escapeJs(playStoreUrl);
     const safePostId = this.escapeJs(data.postId);
@@ -511,6 +554,7 @@ export class DeepLinkController {
   <script>
     (function () {
       var deepLink = "${safeDeepLink}";
+      var androidIntent = "${safeAndroidIntent}";
       var appStore = "${safeAppStore}";
       var playStore = "${safePlayStore}";
       var postId = "${safePostId}";
@@ -519,6 +563,10 @@ export class DeepLinkController {
 
       function isAndroid() {
         return /Android/i.test(navigator.userAgent || '');
+      }
+
+      function openAppLinkTarget() {
+        return isAndroid() ? androidIntent : deepLink;
       }
 
       function applyHeroResizeMode(img) {
@@ -558,15 +606,20 @@ export class DeepLinkController {
       }
 
       function tryOpenApp() {
-        // Donation posts: try app. If not installed, stay on this webpage (no store redirect).
-        window.location.href = deepLink;
+        // Donation: try open app once. If missing, Intent falls back to this webpage (not Play Store).
+        var triedKey = 'valens_open_tried:' + location.pathname;
+        try {
+          if (sessionStorage.getItem(triedKey) === '1') return;
+          sessionStorage.setItem(triedKey, '1');
+        } catch (e) {}
+        window.location.href = openAppLinkTarget();
       }
 
       var openAppLink = document.getElementById('openAppLink');
       if (openAppLink) {
         openAppLink.addEventListener('click', function (e) {
           e.preventDefault();
-          window.location.href = deepLink;
+          window.location.href = openAppLinkTarget();
           setTimeout(function () {
             if (!document.hidden) {
               window.location.href = isAndroid() ? playStore : appStore;
