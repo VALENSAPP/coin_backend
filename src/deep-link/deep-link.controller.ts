@@ -48,10 +48,11 @@ export class DeepLinkController {
   }
 
   /**
-   * Android Chrome often ignores custom schemes. Intent URLs with package=com.valens
-   * open the installed app; browserFallbackUrl is used only if the app is missing.
+   * Android app manifest uses scheme "com.valens" (not com.valens.app).
+   * Intent URLs with package=com.valens open the installed app;
+   * browserFallbackUrl is used only if the app is missing.
    */
-  private buildAndroidIntentUrl(schemePath: string, browserFallbackUrl: string, scheme = 'com.valens.app') {
+  private buildAndroidIntentUrl(schemePath: string, browserFallbackUrl: string, scheme = 'com.valens') {
     const encodedFallback = encodeURIComponent(browserFallbackUrl);
     const cleanPath = schemePath.replace(/^\/+/, '');
     return `intent://${cleanPath}#Intent;scheme=${scheme};package=com.valens;S.browser_fallback_url=${encodedFallback};end`;
@@ -60,21 +61,30 @@ export class DeepLinkController {
   private parseCustomSchemeUrl(deepLinkUrl: string): { scheme: string; path: string } {
     const match = deepLinkUrl.match(/^([a-z0-9.+-]+):\/\/(.*)$/i);
     if (!match) {
-      return { scheme: 'com.valens.app', path: deepLinkUrl };
+      return { scheme: 'com.valens', path: deepLinkUrl };
     }
     return { scheme: match[1], path: match[2] };
   }
 
   /**
    * Normal shares: try open app, then store.
-   * Android uses Intent URL (opens installed app). iOS uses custom scheme.
+   * Android → Intent with scheme com.valens (matches AndroidManifest).
+   * iOS → custom scheme com.valens.app.
    */
   private openAppThenStoreScript(deepLinkUrl: string) {
-    const { scheme, path } = this.parseCustomSchemeUrl(deepLinkUrl);
+    const { path } = this.parseCustomSchemeUrl(deepLinkUrl);
     const playStoreUrl = this.getPlayStoreUrl();
-    const androidIntentUrl = this.buildAndroidIntentUrl(path, playStoreUrl, scheme);
+    // Android app only registers scheme "com.valens"
+    const androidIntentUrl = this.buildAndroidIntentUrl(path, playStoreUrl, 'com.valens');
+    const iosDeepLinkUrl = deepLinkUrl.replace(/^com\.valens:\/\//, 'com.valens.app://');
+    // Ensure iOS uses com.valens.app even if caller passed com.valens
+    const iosLink = iosDeepLinkUrl.startsWith('com.valens.app://')
+      ? iosDeepLinkUrl
+      : deepLinkUrl.includes('://')
+        ? deepLinkUrl.replace(/^[^:]+:\/\//, 'com.valens.app://')
+        : `com.valens.app://${deepLinkUrl}`;
 
-    const safeDeepLink = this.escapeHtml(deepLinkUrl);
+    const safeIosDeepLink = this.escapeHtml(iosLink);
     const safeAndroidIntent = this.escapeHtml(androidIntentUrl);
     const safeAppStore = this.escapeHtml(this.getAppStoreUrl());
     const safePlayStore = this.escapeHtml(playStoreUrl);
@@ -82,7 +92,7 @@ export class DeepLinkController {
     return `
       <script>
         (function () {
-          var deepLink = "${safeDeepLink}";
+          var iosDeepLink = "${safeIosDeepLink}";
           var androidIntent = "${safeAndroidIntent}";
           var appStore = "${safeAppStore}";
           var playStore = "${safePlayStore}";
@@ -92,16 +102,16 @@ export class DeepLinkController {
           }
 
           if (isAndroid()) {
-            // Intent opens installed app; if missing, browser_fallback goes to Play Store.
+            // Intent scheme=com.valens matches AndroidManifest; opens installed app.
             window.location.href = androidIntent;
             setTimeout(function () {
               if (document.hidden) return;
               window.location.href = playStore;
-            }, 2000);
+            }, 2500);
             return;
           }
 
-          window.location.href = deepLink;
+          window.location.href = iosDeepLink;
           setTimeout(function () {
             if (document.hidden) return;
             window.location.href = appStore;
@@ -223,10 +233,11 @@ export class DeepLinkController {
     const appStoreUrl = this.getAppStoreUrl();
     const playStoreUrl = this.getPlayStoreUrl();
     // Donation: if app missing, come back to this webpage (not Play Store).
+    // AndroidManifest scheme is "com.valens".
     const androidIntentUrl = this.buildAndroidIntentUrl(
       `postshare/${encodeURIComponent(data.postId)}`,
       shareUrl,
-      'com.valens.app',
+      'com.valens',
     );
     const ogImage = data.image || process.env.OG_IMAGE_URL || `${baseUrl}/share-assets/valens-share.png`;
     const description = `Support @${data.vendorHandle}'s mission on Valens. ${data.raisedAmount.toFixed(2)} raised of ${data.goalAmount.toFixed(2)} goal.`;
@@ -566,6 +577,7 @@ export class DeepLinkController {
       }
 
       function openAppLinkTarget() {
+        // AndroidManifest: scheme com.valens. iOS: com.valens.app.
         return isAndroid() ? androidIntent : deepLink;
       }
 
