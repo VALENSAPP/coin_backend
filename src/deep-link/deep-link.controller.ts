@@ -39,8 +39,43 @@ export class DeepLinkController {
       .replace(/>/g, '\\u003e');
   }
 
+  private getAppStoreUrl() {
+    return process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
+  }
+
+  private getPlayStoreUrl() {
+    return process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.valens';
+  }
+
+  /** Same flow as before: try app, then store. Android → Play Store, iOS → App Store. */
+  private openAppThenStoreScript(deepLinkUrl: string) {
+    const safeDeepLink = this.escapeHtml(deepLinkUrl);
+    const safeAppStore = this.escapeHtml(this.getAppStoreUrl());
+    const safePlayStore = this.escapeHtml(this.getPlayStoreUrl());
+
+    return `
+      <script>
+        (function () {
+          var deepLink = "${safeDeepLink}";
+          var appStore = "${safeAppStore}";
+          var playStore = "${safePlayStore}";
+
+          function isAndroid() {
+            return /Android/i.test(navigator.userAgent || '');
+          }
+
+          window.location.href = deepLink;
+
+          setTimeout(function () {
+            if (document.hidden) return;
+            window.location.href = isAndroid() ? playStore : appStore;
+          }, 2000);
+        })();
+      </script>
+    `;
+  }
+
   private fallbackHtml(route: string, id: string, req: Request) {
-    const appStoreUrl = process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
     const configuredBaseUrl = process.env.BASE_URL;
     const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
@@ -52,8 +87,6 @@ export class DeepLinkController {
     const deepLinkUrl = `com.valens.app://${route}/${encodedId}`;
     const safeShareUrl = this.escapeHtml(shareUrl);
     const safeOgImage = this.escapeHtml(ogImage);
-    const safeDeepLinkUrl = this.escapeHtml(deepLinkUrl);
-    const safeAppStoreUrl = this.escapeHtml(appStoreUrl);
 
     return `
       <!DOCTYPE html>
@@ -85,21 +118,13 @@ export class DeepLinkController {
         </head>
         <body>
           <p></p>
-
-          <script>
-            window.location.href = "${safeDeepLinkUrl}";
-
-            setTimeout(function () {
-              window.location.href = "${safeAppStoreUrl}";
-            }, 2000);
-          </script>
+          ${this.openAppThenStoreScript(deepLinkUrl)}
         </body>
       </html>
     `;
   }
 
   private callbackFallbackHtml(req: Request) {
-    const appStoreUrl = process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
     const configuredBaseUrl = process.env.BASE_URL;
     const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const configuredHomeDeepLink = process.env.HOME_DEEP_LINK_URL;
@@ -111,8 +136,6 @@ export class DeepLinkController {
     const deepLinkUrl = configuredHomeDeepLink || 'com.valens://callback';
     const safeShareUrl = this.escapeHtml(shareUrl);
     const safeOgImage = this.escapeHtml(ogImage);
-    const safeDeepLinkUrl = this.escapeHtml(deepLinkUrl);
-    const safeAppStoreUrl = this.escapeHtml(appStoreUrl);
 
     return `
       <!DOCTYPE html>
@@ -144,14 +167,7 @@ export class DeepLinkController {
         </head>
         <body>
           <p></p>
-
-          <script>
-            window.location.href = "${safeDeepLinkUrl}";
-
-            setTimeout(function () {
-              window.location.href = "${safeAppStoreUrl}";
-            }, 2000);
-          </script>
+          ${this.openAppThenStoreScript(deepLinkUrl)}
         </body>
       </html>
     `;
@@ -168,7 +184,8 @@ export class DeepLinkController {
     const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://prod-api.valens.app');
     const shareUrl = `${baseUrl}/postshare/${encodeURIComponent(data.postId)}`;
     const deepLinkUrl = `com.valens.app://postshare/${encodeURIComponent(data.postId)}`;
-    const appStoreUrl = process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
+    const appStoreUrl = this.getAppStoreUrl();
+    const playStoreUrl = this.getPlayStoreUrl();
     const ogImage = data.image || process.env.OG_IMAGE_URL || `${baseUrl}/share-assets/valens-share.png`;
     const description = `Support @${data.vendorHandle}'s mission on Valens. ${data.raisedAmount.toFixed(2)} raised of ${data.goalAmount.toFixed(2)} goal.`;
 
@@ -182,6 +199,7 @@ export class DeepLinkController {
     const safeImage = data.image ? this.escapeHtml(data.image) : '';
     const safeDeepLink = this.escapeJs(deepLinkUrl);
     const safeAppStore = this.escapeJs(appStoreUrl);
+    const safePlayStore = this.escapeJs(playStoreUrl);
     const safePostId = this.escapeJs(data.postId);
     const remaining = this.money(data.remainingAmount);
     const raised = this.money(data.raisedAmount);
@@ -494,9 +512,14 @@ export class DeepLinkController {
     (function () {
       var deepLink = "${safeDeepLink}";
       var appStore = "${safeAppStore}";
+      var playStore = "${safePlayStore}";
       var postId = "${safePostId}";
       var canDonate = ${canDonate ? 'true' : 'false'};
       var remaining = ${Number(data.remainingAmount || 0)};
+
+      function isAndroid() {
+        return /Android/i.test(navigator.userAgent || '');
+      }
 
       function applyHeroResizeMode(img) {
         if (!img || !img.naturalWidth || !img.naturalHeight) return;
@@ -535,7 +558,7 @@ export class DeepLinkController {
       }
 
       function tryOpenApp() {
-        // Try app once. If not installed, stay on this donation webpage.
+        // Donation posts: try app. If not installed, stay on this webpage (no store redirect).
         window.location.href = deepLink;
       }
 
@@ -546,7 +569,7 @@ export class DeepLinkController {
           window.location.href = deepLink;
           setTimeout(function () {
             if (!document.hidden) {
-              window.location.href = appStore;
+              window.location.href = isAndroid() ? playStore : appStore;
             }
           }, 1800);
         });
