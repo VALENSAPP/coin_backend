@@ -5,11 +5,21 @@ import {
     MarketplaceBattleStatus,
     MarketplaceWinnerPromotionStatus,
     Prisma,
+    ReactionType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../../notification/notification.service';
 
 const MARKETPLACE_BATTLE_LIFECYCLE_BATCH_SIZE = 100;
+
+const MARKETPLACE_BASE_JOIN_POINTS = 5;
+const MARKETPLACE_ARGUMENT_POINTS = 10;
+const MARKETPLACE_ENGAGEMENT_POINT_PER_LIKE = 2;
+const MARKETPLACE_MAX_ENGAGEMENT_POINTS = 20;
+const MARKETPLACE_TIMING_BONUS_MAX = 10;
+const MARKETPLACE_WIN_BONUS = 25;
+const MARKETPLACE_LOSE_PENALTY = 10;
+const MARKETPLACE_ARGUMENT_MIN_LENGTH = 10;
 
 type CompletionExpectedStatus =
     | 'SCHEDULED'
@@ -165,6 +175,7 @@ export class MarketplaceBattleLifecycleService {
                             sellerId: true,
                             title: true,
                             status: true,
+                            startAt: true,
                             endAt: true,
                         },
                     });
@@ -340,6 +351,15 @@ export class MarketplaceBattleLifecycleService {
                         },
                     });
 
+                    await this.awardMarketplaceBattlePoints(tx, {
+                        battleId: battle.id,
+                        startAt: battle.startAt,
+                        endAt: battle.endAt,
+                        outcome,
+                        winnerParticipantId,
+                        now,
+                    });
+
                     return { result: 'completed' };
                 },
                 { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -353,6 +373,186 @@ export class MarketplaceBattleLifecycleService {
                 return { result: 'skipped', reason: 'serialization_conflict' };
             }
             throw error;
+        }
+    }
+
+    private clamp(value: number, min: number, max: number): number {
+        return Math.min(max, Math.max(min, value));
+    }
+
+    private getMarketplaceTimingBonus(
+        joinedAt: Date,
+        startTime?: Date | null,
+        endTime?: Date | null,
+    ): number {
+        if (!startTime || !endTime) return 0;
+        const totalDuration = endTime.getTime() - startTime.getTime();
+        if (totalDuration <= 0) return 0;
+        const elapsed = joinedAt.getTime() - startTime.getTime();
+        const ratio = this.clamp(elapsed / totalDuration, 0, 1);
+        return Math.round(MARKETPLACE_TIMING_BONUS_MAX * (1 - ratio));
+    }
+
+    private async awardMarketplaceBattlePoints(
+        tx: Prisma.TransactionClient,
+        params: {
+            battleId: string;
+            startAt: Date | null;
+            endAt: Date | null;
+            outcome: MarketplaceBattleOutcome;
+            winnerParticipantId: string | null;
+            now: Date;
+        },
+    ) {
+        const { battleId, startAt, endAt, outcome, winnerParticipantId, now } = params;
+
+        const existingAwards = await tx.marketplaceBattlePointsAward.count({
+            where: { battleId },
+        });
+        if (existingAwards > 0) {
+            return;
+        }
+
+        const [votes, comments] = await Promise.all([
+            tx.marketplaceBattleVote.findMany({
+                where: { battleId },
+                select: {
+                    userId: true,
+                    participantId: true,
+                    createdAt: true,
+                },
+            }),
+            tx.marketplaceBattleComment.findMany({
+                where: {
+                    battleId,
+                    deletedAt: null,
+                },
+                select: {
+                    id: true,
+                    userId: true,
+                    comment: true,
+                },
+            }),
+        ]);
+
+        const commentIds = comments.map((comment) => comment.id);
+        const likeRows =
+            commentIds.length > 0
+                ? await tx.marketplaceBattleCommentReaction.groupBy({
+                      by: ['commentId'],
+                      where: {
+                          commentId: { in: commentIds },
+                          type: ReactionType.LIKE,
+                      },
+                      _count: { _all: true },
+                  })
+                : [];
+
+        const likesByCommentId = new Map(
+            likeRows.map((row) => [row.commentId, row._count._all]),
+        );
+
+        const likesByUser = new Map<string, number>();
+        const argumentByUser = new Map<string, boolean>();
+        for (const comment of comments) {
+            const isValid = comment.comment.trim().length >= MARKETPLACE_ARGUMENT_MIN_LENGTH;
+            if (isValid) {
+                argumentByUser.set(comment.userId, true);
+            }
+            const likes = likesByCommentId.get(comment.id) || 0;
+            if (likes > 0) {
+                likesByUser.set(comment.userId, (likesByUser.get(comment.userId) || 0) + likes);
+            }
+        }
+
+        const voteByUser = new Map<string, { participantId: string; createdAt: Date }>();
+        for (const vote of votes) {
+            if (!voteByUser.has(vote.userId)) {
+                voteByUser.set(vote.userId, {
+                    participantId: vote.participantId,
+                    createdAt: vote.createdAt,
+                });
+            }
+        }
+
+        const userIds = new Set<string>([
+            ...Array.from(voteByUser.keys()),
+            ...Array.from(argumentByUser.keys()),
+            ...Array.from(likesByUser.keys()),
+        ]);
+
+        if (userIds.size === 0) {
+            return;
+        }
+
+        for (const userId of userIds) {
+            const vote = voteByUser.get(userId);
+            const argumentSubmitted = argumentByUser.get(userId) || false;
+            const likes = likesByUser.get(userId) || 0;
+
+            const baseJoinPoints = vote ? MARKETPLACE_BASE_JOIN_POINTS : 0;
+            const argumentPoints = argumentSubmitted ? MARKETPLACE_ARGUMENT_POINTS : 0;
+            const engagementPoints = Math.min(
+                MARKETPLACE_MAX_ENGAGEMENT_POINTS,
+                likes * MARKETPLACE_ENGAGEMENT_POINT_PER_LIKE,
+            );
+            const timingBonus = vote
+                ? this.getMarketplaceTimingBonus(vote.createdAt, startAt, endAt)
+                : 0;
+
+            let winnerBonus = 0;
+            let loserPenalty = 0;
+            let votedForWinner = false;
+
+            if (vote && outcome === MarketplaceBattleOutcome.WINNER && winnerParticipantId) {
+                votedForWinner = vote.participantId === winnerParticipantId;
+                if (votedForWinner) {
+                    winnerBonus = MARKETPLACE_WIN_BONUS;
+                } else {
+                    loserPenalty = MARKETPLACE_LOSE_PENALTY;
+                }
+            }
+
+            const score = Math.max(
+                0,
+                baseJoinPoints +
+                    argumentPoints +
+                    engagementPoints +
+                    timingBonus +
+                    winnerBonus -
+                    loserPenalty,
+            );
+
+            if (score <= 0 && !vote && !argumentSubmitted && likes === 0) {
+                continue;
+            }
+
+            await tx.marketplaceBattlePointsAward.create({
+                data: {
+                    battleId,
+                    userId,
+                    score,
+                    baseJoinPoints,
+                    argumentPoints,
+                    engagementPoints,
+                    timingBonus,
+                    winnerBonus,
+                    loserPenalty,
+                    votedParticipantId: vote?.participantId ?? null,
+                    votedForWinner,
+                    argumentSubmitted,
+                    likesCount: likes,
+                    awardedAt: now,
+                },
+            });
+
+            await tx.user.update({
+                where: { id: userId },
+                data: {
+                    marketplaceBattlePoints: { increment: score },
+                    totalPlatformPoints: { increment: score },
+                },
+            });
         }
     }
 

@@ -1061,6 +1061,7 @@ export class UserService {
         referCode: true,
         referPoints: true,
         totalPlatformPoints: true,
+        marketplaceBattlePoints: true,
         walletAddress: true,
         mycloset: {
           select: {
@@ -1148,6 +1149,7 @@ export class UserService {
       referCode: true,
       referPoints: true,
       totalPlatformPoints: true,
+      marketplaceBattlePoints: true,
       walletAddress: true,
     };
     const where: any = { deletedAt: null };
@@ -1271,6 +1273,7 @@ export class UserService {
             referCode: true,
             referPoints: true,
             totalPlatformPoints: true,
+            marketplaceBattlePoints: true,
             walletAddress: true,
           },
         },
@@ -2487,7 +2490,11 @@ export class UserService {
     const [user, stats] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { totalPlatformPoints: true, referPoints: true },
+        select: {
+          totalPlatformPoints: true,
+          referPoints: true,
+          marketplaceBattlePoints: true,
+        },
       }),
       this.prisma.userBattleStats.findUnique({
         where: { userId },
@@ -2500,12 +2507,14 @@ export class UserService {
     const totalPlatformPoints = user.totalPlatformPoints ?? 0;
     const referPoints = user.referPoints ?? 0;
     const totalBattlePoints = stats?.totalBattlePoints ?? 0;
+    const marketplaceBattlePoints = user.marketplaceBattlePoints ?? 0;
 
     return {
       totalPlatformPoints,
       totalBattlePoints,
+      marketplaceBattlePoints,
       referPoints,
-      used: totalBattlePoints + referPoints - totalPlatformPoints,
+      used: totalBattlePoints + marketplaceBattlePoints + referPoints - totalPlatformPoints,
     };
   }
 }

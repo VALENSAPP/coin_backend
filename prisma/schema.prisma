@@ -61,6 +61,7 @@ model User {
   referCode             String?
   referPoints           Float                     @default(1000)
   totalPlatformPoints   Float                     @default(1000)
+  marketplaceBattlePoints Float                   @default(0)
   blockedBy             BlockedUser[]             @relation("Blocked")
   blockedUsers          BlockedUser[]             @relation("Blocker")
   followings            FollowerAndFollowing[]    @relation("Follower")
@@ -127,6 +128,7 @@ model User {
   marketplaceBattleViews      MarketplaceBattleView[]
   marketplaceWinnerPromotions MarketplaceWinnerPromotion[]
   marketplaceBattleBoosts     MarketplaceBattleBoost[]
+  marketplaceBattlePointsAwards MarketplaceBattlePointsAward[]
   battleStats                 UserBattleStats?
   deviceAccounts              DeviceAccount[]
   trustVotes                  PostTrustVote[]
@@ -1531,6 +1533,7 @@ model MarketplaceBattle {
   winnerParticipant MarketplaceBattleParticipant?  @relation("MarketplaceBattleWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
   winnerPromotions  MarketplaceWinnerPromotion[]
   boosts            MarketplaceBattleBoost[]
+  pointsAwards      MarketplaceBattlePointsAward[]
 
   @@index([sellerId])
   @@index([closetId])
@@ -1631,6 +1634,38 @@ model MarketplaceBattleView {
   @@unique([battleId, viewerId])
   @@index([battleId])
   @@index([viewerId])
+}
+
+model MarketplaceBattlePointsAward {
+  id String @id @default(uuid())
+
+  battleId String
+  userId   String
+
+  score            Int @default(0)
+  baseJoinPoints   Int @default(0)
+  argumentPoints   Int @default(0)
+  engagementPoints Int @default(0)
+  timingBonus      Int @default(0)
+  winnerBonus      Int @default(0)
+  loserPenalty     Int @default(0)
+
+  votedParticipantId String?
+  votedForWinner     Boolean @default(false)
+  argumentSubmitted  Boolean @default(false)
+  likesCount         Int     @default(0)
+
+  awardedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  battle MarketplaceBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([battleId, userId])
+  @@index([battleId])
+  @@index([userId])
+  @@index([awardedAt])
 }
 
 model MarketplaceWinnerPromotion {
