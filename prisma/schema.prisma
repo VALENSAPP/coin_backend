@@ -803,6 +803,13 @@ model Order {
   shippingCarrier       String?
   trackingNumber        String?
   estimatedDelivery     DateTime?
+  // EasyPost / carrier tracking (optional — manual ship/deliver still supported)
+  shippingStatus        ShippingStatus       @default(NOT_SHIPPED)
+  easypostTrackerId     String?
+  trackingValidatedAt   DateTime?
+  carrierDeliveredAt    DateTime?
+  shippingProvider      String?              // e.g. EASYPOST | MANUAL
+  lastTrackingPayload   Json?
   // Delivery-gated escrow payout (Stripe Connect separate charges + transfers)
   platformFeeMinor      Int?
   sellerAmountMinor     Int?
@@ -831,6 +838,9 @@ model Order {
   @@index([sellerId, transferStatus, createdAt])
   @@index([paymentId])
   @@index([transferStatus, protectionEndsAt])
+  @@index([easypostTrackerId])
+  @@index([trackingNumber])
+  @@index([shippingStatus])
 }
 
 model ClosetChatThread {
@@ -1950,6 +1960,22 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+enum ShippingStatus {
+  NOT_SHIPPED
+  TRACKING_SUBMITTED
+  TRACKING_VALIDATED
+  PRE_TRANSIT
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  AVAILABLE_FOR_PICKUP
+  DELIVERY_EXCEPTION
+  RETURNING_TO_SELLER
+  RETURNED
+  CANCELLED
+  UNKNOWN
 }
 
 enum TransferStatus {

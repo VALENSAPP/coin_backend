@@ -27,6 +27,7 @@ async function bootstrap() {
   app.use('/kyc/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/sumsub-verification/webhook', bodyParser.raw({ type: '*/*' }));
   app.use('/sumsub-user_verification/webhook', bodyParser.raw({ type: '*/*' }));
+  app.use('/shipping/easypost/webhook', bodyParser.raw({ type: '*/*' }));
   app.use(bodyParser.json({ limit: '5mb' }));
   app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -379,5 +380,6 @@ async function bootstrap() {
   console.log(`Access Swagger UI at "https://valenscorp.com/api"`);
   // Local Stripe testing: run in another terminal: stripe listen --forward-to localhost:${port}/billing/webhook
   console.log(`[Stripe] For local webhooks run: stripe listen --forward-to http://localhost:${port}/billing/webhook`);
+  console.log(`[EasyPost] Webhook endpoint: http://localhost:${port}/shipping/easypost/webhook (set EASYPOST_API_KEY when ready)`);
 }
 bootstrap();

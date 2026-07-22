@@ -26,6 +26,7 @@ import { DashboardModule } from './marketPlace/dashboard/dashboard.module';
 import { EarningsModule } from './marketPlace/earnings/earnings.module';
 import { MarketplaceBattlesModule } from './marketPlace/marketplace-battles/marketplace-battles.module';
 import { ClosetChatModule } from './marketPlace/closet-chat/closet-chat.module';
+import { ShippingModule } from './marketPlace/shipping/shipping.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkModule } from './deep-link/deep-link.module';
@@ -54,6 +55,7 @@ import { DeepLinkModule } from './deep-link/deep-link.module';
     AddressModule,
     PaymentModule,
     OrderModule,
+    ShippingModule,
     DashboardModule,
     EarningsModule,
     MarketplaceBattlesModule,

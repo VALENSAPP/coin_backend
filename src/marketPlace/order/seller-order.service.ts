@@ -1,13 +1,16 @@
 import {
     BadRequestException,
     ForbiddenException,
+    Inject,
     Injectable,
     NotFoundException,
     UnauthorizedException,
+    forwardRef,
 } from '@nestjs/common';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ShippingService } from '../shipping/shipping.service';
 import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
 import { OrderPayoutService } from './order-payout.service';
@@ -18,6 +21,8 @@ export class SellerOrderService {
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
         private readonly orderPayoutService: OrderPayoutService,
+        @Inject(forwardRef(() => ShippingService))
+        private readonly shippingService: ShippingService,
     ) { }
 
     private assertSellerUserId(userId?: string): string {
@@ -203,12 +208,31 @@ export class SellerOrderService {
             throw new BadRequestException('carrier and trackingNumber are required');
         }
 
+        // EasyPost when configured; otherwise manual ship proceeds unchanged.
+        const trackerResult = await this.shippingService.createTrackerForOrder({
+            orderId: order.id,
+            carrier,
+            trackingNumber,
+        });
+
+        const shippingProvider = trackerResult.skipped ? 'MANUAL' : 'EASYPOST';
+        const shippingStatus = trackerResult.skipped
+            ? ShippingStatus.TRACKING_SUBMITTED
+            : trackerResult.shippingStatus;
+
         const updatedOrder = await this.prisma.order.update({
             where: { id: order.id },
             data: {
                 orderStatus: OrderStatus.SHIPPED,
                 shippingCarrier: carrier,
                 trackingNumber,
+                shippingProvider,
+                shippingStatus,
+                easypostTrackerId: trackerResult.trackerId || null,
+                trackingValidatedAt: trackerResult.trackingValidatedAt || null,
+                lastTrackingPayload: trackerResult.raw
+                    ? (trackerResult.raw as Prisma.InputJsonValue)
+                    : undefined,
             },
             select: {
                 id: true,
@@ -217,28 +241,42 @@ export class SellerOrderService {
                 orderNumber: true,
                 shippingCarrier: true,
                 trackingNumber: true,
+                shippingStatus: true,
+                shippingProvider: true,
+                easypostTrackerId: true,
+                trackingValidatedAt: true,
             },
         });
 
         await this.notificationService.sendNotificationToUser(
             updatedOrder.buyerId,
             'Order Shipped',
-            'Your order has been shipped.',
+            trackerResult.skipped
+                ? 'Your order has been shipped.'
+                : 'Your order has been shipped. Tracking was validated with the carrier.',
             {
                 type: 'seller_order_shipped',
                 orderId: updatedOrder.id,
                 orderNumber: updatedOrder.orderNumber,
                 carrier: updatedOrder.shippingCarrier || carrier,
                 trackingNumber: updatedOrder.trackingNumber || trackingNumber,
+                shippingProvider: updatedOrder.shippingProvider || shippingProvider,
             },
         );
 
         return {
-            message: 'Order marked as shipped successfully',
+            message: trackerResult.skipped
+                ? 'Order marked as shipped successfully (manual — EasyPost not configured)'
+                : 'Order marked as shipped successfully (tracking validated via EasyPost)',
             orderId: updatedOrder.id,
             orderStatus: updatedOrder.orderStatus,
             shippingCarrier: updatedOrder.shippingCarrier,
             trackingNumber: updatedOrder.trackingNumber,
+            shippingStatus: updatedOrder.shippingStatus,
+            shippingProvider: updatedOrder.shippingProvider,
+            easypostTrackerId: updatedOrder.easypostTrackerId,
+            trackingValidatedAt: updatedOrder.trackingValidatedAt,
+            easypostConfigured: this.shippingService.isConfigured(),
         };
     }
 
@@ -248,12 +286,15 @@ export class SellerOrderService {
 
         this.ensureTransition(order.orderStatus, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
 
+        // Manual deliver kept as fallback even when EasyPost is enabled.
         const updatedOrder = await this.prisma.order.update({
             where: { id: order.id },
             data: {
                 orderStatus: OrderStatus.DELIVERED,
+                shippingStatus: ShippingStatus.DELIVERED,
+                shippingProvider: order.shippingProvider || 'MANUAL',
             },
-            select: { id: true, orderStatus: true, buyerId: true, orderNumber: true },
+            select: { id: true, orderStatus: true, buyerId: true, orderNumber: true, shippingStatus: true },
         });
 
         const payoutSchedule = await this.orderPayoutService.scheduleProtectionWindow(updatedOrder.id);
@@ -267,7 +308,7 @@ export class SellerOrderService {
             updatedOrder.buyerId,
             'Order Delivered',
             protectionEndsAtIso
-                ? 'Order delivered successfully.'
+                ? 'Order delivered successfully. Confirm receipt or report a problem within 48 hours.'
                 : 'Order delivered successfully.',
             {
                 type: 'seller_order_delivered',
@@ -279,12 +320,14 @@ export class SellerOrderService {
 
         return {
             message: payoutSchedule.skipped
-                ? 'Order marked as delivered successfully'
-                : 'Order marked as delivered successfully. Seller payout scheduled after buyer protection window.',
+                ? 'Order marked as delivered successfully (manual)'
+                : 'Order marked as delivered successfully (manual). Seller payout scheduled after buyer protection window.',
             orderId: updatedOrder.id,
             orderStatus: updatedOrder.orderStatus,
+            shippingStatus: updatedOrder.shippingStatus,
             transferStatus: payoutSchedule.transferStatus,
             protectionEndsAt: payoutSchedule.protectionEndsAt,
+            deliverySource: 'MANUAL',
         };
     }
 }
