@@ -786,37 +786,51 @@ model EbookPayments {
 }
 
 model Order {
-  id                String               @id @default(uuid())
-  orderNumber       String               @unique
-  buyerId           String
-  sellerId          String
-  closetId          String
-  addressId         String
-  paymentId         String?
-  subtotal          Float
-  shippingCost      Float
-  serviceFee        Float
-  total             Float
-  paymentMethod     String
-  paymentStatus     PaymentStatus
-  orderStatus       OrderStatus
-  shippingCarrier   String?
-  trackingNumber    String?
-  estimatedDelivery DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  buyer             User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
-  seller            User                 @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Cascade)
-  closet            Mycloset             @relation(fields: [closetId], references: [id], onDelete: Restrict)
-  address           UserAddrees          @relation(fields: [addressId], references: [id], onDelete: Restrict)
-  payment           MarketPlacePayments? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  items             OrderItem[]
-  closetChatThreads ClosetChatThread[]
+  id                    String               @id @default(uuid())
+  orderNumber           String               @unique
+  buyerId               String
+  sellerId              String
+  closetId              String
+  addressId             String
+  paymentId             String?
+  subtotal              Float
+  shippingCost          Float
+  serviceFee            Float
+  total                 Float
+  paymentMethod         String
+  paymentStatus         PaymentStatus
+  orderStatus           OrderStatus
+  shippingCarrier       String?
+  trackingNumber        String?
+  estimatedDelivery     DateTime?
+  // Delivery-gated escrow payout (Stripe Connect separate charges + transfers)
+  platformFeeMinor      Int?
+  sellerAmountMinor     Int?
+  sellerStripeAccountId String?
+  stripeChargeId        String?
+  transferStatus        TransferStatus       @default(PENDING)
+  stripeTransferId      String?
+  protectionEndsAt      DateTime?
+  deliveredAt           DateTime?
+  payoutReleasedAt      DateTime?
+  disputeStatus         DisputeStatus        @default(NONE)
+  disputeReason         String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  buyer                 User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller                User                 @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  closet                Mycloset             @relation(fields: [closetId], references: [id], onDelete: Restrict)
+  address               UserAddrees          @relation(fields: [addressId], references: [id], onDelete: Restrict)
+  payment               MarketPlacePayments? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  items                 OrderItem[]
+  closetChatThreads     ClosetChatThread[]
 
   @@index([buyerId, createdAt])
   @@index([sellerId, orderStatus])
   @@index([sellerId, paymentStatus, createdAt])
+  @@index([sellerId, transferStatus, createdAt])
   @@index([paymentId])
+  @@index([transferStatus, protectionEndsAt])
 }
 
 model ClosetChatThread {
@@ -1936,6 +1950,21 @@ enum OrderStatus {
   SHIPPED
   DELIVERED
   CANCELLED
+}
+
+enum TransferStatus {
+  PENDING
+  SCHEDULED
+  RELEASED
+  FROZEN
+  FAILED
+}
+
+enum DisputeStatus {
+  NONE
+  OPEN
+  RESOLVED_BUYER
+  RESOLVED_SELLER
 }
 
 enum ClosetChatThreadStatus {

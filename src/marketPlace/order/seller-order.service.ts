@@ -10,12 +10,14 @@ import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
+import { OrderPayoutService } from './order-payout.service';
 
 @Injectable()
 export class SellerOrderService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
+        private readonly orderPayoutService: OrderPayoutService,
     ) { }
 
     private assertSellerUserId(userId?: string): string {
@@ -254,21 +256,35 @@ export class SellerOrderService {
             select: { id: true, orderStatus: true, buyerId: true, orderNumber: true },
         });
 
+        const payoutSchedule = await this.orderPayoutService.scheduleProtectionWindow(updatedOrder.id);
+
+        const protectionEndsAtIso =
+            payoutSchedule.protectionEndsAt instanceof Date
+                ? payoutSchedule.protectionEndsAt.toISOString()
+                : payoutSchedule.protectionEndsAt || undefined;
+
         await this.notificationService.sendNotificationToUser(
             updatedOrder.buyerId,
             'Order Delivered',
-            'Order delivered successfully.',
+            protectionEndsAtIso
+                ? 'Order delivered successfully. Confirm receipt or report a problem within 48 hours.'
+                : 'Order delivered successfully.',
             {
                 type: 'seller_order_delivered',
                 orderId: updatedOrder.id,
                 orderNumber: updatedOrder.orderNumber,
+                ...(protectionEndsAtIso ? { protectionEndsAt: protectionEndsAtIso } : {}),
             },
         );
 
         return {
-            message: 'Order marked as delivered successfully',
+            message: payoutSchedule.skipped
+                ? 'Order marked as delivered successfully'
+                : 'Order marked as delivered successfully. Seller payout scheduled after buyer protection window.',
             orderId: updatedOrder.id,
             orderStatus: updatedOrder.orderStatus,
+            transferStatus: payoutSchedule.transferStatus,
+            protectionEndsAt: payoutSchedule.protectionEndsAt,
         };
     }
 }

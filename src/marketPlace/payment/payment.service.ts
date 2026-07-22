@@ -342,6 +342,7 @@ export class PaymentService {
                     userId,
                     cartId: cart.id,
                     sellerId: cart.sellerId,
+                    sellerStripeAccountId: seller.stripeAccountId,
                     closetId: cart.closetId,
                     addressId: address.id,
                     subtotalMinor,
@@ -350,6 +351,8 @@ export class PaymentService {
                     platformFeePercent,
                     sellerAmountMinor,
                     grandTotalMinor,
+                    // Funds stay on platform until delivery-gated transfer.
+                    escrowMode: 'separate_charges_and_transfers',
                     items: validatedItems,
                 },
             },
@@ -358,6 +361,7 @@ export class PaymentService {
 
         let session: Stripe.Checkout.Session;
         try {
+            // Separate Charges and Transfers: capture on platform now; transfer to seller after delivery.
             session = await this.stripe.checkout.sessions.create({
                 mode: 'payment',
                 success_url: successUrl,
@@ -385,21 +389,20 @@ export class PaymentService {
                     addressId: address.id,
                 },
                 payment_intent_data: {
-                    application_fee_amount: platformFeeMinor,
-                    transfer_data: {
-                        destination: seller.stripeAccountId,
-                    },
+                    transfer_group: payment.id,
                     metadata: {
                         type: this.marketplaceType,
                         paymentId: payment.id,
                         userId,
                         cartId: cart.id,
                         sellerId: cart.sellerId,
+                        sellerStripeAccountId: seller.stripeAccountId,
                         sellerProfile: seller.profile || 'user',
                         closetId: cart.closetId,
                         addressId: address.id,
                         platformFeeMinor: String(platformFeeMinor),
                         sellerAmountMinor: String(sellerAmountMinor),
+                        escrowMode: 'separate_charges_and_transfers',
                     },
                 },
             });

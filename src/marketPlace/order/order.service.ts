@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
+import { DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OrderPayoutService } from './order-payout.service';
 
 @Injectable()
 export class OrderService {
@@ -14,6 +15,7 @@ export class OrderService {
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
         private readonly closetChatService: ClosetChatService,
+        private readonly orderPayoutService: OrderPayoutService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -170,11 +172,34 @@ export class OrderService {
                 grouped.set(key, group);
             }
 
+            const platformFeePercent =
+                typeof metadata?.platformFeePercent === 'number' ? metadata.platformFeePercent : 0.15;
+            const sellerStripeAccountId =
+                typeof metadata?.sellerStripeAccountId === 'string'
+                    ? metadata.sellerStripeAccountId
+                    : null;
+            const stripeChargeId =
+                typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : null;
+
+            // Fallback: resolve Connect account from seller if not in payment metadata (legacy payments).
+            let resolvedSellerStripeAccountId = sellerStripeAccountId;
+            if (!resolvedSellerStripeAccountId) {
+                const firstSellerId = [...grouped.values()][0]?.sellerId;
+                if (firstSellerId) {
+                    const sellerUser = await tx.user.findUnique({
+                        where: { id: firstSellerId },
+                        select: { stripeAccountId: true },
+                    });
+                    resolvedSellerStripeAccountId = sellerUser?.stripeAccountId || null;
+                }
+            }
+
             for (const group of grouped.values()) {
                 const subtotalMinor = group.items.reduce((sum, i) => sum + i.subtotalMinor, 0);
                 const shippingMinor = group.items.reduce((sum, i) => sum + i.shippingMinor, 0);
-                const serviceFeeMinor = 0;
-                const totalMinor = subtotalMinor + shippingMinor + serviceFeeMinor;
+                const totalMinor = subtotalMinor + shippingMinor;
+                const platformFeeMinor = Math.round(totalMinor * platformFeePercent);
+                const sellerAmountMinor = Math.max(0, totalMinor - platformFeeMinor);
 
                 const order = await tx.order.create({
                     data: {
@@ -186,11 +211,17 @@ export class OrderService {
                         paymentId: paymentRecord.id,
                         subtotal: this.toMajor(subtotalMinor),
                         shippingCost: this.toMajor(shippingMinor),
-                        serviceFee: this.toMajor(serviceFeeMinor),
+                        serviceFee: this.toMajor(platformFeeMinor),
                         total: this.toMajor(totalMinor),
                         paymentMethod: 'STRIPE',
                         paymentStatus: PaymentStatus.PAID,
                         orderStatus: OrderStatus.PENDING,
+                        platformFeeMinor,
+                        sellerAmountMinor,
+                        sellerStripeAccountId: resolvedSellerStripeAccountId,
+                        stripeChargeId,
+                        transferStatus: TransferStatus.PENDING,
+                        disputeStatus: DisputeStatus.NONE,
                     },
                 });
 
@@ -415,7 +446,11 @@ export class OrderService {
             throw new BadRequestException('Order cannot be cancelled in current status');
         }
 
-        // Refund for paid order.
+        if (order.transferStatus === TransferStatus.RELEASED) {
+            throw new BadRequestException('Order payout already released; contact support for refunds');
+        }
+
+        // Refund for paid order (funds still on platform — no Connect destination charge).
         if (order.paymentStatus === PaymentStatus.PAID && order.payment?.paymentIntentId) {
             await this.stripe.refunds.create({
                 payment_intent: order.payment.paymentIntentId,
@@ -433,6 +468,7 @@ export class OrderService {
                 data: {
                     orderStatus: OrderStatus.CANCELLED,
                     paymentStatus: order.paymentStatus === PaymentStatus.PAID ? PaymentStatus.REFUNDED : order.paymentStatus,
+                    transferStatus: TransferStatus.FROZEN,
                 },
             });
 
@@ -467,5 +503,108 @@ export class OrderService {
         );
 
         return { message: 'Order Cancelled Successfully' };
+    }
+
+    /**
+     * Buyer confirms receipt during/after the protection window → release payout immediately.
+     */
+    async confirmOrderReceived(userId: string, orderId: string) {
+        if (!userId) throw new UnauthorizedException('User not authenticated');
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                buyerId: true,
+                orderStatus: true,
+                transferStatus: true,
+                disputeStatus: true,
+                orderNumber: true,
+            },
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.buyerId !== userId) throw new UnauthorizedException('Unauthorized');
+        if (order.orderStatus !== OrderStatus.DELIVERED) {
+            throw new BadRequestException('Order must be delivered before confirming receipt');
+        }
+        if (order.disputeStatus === DisputeStatus.OPEN) {
+            throw new BadRequestException('Cannot confirm receipt while a dispute is open');
+        }
+        if (order.transferStatus === TransferStatus.RELEASED) {
+            return {
+                message: 'Payout already released',
+                orderId: order.id,
+                transferStatus: order.transferStatus,
+            };
+        }
+        if (order.transferStatus === TransferStatus.FROZEN) {
+            throw new BadRequestException('Payout is frozen; contact support');
+        }
+
+        // Ensure payout is scheduled, then release without waiting for the full 48h window.
+        if (order.transferStatus === TransferStatus.PENDING) {
+            await this.orderPayoutService.scheduleProtectionWindow(order.id);
+        }
+
+        const result = await this.orderPayoutService.releaseIfEligible(order.id, {
+            skipProtectionCheck: true,
+        });
+
+        if (!result.released) {
+            throw new BadRequestException(result.reason || 'Unable to release payout');
+        }
+
+        return {
+            message: 'Receipt confirmed. Seller payout released.',
+            orderNumber: order.orderNumber,
+            ...result,
+        };
+    }
+
+    /**
+     * Buyer reports a delivery problem → freeze seller payout.
+     */
+    async reportOrderProblem(userId: string, orderId: string, reason?: string) {
+        if (!userId) throw new UnauthorizedException('User not authenticated');
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                buyerId: true,
+                orderStatus: true,
+                transferStatus: true,
+                disputeStatus: true,
+                orderNumber: true,
+            },
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+        if (order.buyerId !== userId) throw new UnauthorizedException('Unauthorized');
+        if (order.orderStatus !== OrderStatus.DELIVERED) {
+            throw new BadRequestException('You can only report a problem after delivery');
+        }
+        if (order.transferStatus === TransferStatus.RELEASED) {
+            throw new BadRequestException('Payout already released; contact support for chargebacks/disputes');
+        }
+        if (order.disputeStatus === DisputeStatus.OPEN) {
+            return {
+                message: 'Dispute already open',
+                orderId: order.id,
+                disputeStatus: order.disputeStatus,
+                transferStatus: order.transferStatus,
+            };
+        }
+
+        const frozen = await this.orderPayoutService.freezePayout(order.id, reason);
+
+        return {
+            message: 'Problem reported. Seller payout has been frozen.',
+            orderId: frozen.id,
+            orderNumber: order.orderNumber,
+            transferStatus: frozen.transferStatus,
+            disputeStatus: frozen.disputeStatus,
+        };
     }
 }
