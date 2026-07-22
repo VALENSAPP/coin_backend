@@ -293,7 +293,10 @@ export class BattleController {
   @ApiBearerAuth()
   @Get('explore')
   @ApiQuery({ name: 'status', required: false, type: 'string' })
-  @ApiOperation({ summary: 'Explore live battles' })
+  @ApiOperation({
+    summary:
+      'Explore battles (normal live battles + completed marketplace battles with active boost)',
+  })
   async exploreBattles(@Req() req: Request, @Query('status') status?: string) {
     const userId = (req.user as any)?.userId;
     return this.battleService.exploreBattles(userId, status);
