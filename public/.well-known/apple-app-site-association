@@ -12,7 +12,8 @@
           "/callback/*",
           "/postshare/*",
           "/reelshare/*",
-          "/storyshare/*"
+          "/storyshare/*",
+          "/closet/*"
         ]
       }
     ]

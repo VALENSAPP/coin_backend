@@ -784,4 +784,9 @@ export class DeepLinkController {
   storyshare(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
     return res.send(this.fallbackHtml('storyshare', id, req));
   }
+
+  @Get('closet/:id')
+  closet(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    return res.send(this.fallbackHtml('closet', id, req));
+  }
 }
