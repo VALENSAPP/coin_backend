@@ -267,7 +267,7 @@ export class SellerOrderService {
             updatedOrder.buyerId,
             'Order Delivered',
             protectionEndsAtIso
-                ? 'Order delivered successfully. Confirm receipt or report a problem within 48 hours.'
+                ? 'Order delivered successfully.'
                 : 'Order delivered successfully.',
             {
                 type: 'seller_order_delivered',

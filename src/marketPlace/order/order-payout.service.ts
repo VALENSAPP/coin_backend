@@ -89,7 +89,7 @@ export class OrderPayoutService {
         await this.notificationService.sendNotificationToUser(
             updated.buyerId,
             'Confirm your delivery',
-            'Your order was marked delivered. Confirm receipt or report a problem within 48 hours.',
+            'Your order was marked delivered.',
             {
                 type: 'marketplace_delivery_protection_started',
                 orderId: updated.id,
