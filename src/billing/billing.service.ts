@@ -1,10 +1,14 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
+
+const PLATFORM_POINTS_HIT_COST = 1000;
+const PLATFORM_POINTS_HIT_COUNT = 1;
 
 @Injectable()
 export class BillingService {
@@ -1699,6 +1703,142 @@ export class BillingService {
     });
 
     return { sessionId: session.id, url: session.url };
+  }
+
+  private getUtcYearMonth(date: Date = new Date()): string {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  private getNextUtcMonthStart(date: Date = new Date()): Date {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1, 0, 0, 0, 0));
+  }
+
+  async buyHitWithPlatformPoints(userId: string) {
+    if (!userId) throw new BadRequestException('User not authenticated');
+
+    const now = new Date();
+    const yearMonth = this.getUtcYearMonth(now);
+    const nextEligibleAt = this.getNextUtcMonthStart(now);
+
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`
+            SELECT id
+            FROM "User"
+            WHERE id = ${userId}
+            FOR UPDATE
+          `;
+
+          const user = await tx.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              totalPlatformPoints: true,
+            },
+          });
+
+          if (!user) {
+            throw new BadRequestException('User not found');
+          }
+
+          const existingPurchase = await tx.platformPointsHitPurchase.findUnique({
+            where: {
+              userId_yearMonth: {
+                userId,
+                yearMonth,
+              },
+            },
+            select: { id: true },
+          });
+
+          if (existingPurchase) {
+            throw new BadRequestException(
+              `You can buy only 1 hit with platform points once per month. Next eligible at ${nextEligibleAt.toISOString()}`,
+            );
+          }
+
+          const availablePoints = user.totalPlatformPoints ?? 0;
+          if (availablePoints < PLATFORM_POINTS_HIT_COST) {
+            throw new BadRequestException(
+              `Insufficient platform points. Need ${PLATFORM_POINTS_HIT_COST}, have ${availablePoints}`,
+            );
+          }
+
+          const updatedUser = await tx.user.update({
+            where: { id: userId },
+            data: {
+              totalPlatformPoints: { decrement: PLATFORM_POINTS_HIT_COST },
+            },
+            select: {
+              totalPlatformPoints: true,
+            },
+          });
+
+          const existingPostHit = await tx.postHit.findFirst({
+            where: { userId },
+            select: { id: true, hitLeft: true },
+          });
+
+          let hitLeft: number;
+          if (existingPostHit) {
+            const updatedPostHit = await tx.postHit.update({
+              where: { id: existingPostHit.id },
+              data: { hitLeft: { increment: PLATFORM_POINTS_HIT_COUNT } },
+              select: { hitLeft: true },
+            });
+            hitLeft = updatedPostHit.hitLeft;
+          } else {
+            const createdPostHit = await tx.postHit.create({
+              data: {
+                userId,
+                hitLeft: PLATFORM_POINTS_HIT_COUNT,
+              },
+              select: { hitLeft: true },
+            });
+            hitLeft = createdPostHit.hitLeft;
+          }
+
+          await tx.platformPointsHitPurchase.create({
+            data: {
+              userId,
+              pointsSpent: PLATFORM_POINTS_HIT_COST,
+              hitCount: PLATFORM_POINTS_HIT_COUNT,
+              yearMonth,
+            },
+          });
+
+          return {
+            success: true,
+            hitAdded: PLATFORM_POINTS_HIT_COUNT,
+            pointsSpent: PLATFORM_POINTS_HIT_COST,
+            hitLeft,
+            totalPlatformPoints: updatedUser.totalPlatformPoints,
+            yearMonth,
+            nextEligibleAt,
+          };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error: any) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      if (
+        error?.code === 'P2002' ||
+        (typeof error?.message === 'string' &&
+          error.message.toLowerCase().includes('could not serialize access'))
+      ) {
+        throw new BadRequestException(
+          `You can buy only 1 hit with platform points once per month. Next eligible at ${nextEligibleAt.toISOString()}`,
+        );
+      }
+
+      throw error;
+    }
   }
 
   async handleBuyHitPayment(session: Stripe.Checkout.Session) {

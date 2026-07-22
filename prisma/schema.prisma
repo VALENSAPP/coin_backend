@@ -93,6 +93,7 @@ model User {
   receivedConversations Conversation[]            @relation("ConversationReceiver")
   userTokens            UserToken[]
   postHits              PostHit[]
+  platformPointsHitPurchases PlatformPointsHitPurchase[]
   withdrawalRecords     WithdrawalRecord[]
   kycs                  Kyc[]
   userSubscriptions     UserSubscription[]
@@ -1101,6 +1102,21 @@ model PostHit {
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model PlatformPointsHitPurchase {
+  id          String   @id @default(uuid())
+  userId      String
+  pointsSpent Float
+  hitCount    Int      @default(1)
+  yearMonth   String
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, yearMonth])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model WithdrawalRecord {

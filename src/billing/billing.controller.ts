@@ -254,6 +254,21 @@ export class BillingController {
     return { message: 'Checkout session created', ...result };
   }
 
+  @Post('buy-hit-with-points')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Buy 1 hit using 1000 platform points (once per calendar month UTC)',
+  })
+  async buyHitWithPlatformPoints(@Req() req: Request) {
+    const userId = (req.user as any)?.userId;
+    if (!userId) {
+      throw new BadRequestException('User not authenticated');
+    }
+
+    return this.billingService.buyHitWithPlatformPoints(userId);
+  }
+
   @Post('fans-page-subscription')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
