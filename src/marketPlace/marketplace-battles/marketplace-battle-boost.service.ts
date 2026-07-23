@@ -85,16 +85,37 @@ export class MarketplaceBattleBoostService {
     }
 
     async getBoostByBattleId(battleId: string) {
-        const boost = await this.prisma.marketplaceBattleBoost.findFirst({
-            where: { battleId },
-            orderBy: [{ createdAt: 'desc' }],
-            select: {
-                id: true,
-                status: true,
-                createdAt: true,
-                endAt: true,
-            },
-        });
+        const now = new Date();
+
+        // Prefer a currently active boost, otherwise an unpaid pending intent.
+        const boost =
+            (await this.prisma.marketplaceBattleBoost.findFirst({
+                where: {
+                    battleId,
+                    status: MarketplaceBattleBoostStatus.ACTIVE,
+                    endAt: { gt: now },
+                },
+                orderBy: [{ createdAt: 'desc' }],
+                select: {
+                    id: true,
+                    status: true,
+                    createdAt: true,
+                    endAt: true,
+                },
+            })) ||
+            (await this.prisma.marketplaceBattleBoost.findFirst({
+                where: {
+                    battleId,
+                    status: MarketplaceBattleBoostStatus.PENDING_PAYMENT,
+                },
+                orderBy: [{ createdAt: 'desc' }],
+                select: {
+                    id: true,
+                    status: true,
+                    createdAt: true,
+                    endAt: true,
+                },
+            }));
 
         return {
             battleId,
@@ -287,8 +308,20 @@ export class MarketplaceBattleBoostService {
             throw new ForbiddenException('Forbidden: you do not own this boost');
         }
 
+        if (boost.status === MarketplaceBattleBoostStatus.ACTIVE) {
+            const stillActive = boost.endAt && boost.endAt.getTime() > Date.now();
+            if (stillActive) {
+                throw new ConflictException('already boosted');
+            }
+            throw new BadRequestException(
+                'This boost has ended. Create a new boost intent, then create payment.',
+            );
+        }
+
         if (boost.status !== MarketplaceBattleBoostStatus.PENDING_PAYMENT) {
-            throw new BadRequestException('Boost payment can be created only when status is PENDING_PAYMENT');
+            throw new BadRequestException(
+                `Boost payment can be created only when status is PENDING_PAYMENT (current: ${boost.status}). Create a new boost intent first, then call payment with the new boostId.`,
+            );
         }
 
         const provider = await this.paymentProviderResolver.resolveProviderForMarketplaceBoost(sellerId);
