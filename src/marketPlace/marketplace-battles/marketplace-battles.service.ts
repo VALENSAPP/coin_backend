@@ -1513,7 +1513,25 @@ export class MarketplaceBattlesService {
         const sellerId = this.assertSellerUserId(userId);
         const normalizedMessage = dto.message?.trim() || null;
         const now = new Date();
-        const endAt = new Date(now.getTime() + WINNER_PROMOTION_DURATION_HOURS * 60 * 60 * 1000);
+
+        const isDiscount = dto.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
+        const isFreeShipping = dto.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING;
+
+        const durationHours =
+            dto.durationHours ?? dto.duration ?? WINNER_PROMOTION_DURATION_HOURS;
+        if (!Number.isFinite(durationHours) || durationHours < 1) {
+            throw new BadRequestException('duration must be at least 1 hour');
+        }
+
+        let discountPercent: number | null = null;
+        if (isDiscount) {
+            discountPercent = dto.discount ?? WINNER_PROMOTION_DISCOUNT_PERCENT;
+            if (!Number.isFinite(discountPercent) || discountPercent < 1 || discountPercent > 90) {
+                throw new BadRequestException('discount must be between 1 and 90');
+            }
+        }
+
+        const endAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
 
         return this.prisma.$transaction(
             async (tx) => {
@@ -1611,11 +1629,10 @@ export class MarketplaceBattlesService {
 
                 const originalPrice = Number(winnerParticipant.product.price);
                 const originalShippingFee = winnerParticipant.product.shippingFee ?? 0;
-                const isDiscount = dto.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
-                const isFreeShipping = dto.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING;
-                const promoPrice = isDiscount
-                    ? Number((originalPrice * (1 - WINNER_PROMOTION_DISCOUNT_PERCENT / 100)).toFixed(2))
-                    : originalPrice;
+                const promoPrice =
+                    isDiscount && discountPercent
+                        ? Number((originalPrice * (1 - discountPercent / 100)).toFixed(2))
+                        : originalPrice;
                 const promoShippingFee = isFreeShipping ? 0 : originalShippingFee;
 
                 return tx.marketplaceWinnerPromotion.create({
@@ -1627,7 +1644,7 @@ export class MarketplaceBattlesService {
                         productId: winnerParticipant.productId,
                         promoType: dto.promoType,
                         message: normalizedMessage,
-                        discountPercent: isDiscount ? WINNER_PROMOTION_DISCOUNT_PERCENT : null,
+                        discountPercent: isDiscount ? discountPercent : null,
                         freeShipping: isFreeShipping,
                         originalPrice,
                         promoPrice,
