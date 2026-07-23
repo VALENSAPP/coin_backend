@@ -174,22 +174,53 @@ export class MarketplaceBattleBoostService {
                     throw new BadRequestException('Invalid boost package currency');
                 }
 
-                const existingNonTerminal = await tx.marketplaceBattleBoost.findFirst({
+                // Clear unpaid intents so seller can start a fresh boost checkout
+                const pendingBoosts = await tx.marketplaceBattleBoost.findMany({
                     where: {
                         battleId: battle.id,
-                        OR: [
-                            { status: MarketplaceBattleBoostStatus.PENDING_PAYMENT },
-                            {
-                                status: MarketplaceBattleBoostStatus.ACTIVE,
-                                endAt: { gt: now },
+                        status: MarketplaceBattleBoostStatus.PENDING_PAYMENT,
+                    },
+                    select: { id: true, paymentId: true },
+                });
+
+                if (pendingBoosts.length > 0) {
+                    const pendingPaymentIds = pendingBoosts
+                        .map((boost) => boost.paymentId)
+                        .filter((paymentId): paymentId is string => Boolean(paymentId));
+
+                    if (pendingPaymentIds.length > 0) {
+                        await tx.marketPlacePayments.updateMany({
+                            where: {
+                                id: { in: pendingPaymentIds },
+                                status: 'PENDING',
                             },
-                        ],
+                            data: { status: 'CANCELLED' },
+                        });
+                    }
+
+                    await tx.marketplaceBattleBoost.updateMany({
+                        where: {
+                            id: { in: pendingBoosts.map((boost) => boost.id) },
+                            status: MarketplaceBattleBoostStatus.PENDING_PAYMENT,
+                        },
+                        data: {
+                            status: MarketplaceBattleBoostStatus.CANCELLED,
+                            cancelledAt: now,
+                        },
+                    });
+                }
+
+                const existingActive = await tx.marketplaceBattleBoost.findFirst({
+                    where: {
+                        battleId: battle.id,
+                        status: MarketplaceBattleBoostStatus.ACTIVE,
+                        endAt: { gt: now },
                     },
                     select: { id: true, status: true },
                 });
 
-                if (existingNonTerminal) {
-                    throw new ConflictException('A pending or active boost already exists for this battle');
+                if (existingActive) {
+                    throw new ConflictException('An active boost already exists for this battle');
                 }
 
                 const boost = await tx.marketplaceBattleBoost.create({

@@ -15,6 +15,7 @@ import {
     ApiBody,
     ApiBadRequestResponse,
     ApiBearerAuth,
+    ApiConflictResponse,
     ApiForbiddenResponse,
     ApiNotFoundResponse,
     ApiOperation,
@@ -62,6 +63,7 @@ export class MarketplaceBattleBoostController {
     @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
     @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
     @ApiBadRequestResponse({ description: 'Battle/package not eligible for boost' })
+    @ApiConflictResponse({ description: 'An active boost already exists for this battle' })
     async createBoostIntent(
         @Req() req: Request,
         @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
