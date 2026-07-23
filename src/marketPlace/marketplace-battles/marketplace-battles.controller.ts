@@ -701,8 +701,8 @@ export class MarketplaceBattlesController {
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
     @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
     @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
-    @ApiBadRequestResponse({ description: 'Battle has no winner or product is not eligible' })
-    @ApiConflictResponse({ description: 'Same winner promotion type is already active for this battle' })
+    @ApiBadRequestResponse({ description: 'already promoted, or battle/product not eligible for promotion' })
+    @ApiConflictResponse({ description: 'already promoted' })
     async createWinnerPromotion(
         @Req() req: any,
         @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,

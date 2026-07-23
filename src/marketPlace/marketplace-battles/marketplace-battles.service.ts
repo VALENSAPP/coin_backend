@@ -1595,19 +1595,18 @@ export class MarketplaceBattlesService {
                     throw new BadRequestException('Winning product is not eligible for promotion');
                 }
 
-                const existingSameType = await tx.marketplaceWinnerPromotion.findFirst({
+                const existingActivePromotion = await tx.marketplaceWinnerPromotion.findFirst({
                     where: {
                         battleId: battle.id,
-                        promoType: dto.promoType,
                         status: MarketplaceWinnerPromotionStatus.ACTIVE,
                         startAt: { lte: now },
                         endAt: { gt: now },
                     },
-                    select: { id: true },
+                    select: { id: true, promoType: true },
                 });
 
-                if (existingSameType) {
-                    throw new ConflictException('This winner promotion type is already active for this battle');
+                if (existingActivePromotion) {
+                    throw new BadRequestException('already promoted');
                 }
 
                 const originalPrice = Number(winnerParticipant.product.price);
