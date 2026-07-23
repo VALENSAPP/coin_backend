@@ -2216,27 +2216,6 @@ export class MarketplaceBattlesService {
                 },
             });
 
-            await this.createMarketplaceBattleNotification(tx, {
-                userId: opponentCloset.userId,
-                type: 'marketplace_battle_challenge',
-                title: 'Shop Battle Challenge',
-                body: `${challengerCloset.shopName} challenged your shop to a battle.`,
-                dedupeKey: `marketplace_battle_challenge:${battle.id}`,
-                metadata: {
-                    battleId: battle.id,
-                    status: MarketplaceBattleStatus.PENDING_INVITE,
-                    mode: MarketplaceBattleMode.CROSS_SHOP,
-                    question,
-                    stakeAmount: String(stakeAmount),
-                    inviterId: challengerId,
-                    challengerClosetId: challengerCloset.id,
-                    opponentClosetId: opponentCloset.id,
-                    deepLink: `valens://marketplace-battle/challenge/${battle.id}`,
-                    primaryAction: 'ACCEPT_MARKETPLACE_BATTLE',
-                    secondaryAction: 'DECLINE_MARKETPLACE_BATTLE',
-                },
-            });
-
             return { battle, invite, myProduct, opponentProduct };
         });
 
@@ -2470,45 +2449,14 @@ export class MarketplaceBattlesService {
                 select: MARKETPLACE_BATTLE_BASE_SELECT,
             });
 
-            await this.createMarketplaceBattleNotification(tx, {
-                userId: invite.battle.sellerId,
-                type: 'marketplace_battle_challenge_accepted',
-                title: 'Shop Battle Accepted',
-                body: `Your cross-shop battle "${updatedBattle.title}" was accepted.`,
-                dedupeKey: `marketplace_battle_challenge_accepted:${battleId}`,
-                metadata: {
-                    battleId,
-                    status: targetStatus,
-                    mode: MarketplaceBattleMode.CROSS_SHOP,
-                },
-            });
-
-            await this.createMarketplaceBattleNotification(tx, {
-                userId: invitedUserId,
-                type: 'marketplace_battle_challenge_accepted',
-                title: 'Shop Battle Created',
-                body: `Your shop battle "${updatedBattle.title}" is now ${targetStatus === MarketplaceBattleStatus.LIVE ? 'live' : 'scheduled'}.`,
-                dedupeKey: `marketplace_battle_challenge_accepted_self:${battleId}`,
-                metadata: {
-                    battleId,
-                    status: targetStatus,
-                    mode: MarketplaceBattleMode.CROSS_SHOP,
-                },
-            });
-
             return { invite: updatedInvite, battle: updatedBattle };
         });
 
-        await Promise.all([
-            this.notificationService.sendMarketplaceBattleChallengeAccepted(
-                result.battle.sellerId,
-                battleId,
-            ),
-            this.notificationService.sendMarketplaceBattleChallengeAccepted(
-                invitedUserId,
-                battleId,
-            ),
-        ]);
+        // Challenger only — single push + inbox notification (no opponent, no duplicate)
+        await this.notificationService.sendMarketplaceBattleChallengeAccepted(
+            result.battle.sellerId,
+            battleId,
+        );
 
         return {
             message: 'Cross-shop battle challenge accepted',
@@ -2572,18 +2520,6 @@ export class MarketplaceBattlesService {
                     data: { stakeSettled: true },
                 });
             }
-
-            await this.createMarketplaceBattleNotification(tx, {
-                userId: invite.battle.sellerId,
-                type: 'marketplace_battle_challenge_declined',
-                title: 'Shop Battle Declined',
-                body: `Your cross-shop battle challenge was declined.`,
-                dedupeKey: `marketplace_battle_challenge_declined:${battleId}`,
-                metadata: {
-                    battleId,
-                    status: MarketplaceBattleStatus.CANCELLED,
-                },
-            });
 
             return { invite: updatedInvite, battle: updatedBattle };
         });
