@@ -1878,6 +1878,38 @@ export class MarketplaceBattlesService {
             where: { id: battleId },
             select: {
                 ...MARKETPLACE_BATTLE_BASE_SELECT,
+                seller: {
+                    select: {
+                        id: true,
+                        userName: true,
+                        displayName: true,
+                        image: true,
+                    },
+                },
+                closet: {
+                    select: {
+                        id: true,
+                        shopName: true,
+                        shopUsername: true,
+                        shopLogo: true,
+                    },
+                },
+                opponentSeller: {
+                    select: {
+                        id: true,
+                        userName: true,
+                        displayName: true,
+                        image: true,
+                    },
+                },
+                opponentCloset: {
+                    select: {
+                        id: true,
+                        shopName: true,
+                        shopUsername: true,
+                        shopLogo: true,
+                    },
+                },
                 participants: {
                     orderBy: { position: 'asc' },
                     select: {
@@ -1913,6 +1945,96 @@ export class MarketplaceBattlesService {
         if (!battle) throw new NotFoundException('Marketplace battle not found');
         this.ensureParticipantSeller(battle, sellerId);
         return battle;
+    }
+
+    private mapBattleSideParty(params: {
+        userId: string;
+        userName: string | null;
+        displayName: string | null;
+        image: string | null;
+        closetId: string | null;
+        shopName: string | null;
+        shopUsername: string | null;
+        shopLogo: string | null;
+    }) {
+        return {
+            userId: params.userId,
+            userName: params.userName,
+            displayName: params.displayName,
+            image: params.image,
+            closetId: params.closetId,
+            shopName: params.shopName,
+            shopUsername: params.shopUsername,
+            shopLogo: params.shopLogo,
+        };
+    }
+
+    private resolveMineAndOpponentForViewer(
+        viewerUserId: string,
+        battle: {
+            sellerId: string;
+            closetId: string;
+            opponentSellerId: string | null;
+            opponentClosetId: string | null;
+            seller: {
+                id: string;
+                userName: string | null;
+                displayName: string | null;
+                image: string | null;
+            };
+            closet: {
+                id: string;
+                shopName: string;
+                shopUsername: string;
+                shopLogo: string | null;
+            };
+            opponentSeller: {
+                id: string;
+                userName: string | null;
+                displayName: string | null;
+                image: string | null;
+            } | null;
+            opponentCloset: {
+                id: string;
+                shopName: string;
+                shopUsername: string;
+                shopLogo: string | null;
+            } | null;
+        },
+    ) {
+        const challenger = this.mapBattleSideParty({
+            userId: battle.seller.id,
+            userName: battle.seller.userName,
+            displayName: battle.seller.displayName,
+            image: battle.seller.image,
+            closetId: battle.closet.id,
+            shopName: battle.closet.shopName,
+            shopUsername: battle.closet.shopUsername,
+            shopLogo: battle.closet.shopLogo,
+        });
+
+        const opponent = battle.opponentSeller
+            ? this.mapBattleSideParty({
+                userId: battle.opponentSeller.id,
+                userName: battle.opponentSeller.userName,
+                displayName: battle.opponentSeller.displayName,
+                image: battle.opponentSeller.image,
+                closetId: battle.opponentCloset?.id ?? battle.opponentClosetId,
+                shopName: battle.opponentCloset?.shopName ?? null,
+                shopUsername: battle.opponentCloset?.shopUsername ?? null,
+                shopLogo: battle.opponentCloset?.shopLogo ?? null,
+            })
+            : null;
+
+        if (viewerUserId === battle.sellerId) {
+            return { mine: challenger, opponent };
+        }
+
+        if (opponent && viewerUserId === battle.opponentSellerId) {
+            return { mine: opponent, opponent: challenger };
+        }
+
+        return { mine: challenger, opponent };
     }
 
     async createDraftBattle(userId: string, dto: CreateMarketplaceBattleDto) {
@@ -2702,8 +2824,11 @@ export class MarketplaceBattlesService {
                 sellerBattle.winnerParticipant?.product?.id ??
                 sellerBattle.participants.find((participant) => participant.isWinner)?.product?.id ??
                 null;
+            const { mine, opponent } = this.resolveMineAndOpponentForViewer(viewerUserId, sellerBattle);
             return {
                 ...sellerBattle,
+                mine,
+                opponent,
                 viewCount,
                 voteCount: sellerBattle.totalVotes,
                 commentCount: sellerBattle.totalComments,
