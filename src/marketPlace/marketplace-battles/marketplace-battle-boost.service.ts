@@ -220,7 +220,7 @@ export class MarketplaceBattleBoostService {
                 });
 
                 if (existingActive) {
-                    throw new ConflictException('An active boost already exists for this battle');
+                    throw new ConflictException('already boosted');
                 }
 
                 const boost = await tx.marketplaceBattleBoost.create({
