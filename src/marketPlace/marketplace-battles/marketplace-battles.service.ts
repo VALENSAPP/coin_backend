@@ -9,8 +9,10 @@ import {
     UnauthorizedException,
 } from '@nestjs/common';
 import {
+    BattleInviteStatus,
     FollowStatus,
     MarketplaceBattleBoostStatus,
+    MarketplaceBattleMode,
     MarketplaceBattleOutcome,
     MarketplaceBattleStatus,
     MarketplaceWinnerPromotionStatus,
@@ -19,7 +21,9 @@ import {
     WhoCanBuy,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateCrossShopChallengeDto } from './dto/create-cross-shop-challenge.dto';
 import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto';
+import { MarketplaceBattleChallengeListQueryDto } from './dto/marketplace-battle-challenge-list-query.dto';
 import {
     ClosetMarketplaceBattlesQueryDto,
     ClosetMarketplaceBattleSortField,
@@ -102,9 +106,18 @@ const MARKETPLACE_BATTLE_BASE_SELECT = {
     winnerParticipantId: true,
     totalVotes: true,
     totalComments: true,
+    mode: true,
+    question: true,
+    stakeAmount: true,
+    stakeSettled: true,
+    opponentSellerId: true,
+    opponentClosetId: true,
+    inviteExpiresAt: true,
     createdAt: true,
     updatedAt: true,
 } as const;
+
+const DEFAULT_CROSS_SHOP_INVITE_EXPIRES_HOURS = 48;
 
 const MARKETPLACE_BATTLE_EXPLORE_SORT_FIELD_MAP: Record<
     MarketplaceBattleExploreSortField,
@@ -157,6 +170,12 @@ const MARKETPLACE_BATTLE_PUBLIC_SELECT = {
     winnerParticipantId: true,
     totalVotes: true,
     totalComments: true,
+    mode: true,
+    question: true,
+    stakeAmount: true,
+    opponentSellerId: true,
+    opponentClosetId: true,
+    inviteExpiresAt: true,
     createdAt: true,
     updatedAt: true,
     seller: {
@@ -168,6 +187,14 @@ const MARKETPLACE_BATTLE_PUBLIC_SELECT = {
         },
     },
     closet: {
+        select: {
+            id: true,
+            shopName: true,
+            shopUsername: true,
+            shopLogo: true,
+        },
+    },
+    opponentCloset: {
         select: {
             id: true,
             shopName: true,
@@ -736,6 +763,11 @@ export class MarketplaceBattlesService {
             completedAt: battle.completedAt,
             totalVotes: battle.totalVotes,
             totalComments: battle.totalComments,
+            mode: (battle as any).mode ?? MarketplaceBattleMode.SAME_CLOSET,
+            question: (battle as any).question ?? null,
+            stakeAmount: (battle as any).stakeAmount ?? null,
+            opponentSellerId: (battle as any).opponentSellerId ?? null,
+            inviteExpiresAt: (battle as any).inviteExpiresAt ?? null,
             createdAt: battle.createdAt,
             updatedAt: battle.updatedAt,
             remainingSeconds,
@@ -751,6 +783,14 @@ export class MarketplaceBattlesService {
                 shopUsername: battle.closet.shopUsername,
                 shopLogo: battle.closet.shopLogo,
             },
+            opponentCloset: (battle as any).opponentCloset
+                ? {
+                    id: (battle as any).opponentCloset.id,
+                    shopName: (battle as any).opponentCloset.shopName,
+                    shopUsername: (battle as any).opponentCloset.shopUsername,
+                    shopLogo: (battle as any).opponentCloset.shopLogo,
+                }
+                : null,
             participants,
             winnerProductId,
             winner,
@@ -993,11 +1033,20 @@ export class MarketplaceBattlesService {
         const safeSortOrder: 'asc' | 'desc' = query.sortOrder === 'asc' ? 'asc' : 'desc';
 
         const where: Prisma.MarketplaceBattleWhereInput = {
-            closetId,
-            status: MarketplaceBattleStatus.COMPLETED,
-            outcome: MarketplaceBattleOutcome.WINNER,
-            winnerParticipantId: { not: null },
-            completedAt: { not: null },
+            AND: [
+                this.closetInvolvedWhere(closetId),
+                {
+                    status: MarketplaceBattleStatus.COMPLETED,
+                    outcome: MarketplaceBattleOutcome.WINNER,
+                    winnerParticipantId: { not: null },
+                    completedAt: { not: null },
+                    winnerParticipant: {
+                        product: {
+                            closetId,
+                        },
+                    },
+                },
+            ],
         };
 
         const winnerByProductId = new Map<
@@ -1480,6 +1529,7 @@ export class MarketplaceBattlesService {
                     select: {
                         id: true,
                         sellerId: true,
+                        opponentSellerId: true,
                         closetId: true,
                         status: true,
                         outcome: true,
@@ -1491,7 +1541,9 @@ export class MarketplaceBattlesService {
                     throw new NotFoundException('Marketplace battle not found');
                 }
 
-                this.ensureOwnership(battle, sellerId);
+                if (battle.sellerId !== sellerId && battle.opponentSellerId !== sellerId) {
+                    throw new ForbiddenException('Forbidden: you are not a participant in this marketplace battle');
+                }
 
                 if (
                     battle.status !== MarketplaceBattleStatus.COMPLETED ||
@@ -1532,11 +1584,8 @@ export class MarketplaceBattlesService {
                     throw new BadRequestException('Winning product is not available for promotion');
                 }
 
-                if (
-                    winnerParticipant.product.userId !== sellerId ||
-                    winnerParticipant.product.closetId !== battle.closetId
-                ) {
-                    throw new BadRequestException('Winning product does not belong to this seller closet');
+                if (winnerParticipant.product.userId !== sellerId) {
+                    throw new BadRequestException('Only the winning product seller can create a winner promotion');
                 }
 
                 if (
@@ -1573,7 +1622,7 @@ export class MarketplaceBattlesService {
                 return tx.marketplaceWinnerPromotion.create({
                     data: {
                         sellerId,
-                        closetId: battle.closetId,
+                        closetId: winnerParticipant.product.closetId,
                         battleId: battle.id,
                         participantId: winnerParticipant.id,
                         productId: winnerParticipant.productId,
@@ -1604,6 +1653,153 @@ export class MarketplaceBattlesService {
         if (battle.sellerId !== sellerId) {
             throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
         }
+    }
+
+    private ensureParticipantSeller(
+        battle: { sellerId: string; opponentSellerId?: string | null },
+        userId: string,
+    ) {
+        if (battle.sellerId !== userId && battle.opponentSellerId !== userId) {
+            throw new ForbiddenException('Forbidden: you are not a participant in this marketplace battle');
+        }
+    }
+
+    private closetInvolvedWhere(closetId: string): Prisma.MarketplaceBattleWhereInput {
+        return {
+            OR: [{ closetId }, { opponentClosetId: closetId }],
+        };
+    }
+
+    private async lockStakePoints(tx: Prisma.TransactionClient, userId: string, stakeAmount: number) {
+        if (stakeAmount <= 0) return;
+
+        const user = await tx.user.findUnique({
+            where: { id: userId },
+            select: { id: true, totalPlatformPoints: true },
+        });
+        if (!user) throw new NotFoundException('User not found');
+        if ((user.totalPlatformPoints ?? 0) < stakeAmount) {
+            throw new BadRequestException('Insufficient platform points');
+        }
+
+        await tx.user.update({
+            where: { id: userId },
+            data: { totalPlatformPoints: { decrement: stakeAmount } },
+        });
+    }
+
+    private async refundStakePoints(tx: Prisma.TransactionClient, userId: string, stakeAmount: number) {
+        if (stakeAmount <= 0) return;
+
+        await tx.user.update({
+            where: { id: userId },
+            data: { totalPlatformPoints: { increment: stakeAmount } },
+        });
+    }
+
+    private async settleCrossShopStake(
+        tx: Prisma.TransactionClient,
+        battle: {
+            id: string;
+            sellerId: string;
+            mode: MarketplaceBattleMode;
+            stakeAmount: number | null;
+            stakeSettled: boolean;
+            outcome: MarketplaceBattleOutcome;
+            winnerParticipantId: string | null;
+        },
+    ) {
+        const stakeAmount = battle.stakeAmount ?? 0;
+        if (
+            battle.mode !== MarketplaceBattleMode.CROSS_SHOP ||
+            stakeAmount <= 0 ||
+            battle.stakeSettled
+        ) {
+            return;
+        }
+
+        if (battle.outcome === MarketplaceBattleOutcome.WINNER && battle.winnerParticipantId) {
+            const winnerParticipant = await tx.marketplaceBattleParticipant.findUnique({
+                where: { id: battle.winnerParticipantId },
+                select: {
+                    product: {
+                        select: { userId: true },
+                    },
+                },
+            });
+
+            const winnerUserId = winnerParticipant?.product?.userId;
+            if (winnerUserId) {
+                await tx.user.update({
+                    where: { id: winnerUserId },
+                    data: { totalPlatformPoints: { increment: stakeAmount } },
+                });
+            } else {
+                await this.refundStakePoints(tx, battle.sellerId, stakeAmount);
+            }
+        } else {
+            // Tie / cancelled / no winner → refund challenger
+            await this.refundStakePoints(tx, battle.sellerId, stakeAmount);
+        }
+
+        await tx.marketplaceBattle.update({
+            where: { id: battle.id },
+            data: { stakeSettled: true },
+        });
+    }
+
+    private async validateCrossShopBattleProducts(
+        tx: PrismaTx,
+        challengerUserId: string,
+        challengerClosetId: string,
+        opponentUserId: string,
+        opponentClosetId: string,
+        myProductId: string,
+        opponentProductId: string,
+    ) {
+        if (myProductId === opponentProductId) {
+            throw new BadRequestException('Duplicate product IDs are not allowed');
+        }
+
+        const products = await tx.closetItems.findMany({
+            where: {
+                id: { in: [myProductId, opponentProductId] },
+            },
+            select: {
+                id: true,
+                userId: true,
+                closetId: true,
+                isActive: true,
+                isDeleted: true,
+                name: true,
+            },
+        });
+
+        if (products.length !== 2) {
+            const foundIds = new Set(products.map((product) => product.id));
+            const missingProductIds = [myProductId, opponentProductId].filter((id) => !foundIds.has(id));
+            throw new BadRequestException({
+                message: 'One or more products were not found',
+                missingProductIds,
+            });
+        }
+
+        const myProduct = products.find((product) => product.id === myProductId)!;
+        const opponentProduct = products.find((product) => product.id === opponentProductId)!;
+
+        if (myProduct.userId !== challengerUserId || myProduct.closetId !== challengerClosetId) {
+            throw new BadRequestException('myProductId must belong to your closet');
+        }
+
+        if (opponentProduct.userId !== opponentUserId || opponentProduct.closetId !== opponentClosetId) {
+            throw new BadRequestException('opponentProductId must belong to the challenged closet');
+        }
+
+        if (!myProduct.isActive || myProduct.isDeleted || !opponentProduct.isActive || opponentProduct.isDeleted) {
+            throw new BadRequestException('Products are not eligible for marketplace battle');
+        }
+
+        return { myProduct, opponentProduct };
     }
 
     private async validateMarketplaceBattleProducts(
@@ -1699,7 +1895,7 @@ export class MarketplaceBattlesService {
         });
 
         if (!battle) throw new NotFoundException('Marketplace battle not found');
-        this.ensureOwnership(battle, sellerId);
+        this.ensureParticipantSeller(battle, sellerId);
         return battle;
     }
 
@@ -1755,6 +1951,7 @@ export class MarketplaceBattlesService {
                     visibility: dto.visibility ?? WhoCanBuy.Everyone,
                     whoCanVote: dto.whoCanVote ?? WhoCanBuy.Everyone,
                     shareToFeed: dto.shareToFeed ?? false,
+                    mode: MarketplaceBattleMode.SAME_CLOSET,
                     status: targetStatus,
                     outcome: MarketplaceBattleOutcome.PENDING,
                     startAt: effectiveStartAt,
@@ -1887,6 +2084,599 @@ export class MarketplaceBattlesService {
         });
     }
 
+    async createCrossShopChallenge(userId: string, dto: CreateCrossShopChallengeDto) {
+        const challengerId = this.assertSellerUserId(userId);
+        const now = new Date();
+        const question = dto.question?.trim();
+        if (!question) {
+            throw new BadRequestException('Question required');
+        }
+
+        const endAt = new Date(dto.endAt);
+        if (Number.isNaN(endAt.getTime())) {
+            throw new BadRequestException('Invalid endAt');
+        }
+
+        const explicitStartAt = dto.startAt ? new Date(dto.startAt) : undefined;
+        if (explicitStartAt && Number.isNaN(explicitStartAt.getTime())) {
+            throw new BadRequestException('Invalid startAt');
+        }
+
+        if (explicitStartAt && explicitStartAt.getTime() < now.getTime() - PAST_START_TOLERANCE_MS) {
+            throw new BadRequestException('startAt is too far in the past');
+        }
+
+        const plannedStartAt = explicitStartAt ?? now;
+        if (endAt.getTime() <= plannedStartAt.getTime()) {
+            throw new BadRequestException('endAt must be greater than startAt');
+        }
+
+        const stakeAmount = Number(dto.stake ?? 0);
+        if (!Number.isFinite(stakeAmount) || stakeAmount < 0) {
+            throw new BadRequestException('Invalid stake');
+        }
+
+        const inviteExpiresInHours = dto.inviteExpiresInHours ?? DEFAULT_CROSS_SHOP_INVITE_EXPIRES_HOURS;
+        const inviteExpiresAt = new Date(now.getTime() + inviteExpiresInHours * 60 * 60 * 1000);
+
+        const challengerCloset = await this.prisma.mycloset.findUnique({
+            where: { userId: challengerId },
+            select: { id: true, shopName: true, shopUsername: true },
+        });
+        if (!challengerCloset) {
+            throw new NotFoundException('Mycloset not found');
+        }
+
+        const opponentCloset = await this.prisma.mycloset.findUnique({
+            where: { id: dto.opponentClosetId },
+            select: {
+                id: true,
+                userId: true,
+                shopName: true,
+                shopUsername: true,
+            },
+        });
+        if (!opponentCloset) {
+            throw new NotFoundException('Opponent closet not found');
+        }
+        if (opponentCloset.userId === challengerId || opponentCloset.id === challengerCloset.id) {
+            throw new BadRequestException('You cannot challenge your own shop');
+        }
+
+        const title = dto.title?.trim() || `Shop Battle: ${challengerCloset.shopName} vs ${opponentCloset.shopName}`;
+
+        const created = await this.prisma.$transaction(async (tx) => {
+            const { myProduct, opponentProduct } = await this.validateCrossShopBattleProducts(
+                tx,
+                challengerId,
+                challengerCloset.id,
+                opponentCloset.userId,
+                opponentCloset.id,
+                dto.myProductId,
+                dto.opponentProductId,
+            );
+
+            await this.lockStakePoints(tx, challengerId, stakeAmount);
+
+            const battle = await tx.marketplaceBattle.create({
+                data: {
+                    sellerId: challengerId,
+                    closetId: challengerCloset.id,
+                    title,
+                    description: question,
+                    category: dto.category,
+                    visibility: WhoCanBuy.Everyone,
+                    whoCanVote: WhoCanBuy.Everyone,
+                    shareToFeed: dto.shareToFeed ?? false,
+                    mode: MarketplaceBattleMode.CROSS_SHOP,
+                    question,
+                    stakeAmount: stakeAmount > 0 ? stakeAmount : null,
+                    stakeSettled: false,
+                    opponentSellerId: opponentCloset.userId,
+                    opponentClosetId: opponentCloset.id,
+                    inviteExpiresAt,
+                    status: MarketplaceBattleStatus.PENDING_INVITE,
+                    outcome: MarketplaceBattleOutcome.PENDING,
+                    startAt: plannedStartAt,
+                    endAt,
+                    publishedAt: null,
+                    totalVotes: 0,
+                    totalComments: 0,
+                },
+                select: MARKETPLACE_BATTLE_BASE_SELECT,
+            });
+
+            await tx.marketplaceBattleParticipant.createMany({
+                data: [
+                    {
+                        battleId: battle.id,
+                        productId: myProduct.id,
+                        position: 1,
+                        voteCount: 0,
+                        isWinner: false,
+                    },
+                    {
+                        battleId: battle.id,
+                        productId: opponentProduct.id,
+                        position: 2,
+                        voteCount: 0,
+                        isWinner: false,
+                    },
+                ],
+            });
+
+            const invite = await tx.marketplaceBattleChallengeInvite.create({
+                data: {
+                    battleId: battle.id,
+                    inviterId: challengerId,
+                    invitedUserId: opponentCloset.userId,
+                    challengerProductId: myProduct.id,
+                    opponentProductId: opponentProduct.id,
+                    status: BattleInviteStatus.PENDING,
+                },
+            });
+
+            await this.createMarketplaceBattleNotification(tx, {
+                userId: opponentCloset.userId,
+                type: 'marketplace_battle_challenge',
+                title: 'Shop Battle Challenge',
+                body: `${challengerCloset.shopName} challenged your shop to a battle.`,
+                dedupeKey: `marketplace_battle_challenge:${battle.id}`,
+                metadata: {
+                    battleId: battle.id,
+                    status: MarketplaceBattleStatus.PENDING_INVITE,
+                    mode: MarketplaceBattleMode.CROSS_SHOP,
+                    question,
+                    stakeAmount: String(stakeAmount),
+                    inviterId: challengerId,
+                    challengerClosetId: challengerCloset.id,
+                    opponentClosetId: opponentCloset.id,
+                    deepLink: `valens://marketplace-battle/challenge/${battle.id}`,
+                    primaryAction: 'ACCEPT_MARKETPLACE_BATTLE',
+                    secondaryAction: 'DECLINE_MARKETPLACE_BATTLE',
+                },
+            });
+
+            return { battle, invite, myProduct, opponentProduct };
+        });
+
+        await this.notificationService.sendMarketplaceBattleChallenge(
+            opponentCloset.userId,
+            created.battle.id,
+        );
+
+        return {
+            message: 'Cross-shop battle challenge sent',
+            battle: created.battle,
+            invite: created.invite,
+            products: {
+                challenger: {
+                    id: created.myProduct.id,
+                    name: created.myProduct.name,
+                },
+                opponent: {
+                    id: created.opponentProduct.id,
+                    name: created.opponentProduct.name,
+                },
+            },
+        };
+    }
+
+    async listIncomingChallenges(userId: string, query: MarketplaceBattleChallengeListQueryDto) {
+        const invitedUserId = this.assertSellerUserId(userId);
+        const page = query.page ?? 1;
+        const limit = query.limit ?? 10;
+        const skip = (page - 1) * limit;
+
+        const where: Prisma.MarketplaceBattleChallengeInviteWhereInput = {
+            invitedUserId,
+            status: BattleInviteStatus.PENDING,
+            battle: {
+                status: MarketplaceBattleStatus.PENDING_INVITE,
+                OR: [{ inviteExpiresAt: null }, { inviteExpiresAt: { gt: new Date() } }],
+            },
+        };
+
+        const [total, invites] = await this.prisma.$transaction([
+            this.prisma.marketplaceBattleChallengeInvite.count({ where }),
+            this.prisma.marketplaceBattleChallengeInvite.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    battle: {
+                        select: {
+                            ...MARKETPLACE_BATTLE_BASE_SELECT,
+                            closet: {
+                                select: {
+                                    id: true,
+                                    shopName: true,
+                                    shopUsername: true,
+                                    shopLogo: true,
+                                },
+                            },
+                            opponentCloset: {
+                                select: {
+                                    id: true,
+                                    shopName: true,
+                                    shopUsername: true,
+                                    shopLogo: true,
+                                },
+                            },
+                            participants: {
+                                orderBy: { position: 'asc' },
+                                select: {
+                                    id: true,
+                                    position: true,
+                                    productId: true,
+                                    product: {
+                                        select: MARKETPLACE_BATTLE_LIST_PRODUCT_SELECT,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }),
+        ]);
+
+        return {
+            invites,
+            total,
+            page,
+            limit,
+            totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        };
+    }
+
+    async listOutgoingChallenges(userId: string, query: MarketplaceBattleChallengeListQueryDto) {
+        const inviterId = this.assertSellerUserId(userId);
+        const page = query.page ?? 1;
+        const limit = query.limit ?? 10;
+        const skip = (page - 1) * limit;
+
+        const where: Prisma.MarketplaceBattleChallengeInviteWhereInput = {
+            inviterId,
+        };
+
+        const [total, invites] = await this.prisma.$transaction([
+            this.prisma.marketplaceBattleChallengeInvite.count({ where }),
+            this.prisma.marketplaceBattleChallengeInvite.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    battle: {
+                        select: {
+                            ...MARKETPLACE_BATTLE_BASE_SELECT,
+                            closet: {
+                                select: {
+                                    id: true,
+                                    shopName: true,
+                                    shopUsername: true,
+                                    shopLogo: true,
+                                },
+                            },
+                            opponentCloset: {
+                                select: {
+                                    id: true,
+                                    shopName: true,
+                                    shopUsername: true,
+                                    shopLogo: true,
+                                },
+                            },
+                            participants: {
+                                orderBy: { position: 'asc' },
+                                select: {
+                                    id: true,
+                                    position: true,
+                                    productId: true,
+                                    product: {
+                                        select: MARKETPLACE_BATTLE_LIST_PRODUCT_SELECT,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }),
+        ]);
+
+        return {
+            invites,
+            total,
+            page,
+            limit,
+            totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        };
+    }
+
+    async acceptCrossShopChallenge(userId: string, battleId: string) {
+        const invitedUserId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`
+                SELECT id
+                FROM "MarketplaceBattle"
+                WHERE id = ${battleId}
+                FOR UPDATE
+            `;
+
+            const invite = await tx.marketplaceBattleChallengeInvite.findUnique({
+                where: { battleId },
+                include: {
+                    battle: {
+                        select: {
+                            ...MARKETPLACE_BATTLE_BASE_SELECT,
+                        },
+                    },
+                },
+            });
+
+            if (!invite || invite.invitedUserId !== invitedUserId) {
+                throw new NotFoundException('Challenge invite not found');
+            }
+            if (invite.status !== BattleInviteStatus.PENDING) {
+                throw new BadRequestException('Challenge invite is not pending');
+            }
+            if (invite.battle.status !== MarketplaceBattleStatus.PENDING_INVITE) {
+                throw new BadRequestException('Battle is not awaiting invite response');
+            }
+            if (invite.battle.inviteExpiresAt && invite.battle.inviteExpiresAt.getTime() <= now.getTime()) {
+                throw new BadRequestException('Challenge invite has expired');
+            }
+
+            await this.validateCrossShopBattleProducts(
+                tx,
+                invite.battle.sellerId,
+                invite.battle.closetId,
+                invite.invitedUserId,
+                invite.battle.opponentClosetId!,
+                invite.challengerProductId,
+                invite.opponentProductId,
+            );
+
+            const plannedStartAt = invite.battle.startAt && invite.battle.startAt.getTime() > now.getTime()
+                ? invite.battle.startAt
+                : now;
+            const endAt = invite.battle.endAt;
+            if (!endAt || endAt.getTime() <= plannedStartAt.getTime()) {
+                throw new BadRequestException('Battle end time is no longer valid; ask challenger to recreate');
+            }
+
+            const targetStatus =
+                plannedStartAt.getTime() <= now.getTime()
+                    ? MarketplaceBattleStatus.LIVE
+                    : MarketplaceBattleStatus.SCHEDULED;
+
+            const updatedInvite = await tx.marketplaceBattleChallengeInvite.update({
+                where: { id: invite.id },
+                data: {
+                    status: BattleInviteStatus.ACCEPTED,
+                    respondedAt: now,
+                },
+            });
+
+            const updatedBattle = await tx.marketplaceBattle.update({
+                where: { id: battleId },
+                data: {
+                    status: targetStatus,
+                    startAt: plannedStartAt,
+                    publishedAt: now,
+                },
+                select: MARKETPLACE_BATTLE_BASE_SELECT,
+            });
+
+            await this.createMarketplaceBattleNotification(tx, {
+                userId: invite.battle.sellerId,
+                type: 'marketplace_battle_challenge_accepted',
+                title: 'Shop Battle Accepted',
+                body: `Your cross-shop battle "${updatedBattle.title}" was accepted.`,
+                dedupeKey: `marketplace_battle_challenge_accepted:${battleId}`,
+                metadata: {
+                    battleId,
+                    status: targetStatus,
+                    mode: MarketplaceBattleMode.CROSS_SHOP,
+                },
+            });
+
+            await this.createMarketplaceBattleNotification(tx, {
+                userId: invitedUserId,
+                type: 'marketplace_battle_challenge_accepted',
+                title: 'Shop Battle Created',
+                body: `Your shop battle "${updatedBattle.title}" is now ${targetStatus === MarketplaceBattleStatus.LIVE ? 'live' : 'scheduled'}.`,
+                dedupeKey: `marketplace_battle_challenge_accepted_self:${battleId}`,
+                metadata: {
+                    battleId,
+                    status: targetStatus,
+                    mode: MarketplaceBattleMode.CROSS_SHOP,
+                },
+            });
+
+            return { invite: updatedInvite, battle: updatedBattle };
+        });
+
+        await Promise.all([
+            this.notificationService.sendMarketplaceBattleChallengeAccepted(
+                result.battle.sellerId,
+                battleId,
+            ),
+            this.notificationService.sendMarketplaceBattleChallengeAccepted(
+                invitedUserId,
+                battleId,
+            ),
+        ]);
+
+        return {
+            message: 'Cross-shop battle challenge accepted',
+            ...result,
+        };
+    }
+
+    async declineCrossShopChallenge(userId: string, battleId: string) {
+        const invitedUserId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`
+                SELECT id
+                FROM "MarketplaceBattle"
+                WHERE id = ${battleId}
+                FOR UPDATE
+            `;
+
+            const invite = await tx.marketplaceBattleChallengeInvite.findUnique({
+                where: { battleId },
+                include: {
+                    battle: {
+                        select: MARKETPLACE_BATTLE_BASE_SELECT,
+                    },
+                },
+            });
+
+            if (!invite || invite.invitedUserId !== invitedUserId) {
+                throw new NotFoundException('Challenge invite not found');
+            }
+            if (invite.status !== BattleInviteStatus.PENDING) {
+                throw new BadRequestException('Challenge invite is not pending');
+            }
+            if (invite.battle.status !== MarketplaceBattleStatus.PENDING_INVITE) {
+                throw new BadRequestException('Battle is not awaiting invite response');
+            }
+
+            const updatedInvite = await tx.marketplaceBattleChallengeInvite.update({
+                where: { id: invite.id },
+                data: {
+                    status: BattleInviteStatus.DECLINED,
+                    respondedAt: now,
+                },
+            });
+
+            const updatedBattle = await tx.marketplaceBattle.update({
+                where: { id: battleId },
+                data: {
+                    status: MarketplaceBattleStatus.CANCELLED,
+                    outcome: MarketplaceBattleOutcome.CANCELLED,
+                    completedAt: now,
+                },
+                select: MARKETPLACE_BATTLE_BASE_SELECT,
+            });
+
+            if (!invite.battle.stakeSettled) {
+                await this.refundStakePoints(tx, invite.battle.sellerId, invite.battle.stakeAmount ?? 0);
+                await tx.marketplaceBattle.update({
+                    where: { id: battleId },
+                    data: { stakeSettled: true },
+                });
+            }
+
+            await this.createMarketplaceBattleNotification(tx, {
+                userId: invite.battle.sellerId,
+                type: 'marketplace_battle_challenge_declined',
+                title: 'Shop Battle Declined',
+                body: `Your cross-shop battle challenge was declined.`,
+                dedupeKey: `marketplace_battle_challenge_declined:${battleId}`,
+                metadata: {
+                    battleId,
+                    status: MarketplaceBattleStatus.CANCELLED,
+                },
+            });
+
+            return { invite: updatedInvite, battle: updatedBattle };
+        });
+
+        await this.notificationService.sendMarketplaceBattleChallengeDeclined(
+            result.battle.sellerId,
+            battleId,
+        );
+
+        return {
+            message: 'Cross-shop battle challenge declined',
+            ...result,
+        };
+    }
+
+    async cancelCrossShopChallenge(userId: string, battleId: string) {
+        const challengerId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const result = await this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`
+                SELECT id
+                FROM "MarketplaceBattle"
+                WHERE id = ${battleId}
+                FOR UPDATE
+            `;
+
+            const invite = await tx.marketplaceBattleChallengeInvite.findUnique({
+                where: { battleId },
+                include: {
+                    battle: {
+                        select: MARKETPLACE_BATTLE_BASE_SELECT,
+                    },
+                },
+            });
+
+            if (!invite || invite.battle.sellerId !== challengerId) {
+                throw new NotFoundException('Challenge invite not found');
+            }
+            if (invite.battle.status !== MarketplaceBattleStatus.PENDING_INVITE) {
+                throw new BadRequestException('Only pending challenges can be cancelled with this endpoint');
+            }
+            if (invite.status !== BattleInviteStatus.PENDING) {
+                throw new BadRequestException('Challenge invite is not pending');
+            }
+
+            const updatedInvite = await tx.marketplaceBattleChallengeInvite.update({
+                where: { id: invite.id },
+                data: {
+                    status: BattleInviteStatus.CANCELED,
+                    respondedAt: now,
+                },
+            });
+
+            const updatedBattle = await tx.marketplaceBattle.update({
+                where: { id: battleId },
+                data: {
+                    status: MarketplaceBattleStatus.CANCELLED,
+                    outcome: MarketplaceBattleOutcome.CANCELLED,
+                    completedAt: now,
+                },
+                select: MARKETPLACE_BATTLE_BASE_SELECT,
+            });
+
+            if (!invite.battle.stakeSettled) {
+                await this.refundStakePoints(tx, challengerId, invite.battle.stakeAmount ?? 0);
+                await tx.marketplaceBattle.update({
+                    where: { id: battleId },
+                    data: { stakeSettled: true },
+                });
+            }
+
+            await this.createMarketplaceBattleNotification(tx, {
+                userId: invite.invitedUserId,
+                type: 'marketplace_battle_challenge_cancelled',
+                title: 'Shop Battle Challenge Cancelled',
+                body: 'A shop battle challenge was cancelled by the challenger.',
+                dedupeKey: `marketplace_battle_challenge_cancelled:${battleId}`,
+                metadata: {
+                    battleId,
+                    status: MarketplaceBattleStatus.CANCELLED,
+                },
+            });
+
+            return { invite: updatedInvite, battle: updatedBattle };
+        });
+
+        return {
+            message: 'Cross-shop battle challenge cancelled',
+            ...result,
+        };
+    }
+
     async listMyBattles(userId: string, query: MarketplaceBattleListQueryDto) {
         const sellerId = this.assertSellerUserId(userId);
 
@@ -1895,7 +2685,7 @@ export class MarketplaceBattlesService {
         const skip = (page - 1) * limit;
 
         const where: Prisma.MarketplaceBattleWhereInput = {
-            sellerId,
+            OR: [{ sellerId }, { opponentSellerId: sellerId }],
         };
 
         const [total, battles] = await this.prisma.$transaction([
@@ -1942,6 +2732,7 @@ export class MarketplaceBattlesService {
             select: {
                 id: true,
                 sellerId: true,
+                opponentSellerId: true,
             },
         });
 
@@ -1953,7 +2744,7 @@ export class MarketplaceBattlesService {
             where: { battleId },
         });
 
-        if (battle.sellerId === viewerUserId) {
+        if (battle.sellerId === viewerUserId || battle.opponentSellerId === viewerUserId) {
             const sellerBattle = await this.getSellerBattleDetailsOrThrow(viewerUserId, battleId);
             const winnerProductId =
                 sellerBattle.winnerParticipant?.product?.id ??
@@ -1982,19 +2773,21 @@ export class MarketplaceBattlesService {
 
         const [totalBattlesCreated, votesCount, viewsCount] = await Promise.all([
             this.prisma.marketplaceBattle.count({
-                where: { sellerId },
+                where: {
+                    OR: [{ sellerId }, { opponentSellerId: sellerId }],
+                },
             }),
             this.prisma.marketplaceBattleVote.count({
                 where: {
                     battle: {
-                        sellerId,
+                        OR: [{ sellerId }, { opponentSellerId: sellerId }],
                     },
                 },
             }),
             this.prisma.marketplaceBattleView.count({
                 where: {
                     battle: {
-                        sellerId,
+                        OR: [{ sellerId }, { opponentSellerId: sellerId }],
                     },
                 },
             }),
@@ -3063,17 +3856,21 @@ export class MarketplaceBattlesService {
         };
 
         const where: Prisma.MarketplaceBattleWhereInput = {
-            closetId,
-            AND: [this.getVisibilityWhere(viewerUserId)],
-            ...(statusFilter
-                ? getStatusWhere(statusFilter)
-                : {
-                    OR: [
-                        getStatusWhere('LIVE'),
-                        getStatusWhere('SCHEDULED'),
-                        getStatusWhere('COMPLETED'),
-                    ],
-                }),
+            AND: [
+                this.closetInvolvedWhere(closetId),
+                this.getVisibilityWhere(viewerUserId),
+                ...(statusFilter
+                    ? [getStatusWhere(statusFilter)]
+                    : [
+                        {
+                            OR: [
+                                getStatusWhere('LIVE'),
+                                getStatusWhere('SCHEDULED'),
+                                getStatusWhere('COMPLETED'),
+                            ],
+                        },
+                    ]),
+            ],
         };
 
         const [total, battles] = await this.prisma.$transaction([
@@ -3117,11 +3914,15 @@ export class MarketplaceBattlesService {
 
         const battles = await this.prisma.marketplaceBattle.findMany({
             where: {
-                closetId,
-                status: {
-                    in: [MarketplaceBattleStatus.LIVE, MarketplaceBattleStatus.COMPLETED],
-                },
-                AND: [this.getVisibilityWhere(viewerUserId)],
+                AND: [
+                    this.closetInvolvedWhere(closetId),
+                    {
+                        status: {
+                            in: [MarketplaceBattleStatus.LIVE, MarketplaceBattleStatus.COMPLETED],
+                        },
+                    },
+                    this.getVisibilityWhere(viewerUserId),
+                ],
             },
             orderBy: { createdAt: 'desc' },
             select: MARKETPLACE_BATTLE_PUBLIC_SELECT,
@@ -3405,6 +4206,10 @@ export class MarketplaceBattlesService {
                         select: {
                             id: true,
                             sellerId: true,
+                            opponentSellerId: true,
+                            mode: true,
+                            stakeAmount: true,
+                            stakeSettled: true,
                             status: true,
                             startAt: true,
                             endAt: true,
@@ -3417,7 +4222,7 @@ export class MarketplaceBattlesService {
                         throw new NotFoundException('Marketplace battle not found');
                     }
 
-                    this.ensureOwnership(battle, sellerId);
+                    this.ensureParticipantSeller(battle, sellerId);
 
                     if (battle.status === MarketplaceBattleStatus.DRAFT) {
                         throw new BadRequestException(
@@ -3431,6 +4236,12 @@ export class MarketplaceBattlesService {
 
                     if (battle.status === MarketplaceBattleStatus.CANCELLED) {
                         throw new ConflictException('Marketplace battle is already cancelled');
+                    }
+
+                    if (battle.status === MarketplaceBattleStatus.PENDING_INVITE) {
+                        throw new BadRequestException(
+                            'Pending cross-shop challenges must be cancelled using POST /marketplace-battles/:battleId/challenge/cancel',
+                        );
                     }
 
                     if (
@@ -3550,7 +4361,6 @@ export class MarketplaceBattlesService {
                     const transition = await tx.marketplaceBattle.updateMany({
                         where: {
                             id: battleId,
-                            sellerId,
                             status: {
                                 in: [MarketplaceBattleStatus.SCHEDULED, MarketplaceBattleStatus.LIVE],
                             },
@@ -3571,6 +4381,7 @@ export class MarketplaceBattlesService {
                             select: {
                                 id: true,
                                 sellerId: true,
+                                opponentSellerId: true,
                                 status: true,
                             },
                         });
@@ -3579,9 +4390,7 @@ export class MarketplaceBattlesService {
                             throw new NotFoundException('Marketplace battle not found');
                         }
 
-                        if (latest.sellerId !== sellerId) {
-                            throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
-                        }
+                        this.ensureParticipantSeller(latest, sellerId);
 
                         if (latest.status === MarketplaceBattleStatus.DRAFT) {
                             throw new BadRequestException(
@@ -3598,6 +4407,18 @@ export class MarketplaceBattlesService {
                         }
 
                         throw new ConflictException('Marketplace battle is no longer cancellable');
+                    }
+
+                    if (
+                        battle.mode === MarketplaceBattleMode.CROSS_SHOP &&
+                        !battle.stakeSettled &&
+                        (battle.stakeAmount ?? 0) > 0
+                    ) {
+                        await this.refundStakePoints(tx, battle.sellerId, battle.stakeAmount ?? 0);
+                        await tx.marketplaceBattle.update({
+                            where: { id: battleId },
+                            data: { stakeSettled: true },
+                        });
                     }
 
                     const cancelledBattle = await tx.marketplaceBattle.findUnique({

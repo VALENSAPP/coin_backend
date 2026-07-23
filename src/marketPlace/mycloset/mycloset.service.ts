@@ -6,6 +6,7 @@ import { CreateMyclosetDto } from './dto/create-mycloset.dto';
 import { UpdateMyclosetDto } from './dto/update-mycloset.dto';
 import { CreateClosetItemDto } from './dto/create-closet-item.dto';
 import { UpdateClosetItemDto } from './dto/update-closet-item.dto';
+import { ListShopsQueryDto } from './dto/list-shops-query.dto';
 
 const MYCLOSET_LOGOS_FOLDER = 'mycloset-logos';
 const CLOSET_ITEMS_FOLDER = 'closet-items';
@@ -129,6 +130,120 @@ export class MyclosetService {
     });
     if (!closet) throw new NotFoundException('Mycloset not found');
     return closet;
+  }
+
+  async listAllShops(query: ListShopsQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const skip = (page - 1) * limit;
+    const search = query.search?.trim();
+    const shopCategory = query.shopCategory?.trim();
+
+    const where: Prisma.MyclosetWhereInput = {
+      user: {
+        isDeleted: 0,
+        deletedAt: null,
+      },
+      ...(shopCategory
+        ? {
+            shopCategory: {
+              equals: shopCategory,
+              mode: 'insensitive',
+            },
+          }
+        : {}),
+      ...(search
+        ? {
+            OR: [
+              { shopName: { contains: search, mode: 'insensitive' } },
+              { shopUsername: { contains: search, mode: 'insensitive' } },
+              { shopCategory: { contains: search, mode: 'insensitive' } },
+              { location: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+              {
+                user: {
+                  OR: [
+                    { userName: { contains: search, mode: 'insensitive' } },
+                    { displayName: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, shops] = await this.prisma.$transaction([
+      this.prisma.mycloset.count({ where }),
+      this.prisma.mycloset.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          userId: true,
+          shopName: true,
+          shopUsername: true,
+          shopLogo: true,
+          description: true,
+          shopCategory: true,
+          location: true,
+          whoCanBuy: true,
+          shippingOptions: true,
+          createdAt: true,
+          updatedAt: true,
+          user: {
+            select: {
+              id: true,
+              userName: true,
+              displayName: true,
+              image: true,
+              profile: true,
+            },
+          },
+          _count: {
+            select: {
+              closetItems: {
+                where: {
+                  isActive: true,
+                  isDeleted: false,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      shops: shops.map((shop) => ({
+        id: shop.id,
+        userId: shop.userId,
+        shopName: shop.shopName,
+        shopUsername: shop.shopUsername,
+        shopLogo: shop.shopLogo,
+        description: shop.description,
+        shopCategory: shop.shopCategory,
+        location: shop.location,
+        whoCanBuy: shop.whoCanBuy,
+        shippingOptions: shop.shippingOptions,
+        createdAt: shop.createdAt,
+        updatedAt: shop.updatedAt,
+        activeItemCount: shop._count.closetItems,
+        owner: {
+          id: shop.user.id,
+          userName: shop.user.userName,
+          displayName: shop.user.displayName,
+          image: shop.user.image,
+          profile: shop.user.profile,
+        },
+      })),
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
   }
 
   async findById(id: string) {

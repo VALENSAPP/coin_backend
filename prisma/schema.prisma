@@ -123,6 +123,7 @@ model User {
   battleActivities            BattleActivity[]
   battleAchievements          BattleAchievement[]
   marketplaceBattlesCreated   MarketplaceBattle[]        @relation("MarketplaceBattleSeller")
+  marketplaceBattlesAsOpponent MarketplaceBattle[]       @relation("MarketplaceBattleOpponentSeller")
   marketplaceBattleVotes      MarketplaceBattleVote[]    @relation("MarketplaceBattleVoter")
   marketplaceBattleComments   MarketplaceBattleComment[] @relation("MarketplaceBattleCommentAuthor")
   marketplaceBattleCommentReactions MarketplaceBattleCommentReaction[]
@@ -130,6 +131,8 @@ model User {
   marketplaceWinnerPromotions MarketplaceWinnerPromotion[]
   marketplaceBattleBoosts     MarketplaceBattleBoost[]
   marketplaceBattlePointsAwards MarketplaceBattlePointsAward[]
+  marketplaceBattleChallengesSent     MarketplaceBattleChallengeInvite[] @relation("MarketplaceBattleChallengeInviter")
+  marketplaceBattleChallengesReceived MarketplaceBattleChallengeInvite[] @relation("MarketplaceBattleChallengeInvited")
   battleStats                 UserBattleStats?
   deviceAccounts              DeviceAccount[]
   trustVotes                  PostTrustVote[]
@@ -173,7 +176,8 @@ model Mycloset {
   closetItems        ClosetItems[]
   closetViews        ClosetView[]
   orders             Order[]
-  marketplaceBattles MarketplaceBattle[]
+  marketplaceBattles MarketplaceBattle[] @relation("MarketplaceBattlePrimaryCloset")
+  opponentMarketplaceBattles MarketplaceBattle[] @relation("MarketplaceBattleOpponentCloset")
   winnerPromotions   MarketplaceWinnerPromotion[]
   battleBoosts       MarketplaceBattleBoost[]
   shopEbooks         ShopEbook[]
@@ -1537,11 +1541,20 @@ model MarketplaceBattle {
   winnerParticipantId String?
   totalVotes          Int                      @default(0)
   totalComments       Int                      @default(0)
+  mode                MarketplaceBattleMode    @default(SAME_CLOSET)
+  question            String?
+  stakeAmount         Float?
+  stakeSettled        Boolean                  @default(false)
+  opponentSellerId    String?
+  opponentClosetId    String?
+  inviteExpiresAt     DateTime?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
 
   seller            User                           @relation("MarketplaceBattleSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  closet            Mycloset                       @relation(fields: [closetId], references: [id], onDelete: Restrict)
+  opponentSeller    User?                          @relation("MarketplaceBattleOpponentSeller", fields: [opponentSellerId], references: [id], onDelete: Restrict)
+  closet            Mycloset                       @relation("MarketplaceBattlePrimaryCloset", fields: [closetId], references: [id], onDelete: Restrict)
+  opponentCloset    Mycloset?                      @relation("MarketplaceBattleOpponentCloset", fields: [opponentClosetId], references: [id], onDelete: Restrict)
   participants      MarketplaceBattleParticipant[] @relation("MarketplaceBattleParticipants")
   votes             MarketplaceBattleVote[]
   comments          MarketplaceBattleComment[]
@@ -1550,14 +1563,39 @@ model MarketplaceBattle {
   winnerPromotions  MarketplaceWinnerPromotion[]
   boosts            MarketplaceBattleBoost[]
   pointsAwards      MarketplaceBattlePointsAward[]
+  challengeInvite   MarketplaceBattleChallengeInvite?
 
   @@index([sellerId])
   @@index([closetId])
+  @@index([opponentSellerId])
+  @@index([opponentClosetId])
   @@index([status])
+  @@index([mode])
   @@index([startAt])
   @@index([endAt])
+  @@index([inviteExpiresAt])
   @@index([status, startAt])
   @@index([status, endAt])
+}
+
+model MarketplaceBattleChallengeInvite {
+  id                  String             @id @default(uuid())
+  battleId            String             @unique
+  inviterId           String
+  invitedUserId       String
+  challengerProductId String
+  opponentProductId   String
+  status              BattleInviteStatus @default(PENDING)
+  createdAt           DateTime           @default(now())
+  respondedAt         DateTime?
+
+  battle  MarketplaceBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  inviter User              @relation("MarketplaceBattleChallengeInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+  invited User              @relation("MarketplaceBattleChallengeInvited", fields: [invitedUserId], references: [id], onDelete: Restrict)
+
+  @@index([inviterId])
+  @@index([invitedUserId])
+  @@index([status])
 }
 
 model MarketplaceBattleParticipant {
@@ -1917,10 +1955,16 @@ enum BattleInviteStatus {
 
 enum MarketplaceBattleStatus {
   DRAFT
+  PENDING_INVITE
   SCHEDULED
   LIVE
   COMPLETED
   CANCELLED
+}
+
+enum MarketplaceBattleMode {
+  SAME_CLOSET
+  CROSS_SHOP
 }
 
 enum MarketplaceBattleOutcome {

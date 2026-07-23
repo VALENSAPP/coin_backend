@@ -27,10 +27,12 @@ import {
     ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { CreateCrossShopChallengeDto } from './dto/create-cross-shop-challenge.dto';
 import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto';
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
 import { ReactMarketplaceBattleCommentDto } from './dto/react-marketplace-battle-comment.dto';
 import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
+import { MarketplaceBattleChallengeListQueryDto } from './dto/marketplace-battle-challenge-list-query.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleListQueryDto } from './dto/marketplace-battle-list-query.dto';
 import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
@@ -68,6 +70,102 @@ export class MarketplaceBattlesController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.marketplaceBattlesService.createDraftBattle(userId, dto);
+    }
+
+    @Post('challenge')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Challenge another shop to a cross-shop marketplace battle',
+        description:
+            'Creates a PENDING_INVITE battle between your product and an opponent shop product. Optional platform-points stake is locked from the challenger until accept/decline/expire/complete.',
+    })
+    @ApiCreatedResponse({ description: 'Challenge created and invite sent' })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiBadRequestResponse({ description: 'Validation or business-rule error' })
+    @ApiNotFoundResponse({ description: 'Closet or product not found' })
+    async createCrossShopChallenge(
+        @Req() req: Request,
+        @Body(
+            new ValidationPipe({
+                whitelist: true,
+                forbidNonWhitelisted: true,
+                transform: true,
+            }),
+        )
+        dto: CreateCrossShopChallengeDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.createCrossShopChallenge(userId, dto);
+    }
+
+    @Get('challenges/incoming')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'List pending incoming cross-shop battle challenges' })
+    @ApiQuery({ name: 'page', required: false, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, example: 10 })
+    async listIncomingChallenges(
+        @Req() req: Request,
+        @Query(new ValidationPipe({ whitelist: true, transform: true }))
+        query: MarketplaceBattleChallengeListQueryDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.listIncomingChallenges(userId, query);
+    }
+
+    @Get('challenges/outgoing')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'List outgoing cross-shop battle challenges' })
+    @ApiQuery({ name: 'page', required: false, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, example: 10 })
+    async listOutgoingChallenges(
+        @Req() req: Request,
+        @Query(new ValidationPipe({ whitelist: true, transform: true }))
+        query: MarketplaceBattleChallengeListQueryDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.listOutgoingChallenges(userId, query);
+    }
+
+    @Post(':battleId/challenge/accept')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Accept a pending cross-shop battle challenge' })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
+    async acceptCrossShopChallenge(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.acceptCrossShopChallenge(userId, battleId);
+    }
+
+    @Post(':battleId/challenge/decline')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Decline a pending cross-shop battle challenge' })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
+    async declineCrossShopChallenge(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.declineCrossShopChallenge(userId, battleId);
+    }
+
+    @Post(':battleId/challenge/cancel')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Cancel your pending outgoing cross-shop battle challenge' })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
+    async cancelCrossShopChallenge(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.cancelCrossShopChallenge(userId, battleId);
     }
 
     @Get('me')

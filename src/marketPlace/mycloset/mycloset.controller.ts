@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UploadedFile,
   UploadedFiles,
@@ -16,7 +17,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { MyclosetService } from './mycloset.service';
 import { CreateMyclosetDto } from './dto/create-mycloset.dto';
@@ -24,6 +25,7 @@ import { UpdateMyclosetDto } from './dto/update-mycloset.dto';
 import { CreateClosetItemDto } from './dto/create-closet-item.dto';
 import { UpdateClosetItemDto } from './dto/update-closet-item.dto';
 import { FindClosetByUserDto } from './dto/find-closet-by-user.dto';
+import { ListShopsQueryDto } from './dto/list-shops-query.dto';
 
 @ApiTags('mycloset')
 @Controller('mycloset')
@@ -70,6 +72,24 @@ export class MyclosetController {
   async findMine(@Req() req: Request) {
     const userId = (req.user as any)?.userId;
     return this.myclosetService.findMine(userId);
+  }
+
+  @Get('shops')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'List all shops (My Closets) with optional search filter',
+    description:
+      'Returns paginated shops for all active users. Search matches shop name, username, category, location, description, and owner username/display name.',
+  })
+  @ApiQuery({ name: 'search', required: false, example: 'graziela' })
+  @ApiQuery({ name: 'shopCategory', required: false, example: 'Fashion' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  async listAllShops(
+    @Query(new ValidationPipe({ whitelist: true, transform: true })) query: ListShopsQueryDto,
+  ) {
+    return this.myclosetService.listAllShops(query);
   }
 
   @Post('items')

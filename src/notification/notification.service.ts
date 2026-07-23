@@ -682,6 +682,89 @@ export class NotificationService {
     );
   }
 
+  async sendMarketplaceBattleChallenge(invitedUserId: string, battleId: string): Promise<void> {
+    const battle = await this.prisma.marketplaceBattle.findUnique({
+      where: { id: battleId },
+      select: {
+        id: true,
+        sellerId: true,
+        question: true,
+        stakeAmount: true,
+        inviteExpiresAt: true,
+        endAt: true,
+        closet: {
+          select: {
+            shopName: true,
+            shopUsername: true,
+          },
+        },
+        seller: {
+          select: {
+            userName: true,
+            displayName: true,
+          },
+        },
+      },
+    });
+
+    if (!battle) return;
+
+    const inviterName =
+      battle.closet?.shopName ||
+      battle.seller?.userName ||
+      battle.seller?.displayName ||
+      'A shop';
+
+    return this.sendNotificationToUser(
+      invitedUserId,
+      'Shop Battle Challenge',
+      `${inviterName} challenged your shop to a battle.`,
+      {
+        type: 'marketplace_battle_challenge',
+        battleId,
+        inviterId: battle.sellerId,
+        question: battle.question || '',
+        stakeAmount: String(battle.stakeAmount ?? 0),
+        inviteExpiresAt: battle.inviteExpiresAt?.toISOString() || '',
+        endAt: battle.endAt?.toISOString() || '',
+        deepLink: `valens://marketplace-battle/challenge/${battle.id}`,
+        notificationCategory: 'MARKETPLACE_BATTLE_CHALLENGE',
+        expandedTitle: 'SHOP_BATTLE_CHALLENGE',
+        primaryAction: 'ACCEPT_MARKETPLACE_BATTLE',
+        secondaryAction: 'DECLINE_MARKETPLACE_BATTLE',
+      },
+    );
+  }
+
+  async sendMarketplaceBattleChallengeAccepted(userId: string, battleId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      'Shop Battle Accepted',
+      'A cross-shop battle challenge was accepted. The battle is ready.',
+      {
+        type: 'marketplace_battle_challenge_accepted',
+        battleId,
+        deepLink: `valens://marketplace-battle/${battleId}`,
+        notificationCategory: 'MARKETPLACE_BATTLE_CHALLENGE',
+        primaryAction: 'VIEW_BATTLE',
+      },
+    );
+  }
+
+  async sendMarketplaceBattleChallengeDeclined(userId: string, battleId: string): Promise<void> {
+    return this.sendNotificationToUser(
+      userId,
+      'Shop Battle Declined',
+      'Your cross-shop battle challenge was declined. Stake points were refunded if any.',
+      {
+        type: 'marketplace_battle_challenge_declined',
+        battleId,
+        deepLink: `valens://marketplace-battle/challenge/${battleId}`,
+        notificationCategory: 'MARKETPLACE_BATTLE_CHALLENGE',
+      },
+    );
+  }
+
   async sendNewFollower(followingId: string, followerId: string): Promise<void> {
     const [follower, totalFollowers, ownerStats, followerTotalFollowers, followerStats] = await Promise.all([
       this.prisma.user.findUnique({

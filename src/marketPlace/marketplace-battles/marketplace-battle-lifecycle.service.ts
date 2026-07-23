@@ -34,6 +34,7 @@ type LifecycleRunStats = {
     activated: number;
     completed: number;
     winnerPromotionsExpired: number;
+    challengesExpired: number;
     skipped: number;
     failed: number;
 };
@@ -74,6 +75,7 @@ export class MarketplaceBattleLifecycleService {
                 activated: 0,
                 completed: 0,
                 winnerPromotionsExpired: 0,
+                challengesExpired: 0,
                 skipped: 0,
                 failed: 0,
             };
@@ -85,6 +87,7 @@ export class MarketplaceBattleLifecycleService {
             activated: 0,
             completed: 0,
             winnerPromotionsExpired: 0,
+            challengesExpired: 0,
             skipped: 0,
             failed: 0,
         };
@@ -92,18 +95,101 @@ export class MarketplaceBattleLifecycleService {
         this.logger.debug(`Marketplace lifecycle worker started at ${now.toISOString()}`);
 
         try {
+            await this.processExpiredCrossShopChallenges(now, stats);
             await this.processScheduledActivations(now, stats);
             await this.processExpiredScheduledBattles(now, stats);
             await this.processExpiredLiveBattles(now, stats);
             await this.processExpiredWinnerPromotions(now, stats);
 
             this.logger.debug(
-                `Marketplace lifecycle worker finished: activated=${stats.activated}, completed=${stats.completed}, winnerPromotionsExpired=${stats.winnerPromotionsExpired}, skipped=${stats.skipped}, failed=${stats.failed}`,
+                `Marketplace lifecycle worker finished: activated=${stats.activated}, completed=${stats.completed}, winnerPromotionsExpired=${stats.winnerPromotionsExpired}, challengesExpired=${stats.challengesExpired}, skipped=${stats.skipped}, failed=${stats.failed}`,
             );
 
             return stats;
         } finally {
             this.isRunning = false;
+        }
+    }
+
+    private async processExpiredCrossShopChallenges(now: Date, stats: LifecycleRunStats) {
+        const expiredBattles = await this.prisma.marketplaceBattle.findMany({
+            where: {
+                status: MarketplaceBattleStatus.PENDING_INVITE,
+                inviteExpiresAt: { lte: now },
+            },
+            take: MARKETPLACE_BATTLE_LIFECYCLE_BATCH_SIZE,
+            select: {
+                id: true,
+                sellerId: true,
+                opponentSellerId: true,
+                title: true,
+                stakeAmount: true,
+                stakeSettled: true,
+            },
+        });
+
+        for (const battle of expiredBattles) {
+            try {
+                await this.prisma.$transaction(async (tx) => {
+                    const locked = await tx.marketplaceBattle.updateMany({
+                        where: {
+                            id: battle.id,
+                            status: MarketplaceBattleStatus.PENDING_INVITE,
+                            inviteExpiresAt: { lte: now },
+                        },
+                        data: {
+                            status: MarketplaceBattleStatus.CANCELLED,
+                            outcome: MarketplaceBattleOutcome.CANCELLED,
+                            completedAt: now,
+                        },
+                    });
+
+                    if (locked.count !== 1) {
+                        return;
+                    }
+
+                    await tx.marketplaceBattleChallengeInvite.updateMany({
+                        where: {
+                            battleId: battle.id,
+                            status: 'PENDING',
+                        },
+                        data: {
+                            status: 'CANCELED',
+                            respondedAt: now,
+                        },
+                    });
+
+                    if (!battle.stakeSettled && (battle.stakeAmount ?? 0) > 0) {
+                        await tx.user.update({
+                            where: { id: battle.sellerId },
+                            data: { totalPlatformPoints: { increment: battle.stakeAmount ?? 0 } },
+                        });
+                        await tx.marketplaceBattle.update({
+                            where: { id: battle.id },
+                            data: { stakeSettled: true },
+                        });
+                    }
+
+                    await this.createMarketplaceBattleNotification(tx, {
+                        userId: battle.sellerId,
+                        type: 'marketplace_battle_challenge_expired',
+                        title: 'Shop Battle Challenge Expired',
+                        body: `Your challenge "${battle.title || battle.id}" expired without a response.`,
+                        dedupeKey: `marketplace_battle_challenge_expired:${battle.id}`,
+                        metadata: {
+                            battleId: battle.id,
+                            status: MarketplaceBattleStatus.CANCELLED,
+                        },
+                    });
+                });
+
+                stats.challengesExpired += 1;
+            } catch (error) {
+                stats.failed += 1;
+                this.logger.error(
+                    `Failed expiring cross-shop challenge ${battle.id}: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
         }
     }
 
@@ -126,6 +212,7 @@ export class MarketplaceBattleLifecycleService {
                 select: {
                     id: true,
                     sellerId: true,
+                    opponentSellerId: true,
                     title: true,
                     status: true,
                     startAt: true,
@@ -147,6 +234,22 @@ export class MarketplaceBattleLifecycleService {
                         endAt: activatedBattle.endAt?.toISOString(),
                     },
                 });
+
+                if (activatedBattle.opponentSellerId && activatedBattle.opponentSellerId !== activatedBattle.sellerId) {
+                    await this.createMarketplaceBattleNotification(this.prisma, {
+                        userId: activatedBattle.opponentSellerId,
+                        type: 'marketplace_battle_live',
+                        title: 'Marketplace Battle Is Live',
+                        body: `Your marketplace battle "${activatedBattle.title || activatedBattle.id}" is now live.`,
+                        dedupeKey: `marketplace_battle_live_opponent:${activatedBattle.id}`,
+                        metadata: {
+                            battleId: activatedBattle.id,
+                            status: activatedBattle.status,
+                            startAt: activatedBattle.startAt?.toISOString(),
+                            endAt: activatedBattle.endAt?.toISOString(),
+                        },
+                    });
+                }
             }
         }
 
@@ -173,10 +276,14 @@ export class MarketplaceBattleLifecycleService {
                         select: {
                             id: true,
                             sellerId: true,
+                            opponentSellerId: true,
                             title: true,
                             status: true,
                             startAt: true,
                             endAt: true,
+                            mode: true,
+                            stakeAmount: true,
+                            stakeSettled: true,
                         },
                     });
 
@@ -350,6 +457,68 @@ export class MarketplaceBattleLifecycleService {
                             totalComments: String(authoritativeTotalComments),
                         },
                     });
+
+                    if (battle.opponentSellerId && battle.opponentSellerId !== battle.sellerId) {
+                        await this.createMarketplaceBattleNotification(tx, {
+                            userId: battle.opponentSellerId,
+                            type: 'marketplace_battle_completed',
+                            title:
+                                outcome === MarketplaceBattleOutcome.TIE
+                                    ? 'Marketplace Battle Ended In Tie'
+                                    : 'Marketplace Battle Completed',
+                            body:
+                                outcome === MarketplaceBattleOutcome.TIE
+                                    ? `Your marketplace battle "${battle.title || battle.id}" ended in a tie.`
+                                    : `Your marketplace battle "${battle.title || battle.id}" has a winner.`,
+                            dedupeKey: `marketplace_battle_completed_opponent:${battle.id}`,
+                            metadata: {
+                                battleId: battle.id,
+                                status: MarketplaceBattleStatus.COMPLETED,
+                                outcome,
+                                winnerParticipantId,
+                            },
+                        });
+                    }
+
+                    const stakeAmount = battle.stakeAmount ?? 0;
+                    if (
+                        battle.mode === 'CROSS_SHOP' &&
+                        stakeAmount > 0 &&
+                        !battle.stakeSettled
+                    ) {
+                        if (outcome === MarketplaceBattleOutcome.WINNER && winnerParticipantId) {
+                            const winnerParticipant = await tx.marketplaceBattleParticipant.findUnique({
+                                where: { id: winnerParticipantId },
+                                select: {
+                                    product: {
+                                        select: { userId: true },
+                                    },
+                                },
+                            });
+                            const winnerUserId = winnerParticipant?.product?.userId;
+                            if (winnerUserId) {
+                                await tx.user.update({
+                                    where: { id: winnerUserId },
+                                    data: { totalPlatformPoints: { increment: stakeAmount } },
+                                });
+                            } else {
+                                await tx.user.update({
+                                    where: { id: battle.sellerId },
+                                    data: { totalPlatformPoints: { increment: stakeAmount } },
+                                });
+                            }
+                        } else {
+                            await tx.user.update({
+                                where: { id: battle.sellerId },
+                                data: { totalPlatformPoints: { increment: stakeAmount } },
+                            });
+                        }
+
+                        await tx.marketplaceBattle.update({
+                            where: { id: battle.id },
+                            data: { stakeSettled: true },
+                        });
+                    }
 
                     await this.awardMarketplaceBattlePoints(tx, {
                         battleId: battle.id,
