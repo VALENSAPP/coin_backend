@@ -360,6 +360,7 @@ export class OrderService {
                 seller: {
                     select: {
                         userName: true,
+                        image: true,
                     },
                 },
                 items: {
@@ -405,6 +406,7 @@ export class OrderService {
                 productName: item.productName,
                 productImage: item.productImage,
                 sellerUserName: order.seller?.userName || null,
+                sellerImage: order.seller?.image || null,
                 quantity: item.quantity,
                 price: item.price,
                 subtotal: item.subtotal,
