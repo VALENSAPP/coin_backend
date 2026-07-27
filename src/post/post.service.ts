@@ -8,7 +8,6 @@ import {
   MarketplaceBattleStatus,
   MarketplaceWinnerPromotionStatus,
   Prisma,
-  WhoCanBuy,
 } from '@prisma/client';
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { applyVideoTextOverlays, VideoTextOverlayItem } from '../common/video-text-overlay.util';
@@ -1372,30 +1371,6 @@ export class PostService {
   }
 
 
-  private getMarketplaceFeedVisibilityWhere(viewerUserId?: string): Prisma.MarketplaceBattleWhereInput {
-    if (!viewerUserId) {
-      return { visibility: WhoCanBuy.Everyone };
-    }
-
-    return {
-      OR: [
-        { visibility: WhoCanBuy.Everyone },
-        { sellerId: viewerUserId },
-        {
-          visibility: WhoCanBuy.followers,
-          seller: {
-            followers: {
-              some: {
-                followerId: viewerUserId,
-                status: FollowStatus.ACCEPTED,
-              },
-            },
-          },
-        },
-      ],
-    };
-  }
-
   private isMarketplaceBoostPinActive(
     boost: {
       pinOnTop: boolean;
@@ -1453,11 +1428,10 @@ export class PostService {
         battle: {
           status: MarketplaceBattleStatus.COMPLETED,
           outcome: MarketplaceBattleOutcome.WINNER,
-          shareToFeed: true,
           winnerParticipantId: { not: null },
-          AND: [this.getMarketplaceFeedVisibilityWhere(viewerUserId)],
         },
       },
+
       orderBy: [{ activatedAt: 'desc' }, { createdAt: 'desc' }],
       select: {
         id: true,
