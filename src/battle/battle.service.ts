@@ -3,7 +3,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import {
   BattleStatus,
+  FollowStatus,
+  MarketplaceBattleBoostStatus,
+  MarketplaceBattleMode,
+  MarketplaceBattleOutcome,
+  MarketplaceBattleStatus,
+  MarketplaceWinnerPromotionStatus,
   Prisma,
+  WhoCanBuy,
 } from '@prisma/client';
 import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
@@ -1376,10 +1383,63 @@ export class BattleService {
   }
 
   async exploreBattles(userId: string, status?: string) {
+    const now = new Date();
     const parsedStatus = this.parseBattleStatus(status) || BattleStatus.LIVE;
+    const marketplaceStatus = this.mapBattleStatusToMarketplaceStatus(parsedStatus);
+
+    const [normalItems, marketplaceItems, boostedItems] = await Promise.all([
+      this.getExploreNormalBattles(parsedStatus),
+      marketplaceStatus
+        ? this.getExploreMarketplaceBattles(userId, marketplaceStatus, now)
+        : Promise.resolve([]),
+      parsedStatus === BattleStatus.LIVE
+        ? this.getExploreBoostedProducts(userId, now)
+        : Promise.resolve([]),
+    ]);
+
+    return [...normalItems, ...marketplaceItems, ...boostedItems].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
+
+  private mapBattleStatusToMarketplaceStatus(
+    status: BattleStatus,
+  ): MarketplaceBattleStatus | null {
+    if (status === BattleStatus.LIVE) return MarketplaceBattleStatus.LIVE;
+    if (status === BattleStatus.RESOLVED) return MarketplaceBattleStatus.COMPLETED;
+    return null;
+  }
+
+  private getMarketplaceVisibilityWhere(
+    viewerUserId?: string,
+  ): Prisma.MarketplaceBattleWhereInput {
+    if (!viewerUserId) {
+      return { visibility: WhoCanBuy.Everyone };
+    }
+
+    return {
+      OR: [
+        { visibility: WhoCanBuy.Everyone },
+        { sellerId: viewerUserId },
+        {
+          visibility: WhoCanBuy.followers,
+          seller: {
+            followers: {
+              some: {
+                followerId: viewerUserId,
+                status: FollowStatus.ACCEPTED,
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private async getExploreNormalBattles(status: BattleStatus) {
     const battles = await this.prisma.battle.findMany({
       where: {
-        status: parsedStatus,
+        status,
         isPublic: true,
       },
       include: {
@@ -1404,7 +1464,605 @@ export class BattleService {
     return (await this.formatBattleListItems(battles)).map((battle) => ({
       ...battle,
       typeByBattle: 'normal' as const,
+      feedItemType: 'normal_battle' as const,
     }));
+  }
+
+  private async getExploreMarketplaceBattles(
+    viewerUserId: string,
+    status: MarketplaceBattleStatus,
+    now: Date,
+  ) {
+    const where: Prisma.MarketplaceBattleWhereInput = {
+      status,
+      AND: [this.getMarketplaceVisibilityWhere(viewerUserId)],
+      ...(status === MarketplaceBattleStatus.LIVE
+        ? {
+            startAt: { lte: now },
+            endAt: { gt: now },
+            participants: {
+              every: {
+                product: {
+                  isActive: true,
+                  isDeleted: false,
+                },
+              },
+              some: {
+                product: {
+                  isActive: true,
+                  isDeleted: false,
+                },
+              },
+            },
+          }
+        : {}),
+    };
+
+    const battles = await this.prisma.marketplaceBattle.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        sellerId: true,
+        title: true,
+        description: true,
+        category: true,
+        visibility: true,
+        whoCanVote: true,
+        shareToFeed: true,
+        status: true,
+        outcome: true,
+        startAt: true,
+        endAt: true,
+        publishedAt: true,
+        completedAt: true,
+        winnerParticipantId: true,
+        totalVotes: true,
+        totalComments: true,
+        mode: true,
+        question: true,
+        stakeAmount: true,
+        opponentSellerId: true,
+        opponentClosetId: true,
+        inviteExpiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+        seller: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+          },
+        },
+        closet: {
+          select: {
+            id: true,
+            shopName: true,
+            shopUsername: true,
+            shopLogo: true,
+          },
+        },
+        opponentCloset: {
+          select: {
+            id: true,
+            shopName: true,
+            shopUsername: true,
+            shopLogo: true,
+          },
+        },
+        participants: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            position: true,
+            voteCount: true,
+            isWinner: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                images: true,
+                price: true,
+                quantity: true,
+                category: true,
+                brand: true,
+                condition: true,
+                isActive: true,
+                isDeleted: true,
+              },
+            },
+          },
+        },
+        winnerParticipant: {
+          select: {
+            id: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                images: true,
+                price: true,
+                quantity: true,
+                category: true,
+                brand: true,
+                condition: true,
+                isActive: true,
+                isDeleted: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return battles
+      .filter((battle) => {
+        if (status === MarketplaceBattleStatus.LIVE) {
+          return Boolean(
+            battle.startAt &&
+              battle.endAt &&
+              battle.startAt <= now &&
+              battle.endAt > now,
+          );
+        }
+        return true;
+      })
+      .filter((battle) => {
+        if (status === MarketplaceBattleStatus.COMPLETED) return true;
+        return battle.participants.every(
+          (participant) =>
+            participant.product &&
+            participant.product.isActive &&
+            !participant.product.isDeleted,
+        );
+      })
+      .map((battle) => this.mapExploreMarketplaceBattle(battle, now));
+  }
+
+  private mapExploreMarketplaceBattle(
+    battle: {
+      id: string;
+      sellerId: string;
+      title: string;
+      description: string | null;
+      category: string | null;
+      visibility: WhoCanBuy;
+      whoCanVote: WhoCanBuy;
+      shareToFeed: boolean;
+      status: string;
+      outcome: string;
+      startAt: Date | null;
+      endAt: Date | null;
+      publishedAt: Date | null;
+      completedAt: Date | null;
+      totalVotes: number;
+      totalComments: number;
+      mode: MarketplaceBattleMode;
+      question: string | null;
+      stakeAmount: number | null;
+      opponentSellerId: string | null;
+      inviteExpiresAt: Date | null;
+      createdAt: Date;
+      updatedAt: Date;
+      seller: {
+        id: string;
+        displayName: string | null;
+        userName: string | null;
+        image: string | null;
+      };
+      closet: {
+        id: string;
+        shopName: string;
+        shopUsername: string;
+        shopLogo: string | null;
+      };
+      opponentCloset: {
+        id: string;
+        shopName: string;
+        shopUsername: string;
+        shopLogo: string | null;
+      } | null;
+      participants: Array<{
+        id: string;
+        position: number;
+        voteCount: number;
+        isWinner: boolean;
+        product: {
+          id: string;
+          name: string;
+          images: string[];
+          price: number;
+          quantity: number;
+          category: string;
+          brand: string | null;
+          condition: string;
+          isActive: boolean;
+          isDeleted: boolean;
+        } | null;
+      }>;
+      winnerParticipant: {
+        id: string;
+        product: {
+          id: string;
+          name: string;
+          images: string[];
+          price: number;
+          quantity: number;
+          category: string;
+          brand: string | null;
+          condition: string;
+          isActive: boolean;
+          isDeleted: boolean;
+        } | null;
+      } | null;
+    },
+    now: Date,
+  ) {
+    const totalVotes = battle.totalVotes || 0;
+    const participants = battle.participants
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((participant) => {
+        const votePercentage =
+          totalVotes > 0
+            ? Math.round((participant.voteCount / totalVotes) * 10000) / 100
+            : 0;
+
+        return {
+          id: participant.id,
+          position: participant.position,
+          voteCount: participant.voteCount,
+          isWinner: participant.isWinner,
+          votePercentage,
+          product: participant.product
+            ? {
+                id: participant.product.id,
+                name: participant.product.name,
+                images: participant.product.images,
+                price: participant.product.price,
+                quantity: participant.product.quantity,
+                category: participant.product.category,
+                brand: participant.product.brand,
+                condition: participant.product.condition,
+              }
+            : null,
+        };
+      });
+
+    const remainingSeconds =
+      battle.status === 'LIVE' && battle.endAt
+        ? Math.max(0, Math.floor((battle.endAt.getTime() - now.getTime()) / 1000))
+        : battle.status === 'COMPLETED'
+          ? 0
+          : null;
+
+    const winner =
+      battle.status === 'COMPLETED' &&
+      battle.outcome === 'WINNER' &&
+      battle.winnerParticipant
+        ? {
+            participantId: battle.winnerParticipant.id,
+            product: battle.winnerParticipant.product
+              ? {
+                  id: battle.winnerParticipant.product.id,
+                  name: battle.winnerParticipant.product.name,
+                  images: battle.winnerParticipant.product.images,
+                  price: battle.winnerParticipant.product.price,
+                  quantity: battle.winnerParticipant.product.quantity,
+                  category: battle.winnerParticipant.product.category,
+                  brand: battle.winnerParticipant.product.brand,
+                  condition: battle.winnerParticipant.product.condition,
+                }
+              : null,
+          }
+        : null;
+
+    return {
+      id: battle.id,
+      title: battle.title,
+      description: battle.description,
+      category: battle.category,
+      visibility: battle.visibility,
+      whoCanVote: battle.whoCanVote,
+      shareToFeed: battle.shareToFeed,
+      status: battle.status,
+      outcome: battle.outcome,
+      startAt: battle.startAt,
+      endAt: battle.endAt,
+      publishedAt: battle.publishedAt,
+      completedAt: battle.completedAt,
+      totalVotes: battle.totalVotes,
+      totalComments: battle.totalComments,
+      mode: battle.mode ?? MarketplaceBattleMode.SAME_CLOSET,
+      question: battle.question ?? null,
+      stakeAmount: battle.stakeAmount ?? null,
+      opponentSellerId: battle.opponentSellerId ?? null,
+      inviteExpiresAt: battle.inviteExpiresAt ?? null,
+      createdAt: battle.createdAt,
+      updatedAt: battle.updatedAt,
+      remainingSeconds,
+      startsInSeconds: null,
+      seller: {
+        id: battle.seller.id,
+        name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
+        profileImage: battle.seller.image,
+      },
+      closet: {
+        id: battle.closet.id,
+        shopName: battle.closet.shopName,
+        shopUsername: battle.closet.shopUsername,
+        shopLogo: battle.closet.shopLogo,
+      },
+      opponentCloset: battle.opponentCloset
+        ? {
+            id: battle.opponentCloset.id,
+            shopName: battle.opponentCloset.shopName,
+            shopUsername: battle.opponentCloset.shopUsername,
+            shopLogo: battle.opponentCloset.shopLogo,
+          }
+        : null,
+      participants,
+      winnerProductId: winner?.product?.id ?? null,
+      winner,
+      typeByBattle: 'marketplace' as const,
+      feedItemType: 'marketplace_battle' as const,
+    };
+  }
+
+  private isMarketplaceBoostPinActive(
+    boost: {
+      pinOnTop: boolean;
+      pinStartAt: Date | null;
+      pinEndAt: Date | null;
+      startAt: Date | null;
+      endAt: Date | null;
+    },
+    now: Date,
+  ): boolean {
+    return Boolean(
+      boost.pinOnTop &&
+        ((boost.pinStartAt &&
+          boost.pinEndAt &&
+          boost.pinStartAt <= now &&
+          boost.pinEndAt > now) ||
+          (!boost.pinStartAt &&
+            !!boost.startAt &&
+            !!boost.endAt &&
+            boost.startAt <= now &&
+            boost.endAt > now)),
+    );
+  }
+
+  private isMarketplaceBoostBadgeActive(
+    boost: {
+      winnerBadge: boolean;
+      badgeStartAt: Date | null;
+      badgeEndAt: Date | null;
+      startAt: Date | null;
+      endAt: Date | null;
+    },
+    now: Date,
+  ): boolean {
+    return Boolean(
+      boost.winnerBadge &&
+        ((boost.badgeStartAt &&
+          boost.badgeEndAt &&
+          boost.badgeStartAt <= now &&
+          boost.badgeEndAt > now) ||
+          (!boost.badgeStartAt &&
+            !!boost.startAt &&
+            !!boost.endAt &&
+            boost.startAt <= now &&
+            boost.endAt > now)),
+    );
+  }
+
+  private async getExploreBoostedProducts(viewerUserId: string, now: Date) {
+    const boosts = await this.prisma.marketplaceBattleBoost.findMany({
+      where: {
+        status: MarketplaceBattleBoostStatus.ACTIVE,
+        endAt: { gt: now },
+        OR: [{ pinOnTop: true }, { winnerBadge: true }],
+        battle: {
+          status: MarketplaceBattleStatus.COMPLETED,
+          outcome: MarketplaceBattleOutcome.WINNER,
+          winnerParticipantId: { not: null },
+          AND: [this.getMarketplaceVisibilityWhere(viewerUserId)],
+        },
+      },
+      orderBy: [{ activatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+      select: {
+        id: true,
+        battleId: true,
+        pinOnTop: true,
+        winnerBadge: true,
+        startAt: true,
+        endAt: true,
+        pinStartAt: true,
+        pinEndAt: true,
+        badgeStartAt: true,
+        badgeEndAt: true,
+        battle: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            outcome: true,
+            completedAt: true,
+            totalVotes: true,
+            totalComments: true,
+            createdAt: true,
+            updatedAt: true,
+            seller: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            closet: {
+              select: {
+                id: true,
+                shopName: true,
+                shopUsername: true,
+                shopLogo: true,
+              },
+            },
+            winnerParticipant: {
+              select: {
+                id: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    images: true,
+                    price: true,
+                    quantity: true,
+                    category: true,
+                    brand: true,
+                    condition: true,
+                    isActive: true,
+                    isDeleted: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const deduped = new Map<string, (typeof boosts)[number]>();
+    for (const boost of boosts) {
+      if (!deduped.has(boost.battleId)) {
+        deduped.set(boost.battleId, boost);
+      }
+    }
+
+    const eligible = Array.from(deduped.values()).filter((boost) => {
+      const product = boost.battle.winnerParticipant?.product;
+      if (!product || product.isDeleted || !product.isActive) return false;
+      return (
+        this.isMarketplaceBoostPinActive(boost, now) ||
+        this.isMarketplaceBoostBadgeActive(boost, now)
+      );
+    });
+
+    if (!eligible.length) return [];
+
+    const battleIds = eligible.map((boost) => boost.battleId);
+    const promotions = await this.prisma.marketplaceWinnerPromotion.findMany({
+      where: {
+        battleId: { in: battleIds },
+        status: MarketplaceWinnerPromotionStatus.ACTIVE,
+        startAt: { lte: now },
+        endAt: { gt: now },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        battleId: true,
+        promoType: true,
+        message: true,
+        discountPercent: true,
+        freeShipping: true,
+        originalPrice: true,
+        promoPrice: true,
+        originalShippingFee: true,
+        promoShippingFee: true,
+        startAt: true,
+        endAt: true,
+      },
+    });
+
+    const promotionByBattleId = new Map<string, (typeof promotions)[number]>();
+    for (const promotion of promotions) {
+      if (!promotionByBattleId.has(promotion.battleId)) {
+        promotionByBattleId.set(promotion.battleId, promotion);
+      }
+    }
+
+    return eligible.map((boost) => {
+      const battle = boost.battle;
+      const product = battle.winnerParticipant!.product!;
+      const pinActive = this.isMarketplaceBoostPinActive(boost, now);
+      const badgeActive = this.isMarketplaceBoostBadgeActive(boost, now);
+      const promotion = promotionByBattleId.get(battle.id);
+
+      return {
+        id: battle.id,
+        createdAt: battle.createdAt,
+        updatedAt: battle.updatedAt,
+        typeByBattle: 'boosted_product' as const,
+        feedItemType: 'boosted_product' as const,
+        battleWinnerProduct: {
+          product: {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            images: product.images,
+            price: product.price,
+            quantity: product.quantity,
+            category: product.category,
+            brand: product.brand,
+            condition: product.condition,
+          },
+          battle: {
+            id: battle.id,
+            title: battle.title,
+            description: battle.description,
+            totalVotes: battle.totalVotes,
+            totalComments: battle.totalComments,
+            completedAt: battle.completedAt,
+            outcome: battle.outcome,
+            createdAt: battle.createdAt,
+          },
+          closet: {
+            id: battle.closet.id,
+            shopName: battle.closet.shopName,
+            shopUsername: battle.closet.shopUsername,
+            shopLogo: battle.closet.shopLogo,
+          },
+          seller: {
+            id: battle.seller.id,
+            name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
+            profileImage: battle.seller.image,
+          },
+          boost: {
+            boostId: boost.id,
+            pinOnTop: boost.pinOnTop,
+            winnerBadge: boost.winnerBadge,
+            isPinnedOnTop: pinActive,
+            hasWinnerBadge: badgeActive,
+            boostEndAt: boost.endAt,
+            remainingBoostSeconds: Math.max(
+              0,
+              Math.floor(((boost.endAt as Date).getTime() - now.getTime()) / 1000),
+            ),
+          },
+          winnerPromotion: promotion
+            ? {
+                id: promotion.id,
+                promoType: promotion.promoType,
+                message: promotion.message,
+                discountPercent: promotion.discountPercent,
+                freeShipping: promotion.freeShipping,
+                originalPrice: promotion.originalPrice,
+                promoPrice: promotion.promoPrice,
+                originalShippingFee: promotion.originalShippingFee,
+                promoShippingFee: promotion.promoShippingFee,
+                startAt: promotion.startAt,
+                endAt: promotion.endAt,
+              }
+            : null,
+        },
+      };
+    });
   }
 
   async myBattleTracking(userId: string, filter: string) {
