@@ -1806,6 +1806,7 @@ export class BattleService {
       participants,
       winnerProductId: winner?.product?.id ?? null,
       winner,
+      format: 'marketPlace' as const,
       typeByBattle: 'marketplace' as const,
       feedItemType: 'marketplace_battle' as const,
     };
@@ -1998,6 +1999,7 @@ export class BattleService {
         id: battle.id,
         createdAt: battle.createdAt,
         updatedAt: battle.updatedAt,
+        format: 'boosted' as const,
         typeByBattle: 'boosted_product' as const,
         feedItemType: 'boosted_product' as const,
         battleWinnerProduct: {
@@ -2031,6 +2033,7 @@ export class BattleService {
           seller: {
             id: battle.seller.id,
             name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
+            userName: battle.seller.userName,
             profileImage: battle.seller.image,
           },
           boost: {
