@@ -220,6 +220,7 @@ model ClosetItems {
   estimateShippingTime          String?
   pickupAddress                 String?                        @db.Text
   pickupAvailableHours          String?
+  pickUpCity                    String?
   buyerChatEnabled              Boolean?
   returnPolicy                  String?                        @db.Text
   createdAt                     DateTime                       @default(now())
