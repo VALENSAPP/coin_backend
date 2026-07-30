@@ -4,11 +4,8 @@ import { NotificationService } from '../notification/notification.service';
 import {
   BattleStatus,
   FollowStatus,
-  MarketplaceBattleBoostStatus,
   MarketplaceBattleMode,
-  MarketplaceBattleOutcome,
   MarketplaceBattleStatus,
-  MarketplaceWinnerPromotionStatus,
   Prisma,
   WhoCanBuy,
 } from '@prisma/client';
@@ -1387,17 +1384,14 @@ export class BattleService {
     const parsedStatus = this.parseBattleStatus(status) || BattleStatus.LIVE;
     const marketplaceStatus = this.mapBattleStatusToMarketplaceStatus(parsedStatus);
 
-    const [normalItems, marketplaceItems, boostedItems] = await Promise.all([
+    const [normalItems, marketplaceItems] = await Promise.all([
       this.getExploreNormalBattles(parsedStatus),
       marketplaceStatus
         ? this.getExploreMarketplaceBattles(userId, marketplaceStatus, now)
         : Promise.resolve([]),
-      parsedStatus === BattleStatus.LIVE
-        ? this.getExploreBoostedProducts(userId, now)
-        : Promise.resolve([]),
     ]);
 
-    return [...normalItems, ...marketplaceItems, ...boostedItems].sort(
+    return [...normalItems, ...marketplaceItems].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }
@@ -1810,262 +1804,6 @@ export class BattleService {
       typeByBattle: 'marketplace' as const,
       feedItemType: 'marketplace_battle' as const,
     };
-  }
-
-  private isMarketplaceBoostPinActive(
-    boost: {
-      pinOnTop: boolean;
-      pinStartAt: Date | null;
-      pinEndAt: Date | null;
-      startAt: Date | null;
-      endAt: Date | null;
-    },
-    now: Date,
-  ): boolean {
-    return Boolean(
-      boost.pinOnTop &&
-        ((boost.pinStartAt &&
-          boost.pinEndAt &&
-          boost.pinStartAt <= now &&
-          boost.pinEndAt > now) ||
-          (!boost.pinStartAt &&
-            !!boost.startAt &&
-            !!boost.endAt &&
-            boost.startAt <= now &&
-            boost.endAt > now)),
-    );
-  }
-
-  private isMarketplaceBoostBadgeActive(
-    boost: {
-      winnerBadge: boolean;
-      badgeStartAt: Date | null;
-      badgeEndAt: Date | null;
-      startAt: Date | null;
-      endAt: Date | null;
-    },
-    now: Date,
-  ): boolean {
-    return Boolean(
-      boost.winnerBadge &&
-        ((boost.badgeStartAt &&
-          boost.badgeEndAt &&
-          boost.badgeStartAt <= now &&
-          boost.badgeEndAt > now) ||
-          (!boost.badgeStartAt &&
-            !!boost.startAt &&
-            !!boost.endAt &&
-            boost.startAt <= now &&
-            boost.endAt > now)),
-    );
-  }
-
-  private async getExploreBoostedProducts(viewerUserId: string, now: Date) {
-    const boosts = await this.prisma.marketplaceBattleBoost.findMany({
-      where: {
-        status: MarketplaceBattleBoostStatus.ACTIVE,
-        endAt: { gt: now },
-        OR: [{ pinOnTop: true }, { winnerBadge: true }],
-        battle: {
-          status: MarketplaceBattleStatus.COMPLETED,
-          outcome: MarketplaceBattleOutcome.WINNER,
-          winnerParticipantId: { not: null },
-          AND: [this.getMarketplaceVisibilityWhere(viewerUserId)],
-        },
-      },
-      orderBy: [{ activatedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 50,
-      select: {
-        id: true,
-        battleId: true,
-        pinOnTop: true,
-        winnerBadge: true,
-        startAt: true,
-        endAt: true,
-        pinStartAt: true,
-        pinEndAt: true,
-        badgeStartAt: true,
-        badgeEndAt: true,
-        battle: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            outcome: true,
-            completedAt: true,
-            totalVotes: true,
-            totalComments: true,
-            createdAt: true,
-            updatedAt: true,
-            seller: {
-              select: {
-                id: true,
-                displayName: true,
-                userName: true,
-                image: true,
-              },
-            },
-            closet: {
-              select: {
-                id: true,
-                shopName: true,
-                shopUsername: true,
-                shopLogo: true,
-              },
-            },
-            winnerParticipant: {
-              select: {
-                id: true,
-                product: {
-                  select: {
-                    id: true,
-                    name: true,
-                    description: true,
-                    images: true,
-                    price: true,
-                    quantity: true,
-                    category: true,
-                    brand: true,
-                    condition: true,
-                    isActive: true,
-                    isDeleted: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    const deduped = new Map<string, (typeof boosts)[number]>();
-    for (const boost of boosts) {
-      if (!deduped.has(boost.battleId)) {
-        deduped.set(boost.battleId, boost);
-      }
-    }
-
-    const eligible = Array.from(deduped.values()).filter((boost) => {
-      const product = boost.battle.winnerParticipant?.product;
-      if (!product || product.isDeleted || !product.isActive) return false;
-      return (
-        this.isMarketplaceBoostPinActive(boost, now) ||
-        this.isMarketplaceBoostBadgeActive(boost, now)
-      );
-    });
-
-    if (!eligible.length) return [];
-
-    const battleIds = eligible.map((boost) => boost.battleId);
-    const promotions = await this.prisma.marketplaceWinnerPromotion.findMany({
-      where: {
-        battleId: { in: battleIds },
-        status: MarketplaceWinnerPromotionStatus.ACTIVE,
-        startAt: { lte: now },
-        endAt: { gt: now },
-      },
-      orderBy: [{ createdAt: 'desc' }],
-      select: {
-        id: true,
-        battleId: true,
-        promoType: true,
-        message: true,
-        discountPercent: true,
-        freeShipping: true,
-        originalPrice: true,
-        promoPrice: true,
-        originalShippingFee: true,
-        promoShippingFee: true,
-        startAt: true,
-        endAt: true,
-      },
-    });
-
-    const promotionByBattleId = new Map<string, (typeof promotions)[number]>();
-    for (const promotion of promotions) {
-      if (!promotionByBattleId.has(promotion.battleId)) {
-        promotionByBattleId.set(promotion.battleId, promotion);
-      }
-    }
-
-    return eligible.map((boost) => {
-      const battle = boost.battle;
-      const product = battle.winnerParticipant!.product!;
-      const pinActive = this.isMarketplaceBoostPinActive(boost, now);
-      const badgeActive = this.isMarketplaceBoostBadgeActive(boost, now);
-      const promotion = promotionByBattleId.get(battle.id);
-
-      return {
-        id: battle.id,
-        createdAt: battle.createdAt,
-        updatedAt: battle.updatedAt,
-        format: 'boosted' as const,
-        typeByBattle: 'boosted_product' as const,
-        feedItemType: 'boosted_product' as const,
-        battleWinnerProduct: {
-          product: {
-            id: product.id,
-            name: product.name,
-            description: product.description,
-            images: product.images,
-            price: product.price,
-            quantity: product.quantity,
-            category: product.category,
-            brand: product.brand,
-            condition: product.condition,
-          },
-          battle: {
-            id: battle.id,
-            title: battle.title,
-            description: battle.description,
-            totalVotes: battle.totalVotes,
-            totalComments: battle.totalComments,
-            completedAt: battle.completedAt,
-            outcome: battle.outcome,
-            createdAt: battle.createdAt,
-          },
-          closet: {
-            id: battle.closet.id,
-            shopName: battle.closet.shopName,
-            shopUsername: battle.closet.shopUsername,
-            shopLogo: battle.closet.shopLogo,
-          },
-          seller: {
-            id: battle.seller.id,
-            name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
-            userName: battle.seller.userName,
-            profileImage: battle.seller.image,
-          },
-          boost: {
-            boostId: boost.id,
-            pinOnTop: boost.pinOnTop,
-            winnerBadge: boost.winnerBadge,
-            isPinnedOnTop: pinActive,
-            hasWinnerBadge: badgeActive,
-            boostEndAt: boost.endAt,
-            remainingBoostSeconds: Math.max(
-              0,
-              Math.floor(((boost.endAt as Date).getTime() - now.getTime()) / 1000),
-            ),
-          },
-          winnerPromotion: promotion
-            ? {
-                id: promotion.id,
-                promoType: promotion.promoType,
-                message: promotion.message,
-                discountPercent: promotion.discountPercent,
-                freeShipping: promotion.freeShipping,
-                originalPrice: promotion.originalPrice,
-                promoPrice: promotion.promoPrice,
-                originalShippingFee: promotion.originalShippingFee,
-                promoShippingFee: promotion.promoShippingFee,
-                startAt: promotion.startAt,
-                endAt: promotion.endAt,
-              }
-            : null,
-        },
-      };
-    });
   }
 
   async myBattleTracking(userId: string, filter: string) {

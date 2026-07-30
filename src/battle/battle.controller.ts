@@ -295,7 +295,7 @@ export class BattleController {
   @ApiQuery({ name: 'status', required: false, type: 'string' })
   @ApiOperation({
     summary:
-      'Explore battles (normal + marketplace by status, default LIVE) plus active boosted products sorted by createdAt',
+      'Explore battles (normal + marketplace by status, default LIVE) sorted by createdAt',
   })
   async exploreBattles(@Req() req: Request, @Query('status') status?: string) {
     const userId = (req.user as any)?.userId;
