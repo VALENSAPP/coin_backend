@@ -238,6 +238,18 @@ export class PostController {
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
+  @Get('searchPagePosts')
+  @ApiQuery({ name: 'page', type: Number, required: false, description: 'Page (default 1)' })
+  @ApiQuery({ name: 'limit', type: Number, required: false, description: 'Items per page, max 50 (default 20)' })
+  async getAllPostSearchPage(@Req() req: Request, @Query('page') page?: string, @Query('limit') limit?: string) {
+    const viewerUserId = (req.user as any)?.userId;
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.postService.getAllPostSearchPage(viewerUserId, pageNum, limitNum);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @Get('getMissionpost')
   @ApiQuery({ name: 'status', required: false, type: 'string', description: "Filter by status: 'active' | 'completed' | 'all' (default 'all')" })
   async getMissionpost(@Req() req: Request, @Query('status') status?: string) {

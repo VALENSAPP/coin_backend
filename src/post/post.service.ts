@@ -2,7 +2,13 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
 import {
+  FollowStatus,
+  MarketplaceBattleBoostStatus,
+  MarketplaceBattleOutcome,
+  MarketplaceBattleStatus,
+  MarketplaceWinnerPromotionStatus,
   Prisma,
+  WhoCanBuy,
 } from '@prisma/client';
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { applyVideoTextOverlays, VideoTextOverlayItem } from '../common/video-text-overlay.util';
@@ -1525,6 +1531,527 @@ export class PostService {
     }));
 
     return mappedPosts;
+  }
+
+
+  async getAllPostSearchPage(viewerUserId?: string, page: number = 1, limit: number = 20) {
+    const take = Math.min(Math.max(1, limit), 50);
+    const skip = (Math.max(1, page) - 1) * take;
+    const currentPage = Math.max(1, page);
+
+    const postWhere: Prisma.PostWhereInput = {
+      deletedAt: null,
+      isDelete: 'no',
+      postHide: 'no',
+      type: { not: 'private' },
+      AND: [this.buildPostVisibilityWhere(viewerUserId)],
+    };
+    const postInclude = {
+      user: {
+        select: {
+          displayName: true,
+          image: true,
+          profile: true,
+          profileStatus: true,
+          tokenBalance: true,
+        },
+      },
+      _count: {
+        select: {
+          likes: true,      // from Post model
+          comments: true,   // from Post model
+          shares: true,
+        },
+      },
+    } as const;
+
+    // Pinned posts first (newer pins appear at the top), then other posts.
+    const pinnedIdSet = new Set<string>();
+    let pinnedPosts: any[] = [];
+
+    if (viewerUserId) {
+      const pinned = await this.prisma.pinnedPost.findMany({
+        where: { userId: viewerUserId, post: postWhere },
+        orderBy: { pinnedAt: 'desc' },
+        select: { postId: true, post: { include: postInclude } },
+      });
+
+      pinnedPosts = pinned.map((p) => p.post).filter(Boolean);
+      pinnedPosts.forEach((p: any) => pinnedIdSet.add(p.id));
+    }
+
+    const otherPosts = await this.prisma.post.findMany({
+      where: {
+        ...postWhere,
+        ...(pinnedIdSet.size ? { id: { notIn: Array.from(pinnedIdSet) } } : {}),
+      },
+      take,
+      skip,
+      orderBy: { createdAt: 'desc' },
+      include: postInclude,
+    });
+
+    // Keep existing mixed ordering for non-pinned posts, but never shuffle pinned posts.
+    otherPosts.sort(() => Math.random() - 0.5);
+    const posts = [...pinnedPosts, ...otherPosts];
+
+    let savedSet: Set<string> = new Set();
+    let likedSet: Set<string> = new Set();
+    let followMap: Record<string, boolean> = {};
+    let hiddenSet: Set<string> = new Set();
+
+    if (viewerUserId) {
+      // Fetch saved posts for viewer
+      const saved = await this.prisma.savePost.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      savedSet = new Set(saved.map(s => s.postId));
+
+      // Fetch liked posts for viewer
+      const liked = await this.prisma.postLike.findMany({
+        where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true },
+      });
+      likedSet = new Set(liked.map(l => l.postId));
+
+      // ✅ Fetch follow status for each post's author
+      const authorIds = Array.from(new Set(posts.map(p => p.userId)));
+      if (authorIds.length > 0) {
+        const follows = await this.prisma.followerAndFollowing.findMany({
+          where: { followerId: viewerUserId, followingId: { in: authorIds }, status: 'ACCEPTED' },
+          select: { followingId: true },
+        });
+        followMap = follows.reduce((acc, f) => { acc[f.followingId] = true; return acc; }, {} as Record<string, boolean>);
+      }
+
+      // ✅ Fetch hidden posts for viewer
+      if (posts.length > 0) {
+        const hidden = await this.prisma.hidePost.findMany({
+          where: { userId: viewerUserId, postId: { in: posts.map(p => p.id) } },
+          select: { postId: true },
+        });
+        hiddenSet = new Set(hidden.map(h => h.postId));
+      }
+    }
+
+    const taggedPeopleIds = Array.from(
+      new Set(
+        posts
+          .flatMap((post) => post.taggedPeople || [])
+          .map((taggedPerson) => String(taggedPerson).trim())
+          .filter(Boolean),
+      ),
+    );
+    const taggedUsers = taggedPeopleIds.length
+      ? await this.prisma.user.findMany({
+        where: { id: { in: taggedPeopleIds } },
+        select: { id: true, userName: true, displayName: true },
+      })
+      : [];
+    const taggedUserNameMap = new Map(
+      taggedUsers.map((user) => [user.id, user.userName || user.displayName || user.id]),
+    );
+
+    // Note: We do not shuffle the combined array so pinned posts stay on top.
+
+    const mappedPosts = posts.map(post => ({
+      id: post.id,
+      text: post.text,
+      images: post.images,
+      thumbnails: post.thumbnails,
+      caption: post.caption,
+      hashtag: post.hashtag,
+      location: post.location,
+      music: post.music,
+      youtubeMusicMeta: post.youtubeMusicMeta,
+      taggedPeople: post.taggedPeople.map((taggedPerson: string) => taggedUserNameMap.get(taggedPerson) || taggedPerson),
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      deletedAt: post.deletedAt,
+      isTrustPost: post.isTrustPost,
+      userId: post.userId,
+      userName: post.user?.displayName || null,
+      userImage: post.user?.image || null,
+      tokenBalance: post.user?.tokenBalance || 0,
+      profile: post.user?.profile || null,
+      profileStatus: post.user?.profileStatus || null,
+      likeCount: post._count.likes,
+      commentCount: post._count.comments,
+      shareCount: post._count.shares,
+      isSaved: savedSet.has(post.id),
+      isLike: likedSet.has(post.id), // ✅ true if viewer liked
+      isFollow: !!followMap[post.userId],
+      isHide: hiddenSet.has(post.id),
+      isPinned: pinnedIdSet.has(post.id),
+      type: post.type,
+      link: post.link,
+      visibleTo: (post as any).visibleTo,
+      private_circle: this.isPrivateCircleVisibility((post as any).visibleTo),
+      start_time: post.start_time,
+      end_time: post.end_time,
+      raiseAmount: post.raiseAmount,
+      feedItemType: 'post' as const,
+      battleWinnerProduct: null,
+    }));
+
+    // Boosted battle winners are bonus items on page 1 only (do not affect post pagination).
+    if (currentPage !== 1) {
+      return mappedPosts;
+    }
+
+    const battleWinnerItems = await this.getSearchPageBoostedProducts(viewerUserId);
+    if (!battleWinnerItems.length) {
+      return mappedPosts;
+    }
+
+    const pinnedMapped = mappedPosts.filter((item) => item.isPinned);
+    const otherMapped = mappedPosts.filter((item) => !item.isPinned);
+    const pinOnTopWinners = battleWinnerItems.filter(
+      (item) => item.battleWinnerProduct.boost.isPinnedOnTop,
+    );
+    const badgeOnlyWinners = battleWinnerItems.filter(
+      (item) => !item.battleWinnerProduct.boost.isPinnedOnTop,
+    );
+
+    return [...pinnedMapped, ...pinOnTopWinners, ...badgeOnlyWinners, ...otherMapped];
+  }
+
+  private getMarketplaceVisibilityWhere(
+    viewerUserId?: string,
+  ): Prisma.MarketplaceBattleWhereInput {
+    if (!viewerUserId) {
+      return { visibility: WhoCanBuy.Everyone };
+    }
+
+    return {
+      OR: [
+        { visibility: WhoCanBuy.Everyone },
+        { sellerId: viewerUserId },
+        {
+          visibility: WhoCanBuy.followers,
+          seller: {
+            followers: {
+              some: {
+                followerId: viewerUserId,
+                status: FollowStatus.ACCEPTED,
+              },
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private isMarketplaceBoostPinActive(
+    boost: {
+      pinOnTop: boolean;
+      pinStartAt: Date | null;
+      pinEndAt: Date | null;
+      startAt: Date | null;
+      endAt: Date | null;
+    },
+    now: Date,
+  ): boolean {
+    return Boolean(
+      boost.pinOnTop &&
+        ((boost.pinStartAt &&
+          boost.pinEndAt &&
+          boost.pinStartAt <= now &&
+          boost.pinEndAt > now) ||
+          (!boost.pinStartAt &&
+            !!boost.startAt &&
+            !!boost.endAt &&
+            boost.startAt <= now &&
+            boost.endAt > now)),
+    );
+  }
+
+  private isMarketplaceBoostBadgeActive(
+    boost: {
+      winnerBadge: boolean;
+      badgeStartAt: Date | null;
+      badgeEndAt: Date | null;
+      startAt: Date | null;
+      endAt: Date | null;
+    },
+    now: Date,
+  ): boolean {
+    return Boolean(
+      boost.winnerBadge &&
+        ((boost.badgeStartAt &&
+          boost.badgeEndAt &&
+          boost.badgeStartAt <= now &&
+          boost.badgeEndAt > now) ||
+          (!boost.badgeStartAt &&
+            !!boost.startAt &&
+            !!boost.endAt &&
+            boost.startAt <= now &&
+            boost.endAt > now)),
+    );
+  }
+
+  private async getSearchPageBoostedProducts(viewerUserId?: string, now: Date = new Date()) {
+    const boosts = await this.prisma.marketplaceBattleBoost.findMany({
+      where: {
+        status: MarketplaceBattleBoostStatus.ACTIVE,
+        endAt: { gt: now },
+        OR: [{ pinOnTop: true }, { winnerBadge: true }],
+        battle: {
+          status: MarketplaceBattleStatus.COMPLETED,
+          outcome: MarketplaceBattleOutcome.WINNER,
+          winnerParticipantId: { not: null },
+          AND: [this.getMarketplaceVisibilityWhere(viewerUserId)],
+        },
+      },
+      orderBy: [{ activatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 50,
+      select: {
+        id: true,
+        battleId: true,
+        pinOnTop: true,
+        winnerBadge: true,
+        startAt: true,
+        endAt: true,
+        pinStartAt: true,
+        pinEndAt: true,
+        badgeStartAt: true,
+        badgeEndAt: true,
+        battle: {
+          select: {
+            id: true,
+            sellerId: true,
+            title: true,
+            description: true,
+            outcome: true,
+            completedAt: true,
+            totalVotes: true,
+            totalComments: true,
+            createdAt: true,
+            updatedAt: true,
+            seller: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+                profile: true,
+                profileStatus: true,
+                tokenBalance: true,
+              },
+            },
+            closet: {
+              select: {
+                id: true,
+                shopName: true,
+                shopUsername: true,
+                shopLogo: true,
+              },
+            },
+            winnerParticipant: {
+              select: {
+                id: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    images: true,
+                    price: true,
+                    quantity: true,
+                    category: true,
+                    brand: true,
+                    condition: true,
+                    isActive: true,
+                    isDeleted: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const deduped = new Map<string, (typeof boosts)[number]>();
+    for (const boost of boosts) {
+      if (!deduped.has(boost.battleId)) {
+        deduped.set(boost.battleId, boost);
+      }
+    }
+
+    const eligible = Array.from(deduped.values()).filter((boost) => {
+      const product = boost.battle.winnerParticipant?.product;
+      if (!product || product.isDeleted || !product.isActive) return false;
+      return (
+        this.isMarketplaceBoostPinActive(boost, now) ||
+        this.isMarketplaceBoostBadgeActive(boost, now)
+      );
+    });
+
+    if (!eligible.length) return [];
+
+    const battleIds = eligible.map((boost) => boost.battleId);
+    const promotions = await this.prisma.marketplaceWinnerPromotion.findMany({
+      where: {
+        battleId: { in: battleIds },
+        status: MarketplaceWinnerPromotionStatus.ACTIVE,
+        startAt: { lte: now },
+        endAt: { gt: now },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+        battleId: true,
+        promoType: true,
+        message: true,
+        discountPercent: true,
+        freeShipping: true,
+        originalPrice: true,
+        promoPrice: true,
+        originalShippingFee: true,
+        promoShippingFee: true,
+        startAt: true,
+        endAt: true,
+      },
+    });
+
+    const promotionByBattleId = new Map<string, (typeof promotions)[number]>();
+    for (const promotion of promotions) {
+      if (!promotionByBattleId.has(promotion.battleId)) {
+        promotionByBattleId.set(promotion.battleId, promotion);
+      }
+    }
+
+    let followMap: Record<string, boolean> = {};
+    if (viewerUserId) {
+      const sellerIds = Array.from(new Set(eligible.map((boost) => boost.battle.sellerId)));
+      if (sellerIds.length > 0) {
+        const follows = await this.prisma.followerAndFollowing.findMany({
+          where: {
+            followerId: viewerUserId,
+            followingId: { in: sellerIds },
+            status: FollowStatus.ACCEPTED,
+          },
+          select: { followingId: true },
+        });
+        followMap = follows.reduce((acc, f) => {
+          acc[f.followingId] = true;
+          return acc;
+        }, {} as Record<string, boolean>);
+      }
+    }
+
+    return eligible.map((boost) => {
+      const battle = boost.battle;
+      const product = battle.winnerParticipant!.product!;
+      const pinActive = this.isMarketplaceBoostPinActive(boost, now);
+      const badgeActive = this.isMarketplaceBoostBadgeActive(boost, now);
+      const promotion = promotionByBattleId.get(battle.id);
+      const images = product.images || [];
+
+      return {
+        id: battle.id,
+        text: product.description || product.name,
+        images,
+        thumbnails: images.length ? [images[0]] : [],
+        caption: product.name,
+        hashtag: [] as string[],
+        location: null,
+        music: null,
+        youtubeMusicMeta: null,
+        taggedPeople: [] as string[],
+        createdAt: battle.createdAt,
+        updatedAt: battle.updatedAt,
+        deletedAt: null,
+        isTrustPost: false,
+        userId: battle.sellerId,
+        userName: battle.seller?.displayName || null,
+        userImage: battle.seller?.image || null,
+        tokenBalance: battle.seller?.tokenBalance || 0,
+        profile: battle.seller?.profile || null,
+        profileStatus: battle.seller?.profileStatus || null,
+        likeCount: 0,
+        commentCount: battle.totalComments || 0,
+        shareCount: 0,
+        isSaved: false,
+        isLike: false,
+        isFollow: !!followMap[battle.sellerId],
+        isHide: false,
+        isPinned: pinActive,
+        type: 'battle_winner_product',
+        link: null,
+        visibleTo: null,
+        private_circle: false,
+        start_time: null,
+        end_time: null,
+        raiseAmount: null,
+        feedItemType: 'boosted_product' as const,
+        format: 'boosted' as const,
+        battleWinnerProduct: {
+          product: {
+            id: product.id,
+            name: product.name,
+            description: product.description,
+            images: product.images,
+            price: product.price,
+            quantity: product.quantity,
+            category: product.category,
+            brand: product.brand,
+            condition: product.condition,
+          },
+          battle: {
+            id: battle.id,
+            title: battle.title,
+            description: battle.description,
+            totalVotes: battle.totalVotes,
+            totalComments: battle.totalComments,
+            completedAt: battle.completedAt,
+            outcome: battle.outcome,
+            createdAt: battle.createdAt,
+          },
+          closet: {
+            id: battle.closet.id,
+            shopName: battle.closet.shopName,
+            shopUsername: battle.closet.shopUsername,
+            shopLogo: battle.closet.shopLogo,
+          },
+          seller: {
+            id: battle.seller.id,
+            name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
+            userName: battle.seller.userName,
+            profileImage: battle.seller.image,
+          },
+          boost: {
+            boostId: boost.id,
+            pinOnTop: boost.pinOnTop,
+            winnerBadge: boost.winnerBadge,
+            isPinnedOnTop: pinActive,
+            hasWinnerBadge: badgeActive,
+            boostEndAt: boost.endAt,
+            remainingBoostSeconds: Math.max(
+              0,
+              Math.floor(((boost.endAt as Date).getTime() - now.getTime()) / 1000),
+            ),
+          },
+          winnerPromotion: promotion
+            ? {
+                id: promotion.id,
+                promoType: promotion.promoType,
+                message: promotion.message,
+                discountPercent: promotion.discountPercent,
+                freeShipping: promotion.freeShipping,
+                originalPrice: promotion.originalPrice,
+                promoPrice: promotion.promoPrice,
+                originalShippingFee: promotion.originalShippingFee,
+                promoShippingFee: promotion.promoShippingFee,
+                startAt: promotion.startAt,
+                endAt: promotion.endAt,
+              }
+            : null,
+        },
+      };
+    });
   }
 
   async searchAllPost(viewerUserId?: string, search?: string) {
