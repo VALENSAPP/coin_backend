@@ -132,7 +132,7 @@ export class MyclosetService {
     return closet;
   }
 
-  async listAllShops(query: ListShopsQueryDto) {
+  async listAllShops(query: ListShopsQueryDto, userId?: string) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
@@ -140,6 +140,7 @@ export class MyclosetService {
     const shopCategory = query.shopCategory?.trim();
 
     const where: Prisma.MyclosetWhereInput = {
+      ...(userId ? { userId: { not: userId } } : {}),
       user: {
         isDeleted: 0,
         deletedAt: null,

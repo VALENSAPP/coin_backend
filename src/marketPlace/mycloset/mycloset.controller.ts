@@ -80,16 +80,18 @@ export class MyclosetController {
   @ApiOperation({
     summary: 'List all shops (My Closets) with optional search filter',
     description:
-      'Returns paginated shops for all active users. Search matches shop name, username, category, location, description, and owner username/display name.',
+      'Returns paginated shops for all active users except the authenticated user. Search matches shop name, username, category, location, description, and owner username/display name.',
   })
   @ApiQuery({ name: 'search', required: false, example: 'graziela' })
   @ApiQuery({ name: 'shopCategory', required: false, example: 'Fashion' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   async listAllShops(
+    @Req() req: Request,
     @Query(new ValidationPipe({ whitelist: true, transform: true })) query: ListShopsQueryDto,
   ) {
-    return this.myclosetService.listAllShops(query);
+    const userId = (req.user as any)?.userId;
+    return this.myclosetService.listAllShops(query, userId);
   }
 
   @Post('items')
