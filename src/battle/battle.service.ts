@@ -2964,17 +2964,32 @@ export class BattleService {
   }
 
   private getBattleLevel(points: number): string {
-    if (points >= 3000) return 'Oracle';
-    if (points >= 1500) return 'Expert';
-    if (points >= 700) return 'Analyst';
-    if (points >= 300) return 'Strategist';
-    if (points >= 100) return 'Challenger';
-    return 'Rookie';
+    if (points >= 150000) return 'VALENS CHAMPION';
+    if (points >= 75000) return 'IMMORTAL';
+    if (points >= 32000) return 'PHANTOM';
+    if (points >= 15000) return 'ORACLE';
+    if (points >= 7500) return 'TITAN';
+    if (points >= 3500) return 'DOMINATOR';
+    if (points >= 1500) return 'STRATEGIST';
+    if (points >= 600) return 'CONTENDER';
+    if (points >= 200) return 'CHALLENGER';
+    return 'ENTRY';
   }
 
   private getBattleLevelRank(points: number): number {
     const level = this.getBattleLevel(points);
-    return ['Rookie', 'Challenger', 'Strategist', 'Analyst', 'Expert', 'Oracle'].indexOf(level);
+    return [
+      'ENTRY',
+      'CHALLENGER',
+      'CONTENDER',
+      'STRATEGIST',
+      'DOMINATOR',
+      'TITAN',
+      'ORACLE',
+      'PHANTOM',
+      'IMMORTAL',
+      'VALENS CHAMPION',
+    ].indexOf(level);
   }
 
   private didBattleLevelIncrease(previousPoints: number, nextPoints: number): boolean {
