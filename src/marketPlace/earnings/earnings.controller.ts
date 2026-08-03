@@ -12,6 +12,15 @@ import { EarningsService } from './earnings.service';
 export class EarningsController {
     constructor(private readonly earningsService: EarningsService) { }
 
+    @Get('balance')
+    @ApiOperation({
+        summary: 'Get live seller wallet balance (pending + available/withdrawable)',
+    })
+    async getBalance(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.earningsService.getBalance(userId);
+    }
+
     @Get()
     @ApiOperation({ summary: 'Get earnings summary for authenticated seller' })
     async getSummary(@Req() req: Request) {

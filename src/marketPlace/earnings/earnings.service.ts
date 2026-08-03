@@ -1,18 +1,22 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WalletService } from '../../wallet/wallet.service';
 import { EarningsHistoryQueryDto } from './dto/earnings-history-query.dto';
 
 @Injectable()
 export class EarningsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly walletService: WalletService,
+    ) { }
 
     private assertUserId(userId?: string): string {
         if (!userId) throw new UnauthorizedException('User not authenticated');
         return userId;
     }
 
-    /** Only count orders whose escrow payout has been transferred to the seller. */
+    /** Marketplace orders whose earnings were unlocked to available wallet balance. */
     private getReleasedOrderWhere(sellerId: string): Prisma.OrderWhereInput {
         return {
             sellerId,
@@ -21,11 +25,16 @@ export class EarningsService {
         };
     }
 
+    async getBalance(userId?: string) {
+        const sellerId = this.assertUserId(userId);
+        return this.walletService.getBalance(sellerId);
+    }
+
     async getSummary(userId?: string) {
         const sellerId = this.assertUserId(userId);
         const where = this.getReleasedOrderWhere(sellerId);
 
-        const [paidOrders, sums] = await this.prisma.$transaction([
+        const [paidOrders, sums, balance] = await Promise.all([
             this.prisma.order.count({ where }),
             this.prisma.order.aggregate({
                 where,
@@ -37,6 +46,7 @@ export class EarningsService {
                     platformFeeMinor: true,
                 },
             }),
+            this.walletService.getBalance(sellerId),
         ]);
 
         const totalRevenue = Number(sums._sum.total || 0);
@@ -56,7 +66,14 @@ export class EarningsService {
             shippingCollected,
             netEarnings,
             paidOrders,
-            note: 'Earnings include only orders with released Stripe transfers (after delivery + protection window).',
+            pendingBalance: balance.pendingBalance,
+            availableBalance: balance.availableBalance,
+            withdrawableBalance: balance.withdrawableBalance,
+            pendingBalanceMinor: balance.pendingBalanceMinor,
+            availableBalanceMinor: balance.availableBalanceMinor,
+            withdrawableBalanceMinor: balance.withdrawableBalanceMinor,
+            wallets: balance.wallets,
+            note: 'Pending = marketplace inside 48h. Available/withdrawable = unlocked marketplace + other earnings (sum). Withdrawal to Connect is a separate step.',
         };
     }
 

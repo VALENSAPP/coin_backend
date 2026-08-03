@@ -13,6 +13,7 @@ import { CreateEbookPaymentDto } from './dto/create-ebook-payment.dto';
 import { CreateShopEbookPaymentDto } from './dto/create-shop-ebook-payment.dto';
 import { AddDigitalBadgeDto } from './dto/add-digital-badge.dto';
 import { VerifyUsdtTransactionDto } from './dto/verify-usdt-transaction.dto';
+import { WalletService } from '../wallet/wallet.service';
 
 
 export class RequestWithdrawalDto {
@@ -30,7 +31,10 @@ export class RequestWithdrawalDto {
 @ApiTags('billing')
 @Controller('billing')
 export class BillingController {
-  constructor(private readonly billingService: BillingService) { }
+  constructor(
+    private readonly billingService: BillingService,
+    private readonly walletService: WalletService,
+  ) { }
 
   @Post('subscribe')
   @UseGuards(AuthGuard('jwt'))
@@ -200,32 +204,62 @@ export class BillingController {
   }
 
   // Valens: withdrawals/redemptions excluded. Revenue from software services (Stripe subscriptions) only.
+  @Get('balance')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get live seller wallet balance (pending + available/withdrawable sum)',
+  })
+  async getWalletBalance(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.walletService.getBalance(userId);
+  }
+
   @Post('request-withdrawal')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[Disabled] Request withdrawal' })
+  @ApiBody({ type: RequestWithdrawalDto })
+  @ApiOperation({
+    summary: 'Withdraw available wallet balance to Stripe Connect account',
+    description:
+      'Withdraws from available balance only (marketplace unlocked after 48h + other earnings). Pending balance cannot be withdrawn. Requires completed Stripe Connect onboarding. Minimum $10.',
+  })
   async requestWithdrawal(@Req() req: Request, @Body() dto: RequestWithdrawalDto) {
-    throw new BadRequestException(
-      'Withdrawals are not available. Valens does not manage liquidity or withdrawals; revenue is from software services (e.g. subscriptions) via Stripe only.'
-    );
+    const userId = (req.user as any).userId;
+    return this.billingService.requestWithdrawal(userId, dto.amount);
   }
 
   @Get('withdrawal-history')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: '[Disabled] Get withdrawal history' })
+  @ApiOperation({ summary: 'Get withdrawal history for the authenticated user' })
   async getWithdrawalHistory(@Req() req: Request) {
-    return { withdrawals: [] };
+    const userId = (req.user as any).userId;
+    return this.billingService.getWithdrawalHistory(userId);
   }
 
   @Post('create-onboarding-link')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create Stripe Connect onboarding link (required to receive payments)' })
+  @ApiOperation({
+    summary: 'Create payment-provider onboarding link (Stripe Connect or PagBank)',
+    description: 'Brazil users (paymentProvider=PAGBANK) get PagBank Connect; others get Stripe Express.',
+  })
   async createOnboardingLink(@Req() req: Request) {
     const userId = (req.user as any).userId;
     const result = await this.billingService.createAccountOnboardingLink(userId);
     return result;
+  }
+
+  @Get('pagbank/callback')
+  @ApiOperation({ summary: 'PagBank Connect OAuth callback' })
+  @ApiQuery({ name: 'code', required: true })
+  @ApiQuery({ name: 'state', required: true })
+  async pagbankCallback(@Query('code') code: string, @Query('state') state: string) {
+    if (!code || !state) {
+      throw new BadRequestException('Missing code or state from PagBank Connect');
+    }
+    return this.billingService.handlePagBankConnectCallback(code, state);
   }
 
   @Get('onboarding-status')

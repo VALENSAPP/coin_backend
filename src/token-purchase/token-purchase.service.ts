@@ -4,6 +4,9 @@ import { PurchaseTokensDto, TokenPurchaseResponseDto, BuyTokenDto, SellTokenDto,
 import { TokenService } from '../token/token.service';
 import { UserService } from '../user/user.service';
 import { NotificationService } from '../notification/notification.service';
+import { WalletService } from '../wallet/wallet.service';
+import { PagBankService } from '../pagbank/pagbank.service';
+import { PaymentProviderResolver } from '../marketPlace/payment/payment-provider.resolver';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 import { timingSafeEqual } from 'crypto';
@@ -15,7 +18,7 @@ export class TokenPurchaseService {
   private stripe: Stripe;
 
   private readonly TOKEN_RATE = 100; // 1 USD = 100 tokens
-  /** Platform fee for mission donation: 5% to platform, 95% to vendor (Stripe Connect). */
+  /** Platform fee for mission donation: 5% to platform, 95% to vendor available wallet. */
   private readonly PLATFORM_FEE_PERCENT = 0.05;
 
   private roundCurrency(value: number): number {
@@ -91,7 +94,7 @@ export class TokenPurchaseService {
     // Validate payer exists
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, displayName: true, userName: true },
     });
 
     if (!user) {
@@ -126,8 +129,8 @@ export class TokenPurchaseService {
       }
     }
 
-    // Vendor (recipient of 95%) must exist and have Stripe Connect ready
-    const destinationAccountId = await this.getVendorConnectAccountId(dto.vendorId);
+    // Vendor (recipient of 95%) must exist; Connect onboarding is only required to withdraw.
+    await this.ensureVendorExists(dto.vendorId);
 
     const productName = 'Mission Donation';
     const productDescription = `Donate $${dto.amount} to mission`;
@@ -139,13 +142,73 @@ export class TokenPurchaseService {
     const platformFees = this.roundCurrency(applicationFeeCents / 100);
     const receiverAmount = this.roundCurrency(receiverAmountCents / 100);
 
-    this.logger.log(`Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor ${dto.vendorId}) [source=${donorSource}]`);
+    const payerProvider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+    const isPagBank = payerProvider === 'PAGBANK';
+
+    this.logger.log(
+      `Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor wallet ${dto.vendorId}) [source=${donorSource}, provider=${payerProvider}]`,
+    );
+
+    if (isPagBank) {
+      // Store major currency units (same as tip/following PagBank rows) for wallet credit on webhook.
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          receiverId: dto.vendorId,
+          amount: Math.round(receiverAmount),
+          platformFee: Math.round(platformFees),
+          totalAmount: Math.round(totalAmount),
+          currency: 'BRL',
+          status: 'pending',
+          forPayment: 'missionDonation',
+        },
+      });
+
+      const checkout = await this.pagBankService.createPixCheckout({
+        referenceId: payment.id,
+        amountMinor: amountCents,
+        description: productName,
+        customerEmail: user.email || undefined,
+        customerName: user.displayName || user.userName || undefined,
+      });
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { stripePaymentIntentId: checkout.orderId },
+      });
+
+      const donationRecord = await this.prisma.donationData.create({
+        data: {
+          userId,
+          vendorId: dto.vendorId,
+          postId: dto.postId,
+          amount: receiverAmount,
+          totalAmount,
+          platformFees,
+          stripeCheckoutSessionId: checkout.orderId,
+          stripePaymentIntentId: checkout.orderId,
+          status: 'pending',
+          action: 'missionDonation',
+          note: dto.note,
+        } as any,
+      });
+
+      return {
+        id: donationRecord.id,
+        amount: donationRecord.amount,
+        totalAmount: donationRecord.totalAmount ?? totalAmount,
+        platformFees: donationRecord.platformFees ?? platformFees,
+        status: donationRecord.status,
+        sessionUrl: checkout.checkoutUrl || checkout.pixCopyPaste || checkout.orderId,
+        ...(checkout as any),
+      };
+    }
 
     // Get success and cancel URLs from environment
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
 
-    // Create Stripe Checkout Session with 5% platform fee, 95% to vendor (destination charge)
+    // Create Stripe Checkout Session — funds stay on platform; vendor gets available wallet credit on success
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [
@@ -165,13 +228,13 @@ export class TokenPurchaseService {
       success_url: successUrl,
       cancel_url: cancelUrl,
       payment_intent_data: {
-        application_fee_amount: applicationFeeCents,
-        transfer_data: { destination: destinationAccountId },
         metadata: {
           userId,
           vendorId: dto.vendorId,
           type: metadataType,
           donorSource,
+          platformFeeCents: applicationFeeCents.toString(),
+          receiverAmountCents: receiverAmountCents.toString(),
         },
       },
       metadata: {
@@ -179,6 +242,8 @@ export class TokenPurchaseService {
         vendorId: dto.vendorId,
         type: metadataType,
         donorSource,
+        platformFeeCents: applicationFeeCents.toString(),
+        receiverAmountCents: receiverAmountCents.toString(),
       },
       customer_email: user.email || undefined,
     });
@@ -230,34 +295,25 @@ export class TokenPurchaseService {
     private readonly prisma: PrismaService,
     private readonly tokenService: TokenService,
     private readonly userService: UserService,
-    private readonly notificationService: NotificationService
+    private readonly notificationService: NotificationService,
+    private readonly walletService: WalletService,
+    private readonly pagBankService: PagBankService,
+    private readonly paymentProviderResolver: PaymentProviderResolver,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
     });
   }
 
-  /**
-   * Returns vendor's Stripe Connect account id if they can receive payments. Throws otherwise.
-   * Same logic as pay-following: vendor must have completed Connect onboarding.
-   */
-  private async getVendorConnectAccountId(vendorId: string): Promise<string> {
-    const user = await this.prisma.user.findUnique({ where: { id: vendorId } });
+  /** Ensure vendor exists (Connect onboarding only required at withdrawal time). */
+  private async ensureVendorExists(vendorId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: vendorId },
+      select: { id: true },
+    });
     if (!user) {
       throw new BadRequestException('Vendor not found');
     }
-    if (!user.stripeAccountId) {
-      throw new BadRequestException(
-        'Vendor must complete Stripe Connect onboarding to receive mission donations. Call POST /billing/create-onboarding-link first.',
-      );
-    }
-    const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
-    if (!account.details_submitted) {
-      throw new BadRequestException(
-        'Vendor must finish Stripe onboarding (identity and bank details) before receiving mission donations.',
-      );
-    }
-    return user.stripeAccountId;
   }
 
   private static readonly MISSION_POST_TYPES = ['crowdfunding', 'support', 'mission-post'] as const;
@@ -319,7 +375,7 @@ export class TokenPurchaseService {
       // Validate user exists
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, email: true },
+        select: { id: true, email: true, displayName: true, userName: true },
       });
 
       if (!user) {
@@ -355,6 +411,63 @@ export class TokenPurchaseService {
         throw new BadRequestException('Invalid type');
       }
 
+      const payerProvider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+      const amountMinor = Math.round(dto.amount * 100);
+
+      if (payerProvider === 'PAGBANK') {
+        const payment = await this.prisma.payment.create({
+          data: {
+            userId,
+            receiverId: dto.vendorId || null,
+            amount: Math.round(dto.amount),
+            totalAmount: Math.round(dto.amount),
+            currency: 'BRL',
+            status: 'pending',
+            forPayment: 'donation',
+          },
+        });
+
+        const checkout = await this.pagBankService.createPixCheckout({
+          referenceId: payment.id,
+          amountMinor,
+          description: productName,
+          customerEmail: user.email || undefined,
+          customerName: user.displayName || user.userName || undefined,
+        });
+
+        await this.prisma.payment.update({
+          where: { id: payment.id },
+          data: { stripePaymentIntentId: checkout.orderId },
+        });
+
+        const donationData: any = {
+          userId,
+          vendorId: dto.vendorId,
+          postId: dto.postId,
+          amount: dto.amount,
+          stripeCheckoutSessionId: checkout.orderId,
+          stripePaymentIntentId: checkout.orderId,
+          status: 'pending',
+          currency: 'BRL',
+        };
+        if (dto.purchaseTokenPrice !== undefined) {
+          donationData.purchaseTokenPrice = dto.purchaseTokenPrice;
+        }
+
+        const record = await this.prisma.donationData.create({ data: donationData });
+        const response: any = {
+          id: record.id,
+          amount: dto.amount,
+          status: record.status,
+          sessionUrl: checkout.checkoutUrl || checkout.pixCopyPaste || checkout.orderId,
+          ...checkout,
+        };
+        if (dto.purchaseTokenPrice !== undefined) {
+          response.purchaseTokenPrice = dto.purchaseTokenPrice;
+        }
+        return response;
+      }
+
       // Get success and cancel URLs from environment
       const successUrl = process.env.STRIPE_SUCCESS_URL as string;
       const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
@@ -370,7 +483,7 @@ export class TokenPurchaseService {
                 name: productName,
                 description: productDescription,
               },
-              unit_amount: Math.round(dto.amount * 100), // Convert to cents
+              unit_amount: amountMinor,
             },
             quantity: 1,
           },
@@ -389,11 +502,12 @@ export class TokenPurchaseService {
       // Create payment record for tracking (token_purchase branch throws above, so only donation reaches here)
       const paymentData: any = {
         userId,
-        amount: Math.round(dto.amount * 100), // Store in cents
+        amount: amountMinor,
         currency: 'usd',
-        stripePaymentIntentId: session.id, // Using session id
+        stripePaymentIntentId: session.id,
         status: 'pending',
         forPayment: 'donation',
+        ...(dto.vendorId ? { receiverId: dto.vendorId } : {}),
       };
 
       await this.prisma.payment.create({
@@ -791,8 +905,33 @@ export class TokenPurchaseService {
           status: 'completed',
           action: 'missionDonation',
         },
-        select: { id: true, postId: true },
+        select: { id: true, postId: true, amount: true, vendorId: true },
       });
+
+      if (completedDonation?.vendorId) {
+        const receiverAmountCents =
+          Number(session.metadata?.receiverAmountCents) ||
+          Math.round(Number(completedDonation.amount || 0) * 100);
+
+        if (receiverAmountCents > 0) {
+          const seller = await this.prisma.user.findUnique({
+            where: { id: completedDonation.vendorId },
+            select: { paymentProvider: true },
+          });
+          const provider =
+            (seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE';
+          await this.walletService.creditAvailable({
+            userId: completedDonation.vendorId,
+            amountMinor: receiverAmountCents,
+            currency: provider === 'PAGBANK' ? 'brl' : 'usd',
+            provider,
+            source: 'MISSION_DONATION',
+            refType: 'PAYMENT',
+            refId: session.id,
+            note: `Mission donation ${completedDonation.id}`,
+          });
+        }
+      }
 
       if (completedDonation?.postId) {
         try {

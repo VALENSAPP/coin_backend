@@ -3,12 +3,16 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { WalletService } from '../wallet/wallet.service';
+import { PagBankService } from '../pagbank/pagbank.service';
+import { PaymentProviderResolver } from '../marketPlace/payment/payment-provider.resolver';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 
 const PLATFORM_POINTS_HIT_COST = 1000;
 const PLATFORM_POINTS_HIT_COUNT = 1;
+const MIN_WITHDRAWAL_MAJOR = 10;
 
 @Injectable()
 export class BillingService {
@@ -20,6 +24,9 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly walletService: WalletService,
+    private readonly pagBankService: PagBankService,
+    private readonly paymentProviderResolver: PaymentProviderResolver,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -44,6 +51,12 @@ export class BillingService {
 
   async ensureStripeCustomer(userId: string) {
     if (!userId) throw new BadRequestException('User ID required');
+    const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+    if (provider === 'PAGBANK') {
+      throw new BadRequestException(
+        'Brazil users use PagBank only. Stripe checkout is not available for this account.',
+      );
+    }
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     if (user.stripeCustomerId) return user.stripeCustomerId;
@@ -56,6 +69,11 @@ export class BillingService {
   }
 
   async createCheckoutSession(userId: string) {
+    const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+    if (provider === 'PAGBANK') {
+      return this.createPagBankValensSubscriptionCheckout(userId);
+    }
+
     const customerId = await this.ensureStripeCustomer(userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { profile: true } });
     if (!user) throw new BadRequestException('User not found');
@@ -84,9 +102,82 @@ export class BillingService {
     return session;
   }
 
+  /**
+   * BR Valens plan: one-time PIX for ~1 month access (PagBank has no Stripe-style recurring Billing).
+   * Amount from VALENS_SUBSCRIPTION_AMOUNT_CENTS / PAGBANK_SUBSCRIPTION_AMOUNT_MINOR, else Stripe price lookup.
+   */
+  private async resolveValensSubscriptionAmountMinor(userId: string): Promise<number> {
+    const fromEnv = Number(
+      process.env.PAGBANK_SUBSCRIPTION_AMOUNT_MINOR ||
+      process.env.VALENS_SUBSCRIPTION_AMOUNT_CENTS ||
+      0,
+    );
+    if (fromEnv > 0) return Math.round(fromEnv);
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { profile: true } });
+    const isCompany = (user?.profile || '').toLowerCase() === 'company';
+    const priceId = (isCompany ? process.env.STRIPE_PRICE_ID_Business : process.env.STRIPE_PRICE_ID) as string;
+    if (!priceId) {
+      throw new BadRequestException(
+        'Set PAGBANK_SUBSCRIPTION_AMOUNT_MINOR (or VALENS_SUBSCRIPTION_AMOUNT_CENTS) for Brazil subscriptions',
+      );
+    }
+    const price = await this.stripe.prices.retrieve(priceId);
+    const amount = price.unit_amount || 0;
+    if (amount <= 0) {
+      throw new BadRequestException('Valens subscription price amount is missing');
+    }
+    return amount;
+  }
+
+  private async createPagBankValensSubscriptionCheckout(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, displayName: true, userName: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+
+    const amountMinor = await this.resolveValensSubscriptionAmountMinor(userId);
+    const periodStart = new Date();
+    const periodEnd = new Date(periodStart);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId,
+        amount: Math.round(amountMinor / 100),
+        totalAmount: Math.round(amountMinor / 100),
+        currency: 'BRL',
+        status: 'pending',
+        forPayment: 'subscription',
+        periodStart,
+        periodEnd,
+      },
+    });
+
+    const checkout = await this.pagBankService.createPixCheckout({
+      referenceId: payment.id,
+      amountMinor,
+      description: 'Valens Subscription',
+      customerEmail: user.email || undefined,
+      customerName: user.displayName || user.userName || undefined,
+    });
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { stripePaymentIntentId: checkout.orderId },
+    });
+
+    return {
+      id: checkout.orderId,
+      url: checkout.checkoutUrl,
+      ...checkout,
+    };
+  }
+
   /** Default platform fee: Valens keeps 5%, rest goes to creator's Stripe Connect account (no holding). */
   private readonly PLATFORM_FEE_PERCENT = 0.05;
-  /** Pay-following platform fee: Valens keeps 20%, rest goes to creator's Stripe Connect account. */
+  /** Pay-following platform fee: Valens keeps 20%, rest credits creator available wallet. */
   private readonly PAY_FOLLOWING_PLATFORM_FEE_PERCENT = 0.20;
   /** Ebook platform fee: Valens keeps 10%, rest goes to seller Stripe Connect account. */
   private readonly EBOOK_PLATFORM_FEE_PERCENT = 0.10;
@@ -139,50 +230,103 @@ export class BillingService {
     };
   }
 
-  /** Check if user has completed Stripe Connect onboarding and can receive payments. */
+  /** Check if user has completed provider onboarding and can withdraw. */
   async getOnboardingStatus(userId: string): Promise<{
     canReceivePayments: boolean;
     onboardingUrl?: string;
     accountId?: string;
     message?: string;
+    provider: 'STRIPE' | 'PAGBANK';
+    country?: string | null;
   }> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
+
+    const provider = await this.paymentProviderResolver.ensureUserPaymentProvider(userId);
+
+    if (provider === 'PAGBANK') {
+      const status = await this.pagBankService.getOnboardingStatus(userId);
+      return { ...status, country: user.country };
+    }
+
     if (!user.stripeAccountId) {
       return {
+        provider: 'STRIPE',
+        country: user.country,
         canReceivePayments: false,
-        message: 'Complete Stripe onboarding to receive payments.',
+        message: 'Complete Stripe onboarding to withdraw available balance.',
       };
     }
     try {
       const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
       const canReceive = !!(account.details_submitted && account.payouts_enabled !== false);
       return {
+        provider: 'STRIPE',
+        country: user.country,
         canReceivePayments: canReceive,
         accountId: user.stripeAccountId,
-        message: canReceive ? undefined : 'Finish onboarding (e.g. add bank account) to receive payments.',
+        message: canReceive
+          ? undefined
+          : 'Finish onboarding (e.g. add bank account) to withdraw.',
       };
     } catch {
-      return { canReceivePayments: false, accountId: user.stripeAccountId, message: 'Stripe account not ready.' };
+      return {
+        provider: 'STRIPE',
+        country: user.country,
+        canReceivePayments: false,
+        accountId: user.stripeAccountId,
+        message: 'Stripe account not ready.',
+      };
     }
   }
 
-  /** Throws if user cannot receive payments (onboarding required). */
+  /** Throws if user cannot receive withdrawals to Connect (onboarding required). */
   private async requireCanReceivePayments(userId: string): Promise<string> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     if (!user.stripeAccountId) {
       throw new BadRequestException(
-        'Complete Stripe onboarding before receiving payments. Call POST /billing/create-onboarding-link first.',
+        'Complete Stripe onboarding before withdrawing. Call POST /billing/create-onboarding-link first.',
       );
     }
     const account = await this.stripe.accounts.retrieve(user.stripeAccountId);
     if (!account.details_submitted) {
       throw new BadRequestException(
-        'Finish Stripe onboarding (identity and bank details) before receiving payments.',
+        'Finish Stripe onboarding (identity and bank details) before withdrawing.',
       );
     }
     return user.stripeAccountId;
+  }
+
+  private async ensureUserExists(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+  }
+
+  /** Credit seller available wallet (idempotent via payment ref). Uses seller paymentProvider. */
+  private async creditSellerAvailableWallet(params: {
+    sellerUserId: string;
+    amountMinor: number;
+    source: 'TIP' | 'FOLLOWING' | 'EBOOK' | 'SHOP_EBOOK' | 'FAN_SUBSCRIPTION' | 'MISSION_DONATION';
+    refId: string;
+    note?: string;
+    currency?: string;
+  }) {
+    if (!params.sellerUserId || params.amountMinor <= 0) return;
+    const provider = await this.paymentProviderResolver.resolveProviderForUser(params.sellerUserId);
+    await this.walletService.creditAvailable({
+      userId: params.sellerUserId,
+      amountMinor: params.amountMinor,
+      currency: params.currency || (provider === 'PAGBANK' ? 'brl' : 'usd'),
+      provider,
+      source: params.source,
+      refType: 'PAYMENT',
+      refId: params.refId,
+      note: params.note,
+    });
   }
 
   async createOneTimePaymentCheckoutSession(
@@ -190,7 +334,13 @@ export class BillingService {
     contentUserId: string,
     amount: number,
   ) {
-    const destinationAccountId = await this.requireCanReceivePayments(contentUserId);
+    await this.ensureUserExists(contentUserId);
+
+    const payerProvider = await this.paymentProviderResolver.resolveProviderForUser(payerUserId);
+    if (payerProvider === 'PAGBANK') {
+      return this.createPagBankFollowingCheckout(payerUserId, contentUserId, amount);
+    }
+
     const customerId = await this.ensureStripeCustomer(payerUserId);
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
@@ -223,8 +373,6 @@ export class BillingService {
         },
       ],
       payment_intent_data: {
-        application_fee_amount: applicationFeeCents,
-        transfer_data: { destination: destinationAccountId },
         metadata: {
           payerUserId,
           contentUserId,
@@ -232,6 +380,7 @@ export class BillingService {
           amount: amount.toString(),
           totalAmount: totalAmount.toString(),
           platformFee: platformFee.toString(),
+          platformFeeCents: applicationFeeCents.toString(),
           receiverAmount: receiverAmount.toString(),
           receiverAmountCents: receiverAmountCents.toString(),
         },
@@ -243,6 +392,7 @@ export class BillingService {
         amount: amount.toString(),
         totalAmount: totalAmount.toString(),
         platformFee: platformFee.toString(),
+        platformFeeCents: applicationFeeCents.toString(),
         receiverAmount: receiverAmount.toString(),
         receiverAmountCents: receiverAmountCents.toString(),
       },
@@ -255,7 +405,13 @@ export class BillingService {
     receiverUserId: string,
     amount: number,
   ) {
-    const destinationAccountId = await this.requireCanReceivePayments(receiverUserId);
+    await this.ensureUserExists(receiverUserId);
+
+    const payerProvider = await this.paymentProviderResolver.resolveProviderForUser(senderUserId);
+    if (payerProvider === 'PAGBANK') {
+      return this.createPagBankTipCheckout(senderUserId, receiverUserId, amount);
+    }
+
     const customerId = await this.ensureStripeCustomer(senderUserId);
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
@@ -290,8 +446,6 @@ export class BillingService {
         },
       ],
       payment_intent_data: {
-        application_fee_amount: applicationFeeCents,
-        transfer_data: { destination: destinationAccountId },
         metadata: {
           senderUserId,
           receiverUserId,
@@ -299,6 +453,7 @@ export class BillingService {
           amount: amount.toString(),
           totalAmount: totalAmount.toString(),
           platformFee: platformFee.toString(),
+          platformFeeCents: applicationFeeCents.toString(),
           receiverAmount: receiverAmount.toString(),
           receiverAmountCents: receiverAmountCents.toString(),
         },
@@ -310,6 +465,7 @@ export class BillingService {
         amount: amount.toString(),
         totalAmount: totalAmount.toString(),
         platformFee: platformFee.toString(),
+        platformFeeCents: applicationFeeCents.toString(),
         receiverAmount: receiverAmount.toString(),
         receiverAmountCents: receiverAmountCents.toString(),
       },
@@ -318,20 +474,112 @@ export class BillingService {
     return session;
   }
 
+  private async createPagBankTipCheckout(
+    senderUserId: string,
+    receiverUserId: string,
+    amount: number,
+  ) {
+    const amountCents = Math.round(amount * 100);
+    const { platformFee, receiverAmount, totalAmount } = this.getTipAmountSplit(amountCents);
+    const sender = await this.prisma.user.findUnique({
+      where: { id: senderUserId },
+      select: { email: true, displayName: true, userName: true },
+    });
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId: senderUserId,
+        receiverId: receiverUserId,
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
+        currency: 'BRL',
+        status: 'pending',
+        forPayment: 'TIP',
+      },
+    });
+
+    const checkout = await this.pagBankService.createPixCheckout({
+      referenceId: payment.id,
+      amountMinor: amountCents,
+      description: 'Tip Payment',
+      customerEmail: sender?.email || undefined,
+      customerName: sender?.displayName || sender?.userName || undefined,
+    });
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { stripePaymentIntentId: checkout.orderId },
+    });
+
+    return {
+      id: checkout.orderId,
+      url: checkout.checkoutUrl,
+      ...checkout,
+    };
+  }
+
+  private async createPagBankFollowingCheckout(
+    payerUserId: string,
+    contentUserId: string,
+    amount: number,
+  ) {
+    const amountCents = Math.round(amount * 100);
+    const { platformFee, receiverAmount, totalAmount } = this.getPayFollowingAmountSplit(amountCents);
+    const payer = await this.prisma.user.findUnique({
+      where: { id: payerUserId },
+      select: { email: true, displayName: true, userName: true },
+    });
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId: payerUserId,
+        receiverId: contentUserId,
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
+        currency: 'BRL',
+        status: 'pending',
+        forPayment: 'following',
+      },
+    });
+
+    const checkout = await this.pagBankService.createPixCheckout({
+      referenceId: payment.id,
+      amountMinor: amountCents,
+      description: 'Following Payment',
+      customerEmail: payer?.email || undefined,
+      customerName: payer?.displayName || payer?.userName || undefined,
+    });
+
+    await this.prisma.payment.update({
+      where: { id: payment.id },
+      data: { stripePaymentIntentId: checkout.orderId },
+    });
+
+    return {
+      id: checkout.orderId,
+      url: checkout.checkoutUrl,
+      ...checkout,
+    };
+  }
+
   async createEbookCheckoutSession(
     buyerUserId: string,
     targetUserId: string,
     postId: string,
     amount: number,
   ) {
-    const destinationAccountId = await this.requireCanReceivePayments(targetUserId);
-    const customerId = await this.ensureStripeCustomer(buyerUserId);
+    await this.ensureUserExists(targetUserId);
+
+    const buyerProvider = await this.paymentProviderResolver.resolveProviderForUser(buyerUserId);
+    if (buyerProvider === 'PAGBANK') {
+      // continue below after validations, then branch before Stripe session
+    }
+
+    const customerId = buyerProvider === 'STRIPE' ? await this.ensureStripeCustomer(buyerUserId) : null;
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
-
-    if (!successUrl || !cancelUrl) {
-      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
-    }
 
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
@@ -373,8 +621,8 @@ export class BillingService {
         amount: amountCents,
         platformFee: platformFeeCents,
         sellerAmount: receiverAmountCents,
-        currency: 'usd',
-        provider: 'STRIPE',
+        currency: buyerProvider === 'PAGBANK' ? 'brl' : 'usd',
+        provider: buyerProvider,
         status: 'PENDING',
         metadata: {
           buyerUserId,
@@ -389,6 +637,47 @@ export class BillingService {
       },
       select: { id: true },
     });
+
+    if (buyerProvider === 'PAGBANK') {
+      try {
+        const buyer = await this.prisma.user.findUnique({
+          where: { id: buyerUserId },
+          select: { email: true, displayName: true, userName: true },
+        });
+        const checkout = await this.pagBankService.createPixCheckout({
+          referenceId: ebookPayment.id,
+          amountMinor: amountCents,
+          description: 'Ebook Payment',
+          customerEmail: buyer?.email || undefined,
+          customerName: buyer?.displayName || buyer?.userName || undefined,
+        });
+        await (this.prisma as any).ebookPayments.update({
+          where: { id: ebookPayment.id },
+          data: {
+            checkoutSessionId: checkout.orderId,
+            paymentIntentId: checkout.orderId,
+          },
+        });
+        return {
+          id: checkout.orderId,
+          url: checkout.checkoutUrl,
+          ...checkout,
+        };
+      } catch (error) {
+        await (this.prisma as any).ebookPayments.update({
+          where: { id: ebookPayment.id },
+          data: { status: 'FAILED' },
+        });
+        throw error;
+      }
+    }
+
+    if (!successUrl || !cancelUrl) {
+      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+    }
+    if (!customerId) {
+      throw new BadRequestException('Stripe customer required');
+    }
 
     try {
       const session = await this.stripe.checkout.sessions.create({
@@ -409,8 +698,6 @@ export class BillingService {
           },
         ],
         payment_intent_data: {
-          application_fee_amount: platformFeeCents,
-          transfer_data: { destination: destinationAccountId },
           metadata: {
             type: 'ebook',
             ebookPaymentId: ebookPayment.id,
@@ -420,6 +707,7 @@ export class BillingService {
             amount: amount.toString(),
             totalAmount: totalAmount.toString(),
             platformFee: platformFee.toString(),
+            platformFeeCents: platformFeeCents.toString(),
             receiverAmount: receiverAmount.toString(),
             receiverAmountCents: receiverAmountCents.toString(),
           },
@@ -433,6 +721,7 @@ export class BillingService {
           amount: amount.toString(),
           totalAmount: totalAmount.toString(),
           platformFee: platformFee.toString(),
+          platformFeeCents: platformFeeCents.toString(),
           receiverAmount: receiverAmount.toString(),
           receiverAmountCents: receiverAmountCents.toString(),
         },
@@ -506,14 +795,11 @@ export class BillingService {
       throw new BadRequestException('Amount mismatch with ebook price');
     }
 
-    const destinationAccountId = await this.requireCanReceivePayments(ebook.userId);
-    const customerId = await this.ensureStripeCustomer(buyerUserId);
+    await this.ensureUserExists(ebook.userId);
+    const buyerProvider = await this.paymentProviderResolver.resolveProviderForUser(buyerUserId);
+    const customerId = buyerProvider === 'STRIPE' ? await this.ensureStripeCustomer(buyerUserId) : null;
     const successUrl = process.env.STRIPE_SUCCESS_URL as string;
     const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
-
-    if (!successUrl || !cancelUrl) {
-      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
-    }
 
     const amountCents = Math.round(amount * 100);
     const {
@@ -533,8 +819,8 @@ export class BillingService {
         amount: amountCents,
         platformFee: platformFeeCents,
         sellerAmount: receiverAmountCents,
-        currency: 'usd',
-        provider: 'STRIPE',
+        currency: buyerProvider === 'PAGBANK' ? 'brl' : 'usd',
+        provider: buyerProvider,
         status: 'PENDING',
         metadata: {
           buyerUserId,
@@ -550,6 +836,41 @@ export class BillingService {
       },
       select: { id: true },
     });
+
+    if (buyerProvider === 'PAGBANK') {
+      try {
+        const buyer = await this.prisma.user.findUnique({
+          where: { id: buyerUserId },
+          select: { email: true, displayName: true, userName: true },
+        });
+        const checkout = await this.pagBankService.createPixCheckout({
+          referenceId: shopEbookPayment.id,
+          amountMinor: amountCents,
+          description: ebook.caption || 'Shop Ebook Payment',
+          customerEmail: buyer?.email || undefined,
+          customerName: buyer?.displayName || buyer?.userName || undefined,
+        });
+        await (this.prisma as any).shopEbookPayments.update({
+          where: { id: shopEbookPayment.id },
+          data: {
+            checkoutSessionId: checkout.orderId,
+            paymentIntentId: checkout.orderId,
+          },
+        });
+        return { id: checkout.orderId, url: checkout.checkoutUrl, ...checkout };
+      } catch (error) {
+        await (this.prisma as any).shopEbookPayments.update({
+          where: { id: shopEbookPayment.id },
+          data: { status: 'FAILED' },
+        });
+        throw error;
+      }
+    }
+
+    if (!successUrl || !cancelUrl) {
+      throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+    }
+    if (!customerId) throw new BadRequestException('Stripe customer required');
 
     try {
       const session = await this.stripe.checkout.sessions.create({
@@ -570,8 +891,6 @@ export class BillingService {
           },
         ],
         payment_intent_data: {
-          application_fee_amount: platformFeeCents,
-          transfer_data: { destination: destinationAccountId },
           metadata: {
             type: 'shop_ebook',
             shopEbookPaymentId: shopEbookPayment.id,
@@ -582,6 +901,7 @@ export class BillingService {
             amount: amount.toString(),
             totalAmount: totalAmount.toString(),
             platformFee: platformFee.toString(),
+            platformFeeCents: platformFeeCents.toString(),
             receiverAmount: receiverAmount.toString(),
             receiverAmountCents: receiverAmountCents.toString(),
           },
@@ -596,6 +916,7 @@ export class BillingService {
           amount: amount.toString(),
           totalAmount: totalAmount.toString(),
           platformFee: platformFee.toString(),
+          platformFeeCents: platformFeeCents.toString(),
           receiverAmount: receiverAmount.toString(),
           receiverAmountCents: receiverAmountCents.toString(),
         },
@@ -798,8 +1119,20 @@ export class BillingService {
         periodEnd,
       },
     });
-    // eslint-disable-next-line no-console
-    // console.log('[Billing] Payment created (pay-following success): id=', payment.id, 'userId=', user.id, 'receiverId=', contentUserId ?? 'none', 'amountReceived(USD)=', receiverAmount, 'platformFee(USD)=', platformFee, 'totalAmount(USD)=', totalAmount, 'status=succeeded');
+
+    if (contentUserId) {
+      const receiverAmountCents =
+        Number(paymentIntent.metadata?.receiverAmountCents) ||
+        Math.round(receiverAmount * 100);
+      await this.creditSellerAvailableWallet({
+        sellerUserId: contentUserId,
+        amountMinor: receiverAmountCents,
+        source: 'FOLLOWING',
+        refId: paymentIntent.id,
+        currency: paymentIntent.currency || 'usd',
+        note: `Pay-following payment ${payment.id}`,
+      });
+    }
   }
 
   async handleOneTimePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
@@ -886,6 +1219,20 @@ export class BillingService {
         stripePaymentIntentId: paymentIntent.id,
       },
     });
+
+    if (receiverUserId) {
+      const receiverAmountCents =
+        Number(paymentIntent.metadata?.receiverAmountCents) ||
+        Math.round(receiverAmount * 100);
+      await this.creditSellerAvailableWallet({
+        sellerUserId: receiverUserId,
+        amountMinor: receiverAmountCents,
+        source: 'TIP',
+        refId: paymentIntent.id,
+        currency: paymentIntent.currency || 'usd',
+        note: `Tip payment ${paymentIntent.id}`,
+      });
+    }
   }
 
   async handleTipPaymentFailed(paymentIntent: Stripe.PaymentIntent) {
@@ -938,14 +1285,32 @@ export class BillingService {
           ...(paymentIntent.metadata?.ebookPaymentId ? [{ id: paymentIntent.metadata.ebookPaymentId }] : []),
         ],
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, sellerId: true, sellerAmount: true, currency: true },
     });
 
     if (existing) {
-      if (existing.status === 'SUCCEEDED') return;
+      if (existing.status === 'SUCCEEDED') {
+        await this.creditSellerAvailableWallet({
+          sellerUserId: existing.sellerId,
+          amountMinor: existing.sellerAmount,
+          source: 'EBOOK',
+          refId: existing.id,
+          currency: existing.currency || paymentIntent.currency || 'usd',
+          note: `Ebook payment ${existing.id}`,
+        });
+        return;
+      }
       await (this.prisma as any).ebookPayments.update({
         where: { id: existing.id },
         data: { status: 'SUCCEEDED', paymentIntentId: paymentIntent.id },
+      });
+      await this.creditSellerAvailableWallet({
+        sellerUserId: existing.sellerId,
+        amountMinor: existing.sellerAmount,
+        source: 'EBOOK',
+        refId: existing.id,
+        currency: existing.currency || paymentIntent.currency || 'usd',
+        note: `Ebook payment ${existing.id}`,
       });
       return;
     }
@@ -959,7 +1324,7 @@ export class BillingService {
     const amountCents = paymentIntent.amount ?? 0;
     const { platformFeeCents, receiverAmountCents } = this.getEbookAmountSplit(amountCents);
 
-    await (this.prisma as any).ebookPayments.create({
+    const created = await (this.prisma as any).ebookPayments.create({
       data: {
         buyerId: buyerUserId,
         sellerId: targetUserId,
@@ -976,6 +1341,16 @@ export class BillingService {
           paymentIntentId: paymentIntent.id,
         },
       },
+      select: { id: true, sellerId: true, sellerAmount: true, currency: true },
+    });
+
+    await this.creditSellerAvailableWallet({
+      sellerUserId: created.sellerId,
+      amountMinor: created.sellerAmount,
+      source: 'EBOOK',
+      refId: created.id,
+      currency: created.currency || 'usd',
+      note: `Ebook payment ${created.id}`,
     });
   }
 
@@ -1034,14 +1409,32 @@ export class BillingService {
           ...(paymentIntent.metadata?.shopEbookPaymentId ? [{ id: paymentIntent.metadata.shopEbookPaymentId }] : []),
         ],
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, sellerId: true, sellerAmount: true, currency: true },
     });
 
     if (existing) {
-      if (existing.status === 'SUCCEEDED') return;
+      if (existing.status === 'SUCCEEDED') {
+        await this.creditSellerAvailableWallet({
+          sellerUserId: existing.sellerId,
+          amountMinor: existing.sellerAmount,
+          source: 'SHOP_EBOOK',
+          refId: existing.id,
+          currency: existing.currency || paymentIntent.currency || 'usd',
+          note: `Shop ebook payment ${existing.id}`,
+        });
+        return;
+      }
       await (this.prisma as any).shopEbookPayments.update({
         where: { id: existing.id },
         data: { status: 'SUCCEEDED', paymentIntentId: paymentIntent.id },
+      });
+      await this.creditSellerAvailableWallet({
+        sellerUserId: existing.sellerId,
+        amountMinor: existing.sellerAmount,
+        source: 'SHOP_EBOOK',
+        refId: existing.id,
+        currency: existing.currency || paymentIntent.currency || 'usd',
+        note: `Shop ebook payment ${existing.id}`,
       });
       return;
     }
@@ -1056,7 +1449,7 @@ export class BillingService {
     const amountCents = paymentIntent.amount ?? 0;
     const { platformFeeCents, receiverAmountCents } = this.getEbookAmountSplit(amountCents);
 
-    await (this.prisma as any).shopEbookPayments.create({
+    const created = await (this.prisma as any).shopEbookPayments.create({
       data: {
         buyerId: buyerUserId,
         sellerId: sellerUserId,
@@ -1074,6 +1467,16 @@ export class BillingService {
           paymentIntentId: paymentIntent.id,
         },
       },
+      select: { id: true, sellerId: true, sellerAmount: true, currency: true },
+    });
+
+    await this.creditSellerAvailableWallet({
+      sellerUserId: created.sellerId,
+      amountMinor: created.sellerAmount,
+      source: 'SHOP_EBOOK',
+      refId: created.id,
+      currency: created.currency || 'usd',
+      note: `Shop ebook payment ${created.id}`,
     });
   }
 
@@ -1322,31 +1725,212 @@ export class BillingService {
     return { status: latest.periodEnd > now ? 'Active' : 'Inactive' };
   }
 
-  /** @deprecated Valens does not offer withdrawals or redemptions. */
+  /**
+   * Withdraw from available wallet balance to the user's connected account (Stripe or PagBank).
+   * Pending (48h marketplace) balance cannot be withdrawn.
+   */
   async requestWithdrawal(userId: string, amount: number) {
-    throw new BadRequestException(
-      'Withdrawals are not available. Valens does not manage liquidity or withdrawals.'
-    );
+    if (!userId) throw new BadRequestException('User ID required');
+    if (typeof amount !== 'number' || Number.isNaN(amount)) {
+      throw new BadRequestException('Invalid withdrawal amount');
+    }
+    if (amount < MIN_WITHDRAWAL_MAJOR) {
+      throw new BadRequestException(`Minimum withdrawal is ${MIN_WITHDRAWAL_MAJOR}`);
+    }
+
+    const amountMinor = Math.round(amount * 100);
+    if (amountMinor <= 0) {
+      throw new BadRequestException('Invalid withdrawal amount');
+    }
+
+    const provider = await this.paymentProviderResolver.ensureUserPaymentProvider(userId);
+    const currency = provider === 'PAGBANK' ? 'brl' : 'usd';
+
+    if (provider === 'STRIPE') {
+      await this.requireCanReceivePayments(userId);
+    } else {
+      const status = await this.pagBankService.getOnboardingStatus(userId);
+      if (!status.canReceivePayments) {
+        throw new BadRequestException(
+          status.message || 'Complete PagBank onboarding before withdrawing.',
+        );
+      }
+    }
+
+    const balance = await this.walletService.getBalance(userId, { currency, provider });
+    if (balance.availableBalanceMinor < amountMinor) {
+      throw new BadRequestException(
+        `Insufficient available balance. Available: ${balance.availableBalance.toFixed(2)}, requested: ${amount.toFixed(2)}. Pending (${balance.pendingBalance.toFixed(2)}) cannot be withdrawn until the 48h protection window ends.`,
+      );
+    }
+
+    const withdrawal = await this.prisma.withdrawalRecord.create({
+      data: {
+        userId,
+        withdrawAmount: amount,
+        amountMinor,
+        currency,
+        provider,
+        status: 'processing',
+        processingAt: new Date(),
+      },
+    });
+
+    try {
+      await this.walletService.debitAvailableForWithdrawal({
+        userId,
+        amountMinor,
+        currency,
+        provider,
+        withdrawalId: withdrawal.id,
+        note: `Withdrawal request ${withdrawal.id}`,
+      });
+
+      let transferId: string;
+
+      if (provider === 'PAGBANK') {
+        const payout = await this.pagBankService.payoutToConnectedAccount({
+          userId,
+          amountMinor,
+          currency,
+          withdrawalId: withdrawal.id,
+        });
+        transferId = payout.transferId;
+      } else {
+        const destinationAccountId = await this.requireCanReceivePayments(userId);
+        const transfer = await this.stripe.transfers.create(
+          {
+            amount: amountMinor,
+            currency,
+            destination: destinationAccountId,
+            metadata: {
+              type: 'seller_wallet_withdrawal',
+              withdrawalId: withdrawal.id,
+              userId,
+            },
+          },
+          { idempotencyKey: `wallet-withdrawal-${withdrawal.id}` },
+        );
+        transferId = transfer.id;
+      }
+
+      const updated = await this.prisma.withdrawalRecord.update({
+        where: { id: withdrawal.id },
+        data: {
+          status: 'success',
+          transferId,
+          txhash: transferId,
+        },
+      });
+
+      try {
+        await this.notificationService.sendNotificationToUser(
+          userId,
+          'Withdrawal Successful',
+          `Your withdrawal of ${amount.toFixed(2)} ${currency.toUpperCase()} has been sent to your connected account.`,
+          {
+            type: 'withdrawal_success',
+            withdrawalId: withdrawal.id,
+            amount: amount.toString(),
+            transferId,
+            provider,
+          },
+        );
+      } catch (notificationError) {
+        console.error('Failed to send withdrawal success notification:', notificationError);
+      }
+
+      const nextBalance = await this.walletService.getBalance(userId, { currency, provider });
+
+      return {
+        message: 'Withdrawal sent to your connected account',
+        withdrawal: {
+          id: updated.id,
+          amount: updated.withdrawAmount,
+          amountMinor: updated.amountMinor,
+          currency: updated.currency,
+          provider: updated.provider,
+          status: updated.status,
+          transferId: updated.transferId,
+          createdAt: updated.createdAt,
+        },
+        balance: {
+          pendingBalance: nextBalance.pendingBalance,
+          availableBalance: nextBalance.availableBalance,
+          withdrawableBalance: nextBalance.withdrawableBalance,
+        },
+      };
+    } catch (error: any) {
+      const failureReason = error?.message || 'Withdrawal transfer failed';
+
+      try {
+        await this.walletService.reverseWithdrawal({
+          userId,
+          amountMinor,
+          currency,
+          provider,
+          withdrawalId: withdrawal.id,
+          note: failureReason,
+        });
+      } catch (reverseError) {
+        console.error('Failed to reverse wallet debit after withdrawal error:', reverseError);
+      }
+
+      await this.prisma.withdrawalRecord.update({
+        where: { id: withdrawal.id },
+        data: {
+          status: error?.message?.includes('onboarding') || error?.message?.includes('Complete')
+            ? 'requires_onboarding'
+            : 'failed',
+          failureReason,
+        },
+      });
+
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(failureReason);
+    }
   }
 
   async getWithdrawalHistory(userId: string) {
-    return this.prisma.withdrawalRecord.findMany({
+    const withdrawals = await this.prisma.withdrawalRecord.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
+
+    return {
+      withdrawals: withdrawals.map((w) => ({
+        id: w.id,
+        amount: w.withdrawAmount,
+        amountMinor: w.amountMinor,
+        currency: w.currency,
+        provider: w.provider,
+        status: w.status,
+        transferId: w.transferId || w.txhash,
+        failureReason: w.failureReason,
+        processingAt: w.processingAt,
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt,
+      })),
+    };
   }
 
-  /** @deprecated Valens does not process withdrawals. */
-  async processWithdrawal(withdrawalId: string) {
-    return; // No-op: withdrawals disabled per Valens requirements
+  /** @deprecated Prefer requestWithdrawal which transfers immediately. */
+  async processWithdrawal(_withdrawalId: string) {
+    return;
   }
 
-  // Generate Stripe Connect onboarding link for user.
-  // We create and persist stripeAccountId on first link request. If the user closes the
+  // Generate provider onboarding link (Stripe Connect or PagBank Connect).
+  // We create and persist stripeAccountId on first Stripe link request. If the user closes the
   // onboarding URL without completing, we keep the same account and issue a new link
-  // next time (links expire ~30 min). Payments are only allowed when onboarding is
+  // next time (links expire ~30 min). Withdrawals are only allowed when onboarding is
   // complete (requireCanReceivePayments checks details_submitted).
   async createAccountOnboardingLink(userId: string) {
+    const provider = await this.paymentProviderResolver.ensureUserPaymentProvider(userId);
+
+    if (provider === 'PAGBANK') {
+      return this.pagBankService.createAccountOnboardingLink(userId);
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
@@ -1355,7 +1939,7 @@ export class BillingService {
       try {
         const account = await this.stripe.accounts.create({
           type: 'express',
-          country: 'US',
+          country: user.country && user.country !== 'BR' ? user.country : 'US',
           email: user.email || undefined,
           capabilities: { transfers: { requested: true } },
         });
@@ -1393,80 +1977,205 @@ export class BillingService {
         type: 'account_onboarding',
       });
 
-      return { onboardingUrl: accountLink.url };
+      return { onboardingUrl: accountLink.url, provider: 'STRIPE' as const };
     } catch (error: any) {
       console.error('Error creating account link:', error.message);
       throw new BadRequestException('Failed to create onboarding link. Please try again later.');
     }
   }
 
-  // Handle payout success/failure webhooks
-  async handlePayoutPaid(payout: Stripe.Payout) {
-    // For transfers, we need to find the withdrawal by transfer ID, not payout ID
-    // Payouts are created automatically by Stripe after transfer
-    const withdrawal = await this.prisma.withdrawalRecord.findFirst({
-      where: { txhash: payout.id },
-    });
+  async handlePagBankConnectCallback(code: string, state: string) {
+    return this.pagBankService.handleConnectCallback({ code, state });
+  }
 
-    if (withdrawal) {
+  // Handle payout success/failure webhooks (Connect account → bank).
+  // Seller wallet withdrawal completes when the Transfer to Connect succeeds.
+  async handlePayoutPaid(payout: Stripe.Payout) {
+    const withdrawal = await this.findWithdrawalByPayoutOrTransfer(payout);
+    if (!withdrawal) return;
+
+    if (withdrawal.status !== 'success') {
       await this.prisma.withdrawalRecord.update({
         where: { id: withdrawal.id },
-        data: { status: 'success' as any } as any,
+        data: { status: 'success' },
       });
+    }
 
-      // Send notification to the user
-      try {
-        await this.notificationService.sendNotificationToUser(
-          withdrawal.userId,
-          'Withdrawal Successful',
-          `Your withdrawal of $${withdrawal.withdrawAmount} has been processed successfully.`,
-          { type: 'withdrawal_success', withdrawalId: withdrawal.id, amount: (withdrawal.withdrawAmount || 0).toString() }
-        );
-      } catch (notificationError) {
-        console.error('Failed to send withdrawal success notification:', notificationError);
-      }
+    try {
+      await this.notificationService.sendNotificationToUser(
+        withdrawal.userId,
+        'Payout Deposited',
+        `Your withdrawal of $${withdrawal.withdrawAmount} is being deposited to your bank.`,
+        {
+          type: 'withdrawal_payout_paid',
+          withdrawalId: withdrawal.id,
+          amount: (withdrawal.withdrawAmount || 0).toString(),
+        },
+      );
+    } catch (notificationError) {
+      console.error('Failed to send payout paid notification:', notificationError);
     }
   }
 
   async handlePayoutFailed(payout: Stripe.Payout) {
-    const withdrawal = await this.prisma.withdrawalRecord.findFirst({
-      where: { txhash: payout.id },
+    // Money already left the platform wallet to Connect; bank payout failure should not
+    // re-credit the in-app available balance.
+    const withdrawal = await this.findWithdrawalByPayoutOrTransfer(payout);
+    if (!withdrawal) return;
+
+    await this.prisma.withdrawalRecord.update({
+      where: { id: withdrawal.id },
+      data: {
+        failureReason: `Connect payout failed: ${payout.failure_message || payout.failure_code || 'unknown'}`,
+      },
     });
 
-    if (withdrawal) {
-      // Refund the amount back to user balance
-      await this.prisma.user.update({
-        where: { id: withdrawal.userId },
-        data: {
-          tokenBalance: {
-            increment: withdrawal.withdrawAmount ?? 0,
-          },
+    try {
+      await this.notificationService.sendNotificationToUser(
+        withdrawal.userId,
+        'Bank Payout Issue',
+        'Your connected account payout to bank had an issue. Funds remain on your Stripe account — check onboarding/bank details.',
+        {
+          type: 'withdrawal_payout_failed',
+          withdrawalId: withdrawal.id,
+          amount: (withdrawal.withdrawAmount || 0).toString(),
         },
-      });
-
-      await this.prisma.withdrawalRecord.update({
-        where: { id: withdrawal.id },
-        data: { status: 'failed' as any } as any,
-      });
+      );
+    } catch (notificationError) {
+      console.error('Failed to send payout failed notification:', notificationError);
     }
   }
 
   async handleTransferCreated(transfer: Stripe.Transfer) {
-    // Find withdrawal by transfer ID
-    const withdrawal = await this.prisma.withdrawalRecord.findFirst({
-      where: { txhash: transfer.id },
+    const withdrawalId = transfer.metadata?.withdrawalId;
+    const withdrawal = withdrawalId
+      ? await this.prisma.withdrawalRecord.findUnique({ where: { id: withdrawalId } })
+      : await this.prisma.withdrawalRecord.findFirst({
+          where: {
+            OR: [{ transferId: transfer.id }, { txhash: transfer.id }],
+          },
+        });
+
+    if (!withdrawal) return;
+
+    if (withdrawal.status === 'processing' || withdrawal.status === 'processing_transfer') {
+      await this.prisma.withdrawalRecord.update({
+        where: { id: withdrawal.id },
+        data: {
+          status: 'success',
+          transferId: transfer.id,
+          txhash: transfer.id,
+        },
+      });
+    }
+  }
+
+  async handleTransferFailedOrReversed(transfer: Stripe.Transfer, reason: string) {
+    const withdrawalId = transfer.metadata?.withdrawalId;
+    const withdrawal = withdrawalId
+      ? await this.prisma.withdrawalRecord.findUnique({ where: { id: withdrawalId } })
+      : await this.prisma.withdrawalRecord.findFirst({
+          where: {
+            OR: [{ transferId: transfer.id }, { txhash: transfer.id }],
+          },
+        });
+
+    if (!withdrawal) return;
+    if (withdrawal.status === 'failed') return;
+
+    const amountMinor =
+      withdrawal.amountMinor ??
+      Math.round(Number(withdrawal.withdrawAmount || 0) * 100);
+
+    if (amountMinor > 0) {
+      await this.walletService.reverseWithdrawal({
+        userId: withdrawal.userId,
+        amountMinor,
+        currency: withdrawal.currency || 'usd',
+        provider: (withdrawal.provider as 'STRIPE' | 'PAGBANK') || 'STRIPE',
+        withdrawalId: withdrawal.id,
+        note: reason,
+      });
+    }
+
+    await this.prisma.withdrawalRecord.update({
+      where: { id: withdrawal.id },
+      data: {
+        status: 'failed',
+        failureReason: reason,
+        transferId: transfer.id,
+        txhash: transfer.id,
+      },
     });
 
-    if (withdrawal && withdrawal.status === 'processing_transfer') {
-      // Transfer created successfully, now wait for payout
-      // Status remains processing_transfer until payout.paid or payout.failed
-      // console.log(`Transfer created for withdrawal ${withdrawal.id}: ${transfer.id}`);
+    try {
+      await this.notificationService.sendNotificationToUser(
+        withdrawal.userId,
+        'Withdrawal Failed',
+        `Your withdrawal of $${withdrawal.withdrawAmount} failed and was returned to your available balance.`,
+        {
+          type: 'withdrawal_failed',
+          withdrawalId: withdrawal.id,
+          amount: (withdrawal.withdrawAmount || 0).toString(),
+        },
+      );
+    } catch (notificationError) {
+      console.error('Failed to send withdrawal failed notification:', notificationError);
     }
+  }
+
+  private async findWithdrawalByPayoutOrTransfer(payout: Stripe.Payout) {
+    return this.prisma.withdrawalRecord.findFirst({
+      where: {
+        OR: [
+          { txhash: payout.id },
+          { transferId: payout.id },
+          ...(typeof (payout as any).balance_transaction === 'string'
+            ? [{ txhash: (payout as any).balance_transaction as string }]
+            : []),
+        ],
+      },
+    });
   }
 
   async buyHit(amount: number, hitCount: number, userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
+    if (!hitCount || hitCount <= 0) throw new BadRequestException('hitCount must be greater than 0');
+    if (!amount || amount <= 0) throw new BadRequestException('amount must be greater than 0');
+
+    const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+    const amountMinor = Math.round(amount * 100);
+
+    if (provider === 'PAGBANK') {
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          amount: Math.round(amount),
+          totalAmount: Math.round(amount),
+          currency: 'BRL',
+          status: 'pending',
+          forPayment: 'buyHit',
+          // hitCount carried for PagBank webhook fulfillment
+          stripeInvoiceId: String(hitCount),
+        },
+      });
+
+      const checkout = await this.pagBankService.createPixCheckout({
+        referenceId: payment.id,
+        amountMinor,
+        description: `Buy ${hitCount} Hits`,
+        customerEmail: user.email || undefined,
+        customerName: user.displayName || user.userName || undefined,
+      });
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { stripePaymentIntentId: checkout.orderId },
+      });
+
+      return { sessionId: checkout.orderId, url: checkout.checkoutUrl, ...checkout };
+    }
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -1478,7 +2187,7 @@ export class BillingService {
               name: `Buy ${hitCount} Hits`,
               description: `Purchase ${hitCount} additional hits for posting`,
             },
-            unit_amount: Math.round(amount * 100), // Amount in cents
+            unit_amount: amountMinor,
           },
           quantity: 1,
         },
@@ -1494,29 +2203,68 @@ export class BillingService {
       customer_email: user.email || undefined,
     });
 
-    // Create pending payment record
     await this.prisma.payment.create({
       data: {
         userId: userId,
-        amount: Math.round(amount * 100), // Amount in cents
+        amount: amountMinor,
         currency: 'USD',
         status: 'pending',
         forPayment: 'buyHit',
-        stripePaymentIntentId: session.payment_intent as string,
+        stripePaymentIntentId: (session.payment_intent as string) || session.id,
+        stripeInvoiceId: String(hitCount),
       },
     });
 
     return { sessionId: session.id, url: session.url };
   }
 
+  private async resolveFansPageAmountMinor(): Promise<number> {
+    const fromEnv = Number(process.env.FANS_PAGE_SUBSCRIPTION_AMOUNT_CENTS || 0);
+    if (fromEnv > 0) return Math.round(fromEnv);
+    const price = await this.stripe.prices.retrieve('price_1STKIwEfZnDK6m7OP2vahCdr');
+    const amount = price.unit_amount || 0;
+    if (amount <= 0) {
+      throw new BadRequestException('Fans page subscription price amount is missing');
+    }
+    return amount;
+  }
+
   async createFansPageSubscriptionCheckoutSession(userId: string) {
-    const customerId = await this.ensureStripeCustomer(userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
-    // Get price details from Stripe
-    const price = await this.stripe.prices.retrieve('price_1STKIwEfZnDK6m7OP2vahCdr');
-    const amount = price.unit_amount || 0;
+    const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+    const amount = await this.resolveFansPageAmountMinor();
+
+    if (provider === 'PAGBANK') {
+      const payment = await this.prisma.payment.create({
+        data: {
+          userId,
+          amount: Math.round(amount / 100),
+          totalAmount: Math.round(amount / 100),
+          currency: 'BRL',
+          status: 'pending',
+          forPayment: 'fanSubscription',
+        },
+      });
+
+      const checkout = await this.pagBankService.createPixCheckout({
+        referenceId: payment.id,
+        amountMinor: amount,
+        description: 'Fans Page Subscription',
+        customerEmail: user.email || undefined,
+        customerName: user.displayName || user.userName || undefined,
+      });
+
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { stripePaymentIntentId: checkout.orderId },
+      });
+
+      return { sessionId: checkout.orderId, url: checkout.checkoutUrl, ...checkout };
+    }
+
+    const customerId = await this.ensureStripeCustomer(userId);
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -1542,7 +2290,6 @@ export class BillingService {
       },
     });
 
-    // Create pending payment record
     await this.prisma.payment.create({
       data: {
         userId: userId,
@@ -1550,7 +2297,7 @@ export class BillingService {
         currency: 'USD',
         status: 'pending',
         forPayment: 'fanSubscription',
-        stripePaymentIntentId: session.payment_intent as string,
+        stripePaymentIntentId: (session.payment_intent as string) || session.id,
       },
     });
 
@@ -1641,8 +2388,20 @@ export class BillingService {
         status: 'ACTIVE',
       },
     });
-    // Creator (buyUserId) receives 95% in their Stripe Connect account via destination charge; no in-app balance hold.
-    // console.log(`✅ Fan subscription buy payment processed: Fan ${fanUserId} subscribed to ${buyUserId} for one month`);
+
+    const amountCents = session.amount_total || Number(session.metadata?.amount || 0) * 100;
+    const receiverAmountCents =
+      Number(session.metadata?.receiverAmountCents) ||
+      Math.max(0, Math.round(amountCents * (1 - this.PLATFORM_FEE_PERCENT)));
+
+    await this.creditSellerAvailableWallet({
+      sellerUserId: buyUserId,
+      amountMinor: receiverAmountCents,
+      source: 'FAN_SUBSCRIPTION',
+      refId: customPaymentIntentId,
+      currency: session.currency || 'usd',
+      note: `Fan subscription buy ${session.id}`,
+    });
   }
 
   async createOneTimePaymentCheckForFanSubscription(amount: number, buyUserId: string, fanUserId: string) {
@@ -1651,14 +2410,59 @@ export class BillingService {
     if (buyUserId === fanUserId) throw new BadRequestException('You cannot buy your own fan subscription');
     if (!amount || amount <= 0) throw new BadRequestException('Amount must be greater than 0');
 
-    const destinationAccountId = await this.requireCanReceivePayments(buyUserId);
-    const customerId = await this.ensureStripeCustomer(fanUserId);
+    await this.ensureUserExists(buyUserId);
+    const fanProvider = await this.paymentProviderResolver.resolveProviderForUser(fanUserId);
     const buyUser = await this.prisma.user.findUnique({ where: { id: buyUserId } });
     if (!buyUser) throw new BadRequestException('Buy user not found');
 
     const customPaymentIntentId = uuidv4();
     const amountCents = Math.round(amount * 100);
     const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+    const receiverAmountCents = Math.max(0, amountCents - applicationFeeCents);
+    const receiverAmount = receiverAmountCents / 100;
+    const platformFee = applicationFeeCents / 100;
+    const totalAmount = amountCents / 100;
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        userId: buyUserId,
+        receiverId: buyUserId,
+        amount: receiverAmount,
+        platformFee,
+        totalAmount,
+        currency: fanProvider === 'PAGBANK' ? 'BRL' : 'USD',
+        status: 'pending',
+        forPayment: 'fanSubscriptionBuy',
+        stripePaymentIntentId: customPaymentIntentId,
+        // PagBank webhook reads fan payer id from stripeInvoiceId
+        stripeInvoiceId: fanUserId,
+      },
+    });
+
+    if (fanProvider === 'PAGBANK') {
+      const fan = await this.prisma.user.findUnique({
+        where: { id: fanUserId },
+        select: { email: true, displayName: true, userName: true },
+      });
+      const checkout = await this.pagBankService.createPixCheckout({
+        referenceId: payment.id,
+        amountMinor: amountCents,
+        description: `Fan Subscription to ${buyUser.displayName || buyUser.userName}`,
+        customerEmail: fan?.email || undefined,
+        customerName: fan?.displayName || fan?.userName || undefined,
+      });
+      await this.prisma.payment.update({
+        where: { id: payment.id },
+        data: { stripePaymentIntentId: checkout.orderId },
+      });
+      return {
+        sessionId: checkout.orderId,
+        url: checkout.checkoutUrl,
+        ...checkout,
+      };
+    }
+
+    const customerId = await this.ensureStripeCustomer(fanUserId);
 
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
@@ -1678,8 +2482,15 @@ export class BillingService {
         },
       ],
       payment_intent_data: {
-        application_fee_amount: applicationFeeCents,
-        transfer_data: { destination: destinationAccountId },
+        metadata: {
+          type: 'fan_subscription_buy',
+          fanUserId,
+          buyUserId,
+          amount: amount.toString(),
+          customPaymentIntentId,
+          platformFeeCents: applicationFeeCents.toString(),
+          receiverAmountCents: receiverAmountCents.toString(),
+        },
       },
       metadata: {
         type: 'fan_subscription_buy',
@@ -1687,18 +2498,8 @@ export class BillingService {
         buyUserId,
         amount: amount.toString(),
         customPaymentIntentId,
-      },
-    });
-
-    // Create pending payment record
-    await this.prisma.payment.create({
-      data: {
-        userId: buyUserId,
-        amount: Math.round(amount * 100), // Amount in cents
-        currency: 'USD',
-        status: 'pending',
-        forPayment: 'fanSubscriptionBuy',
-        stripePaymentIntentId: customPaymentIntentId,
+        platformFeeCents: applicationFeeCents.toString(),
+        receiverAmountCents: receiverAmountCents.toString(),
       },
     });
 

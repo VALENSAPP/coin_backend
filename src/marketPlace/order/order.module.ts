@@ -1,6 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { NotificationModule } from '../../notification/notification.module';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { WalletModule } from '../../wallet/wallet.module';
+import { PagBankModule } from '../../pagbank/pagbank.module';
 import { ClosetChatModule } from '../closet-chat/closet-chat.module';
 import { ShippingModule } from '../shipping/shipping.module';
 import { OrderController } from './order.controller';
@@ -15,6 +17,8 @@ import { SellerOrderService } from './seller-order.service';
         PrismaModule,
         NotificationModule,
         ClosetChatModule,
+        WalletModule,
+        forwardRef(() => PagBankModule),
         forwardRef(() => ShippingModule),
     ],
     controllers: [OrderController, SellerOrderController],

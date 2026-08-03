@@ -8,9 +8,19 @@ import { TokenPurchaseModule } from '../token-purchase/token-purchase.module';
 import { NotificationModule } from '../notification/notification.module';
 import { MarketplaceBattlesModule } from '../marketPlace/marketplace-battles/marketplace-battles.module';
 import { PaymentModule } from '../marketPlace/payment/payment.module';
+import { WalletModule } from '../wallet/wallet.module';
+import { PagBankModule } from '../pagbank/pagbank.module';
 
 @Module({
-  imports: [PrismaModule, TokenPurchaseModule, NotificationModule, PaymentModule, MarketplaceBattlesModule],
+  imports: [
+    PrismaModule,
+    TokenPurchaseModule,
+    NotificationModule,
+    PaymentModule,
+    MarketplaceBattlesModule,
+    WalletModule,
+    PagBankModule,
+  ],
   controllers: [BillingController, BillingWebhookController, WithdrawalPagesController],
   providers: [BillingService],
 })

@@ -48,6 +48,15 @@ model User {
   first_log             Boolean                   @default(true)
   stripeAccountId       String?
   stripeBankAccountId   String?
+  /// ISO country at registration/origin (e.g. BR, US). Used to pick payment provider.
+  country               String?
+  /// STRIPE | PAGBANK — set at registration from country/origin.
+  paymentProvider       String                    @default("STRIPE")
+  pagbankAccountId      String?
+  pagbankCustomerId     String?
+  pagbankAccessToken    String?                   @db.Text
+  pagbankRefreshToken   String?                   @db.Text
+  pagbankTokenExpiresAt DateTime?
   refreshToken          String?
   refreshTokenExpiresAt DateTime?
   profileStatus         String                    @default("public")
@@ -155,6 +164,8 @@ model User {
   ebookPaymentsAsBuyer        EbookPayments[]            @relation("EbookPaymentBuyer")
   ebookPaymentsAsSeller       EbookPayments[]            @relation("EbookPaymentSeller")
   userAddrees                 UserAddrees[]
+  sellerWallets               SellerWallet[]
+  walletLedgerEntries         WalletLedgerEntry[]
 }
 
 model Mycloset {
@@ -1128,7 +1139,11 @@ model WithdrawalRecord {
   id             String    @id @default(uuid())
   userId         String
   withdrawAmount Float?
+  amountMinor    Int?
+  currency       String    @default("usd")
+  provider       String    @default("STRIPE") // STRIPE | PAGBANK
   txhash         String?
+  transferId     String? // Stripe transfer id or PagBank payout id
   status         String    @default("pending") // pending, processing, processing_transfer, success, failed, requires_onboarding
   failureReason  String?
   processingAt   DateTime?
@@ -1138,6 +1153,52 @@ model WithdrawalRecord {
 
   @@index([userId])
   @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+/// Per-user withdrawable earnings ledger (platform-held funds).
+/// Marketplace → pending (48h) → available; other earnings → available; withdraw from available only.
+model SellerWallet {
+  id               String              @id @default(uuid())
+  userId           String
+  currency         String              @default("usd")
+  provider         String              @default("STRIPE") // STRIPE | PAGBANK
+  pendingBalance   Int                 @default(0) // minor units (cents)
+  availableBalance Int                 @default(0) // minor units (cents) — withdrawable
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntries    WalletLedgerEntry[]
+
+  @@unique([userId, currency, provider])
+  @@index([userId])
+  @@index([provider])
+  @@map("sellerWallets")
+}
+
+model WalletLedgerEntry {
+  id          String       @id @default(uuid())
+  walletId    String
+  userId      String
+  entryType   String // PENDING_CREDIT | AVAILABLE_CREDIT | PENDING_TO_AVAILABLE | WITHDRAWAL | WITHDRAWAL_REVERSAL
+  source      String // MARKETPLACE | TIP | EBOOK | SHOP_EBOOK | FOLLOWING | FAN_SUBSCRIPTION | MISSION_DONATION | OTHER
+  amountMinor Int // always positive; direction implied by entryType
+  currency    String
+  provider    String
+  refType     String? // ORDER | PAYMENT | WITHDRAWAL
+  refId       String?
+  note        String?
+  createdAt   DateTime     @default(now())
+  wallet      SellerWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([refType, refId, entryType])
+  @@index([walletId])
+  @@index([userId])
+  @@index([source])
+  @@index([createdAt])
+  @@map("walletLedgerEntries")
 }
 
 model Kyc {

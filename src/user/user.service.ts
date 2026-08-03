@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as sgMail from '@sendgrid/mail';
 import { JwtService } from '@nestjs/jwt';
 import { uploadImageToS3 } from '../common/s3.util';
+import { resolvePaymentProviderFromOrigin } from '../common/payment-provider.util';
 // Valens: no wallet creation; users connect third-party non-custodial wallets.
 // import { generateWallet } from '../common/wallet.util';
 // import { encryptSecret } from '../common/crypto.util';
@@ -249,6 +250,7 @@ export class UserService {
     deviceName?: string;
     deviceType?: string;
     location?: string;
+    country?: string;
     userName?: string;
     profile?: string;
   }) {
@@ -257,6 +259,7 @@ export class UserService {
       deviceName: data?.deviceName,
       deviceType: data?.deviceType,
       location: data?.location,
+      country: data?.country,
       userName: data?.userName,
       profile: data?.profile,
     };
@@ -327,6 +330,7 @@ export class UserService {
     deviceName?: string;
     deviceType?: string;
     location?: string;
+    country?: string;
   }) {
     const normalizedEmail = data.email ? data.email.trim().toLowerCase() : undefined;
     // Check if this is a Firebase Google registration request
@@ -596,6 +600,10 @@ export class UserService {
 
       const referCode = await this.generateUniqueReferCode();
       const initialReferPoints = 1000 + (referrer ? 500 : 0);
+      const { country, paymentProvider } = resolvePaymentProviderFromOrigin({
+        country: data.country,
+        location: data.location,
+      });
 
       const userData: any = {
         email: normalizedEmail,
@@ -609,6 +617,8 @@ export class UserService {
         referCode,
         referPoints: initialReferPoints,
         totalPlatformPoints: initialReferPoints,
+        country: country || undefined,
+        paymentProvider,
       };
       if (data.userName) {
         userData.userName = data.userName;
@@ -1045,6 +1055,9 @@ export class UserService {
         userName: true,
         profile: true,
         stripeAccountId: true,
+        country: true,
+        paymentProvider: true,
+        pagbankAccountId: true,
         currentPeriodEnd: true,
         subscriptionEnd: true,
         subscriptionStart: true,
@@ -1967,7 +1980,7 @@ export class UserService {
     };
   }
 
-  async signInWithGoogle(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; userName?: string; profile?: string }) {
+  async signInWithGoogle(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; country?: string; userName?: string; profile?: string }) {
     try {
       // Validate idToken input
       if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -2016,11 +2029,10 @@ export class UserService {
         const firebaseUserId = decodedToken.uid;
         const userId = uuidv4();
         const referCode = await this.generateUniqueReferCode();
-
-        // const wallet = generateWallet();
-        // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
-        // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
-        // const encryptedMnemonic = encryptSecret(wallet.mnemonic, encryptionKey);
+        const { country, paymentProvider } = resolvePaymentProviderFromOrigin({
+          country: meta?.country,
+          location: meta?.location,
+        });
 
         const userData = {
           id: userId,
@@ -2034,6 +2046,8 @@ export class UserService {
           referCode,
           referPoints: 0,
           totalPlatformPoints: 0,
+          country: country || undefined,
+          paymentProvider,
           // walletAddress: wallet.address,
           // walletPrivateKey: encryptedPrivateKey,
           // walletMnemonic: encryptedMnemonic,
@@ -2062,7 +2076,7 @@ export class UserService {
     }
   }
 
-  async signInWithApple(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; userName?: string; profile?: string }) {
+  async signInWithApple(idToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; country?: string; userName?: string; profile?: string }) {
     try {
       // Validate idToken input
       if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
@@ -2112,6 +2126,10 @@ export class UserService {
         const userId = uuidv4();
         const referCode = await this.generateUniqueReferCode();
         const emailUserName = email ? email.split('@')[0] : undefined;
+        const { country, paymentProvider } = resolvePaymentProviderFromOrigin({
+          country: meta?.country,
+          location: meta?.location,
+        });
 
         // const wallet = generateWallet();
         // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
@@ -2130,6 +2148,8 @@ export class UserService {
           referCode,
           referPoints: 0,
           totalPlatformPoints: 0,
+          country: country || undefined,
+          paymentProvider,
           // walletAddress: wallet.address,
           // walletPrivateKey: encryptedPrivateKey,
           // walletMnemonic: encryptedMnemonic,
@@ -2158,7 +2178,7 @@ export class UserService {
     }
   }
 
-  async twitterLogin(accessToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; userName?: string; profile?: string }) {
+  async twitterLogin(accessToken: string, meta?: { deviceId?: string; deviceName?: string; deviceType?: string; location?: string; country?: string; userName?: string; profile?: string }) {
     try {
       if (!accessToken) {
         throw new BadRequestException('Missing Twitter access token');
@@ -2199,6 +2219,10 @@ export class UserService {
       // If not found, create new user — Valens: do NOT create wallets.
       if (!existingUser) {
         const referCode = await this.generateUniqueReferCode();
+        const { country, paymentProvider } = resolvePaymentProviderFromOrigin({
+          country: meta?.country,
+          location: meta?.location,
+        });
         // const wallet = generateWallet();
         // const encryptionKey = process.env.WALLET_ENCRYPTION_KEY || process.env.JWT_SECRET || '';
         // const encryptedPrivateKey = encryptSecret(wallet.privateKey, encryptionKey);
@@ -2216,6 +2240,8 @@ export class UserService {
             referCode,
             referPoints: 0,
             totalPlatformPoints: 0,
+            country: country || undefined,
+            paymentProvider,
             // walletAddress: wallet.address,
             // walletPrivateKey: encryptedPrivateKey,
             // walletMnemonic: encryptedMnemonic,

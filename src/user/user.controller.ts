@@ -70,6 +70,15 @@ export class RegisterDto {
   @IsString()
   location?: string;
 
+  @ApiProperty({
+    required: false,
+    description: 'User origin country code or name (e.g. BR, Brazil). Brazil → PagBank; others → Stripe.',
+    example: 'BR',
+  })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
   @ApiProperty({ enum: RegistrationType, required: true })
   @IsEnum(RegistrationType)
   @IsNotEmpty()

@@ -122,6 +122,12 @@ export class BillingWebhookController {
       case 'transfer.created':
         await this.billingService.handleTransferCreated(event.data.object as Stripe.Transfer);
         break;
+      case 'transfer.reversed':
+        await this.billingService.handleTransferFailedOrReversed(
+          event.data.object as Stripe.Transfer,
+          'Stripe transfer was reversed',
+        );
+        break;
       case 'payout.paid':
         await this.billingService.handlePayoutPaid(event.data.object as Stripe.Payout);
         break;

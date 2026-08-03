@@ -1,9 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException, forwardRef } from '@nestjs/common';
 import { DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WalletService } from '../../wallet/wallet.service';
+import { PagBankService } from '../../pagbank/pagbank.service';
 import { OrderPayoutService } from './order-payout.service';
 
 @Injectable()
@@ -16,6 +18,9 @@ export class OrderService {
         private readonly notificationService: NotificationService,
         private readonly closetChatService: ClosetChatService,
         private readonly orderPayoutService: OrderPayoutService,
+        private readonly walletService: WalletService,
+        @Inject(forwardRef(() => PagBankService))
+        private readonly pagBankService: PagBankService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -228,6 +233,28 @@ export class OrderService {
                 createdOrderIds.push(order.id);
                 sellerIdsToNotify.add(group.sellerId);
 
+                if (sellerAmountMinor > 0) {
+                    const seller = await tx.user.findUnique({
+                        where: { id: group.sellerId },
+                        select: { paymentProvider: true },
+                    });
+                    const provider =
+                        (seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE';
+                    await this.walletService.creditPending(
+                        {
+                            userId: group.sellerId,
+                            amountMinor: sellerAmountMinor,
+                            currency: paymentRecord.currency || (provider === 'PAGBANK' ? 'brl' : 'usd'),
+                            provider,
+                            source: 'MARKETPLACE',
+                            refType: 'ORDER',
+                            refId: order.id,
+                            note: `Marketplace order ${order.orderNumber}`,
+                        },
+                        tx,
+                    );
+                }
+
                 for (const item of group.items) {
                     await tx.orderItem.create({
                         data: {
@@ -283,6 +310,31 @@ export class OrderService {
         }
 
         return { message: 'Order Created Successfully', orderIds: createdOrderIds };
+    }
+
+    /** Create marketplace orders after a PagBank PIX payment is confirmed. */
+    async createOrderFromPagBankPayment(paymentId: string) {
+        const paymentRecord = await this.prisma.marketPlacePayments.findUnique({
+            where: { id: paymentId },
+        });
+        if (!paymentRecord) throw new NotFoundException('Marketplace payment record not found');
+        if (paymentRecord.status !== 'PAID') {
+            throw new BadRequestException('Marketplace payment is not PAID');
+        }
+
+        const fakeIntent = {
+            id: paymentRecord.paymentIntentId || paymentRecord.id,
+            status: 'succeeded',
+            amount: paymentRecord.amount,
+            currency: paymentRecord.currency,
+            latest_charge: paymentRecord.transactionId,
+            metadata: {
+                type: this.marketplaceType,
+                paymentId: paymentRecord.id,
+            },
+        } as any;
+
+        return this.createOrderFromPaymentIntent(fakeIntent);
     }
 
     async getBuyerOrders(userId: string) {
@@ -454,14 +506,23 @@ export class OrderService {
 
         // Refund for paid order (funds still on platform — no Connect destination charge).
         if (order.paymentStatus === PaymentStatus.PAID && order.payment?.paymentIntentId) {
-            await this.stripe.refunds.create({
-                payment_intent: order.payment.paymentIntentId,
-                amount: this.toMinor(order.total),
-                metadata: {
-                    orderId: order.id,
+            const provider = (order.payment.provider || '').toUpperCase();
+            if (provider === 'PAGBANK') {
+                await this.pagBankService.refundCharge({
+                    orderId: order.payment.paymentIntentId,
+                    amountMinor: this.toMinor(order.total),
                     reason: reason || 'buyer_cancelled',
-                },
-            });
+                });
+            } else {
+                await this.stripe.refunds.create({
+                    payment_intent: order.payment.paymentIntentId,
+                    amount: this.toMinor(order.total),
+                    metadata: {
+                        orderId: order.id,
+                        reason: reason || 'buyer_cancelled',
+                    },
+                });
+            }
         }
 
         await this.prisma.$transaction(async (tx) => {

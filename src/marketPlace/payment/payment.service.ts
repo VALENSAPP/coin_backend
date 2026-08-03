@@ -8,13 +8,14 @@ import {
 } from '@prisma/client';
 import Stripe from 'stripe';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PagBankService } from '../../pagbank/pagbank.service';
 import { OrderService } from '../order/order.service';
 import { CreateMarketplacePaymentDto } from './dto/create-marketplace-payment.dto';
+import { PaymentProviderResolver } from './payment-provider.resolver';
 
 @Injectable()
 export class PaymentService {
     private readonly stripe: Stripe;
-    private readonly provider = 'STRIPE';
     private readonly marketplaceType = 'marketplace_mycloset';
     private readonly COMPANY_PLATFORM_FEE_PERCENT = 0.20;
     private readonly USER_PLATFORM_FEE_PERCENT = 0.15;
@@ -22,6 +23,8 @@ export class PaymentService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly orderService: OrderService,
+        private readonly paymentProviderResolver: PaymentProviderResolver,
+        private readonly pagBankService: PagBankService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -309,10 +312,6 @@ export class PaymentService {
             throw new NotFoundException('Seller not found');
         }
 
-        if (!seller.stripeAccountId) {
-            throw new BadRequestException('Seller has not completed Stripe onboarding');
-        }
-
         const platformFeePercent = this.getMarketplacePlatformFeePercent(seller.profile);
         const grandTotalMinor = subtotalMinor + shippingMinor;
         const platformFeeMinor = Math.round(grandTotalMinor * platformFeePercent);
@@ -322,13 +321,11 @@ export class PaymentService {
             throw new BadRequestException('Invalid cart total for payment');
         }
 
-        const currency = (dto.currency || 'usd').trim().toLowerCase();
-
-        const successUrl = process.env.STRIPE_SUCCESS_URL as string;
-        const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
-        if (!successUrl || !cancelUrl) {
-            throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
-        }
+        const buyerProvider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+        const currency =
+            buyerProvider === 'PAGBANK'
+                ? 'brl'
+                : (dto.currency || 'usd').trim().toLowerCase();
 
         const payment = await this.prisma.marketPlacePayments.create({
             data: {
@@ -336,7 +333,7 @@ export class PaymentService {
                 cartId: cart.id,
                 amount: grandTotalMinor,
                 currency,
-                provider: this.provider,
+                provider: buyerProvider,
                 status: 'PENDING',
                 metadata: {
                     userId,
@@ -351,13 +348,52 @@ export class PaymentService {
                     platformFeePercent,
                     sellerAmountMinor,
                     grandTotalMinor,
-                    // Funds stay on platform until delivery-gated transfer.
                     escrowMode: 'separate_charges_and_transfers',
                     items: validatedItems,
                 },
             },
             select: { id: true },
         });
+
+        if (buyerProvider === 'PAGBANK') {
+            try {
+                const buyer = await this.prisma.user.findUnique({
+                    where: { id: userId },
+                    select: { email: true, displayName: true, userName: true },
+                });
+                const checkout = await this.pagBankService.createPixCheckout({
+                    referenceId: payment.id,
+                    amountMinor: grandTotalMinor,
+                    description: `My Closet Checkout (${cart.cartItems.length} item${cart.cartItems.length > 1 ? 's' : ''})`,
+                    customerEmail: buyer?.email || undefined,
+                    customerName: buyer?.displayName || buyer?.userName || undefined,
+                });
+                await this.prisma.marketPlacePayments.update({
+                    where: { id: payment.id },
+                    data: { paymentIntentId: checkout.orderId, transactionId: checkout.orderId },
+                });
+                return {
+                    provider: 'PAGBANK',
+                    checkoutUrl: checkout.checkoutUrl,
+                    qrCode: checkout.qrCode,
+                    pixCopyPaste: checkout.pixCopyPaste,
+                    checkoutSessionId: checkout.orderId,
+                    paymentIntentId: checkout.orderId,
+                    amount: grandTotalMinor / 100,
+                    currency,
+                    expiresAt: checkout.expiresAt,
+                };
+            } catch (error) {
+                await this.prisma.marketPlacePayments.delete({ where: { id: payment.id } });
+                throw error;
+            }
+        }
+
+        const successUrl = process.env.STRIPE_SUCCESS_URL as string;
+        const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
+        if (!successUrl || !cancelUrl) {
+            throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
+        }
 
         let session: Stripe.Checkout.Session;
         try {
@@ -419,7 +455,10 @@ export class PaymentService {
         });
 
         return {
+            provider: 'STRIPE',
             checkoutUrl: session.url,
+            qrCode: null,
+            pixCopyPaste: null,
             checkoutSessionId: session.id,
             paymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
             amount: grandTotalMinor / 100,

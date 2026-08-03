@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import Stripe from 'stripe';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PagBankService } from '../../pagbank/pagbank.service';
 import { PaymentProviderResolver } from '../payment/payment-provider.resolver';
 import { CreateMarketplaceBattleBoostDto } from './dto/create-marketplace-battle-boost.dto';
 import {
@@ -31,6 +32,7 @@ export class MarketplaceBattleBoostService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly paymentProviderResolver: PaymentProviderResolver,
+        private readonly pagBankService: PagBankService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -325,13 +327,10 @@ export class MarketplaceBattleBoostService {
         }
 
         const provider = await this.paymentProviderResolver.resolveProviderForMarketplaceBoost(sellerId);
-        if (provider !== 'STRIPE') {
-            throw new BadRequestException('Configured payment provider is not supported in this deployment');
-        }
 
         const successUrl = process.env.STRIPE_SUCCESS_URL as string;
         const cancelUrl = process.env.STRIPE_CANCEL_URL as string;
-        if (!successUrl || !cancelUrl) {
+        if (provider === 'STRIPE' && (!successUrl || !cancelUrl)) {
             throw new BadRequestException('Missing STRIPE_SUCCESS_URL/STRIPE_CANCEL_URL env vars');
         }
 
@@ -339,11 +338,13 @@ export class MarketplaceBattleBoostService {
             const metadata = (boost.payment.metadata as Prisma.JsonObject | null) || null;
             const checkoutUrl = typeof metadata?.checkoutUrl === 'string' ? metadata.checkoutUrl : null;
             const checkoutSessionId = typeof metadata?.checkoutSessionId === 'string' ? metadata.checkoutSessionId : null;
+            const qrCode = typeof metadata?.qrCode === 'string' ? metadata.qrCode : null;
+            const pixCopyPaste = typeof metadata?.pixCopyPaste === 'string' ? metadata.pixCopyPaste : null;
 
             if (
                 boost.payment.status === 'PENDING' &&
-                checkoutUrl &&
-                checkoutSessionId
+                (checkoutUrl || pixCopyPaste) &&
+                (checkoutSessionId || boost.payment.paymentIntentId)
             ) {
                 return {
                     boostId: boost.id,
@@ -352,17 +353,18 @@ export class MarketplaceBattleBoostService {
                         provider: provider,
                         paymentId: boost.payment.id,
                         checkoutUrl,
-                        checkoutSessionId,
+                        checkoutSessionId: checkoutSessionId || boost.payment.paymentIntentId,
                         clientSecret: null,
-                        qrCode: null,
-                        pixCopyPaste: null,
+                        qrCode,
+                        pixCopyPaste,
                     },
                 };
             }
         }
 
         const amountMinor = this.toMinorUnits(boost.amount);
-        const currencyLower = this.normalizeCurrency(boost.currency).toLowerCase();
+        const currencyLower =
+            provider === 'PAGBANK' ? 'brl' : this.normalizeCurrency(boost.currency).toLowerCase();
 
         const payment = await this.prisma.marketPlacePayments.create({
             data: {
@@ -383,6 +385,65 @@ export class MarketplaceBattleBoostService {
                 },
             },
         });
+
+        if (provider === 'PAGBANK') {
+            const seller = await this.prisma.user.findUnique({
+                where: { id: sellerId },
+                select: { email: true, displayName: true, userName: true },
+            });
+            const checkout = await this.pagBankService.createPixCheckout({
+                referenceId: payment.id,
+                amountMinor,
+                description: 'Marketplace Battle Boost',
+                customerEmail: seller?.email || undefined,
+                customerName: seller?.displayName || seller?.userName || undefined,
+            });
+
+            await this.prisma.$transaction(async (tx) => {
+                await tx.marketPlacePayments.update({
+                    where: { id: payment.id },
+                    data: {
+                        paymentIntentId: checkout.orderId,
+                        metadata: {
+                            type: BOOST_PAYMENT_TYPE,
+                            domain: 'MARKETPLACE_BATTLE_BOOST',
+                            boostId: boost.id,
+                            battleId: boost.battleId,
+                            sellerId,
+                            pinOnTop: boost.pinOnTop,
+                            winnerBadge: boost.winnerBadge,
+                            idempotencyKey: `marketplace-battle-boost:${boost.id}:payment`,
+                            checkoutSessionId: checkout.orderId,
+                            checkoutUrl: checkout.checkoutUrl,
+                            qrCode: checkout.qrCode,
+                            pixCopyPaste: checkout.pixCopyPaste,
+                        },
+                    },
+                });
+
+                await tx.marketplaceBattleBoost.update({
+                    where: { id: boost.id },
+                    data: {
+                        paymentId: payment.id,
+                        paymentProvider: provider,
+                    },
+                });
+            });
+
+            return {
+                boostId: boost.id,
+                status: MarketplaceBattleBoostStatus.PENDING_PAYMENT,
+                payment: {
+                    provider,
+                    paymentId: payment.id,
+                    checkoutUrl: checkout.checkoutUrl,
+                    checkoutSessionId: checkout.orderId,
+                    clientSecret: null,
+                    qrCode: checkout.qrCode,
+                    pixCopyPaste: checkout.pixCopyPaste,
+                },
+            };
+        }
 
         const session = await this.stripe.checkout.sessions.create({
             mode: 'payment',
@@ -869,6 +930,44 @@ export class MarketplaceBattleBoostService {
             },
             { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
+    }
+
+    /**
+     * Activate boost after PagBank (or other non-Stripe) payment is marked PAID.
+     */
+    async handlePagBankBoostPaid(paymentId: string) {
+        const payment = await this.prisma.marketPlacePayments.findUnique({
+            where: { id: paymentId },
+            select: {
+                id: true,
+                provider: true,
+                amount: true,
+                currency: true,
+                status: true,
+                metadata: true,
+            },
+        });
+        if (!payment) return { activated: false, reason: 'payment_not_found' };
+
+        const metadata = (payment.metadata as Prisma.JsonObject | null) || null;
+        if (metadata?.type !== BOOST_PAYMENT_TYPE && metadata?.domain !== 'MARKETPLACE_BATTLE_BOOST') {
+            return { activated: false, reason: 'not_boost_payment' };
+        }
+
+        if (payment.status !== 'PAID') {
+            await this.prisma.marketPlacePayments.update({
+                where: { id: payment.id },
+                data: { status: 'PAID' },
+            });
+        }
+
+        await this.activateBoostFromPayment(
+            payment.id,
+            payment.provider,
+            payment.amount,
+            payment.currency,
+        );
+        return { activated: true, paymentId: payment.id };
     }
 
     async handleVerifiedPaymentSuccess(paymentIntent: Stripe.PaymentIntent) {

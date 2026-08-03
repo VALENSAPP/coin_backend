@@ -1,28 +1,24 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DisputeStatus, OrderStatus, PaymentStatus, TransferStatus } from '@prisma/client';
-import Stripe from 'stripe';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WalletService } from '../../wallet/wallet.service';
 
 @Injectable()
 export class OrderPayoutService {
     private readonly logger = new Logger(OrderPayoutService.name);
-    private readonly stripe: Stripe;
-    /** Buyer protection window after delivery before auto-release. */
+    /** Buyer protection window after delivery before available-balance release. */
     readonly protectionWindowMs = 48 * 60 * 60 * 1000;
 
     constructor(
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
-    ) {
-        this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-            apiVersion: '2024-06-20',
-        });
-    }
+        private readonly walletService: WalletService,
+    ) { }
 
     /**
      * Called when an order becomes DELIVERED.
-     * Schedules seller payout after the buyer protection window.
+     * Schedules seller earnings unlock after the buyer protection window.
      */
     async scheduleProtectionWindow(orderId: string) {
         const now = new Date();
@@ -37,7 +33,6 @@ export class OrderPayoutService {
                 transferStatus: true,
                 disputeStatus: true,
                 sellerAmountMinor: true,
-                sellerStripeAccountId: true,
             },
         });
 
@@ -49,12 +44,12 @@ export class OrderPayoutService {
             throw new BadRequestException('Order payment is not in a payable state');
         }
         if (order.transferStatus === TransferStatus.RELEASED) {
-            return { message: 'Payout already released', orderId, transferStatus: order.transferStatus, skipped: false };
+            return { message: 'Earnings already released to available balance', orderId, transferStatus: order.transferStatus, skipped: false };
         }
         if (order.transferStatus === TransferStatus.FROZEN || order.disputeStatus === DisputeStatus.OPEN) {
             return { message: 'Payout is frozen due to dispute', orderId, transferStatus: order.transferStatus, skipped: true };
         }
-        if (!order.sellerAmountMinor || order.sellerAmountMinor <= 0 || !order.sellerStripeAccountId) {
+        if (!order.sellerAmountMinor || order.sellerAmountMinor <= 0) {
             this.logger.warn(
                 `Order ${orderId} missing escrow payout fields; skipping protection schedule (legacy/non-escrow order)`,
             );
@@ -100,8 +95,8 @@ export class OrderPayoutService {
 
         await this.notificationService.sendNotificationToUser(
             updated.sellerId,
-            'Delivered – Payment Pending',
-            'Buyer has 48 hours to confirm. Your payout will release after the protection window.',
+            'Delivered – Earnings Pending',
+            'Buyer has 48 hours to confirm. Earnings move to your available balance after the protection window.',
             {
                 type: 'marketplace_payout_scheduled',
                 orderId: updated.id,
@@ -121,15 +116,15 @@ export class OrderPayoutService {
     }
 
     /**
-     * Creates a Stripe Connect transfer to the seller when all release conditions are met.
-     * Idempotent via transferStatus guard + Stripe idempotency key.
+     * Moves marketplace seller earnings from pending → available wallet balance.
+     * Does NOT transfer to Stripe/PagBank Connect (withdrawal is a separate step).
      */
     async releaseIfEligible(orderId: string, options?: { skipProtectionCheck?: boolean }) {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
-                payment: { select: { id: true, currency: true, paymentIntentId: true } },
-                seller: { select: { id: true, stripeAccountId: true } },
+                payment: { select: { id: true, currency: true, provider: true } },
+                seller: { select: { id: true } },
             },
         });
 
@@ -145,7 +140,7 @@ export class OrderPayoutService {
             return { released: false, reason: 'Dispute is open or unresolved', orderId };
         }
         if (order.transferStatus === TransferStatus.RELEASED) {
-            return { released: false, reason: 'Already released', orderId, stripeTransferId: order.stripeTransferId };
+            return { released: false, reason: 'Already released', orderId };
         }
         if (order.transferStatus === TransferStatus.FROZEN) {
             return { released: false, reason: 'Payout is frozen', orderId };
@@ -165,59 +160,48 @@ export class OrderPayoutService {
         }
 
         const sellerAmountMinor = order.sellerAmountMinor ?? 0;
-        const destination = order.sellerStripeAccountId || order.seller.stripeAccountId;
-        if (sellerAmountMinor <= 0 || !destination) {
+        if (sellerAmountMinor <= 0) {
             await this.prisma.order.update({
                 where: { id: orderId },
                 data: { transferStatus: TransferStatus.FAILED },
             });
-            return { released: false, reason: 'Missing seller amount or Connect account', orderId };
+            return { released: false, reason: 'Missing seller amount', orderId };
         }
 
         const currency = (order.payment?.currency || 'usd').toLowerCase();
-        const chargeId =
-            order.stripeChargeId ||
-            (order.payment?.paymentIntentId
-                ? await this.resolveChargeId(order.payment.paymentIntentId)
-                : null);
+        const providerFromPayment =
+            (order.payment?.provider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : null;
+        const seller = await this.prisma.user.findUnique({
+            where: { id: order.sellerId },
+            select: { paymentProvider: true },
+        });
+        const provider =
+            providerFromPayment ||
+            ((seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE');
 
         try {
-            const transferParams: Stripe.TransferCreateParams = {
-                amount: sellerAmountMinor,
+            const walletResult = await this.walletService.movePendingToAvailable({
+                userId: order.sellerId,
+                amountMinor: sellerAmountMinor,
                 currency,
-                destination,
-                transfer_group: order.paymentId || order.id,
-                metadata: {
-                    orderId: order.id,
-                    orderNumber: order.orderNumber,
-                    paymentId: order.paymentId || '',
-                    type: 'marketplace_mycloset_payout',
-                },
-            };
-
-            if (chargeId) {
-                transferParams.source_transaction = chargeId;
-            }
-
-            const transfer = await this.stripe.transfers.create(transferParams, {
-                idempotencyKey: `marketplace-payout-${order.id}`,
+                provider,
+                source: 'MARKETPLACE',
+                refType: 'ORDER',
+                refId: order.id,
+                note: `Marketplace release ${order.orderNumber}`,
             });
 
             const updated = await this.prisma.order.update({
                 where: { id: order.id },
                 data: {
                     transferStatus: TransferStatus.RELEASED,
-                    stripeTransferId: transfer.id,
                     payoutReleasedAt: new Date(),
-                    stripeChargeId: chargeId || order.stripeChargeId,
-                    sellerStripeAccountId: destination,
                 },
                 select: {
                     id: true,
                     orderNumber: true,
                     sellerId: true,
                     buyerId: true,
-                    stripeTransferId: true,
                     sellerAmountMinor: true,
                     transferStatus: true,
                     payoutReleasedAt: true,
@@ -226,27 +210,28 @@ export class OrderPayoutService {
 
             await this.notificationService.sendNotificationToUser(
                 updated.sellerId,
-                'Payment Released',
-                'Your marketplace payout has been released.',
+                'Earnings Available',
+                'Your marketplace earnings are now available to withdraw.',
                 {
-                    type: 'marketplace_payout_released',
+                    type: 'marketplace_earnings_available',
                     orderId: updated.id,
                     orderNumber: updated.orderNumber,
-                    stripeTransferId: updated.stripeTransferId || '',
                     amountMinor: String(updated.sellerAmountMinor ?? 0),
+                    walletEntryId: walletResult.entryId,
                 },
             );
 
             return {
                 released: true,
                 orderId: updated.id,
-                stripeTransferId: updated.stripeTransferId,
                 transferStatus: updated.transferStatus,
                 payoutReleasedAt: updated.payoutReleasedAt,
+                walletEntryId: walletResult.entryId,
+                mode: walletResult.mode,
             };
         } catch (error: any) {
             this.logger.error(
-                `Failed to release payout for order ${orderId}: ${error?.message || error}`,
+                `Failed to release earnings to wallet for order ${orderId}: ${error?.message || error}`,
                 error?.stack,
             );
 
@@ -257,7 +242,7 @@ export class OrderPayoutService {
 
             return {
                 released: false,
-                reason: error?.message || 'Stripe transfer failed',
+                reason: error?.message || 'Wallet release failed',
                 orderId,
             };
         }
@@ -316,20 +301,10 @@ export class OrderPayoutService {
         for (const row of dueOrders) {
             const result = await this.releaseIfEligible(row.id);
             if (result.released) released += 1;
-            else if (result.reason?.includes('Stripe') || result.reason?.includes('Missing')) failed += 1;
+            else if (result.reason?.includes('Wallet') || result.reason?.includes('Missing') || result.reason?.includes('Insufficient')) failed += 1;
             else skipped += 1;
         }
 
         return { scanned: dueOrders.length, released, failed, skipped };
-    }
-
-    private async resolveChargeId(paymentIntentId: string): Promise<string | null> {
-        try {
-            const pi = await this.stripe.paymentIntents.retrieve(paymentIntentId);
-            return typeof pi.latest_charge === 'string' ? pi.latest_charge : null;
-        } catch (error: any) {
-            this.logger.warn(`Unable to resolve charge for PI ${paymentIntentId}: ${error?.message || error}`);
-            return null;
-        }
     }
 }
