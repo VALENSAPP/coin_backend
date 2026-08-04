@@ -2510,6 +2510,74 @@ export class MarketplaceBattlesService {
         };
     }
 
+    async getCrossShopChallengeStatus(userId: string, battleId: string) {
+        const viewerUserId = this.assertSellerUserId(userId);
+        const now = new Date();
+
+        const invite = await this.prisma.marketplaceBattleChallengeInvite.findUnique({
+            where: { battleId },
+            select: {
+                id: true,
+                battleId: true,
+                inviterId: true,
+                invitedUserId: true,
+                status: true,
+                respondedAt: true,
+                createdAt: true,
+                battle: {
+                    select: {
+                        id: true,
+                        status: true,
+                        outcome: true,
+                        inviteExpiresAt: true,
+                        startAt: true,
+                        endAt: true,
+                        completedAt: true,
+                        mode: true,
+                        stakeAmount: true,
+                    },
+                },
+            },
+        });
+
+        if (!invite) {
+            throw new NotFoundException('Challenge invite not found');
+        }
+
+        if (invite.inviterId !== viewerUserId && invite.invitedUserId !== viewerUserId) {
+            throw new ForbiddenException('Forbidden: you are not a party to this challenge');
+        }
+
+        const inviteExpiresAt = invite.battle.inviteExpiresAt;
+        const isExpired =
+            invite.status === BattleInviteStatus.PENDING &&
+            !!inviteExpiresAt &&
+            inviteExpiresAt.getTime() <= now.getTime();
+
+        return {
+            battleId: invite.battleId,
+            inviteId: invite.id,
+            inviteStatus: invite.status,
+            battleStatus: invite.battle.status,
+            outcome: invite.battle.outcome,
+            respondedAt: invite.respondedAt,
+            inviteExpiresAt,
+            isExpired,
+            createdAt: invite.createdAt,
+            startAt: invite.battle.startAt,
+            endAt: invite.battle.endAt,
+            completedAt: invite.battle.completedAt,
+            mode: invite.battle.mode,
+            stakeAmount: invite.battle.stakeAmount,
+            viewerRole: invite.inviterId === viewerUserId ? 'challenger' : 'invitee',
+            canRespond:
+                invite.invitedUserId === viewerUserId &&
+                invite.status === BattleInviteStatus.PENDING &&
+                invite.battle.status === MarketplaceBattleStatus.PENDING_INVITE &&
+                !isExpired,
+        };
+    }
+
     async acceptCrossShopChallenge(userId: string, battleId: string) {
         const invitedUserId = this.assertSellerUserId(userId);
         const now = new Date();
