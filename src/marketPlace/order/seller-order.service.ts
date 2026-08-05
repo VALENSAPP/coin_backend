@@ -263,7 +263,7 @@ export class SellerOrderService {
                 shippingProvider: updatedOrder.shippingProvider || shippingProvider,
             },
         );
-
+        console.log('Notification sent to buyer for order shipped:', updatedOrder.trackingNumber || trackingNumber);
         return {
             message: trackerResult.skipped
                 ? 'Order marked as shipped successfully (manual — EasyPost not configured)'
@@ -277,6 +277,7 @@ export class SellerOrderService {
             easypostTrackerId: updatedOrder.easypostTrackerId,
             trackingValidatedAt: updatedOrder.trackingValidatedAt,
             easypostConfigured: this.shippingService.isConfigured(),
+
         };
     }
 
