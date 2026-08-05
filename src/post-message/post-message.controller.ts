@@ -14,16 +14,10 @@ export class PostMessageController {
   @Post()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create post message for a user. One record per user.' })
-  async create(@Req() req: Request, @Body() dto: CreatePostMessageDto) {
+  @ApiOperation({ summary: 'Create or update my post messages. Send one or more message fields.' })
+  async upsertMine(@Req() req: Request, @Body() dto: CreatePostMessageDto) {
     const userId = (req.user as any).userId;
-    return this.postMessageService.create(userId, dto);
-  }
-
-  @Get()
-  @ApiOperation({ summary: 'Get all post messages' })
-  async findAll() {
-    return this.postMessageService.findAll();
+    return this.postMessageService.upsertMine(userId, dto);
   }
 
   @Get('me')
@@ -41,12 +35,6 @@ export class PostMessageController {
     return this.postMessageService.findByUserId(userId);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get post message by ID' })
-  async findOne(@Param('id') id: string) {
-    return this.postMessageService.findOne(id);
-  }
-
   @Patch('me')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -56,14 +44,6 @@ export class PostMessageController {
     return this.postMessageService.updateMine(userId, dto);
   }
 
-  @Patch(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update post message by ID' })
-  async update(@Param('id') id: string, @Body() dto: UpdatePostMessageDto) {
-    return this.postMessageService.update(id, dto);
-  }
-
   @Delete('me')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -71,13 +51,5 @@ export class PostMessageController {
   async removeMine(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.postMessageService.removeMine(userId);
-  }
-
-  @Delete(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete post message by ID' })
-  async remove(@Param('id') id: string) {
-    return this.postMessageService.remove(id);
   }
 }

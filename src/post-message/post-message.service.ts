@@ -7,99 +7,53 @@ import { UpdatePostMessageDto } from './dto/update-post-message.dto';
 export class PostMessageService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(authUserId: string, dto: CreatePostMessageDto) {
-    const userId = dto.userId || authUserId;
+  private async ensureUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true },
     });
     if (!user) throw new BadRequestException('User not found');
+    return user;
+  }
 
-    const existing = await this.prisma.postMessage.findUnique({
+  async upsertMine(userId: string, dto: CreatePostMessageDto) {
+    await this.ensureUser(userId);
+    return this.prisma.postMessage.upsert({
       where: { userId },
-    });
-    if (existing) {
-      throw new BadRequestException('Post message already exists for this user. Use update instead.');
-    }
-
-    return this.prisma.postMessage.create({
-      data: {
+      create: {
         userId,
-        messageForPhotos: dto.messageForPhotos,
-        messageForVideos: dto.messageForVideos,
-        messageForEbooks: dto.messageForEbooks,
+        ...dto,
+      },
+      update: {
+        ...dto,
       },
     });
-  }
-
-  async findAll() {
-    return this.prisma.postMessage.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async findOne(id: string) {
-    const postMessage = await this.prisma.postMessage.findUnique({
-      where: { id },
-    });
-    if (!postMessage) throw new NotFoundException('Post message not found');
-    return postMessage;
-  }
-
-  async findByUserId(userId: string) {
-    const postMessage = await this.prisma.postMessage.findUnique({
-      where: { userId },
-    });
-    if (!postMessage) throw new NotFoundException('Post message not found for this user');
-    return postMessage;
   }
 
   async findMine(userId: string) {
     return this.findByUserId(userId);
   }
 
-  async update(id: string, dto: UpdatePostMessageDto) {
-    await this.findOne(id);
-    const { userId, ...data } = dto;
-
-    if (userId) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
-      if (!user) throw new BadRequestException('User not found');
-
-      const existing = await this.prisma.postMessage.findUnique({
-        where: { userId },
-      });
-      if (existing && existing.id !== id) {
-        throw new BadRequestException('Post message already exists for this user.');
-      }
-    }
-
-    return this.prisma.postMessage.update({
-      where: { id },
-      data: {
-        ...data,
-        ...(userId ? { userId } : {}),
-      },
+  async findByUserId(userId: string) {
+    const postMessage = await this.prisma.postMessage.findUnique({
+      where: { userId },
     });
+    if (!postMessage) throw new NotFoundException('Post message not found');
+    return postMessage;
   }
 
   async updateMine(userId: string, dto: UpdatePostMessageDto) {
-    const postMessage = await this.findByUserId(userId);
-    return this.update(postMessage.id, { ...dto, userId: undefined });
-  }
-
-  async remove(id: string) {
-    await this.findOne(id);
-    return this.prisma.postMessage.delete({
-      where: { id },
+    await this.findMine(userId);
+    return this.prisma.postMessage.update({
+      where: { userId },
+      data: dto,
     });
   }
 
   async removeMine(userId: string) {
-    const postMessage = await this.findByUserId(userId);
-    return this.remove(postMessage.id);
+    await this.findMine(userId);
+    return this.prisma.postMessage.delete({
+      where: { userId },
+    });
   }
 }

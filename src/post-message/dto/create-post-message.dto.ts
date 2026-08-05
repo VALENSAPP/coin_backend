@@ -2,11 +2,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class CreatePostMessageDto {
-  @ApiPropertyOptional({ description: 'User ID. Defaults to the authenticated user when omitted.' })
-  @IsOptional()
-  @IsString()
-  userId?: string;
-
   @ApiPropertyOptional({ description: 'Message shown for photo posts' })
   @IsOptional()
   @IsString()
