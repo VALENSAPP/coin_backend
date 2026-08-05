@@ -106,6 +106,7 @@ model User {
   receivedChats               ChatBox[]                  @relation("ChatReceiver")
   notifications               Notification[]
   companyProfile              CompanyProfile?
+  postMessage                 PostMessage?
   sentDigitalTransactions     digital_transaction[]      @relation("Sender")
   receivedDigitalTransactions digital_transaction[]      @relation("Receiver")
   referredUsers               UserReferral[]             @relation("UserReferrer")
@@ -420,6 +421,19 @@ model CompanyProfile {
   documentVerificationRejectReason String?
   createdAt                        DateTime  @default(now())
   updatedAt                        DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model PostMessage {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageForPhotos  String?  @db.Text
+  messageForVideos  String?  @db.Text
+  messageForEbooks  String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([userId])
 }
