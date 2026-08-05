@@ -129,6 +129,27 @@ export class MarketplaceBattlesController {
         return this.marketplaceBattlesService.listOutgoingChallenges(userId, query);
     }
 
+    @Get(':battleId/challenge')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Get cross-shop battle challenge status',
+        description:
+            'Returns invite and battle status for a cross-shop challenge. Available to the challenger or invited seller. Use inviteStatus to know if the challenge is PENDING, ACCEPTED, DECLINED, or CANCELED.',
+    })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
+    @ApiOkResponse({ description: 'Challenge status retrieved' })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiForbiddenResponse({ description: 'Caller is not a party to this challenge' })
+    @ApiNotFoundResponse({ description: 'Challenge invite not found' })
+    async getCrossShopChallengeStatus(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.getCrossShopChallengeStatus(userId, battleId);
+    }
+
     @Post(':battleId/challenge/accept')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()

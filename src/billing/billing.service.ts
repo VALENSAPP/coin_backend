@@ -1941,7 +1941,10 @@ export class BillingService {
           type: 'express',
           country: user.country && user.country !== 'BR' ? user.country : 'US',
           email: user.email || undefined,
-          capabilities: { transfers: { requested: true } },
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
         });
 
         stripeAccountId = account.id;
@@ -1960,6 +1963,13 @@ export class BillingService {
         });
         throw error;
       }
+    } else {
+      await this.stripe.accounts.update(stripeAccountId, {
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
+        },
+      });
     }
 
     try {
