@@ -30,15 +30,15 @@ export type EasyPostTrackerResult = {
     raw?: Record<string, unknown>;
 };
 
-const EASYPOST_TEST_TRACKING_CODES = new Set([
-    'EZ1000000001',
-    'EZ2000000002',
-    'EZ3000000003',
-    'EZ4000000004',
-    'EZ5000000005',
-    'EZ6000000006',
-    'EZ7000000007',
-]);
+// const EASYPOST_TEST_TRACKING_CODES = new Set([
+//     'EZ1000000001',
+//     'EZ2000000002',
+//     'EZ3000000003',
+//     'EZ4000000004',
+//     'EZ5000000005',
+//     'EZ6000000006',
+//     'EZ7000000007',
+// ]);
 
 @Injectable()
 export class ShippingService {
@@ -319,9 +319,9 @@ export class ShippingService {
     }
 
     private async assertTrackingNotReused(trackingNumber: string, orderId: string) {
-        if (EASYPOST_TEST_TRACKING_CODES.has(trackingNumber.toUpperCase())) {
-            return;
-        }
+        // if (EASYPOST_TEST_TRACKING_CODES.has(trackingNumber.toUpperCase())) {
+        //     return;
+        // }
 
         const existing = await this.prisma.order.findFirst({
             where: {
