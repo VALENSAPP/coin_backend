@@ -30,6 +30,7 @@ import { ShippingModule } from './marketPlace/shipping/shipping.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkModule } from './deep-link/deep-link.module';
+import { PostMessageModule } from './post-message/post-message.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -61,6 +62,7 @@ import { DeepLinkModule } from './deep-link/deep-link.module';
     MarketplaceBattlesModule,
     ClosetChatModule,
     DeepLinkModule,
+    PostMessageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
