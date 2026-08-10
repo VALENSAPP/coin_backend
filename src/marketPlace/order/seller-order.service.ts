@@ -8,6 +8,7 @@ import {
     forwardRef,
 } from '@nestjs/common';
 import { OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
+import * as sgMail from '@sendgrid/mail';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShippingService } from '../shipping/shipping.service';
@@ -53,6 +54,57 @@ export class SellerOrderService {
                 `Invalid status transition. Allowed: ${expectedCurrent} -> ${next}. Current status: ${current}`,
             );
         }
+    }
+
+    private async sendDeliveryOtpEmail(to: string, buyerName: string, orderNumber: string, otp: string, expiresInMinutes: number) {
+        try {
+            sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
+
+            await sgMail.send({
+                to,
+                from: process.env.SENDGRID_FROM_EMAIL!,
+                subject: `Delivery OTP for order ${orderNumber}`,
+                text: `Hi ${buyerName}, your OTP to confirm handover for order ${orderNumber} is ${otp}. This OTP is valid for ${expiresInMinutes} minutes. Share this OTP with seller only after receiving your product.`,
+                html: `<p>Hi ${buyerName},</p><p>Your OTP to confirm handover for order <strong>${orderNumber}</strong> is:</p><h2 style="letter-spacing:4px;">${otp}</h2><p>This OTP is valid for <strong>${expiresInMinutes} minutes</strong>.</p><p>Share this OTP with seller only after receiving your product.</p>`,
+            });
+        } catch (error) {
+            console.error('SendGrid error while sending delivery OTP:', error);
+            throw new BadRequestException('Failed to send delivery OTP email');
+        }
+    }
+
+    async sendDeliveryOtp(userId: string | undefined, orderId: string, expiresInMinutes = 10) {
+        const sellerId = this.assertSellerUserId(userId);
+        const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
+
+        this.ensureTransition(order.orderStatus, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
+
+        if (!order.buyer?.email) {
+            throw new BadRequestException('Buyer email is not available for this order');
+        }
+
+        const ttlMinutes = Math.min(Math.max(expiresInMinutes, 1), 30);
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+
+        await this.prisma.order.update({
+            where: { id: order.id },
+            data: {
+                deliveryOtp: otp,
+                deliveryOtpExpiresAt: otpExpiresAt,
+                deliveryOtpSentAt: new Date(),
+            },
+        });
+
+        const buyerName = order.buyer.displayName || order.buyer.userName || 'Buyer';
+        await this.sendDeliveryOtpEmail(order.buyer.email, buyerName, order.orderNumber, otp, ttlMinutes);
+
+        return {
+            message: 'Delivery OTP sent to buyer email successfully',
+            orderId: order.id,
+            orderStatus: order.orderStatus,
+            otpExpiresAt,
+        };
     }
 
     async getSellerOrders(userId: string | undefined, query: SellerOrderListQueryDto) {
@@ -290,11 +342,23 @@ export class SellerOrderService {
         };
     }
 
-    async markOrderDelivered(userId: string | undefined, orderId: string) {
+    async markOrderDelivered(userId: string | undefined, orderId: string, otp: string) {
         const sellerId = this.assertSellerUserId(userId);
         const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
 
         this.ensureTransition(order.orderStatus, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
+
+        if (!order.deliveryOtp || !order.deliveryOtpExpiresAt) {
+            throw new BadRequestException('Delivery OTP not found. Please send OTP first.');
+        }
+
+        if (order.deliveryOtpExpiresAt < new Date()) {
+            throw new BadRequestException('Delivery OTP expired. Please send a new OTP.');
+        }
+
+        if (order.deliveryOtp !== otp) {
+            throw new BadRequestException('Invalid delivery OTP');
+        }
 
         // Manual deliver kept as fallback even when EasyPost is enabled.
         const updatedOrder = await this.prisma.order.update({
@@ -303,6 +367,10 @@ export class SellerOrderService {
                 orderStatus: OrderStatus.DELIVERED,
                 shippingStatus: ShippingStatus.DELIVERED,
                 shippingProvider: order.shippingProvider || 'MANUAL',
+                deliveredAt: new Date(),
+                deliveryOtp: null,
+                deliveryOtpExpiresAt: null,
+                deliveryOtpSentAt: null,
             },
             select: { id: true, orderStatus: true, buyerId: true, orderNumber: true, shippingStatus: true },
         });

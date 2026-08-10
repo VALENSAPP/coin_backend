@@ -4,6 +4,7 @@ import {
     Get,
     Param,
     Patch,
+    Post,
     Query,
     Req,
     UseGuards,
@@ -12,6 +13,8 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
+import { DeliverOrderOtpDto } from './dto/deliver-order-otp.dto';
+import { SendDeliveryOtpDto } from './dto/send-delivery-otp.dto';
 import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
 import { SellerOrderService } from './seller-order.service';
@@ -71,10 +74,26 @@ export class SellerOrderController {
     }
 
     @Patch(':orderId/deliver')
-    @ApiOperation({ summary: 'Mark order as delivered (Shipped -> Delivered)' })
+    @ApiOperation({ summary: 'Mark order as delivered using buyer OTP (Shipped -> Delivered)' })
     @ApiParam({ name: 'orderId', description: 'Order id' })
-    async markOrderDelivered(@Req() req: Request, @Param('orderId') orderId: string) {
+    async markOrderDelivered(
+        @Req() req: Request,
+        @Param('orderId') orderId: string,
+        @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: DeliverOrderOtpDto,
+    ) {
         const userId = (req.user as any)?.userId;
-        return this.sellerOrderService.markOrderDelivered(userId, orderId);
+        return this.sellerOrderService.markOrderDelivered(userId, orderId, dto.otp);
+    }
+
+    @Post(':orderId/deliver/send-otp')
+    @ApiOperation({ summary: 'Send delivery OTP to buyer email before local pickup handover' })
+    @ApiParam({ name: 'orderId', description: 'Order id' })
+    async sendDeliveryOtp(
+        @Req() req: Request,
+        @Param('orderId') orderId: string,
+        @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: SendDeliveryOtpDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.sellerOrderService.sendDeliveryOtp(userId, orderId, dto.expiresInMinutes);
     }
 }

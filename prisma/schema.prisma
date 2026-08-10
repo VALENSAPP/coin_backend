@@ -852,6 +852,9 @@ model Order {
   stripeTransferId      String?
   protectionEndsAt      DateTime?
   deliveredAt           DateTime?
+  deliveryOtp           String?
+  deliveryOtpExpiresAt  DateTime?
+  deliveryOtpSentAt     DateTime?
   payoutReleasedAt      DateTime?
   disputeStatus         DisputeStatus        @default(NONE)
   disputeReason         String?
