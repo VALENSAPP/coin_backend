@@ -11,7 +11,7 @@ import { OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ShippingService } from '../shipping/shipping.service';
-import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
+import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
 import { OrderPayoutService } from './order-payout.service';
 
@@ -61,10 +61,19 @@ export class SellerOrderService {
         const page = query.page ?? 1;
         const limit = query.limit ?? 10;
         const skip = (page - 1) * limit;
+        const shippingType = query.shippingType ?? SellerOrderShippingType.ALL;
+
+        const shippingTypeWhere: Prisma.OrderWhereInput =
+            shippingType === SellerOrderShippingType.LOCAL_PICKUP
+                ? { shippingCost: 0 }
+                : shippingType === SellerOrderShippingType.SHIP_TO_DELIVER
+                    ? { shippingCost: { gt: 0 } }
+                    : {};
 
         const where: Prisma.OrderWhereInput = {
             sellerId,
             ...(query.status ? { orderStatus: query.status } : {}),
+            ...shippingTypeWhere,
         };
 
         const [total, orders] = await this.prisma.$transaction([
