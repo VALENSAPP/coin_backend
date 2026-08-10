@@ -420,6 +420,10 @@ export class PostService {
     try {
       if (!userId) throw new BadRequestException('User ID required');
 
+      const normalizedPostType = (type || '').trim().toLowerCase();
+      const isMissionPost = ['mission-post', 'crowdfunding', 'support'].includes(normalizedPostType);
+      const resolvedIsTrustPost = isMissionPost ? true : isTrustPost === true;
+
       // Log incoming data for debugging
       // console.log('Creating post with data:', {
       //   userId,
@@ -734,7 +738,7 @@ export class PostService {
             thumbnails: thumbnailUrls,
             type,
             privateCircleId,
-            isTrustPost,
+            isTrustPost: resolvedIsTrustPost,
             videoText: shouldApplyVideoText,
             videoTextItems: shouldApplyVideoText ? (normalizedVideoTextItems as any) : null,
           } as any,
@@ -754,7 +758,7 @@ export class PostService {
         }
       }
 
-      if (['mission-post', 'crowdfunding', 'support'].includes(type || '')) {
+      if (isMissionPost) {
         try {
           await this.notificationService.sendMissionPostLaunchedToFollowers(createdPost.id);
         } catch (notificationError) {
@@ -1755,15 +1759,15 @@ export class PostService {
   ): boolean {
     return Boolean(
       boost.pinOnTop &&
-        ((boost.pinStartAt &&
-          boost.pinEndAt &&
-          boost.pinStartAt <= now &&
-          boost.pinEndAt > now) ||
-          (!boost.pinStartAt &&
-            !!boost.startAt &&
-            !!boost.endAt &&
-            boost.startAt <= now &&
-            boost.endAt > now)),
+      ((boost.pinStartAt &&
+        boost.pinEndAt &&
+        boost.pinStartAt <= now &&
+        boost.pinEndAt > now) ||
+        (!boost.pinStartAt &&
+          !!boost.startAt &&
+          !!boost.endAt &&
+          boost.startAt <= now &&
+          boost.endAt > now)),
     );
   }
 
@@ -1779,15 +1783,15 @@ export class PostService {
   ): boolean {
     return Boolean(
       boost.winnerBadge &&
-        ((boost.badgeStartAt &&
-          boost.badgeEndAt &&
-          boost.badgeStartAt <= now &&
-          boost.badgeEndAt > now) ||
-          (!boost.badgeStartAt &&
-            !!boost.startAt &&
-            !!boost.endAt &&
-            boost.startAt <= now &&
-            boost.endAt > now)),
+      ((boost.badgeStartAt &&
+        boost.badgeEndAt &&
+        boost.badgeStartAt <= now &&
+        boost.badgeEndAt > now) ||
+        (!boost.badgeStartAt &&
+          !!boost.startAt &&
+          !!boost.endAt &&
+          boost.startAt <= now &&
+          boost.endAt > now)),
     );
   }
 
@@ -2036,18 +2040,18 @@ export class PostService {
           },
           winnerPromotion: promotion
             ? {
-                id: promotion.id,
-                promoType: promotion.promoType,
-                message: promotion.message,
-                discountPercent: promotion.discountPercent,
-                freeShipping: promotion.freeShipping,
-                originalPrice: promotion.originalPrice,
-                promoPrice: promotion.promoPrice,
-                originalShippingFee: promotion.originalShippingFee,
-                promoShippingFee: promotion.promoShippingFee,
-                startAt: promotion.startAt,
-                endAt: promotion.endAt,
-              }
+              id: promotion.id,
+              promoType: promotion.promoType,
+              message: promotion.message,
+              discountPercent: promotion.discountPercent,
+              freeShipping: promotion.freeShipping,
+              originalPrice: promotion.originalPrice,
+              promoPrice: promotion.promoPrice,
+              originalShippingFee: promotion.originalShippingFee,
+              promoShippingFee: promotion.promoShippingFee,
+              startAt: promotion.startAt,
+              endAt: promotion.endAt,
+            }
             : null,
         },
       };
