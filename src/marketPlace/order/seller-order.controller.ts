@@ -12,7 +12,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { SellerOrderListQueryDto } from './dto/seller-order-list-query.dto';
+import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
 import { SellerOrderService } from './seller-order.service';
 
@@ -28,6 +28,12 @@ export class SellerOrderController {
     @ApiQuery({ name: 'page', required: false, example: 1 })
     @ApiQuery({ name: 'limit', required: false, example: 10 })
     @ApiQuery({ name: 'status', required: false, example: 'PENDING' })
+    @ApiQuery({
+        name: 'shippingType',
+        required: false,
+        enum: SellerOrderShippingType,
+        example: SellerOrderShippingType.ALL,
+    })
     async getSellerOrders(
         @Req() req: Request,
         @Query(new ValidationPipe({ whitelist: true, transform: true })) query: SellerOrderListQueryDto,

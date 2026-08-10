@@ -3,6 +3,12 @@ import { OrderStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
+export enum SellerOrderShippingType {
+    ALL = 'all',
+    LOCAL_PICKUP = 'local-pickup',
+    SHIP_TO_DELIVER = 'ship-to-deliver',
+}
+
 export class SellerOrderListQueryDto {
     @ApiPropertyOptional({ description: 'Page number', example: 1, default: 1 })
     @Type(() => Number)
@@ -28,4 +34,17 @@ export class SellerOrderListQueryDto {
     @IsEnum(OrderStatus)
     @IsOptional()
     status?: OrderStatus;
+
+    @ApiPropertyOptional({
+        description: 'Filter by fulfillment type',
+        enum: SellerOrderShippingType,
+        default: SellerOrderShippingType.ALL,
+        example: SellerOrderShippingType.ALL,
+    })
+    @Transform(({ value }) =>
+        typeof value === 'string' ? value.trim().toLowerCase() : value,
+    )
+    @IsEnum(SellerOrderShippingType)
+    @IsOptional()
+    shippingType?: SellerOrderShippingType = SellerOrderShippingType.ALL;
 }
