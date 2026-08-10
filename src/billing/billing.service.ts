@@ -279,6 +279,7 @@ export class BillingService {
     const appWithdrawableMinor = wallet.availableBalanceMinor;
 
     try {
+      const stripeAccount = await this.stripe.accounts.retrieve();
       const platformBalance = await this.stripe.balance.retrieve();
       const providerAvailableMinor = this.sumStripeBalanceByCurrency(
         platformBalance.available as Array<{ amount: number; currency: string }> | undefined,
@@ -303,6 +304,8 @@ export class BillingService {
         effectiveWithdrawableNowMinor: effectiveMinor,
         effectiveWithdrawableNow: this.toMajor(effectiveMinor),
         providerAvailabilitySource: 'stripe_platform_balance',
+        stripeAccountId: stripeAccount.id,
+        stripeBalanceFetchedAt: new Date().toISOString(),
       };
     } catch (error: any) {
       return {
@@ -318,6 +321,7 @@ export class BillingService {
         effectiveWithdrawableNowMinor: null,
         effectiveWithdrawableNow: null,
         providerAvailabilitySource: 'stripe_platform_balance_error',
+        stripeBalanceFetchedAt: new Date().toISOString(),
         providerAvailabilityError: error?.message || 'Unable to fetch Stripe platform balance',
       };
     }
