@@ -208,11 +208,11 @@ export class BillingController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Get live seller wallet balance (pending + available/withdrawable sum)',
+    summary: 'Get wallet balance plus provider live availability for withdrawals',
   })
   async getWalletBalance(@Req() req: Request) {
     const userId = (req.user as any).userId;
-    return this.walletService.getBalance(userId);
+    return this.billingService.getWalletBalanceWithProviderAvailability(userId);
   }
 
   @Post('request-withdrawal')

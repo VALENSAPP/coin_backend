@@ -230,6 +230,99 @@ export class BillingService {
     };
   }
 
+  private sumStripeBalanceByCurrency(
+    rows: Array<{ amount: number; currency: string }> | null | undefined,
+    currency: string,
+  ): number {
+    if (!rows?.length) return 0;
+    const normalized = (currency || 'usd').toLowerCase();
+    return rows
+      .filter((row) => (row.currency || '').toLowerCase() === normalized)
+      .reduce((sum, row) => sum + Math.trunc(row.amount || 0), 0);
+  }
+
+  private toMajor(amountMinor: number): number {
+    return Number((amountMinor / 100).toFixed(2));
+  }
+
+  /**
+   * Wallet balance plus provider live availability.
+   * effectiveWithdrawableNow = min(app wallet available, provider available now).
+   */
+  async getWalletBalanceWithProviderAvailability(userId: string) {
+    const provider = await this.paymentProviderResolver.ensureUserPaymentProvider(userId);
+    const currency = provider === 'PAGBANK' ? 'brl' : 'usd';
+
+    // Keep provider/currency scoped totals for withdrawal calculations.
+    const wallet = await this.walletService.getBalance(userId, { currency, provider });
+
+    if (provider === 'PAGBANK') {
+      const appWithdrawableMinor = wallet.availableBalanceMinor;
+      return {
+        ...wallet,
+        provider,
+        currency,
+        appWithdrawableBalanceMinor: appWithdrawableMinor,
+        appWithdrawableBalance: this.toMajor(appWithdrawableMinor),
+        providerAvailableBalanceMinor: appWithdrawableMinor,
+        providerAvailableBalance: this.toMajor(appWithdrawableMinor),
+        providerPendingBalanceMinor: 0,
+        providerPendingBalance: 0,
+        effectiveWithdrawableNowMinor: appWithdrawableMinor,
+        effectiveWithdrawableNow: this.toMajor(appWithdrawableMinor),
+        providerAvailabilitySource: 'wallet',
+        providerAvailabilityNote:
+          'PagBank provider live balance API is not queried here. Effective amount uses wallet availability.',
+      };
+    }
+
+    const appWithdrawableMinor = wallet.availableBalanceMinor;
+
+    try {
+      const platformBalance = await this.stripe.balance.retrieve();
+      const providerAvailableMinor = this.sumStripeBalanceByCurrency(
+        platformBalance.available as Array<{ amount: number; currency: string }> | undefined,
+        currency,
+      );
+      const providerPendingMinor = this.sumStripeBalanceByCurrency(
+        platformBalance.pending as Array<{ amount: number; currency: string }> | undefined,
+        currency,
+      );
+      const effectiveMinor = Math.min(appWithdrawableMinor, providerAvailableMinor);
+
+      return {
+        ...wallet,
+        provider,
+        currency,
+        appWithdrawableBalanceMinor: appWithdrawableMinor,
+        appWithdrawableBalance: this.toMajor(appWithdrawableMinor),
+        providerAvailableBalanceMinor: providerAvailableMinor,
+        providerAvailableBalance: this.toMajor(providerAvailableMinor),
+        providerPendingBalanceMinor: providerPendingMinor,
+        providerPendingBalance: this.toMajor(providerPendingMinor),
+        effectiveWithdrawableNowMinor: effectiveMinor,
+        effectiveWithdrawableNow: this.toMajor(effectiveMinor),
+        providerAvailabilitySource: 'stripe_platform_balance',
+      };
+    } catch (error: any) {
+      return {
+        ...wallet,
+        provider,
+        currency,
+        appWithdrawableBalanceMinor: appWithdrawableMinor,
+        appWithdrawableBalance: this.toMajor(appWithdrawableMinor),
+        providerAvailableBalanceMinor: null,
+        providerAvailableBalance: null,
+        providerPendingBalanceMinor: null,
+        providerPendingBalance: null,
+        effectiveWithdrawableNowMinor: null,
+        effectiveWithdrawableNow: null,
+        providerAvailabilitySource: 'stripe_platform_balance_error',
+        providerAvailabilityError: error?.message || 'Unable to fetch Stripe platform balance',
+      };
+    }
+  }
+
   /** Check if user has completed provider onboarding and can withdraw. */
   async getOnboardingStatus(userId: string): Promise<{
     canReceivePayments: boolean;
@@ -2061,10 +2154,10 @@ export class BillingService {
     const withdrawal = withdrawalId
       ? await this.prisma.withdrawalRecord.findUnique({ where: { id: withdrawalId } })
       : await this.prisma.withdrawalRecord.findFirst({
-          where: {
-            OR: [{ transferId: transfer.id }, { txhash: transfer.id }],
-          },
-        });
+        where: {
+          OR: [{ transferId: transfer.id }, { txhash: transfer.id }],
+        },
+      });
 
     if (!withdrawal) return;
 
@@ -2085,10 +2178,10 @@ export class BillingService {
     const withdrawal = withdrawalId
       ? await this.prisma.withdrawalRecord.findUnique({ where: { id: withdrawalId } })
       : await this.prisma.withdrawalRecord.findFirst({
-          where: {
-            OR: [{ transferId: transfer.id }, { txhash: transfer.id }],
-          },
-        });
+        where: {
+          OR: [{ transferId: transfer.id }, { txhash: transfer.id }],
+        },
+      });
 
     if (!withdrawal) return;
     if (withdrawal.status === 'failed') return;
