@@ -74,7 +74,7 @@ export class SellerOrderController {
     }
 
     @Patch(':orderId/deliver')
-    @ApiOperation({ summary: 'Mark order as delivered using buyer OTP (Shipped -> Delivered)' })
+    @ApiOperation({ summary: 'Mark order as delivered using buyer OTP (Processing -> Delivered)' })
     @ApiParam({ name: 'orderId', description: 'Order id' })
     async markOrderDelivered(
         @Req() req: Request,

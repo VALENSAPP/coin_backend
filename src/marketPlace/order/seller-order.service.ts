@@ -346,7 +346,7 @@ export class SellerOrderService {
         const sellerId = this.assertSellerUserId(userId);
         const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
 
-        this.ensureTransition(order.orderStatus, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
+        this.ensureTransition(order.orderStatus, OrderStatus.PROCESSING, OrderStatus.DELIVERED);
 
         if (!order.deliveryOtp || !order.deliveryOtpExpiresAt) {
             throw new BadRequestException('Delivery OTP not found. Please send OTP first.');
