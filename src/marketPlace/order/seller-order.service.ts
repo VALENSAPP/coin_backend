@@ -77,7 +77,7 @@ export class SellerOrderService {
         const sellerId = this.assertSellerUserId(userId);
         const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
 
-        this.ensureTransition(order.orderStatus, OrderStatus.SHIPPED, OrderStatus.DELIVERED);
+        this.ensureTransition(order.orderStatus, OrderStatus.PROCESSING, OrderStatus.DELIVERED);
 
         if (!order.buyer?.email) {
             throw new BadRequestException('Buyer email is not available for this order');
