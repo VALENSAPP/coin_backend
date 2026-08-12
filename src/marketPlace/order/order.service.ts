@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException, forwardRef } from '@nestjs/common';
-import { DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
+import { CartItemShippingChoice, DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { NotificationService } from '../../notification/notification.service';
@@ -112,30 +112,38 @@ export class OrderService {
 
             const parsedItems = itemsRaw.map((entry) => {
                 const item = entry as Prisma.JsonObject;
+                const shippingMinor = Number(item.shippingMinor ?? 0);
+                const selectedShippingChoice =
+                    item.selectedShippingChoice === CartItemShippingChoice.ship_items ||
+                        item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                        ? item.selectedShippingChoice
+                        : shippingMinor > 0
+                            ? CartItemShippingChoice.ship_items
+                            : CartItemShippingChoice.local_pick;
                 return {
                     productId: String(item.productId),
                     sellerId: String(item.sellerId),
                     quantity: Number(item.quantity),
                     unitPriceMinor: Number(item.unitPriceMinor),
                     subtotalMinor: Number(item.subtotalMinor),
-                    shippingMinor: Number(item.shippingMinor ?? 0),
+                    shippingMinor,
+                    selectedShippingChoice,
                 };
             });
 
-            // Group items by seller+closet, producing one order per seller closet.
-            const grouped = new Map<string, {
+            // Create one order per cart item line, while preserving the single payment.
+            const orderLines: Array<{
                 sellerId: string;
                 closetId: string;
-                items: Array<{
-                    productId: string;
-                    quantity: number;
-                    unitPriceMinor: number;
-                    subtotalMinor: number;
-                    shippingMinor: number;
-                    productName: string;
-                    productImage: string;
-                }>;
-            }>();
+                productId: string;
+                quantity: number;
+                unitPriceMinor: number;
+                subtotalMinor: number;
+                shippingMinor: number;
+                selectedShippingChoice: CartItemShippingChoice;
+                productName: string;
+                productImage: string;
+            }> = [];
 
             for (const item of parsedItems) {
                 const product = await tx.closetItems.findUnique({
@@ -157,24 +165,18 @@ export class OrderService {
                     throw new BadRequestException(`Only ${product.quantity} quantity available for ${product.name}`);
                 }
 
-                const key = `${item.sellerId}:${product.closetId}`;
-                const group = grouped.get(key) || {
+                orderLines.push({
                     sellerId: item.sellerId,
                     closetId: product.closetId,
-                    items: [],
-                };
-
-                group.items.push({
                     productId: item.productId,
                     quantity: item.quantity,
                     unitPriceMinor: item.unitPriceMinor,
                     subtotalMinor: item.subtotalMinor,
                     shippingMinor: item.shippingMinor,
+                    selectedShippingChoice: item.selectedShippingChoice,
                     productName: product.name,
                     productImage: product.images[0] || '',
                 });
-
-                grouped.set(key, group);
             }
 
             const platformFeePercent =
@@ -189,7 +191,7 @@ export class OrderService {
             // Fallback: resolve Connect account from seller if not in payment metadata (legacy payments).
             let resolvedSellerStripeAccountId = sellerStripeAccountId;
             if (!resolvedSellerStripeAccountId) {
-                const firstSellerId = [...grouped.values()][0]?.sellerId;
+                const firstSellerId = orderLines[0]?.sellerId;
                 if (firstSellerId) {
                     const sellerUser = await tx.user.findUnique({
                         where: { id: firstSellerId },
@@ -199,9 +201,9 @@ export class OrderService {
                 }
             }
 
-            for (const group of grouped.values()) {
-                const subtotalMinor = group.items.reduce((sum, i) => sum + i.subtotalMinor, 0);
-                const shippingMinor = group.items.reduce((sum, i) => sum + i.shippingMinor, 0);
+            for (const item of orderLines) {
+                const subtotalMinor = item.subtotalMinor;
+                const shippingMinor = item.shippingMinor;
                 const totalMinor = subtotalMinor + shippingMinor;
                 const platformFeeMinor = Math.round(totalMinor * platformFeePercent);
                 const sellerAmountMinor = Math.max(0, totalMinor - platformFeeMinor);
@@ -210,8 +212,8 @@ export class OrderService {
                     data: {
                         orderNumber: await this.generateOrderNumber(tx),
                         buyerId,
-                        sellerId: group.sellerId,
-                        closetId: group.closetId,
+                        sellerId: item.sellerId,
+                        closetId: item.closetId,
                         addressId,
                         paymentId: paymentRecord.id,
                         subtotal: this.toMajor(subtotalMinor),
@@ -231,18 +233,18 @@ export class OrderService {
                 });
 
                 createdOrderIds.push(order.id);
-                sellerIdsToNotify.add(group.sellerId);
+                sellerIdsToNotify.add(item.sellerId);
 
                 if (sellerAmountMinor > 0) {
                     const seller = await tx.user.findUnique({
-                        where: { id: group.sellerId },
+                        where: { id: item.sellerId },
                         select: { paymentProvider: true },
                     });
                     const provider =
                         (seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE';
                     await this.walletService.creditPending(
                         {
-                            userId: group.sellerId,
+                            userId: item.sellerId,
                             amountMinor: sellerAmountMinor,
                             currency: paymentRecord.currency || (provider === 'PAGBANK' ? 'brl' : 'usd'),
                             provider,
@@ -255,27 +257,27 @@ export class OrderService {
                     );
                 }
 
-                for (const item of group.items) {
-                    await tx.orderItem.create({
-                        data: {
-                            orderId: order.id,
-                            productId: item.productId,
-                            productName: item.productName,
-                            productImage: item.productImage,
-                            quantity: item.quantity,
-                            price: this.toMajor(item.unitPriceMinor),
-                            subtotal: this.toMajor(item.subtotalMinor),
-                        },
-                    });
+                await tx.orderItem.create({
+                    data: {
+                        orderId: order.id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        productImage: item.productImage,
+                        quantity: item.quantity,
+                        price: this.toMajor(item.unitPriceMinor),
+                        subtotal: this.toMajor(item.subtotalMinor),
+                        selectedShippingChoice: item.selectedShippingChoice,
+                        selectedShippingFee: this.toMajor(item.shippingMinor),
+                    },
+                });
 
-                    await tx.closetItems.update({
-                        where: { id: item.productId },
-                        data: {
-                            quantity: { decrement: item.quantity },
-                            soldCount: { increment: item.quantity },
-                        },
-                    });
-                }
+                await tx.closetItems.update({
+                    where: { id: item.productId },
+                    data: {
+                        quantity: { decrement: item.quantity },
+                        soldCount: { increment: item.quantity },
+                    },
+                });
             }
 
             await tx.cartItems.deleteMany({ where: { cartId } });
@@ -353,6 +355,8 @@ export class OrderService {
                         quantity: true,
                         price: true,
                         subtotal: true,
+                        selectedShippingChoice: true,
+                        selectedShippingFee: true,
                         product: {
                             select: {
                                 id: true,
@@ -384,6 +388,8 @@ export class OrderService {
                 quantity: item.quantity,
                 price: item.price,
                 subtotal: item.subtotal,
+                selectedShippingChoice: item.selectedShippingChoice,
+                selectedShippingFee: item.selectedShippingFee,
                 product: item.product
                     ? {
                         id: item.product.id,
@@ -424,6 +430,8 @@ export class OrderService {
                         quantity: true,
                         price: true,
                         subtotal: true,
+                        selectedShippingChoice: true,
+                        selectedShippingFee: true,
                         product: {
                             select: {
                                 id: true,
@@ -462,6 +470,8 @@ export class OrderService {
                 quantity: item.quantity,
                 price: item.price,
                 subtotal: item.subtotal,
+                selectedShippingChoice: item.selectedShippingChoice,
+                selectedShippingFee: item.selectedShippingFee,
                 product: item.product
                     ? {
                         id: item.product.id,

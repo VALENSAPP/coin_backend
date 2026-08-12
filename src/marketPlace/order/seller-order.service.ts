@@ -7,7 +7,7 @@ import {
     UnauthorizedException,
     forwardRef,
 } from '@nestjs/common';
-import { OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
+import { CartItemShippingChoice, OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
 import * as sgMail from '@sendgrid/mail';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -117,9 +117,9 @@ export class SellerOrderService {
 
         const shippingTypeWhere: Prisma.OrderWhereInput =
             shippingType === SellerOrderShippingType.LOCAL_PICKUP
-                ? { shippingCost: 0 }
+                ? { items: { some: { selectedShippingChoice: CartItemShippingChoice.local_pick } } }
                 : shippingType === SellerOrderShippingType.SHIP_TO_DELIVER
-                    ? { shippingCost: { gt: 0 } }
+                    ? { items: { some: { selectedShippingChoice: CartItemShippingChoice.ship_items } } }
                     : {};
 
         const where: Prisma.OrderWhereInput = {
@@ -157,6 +157,8 @@ export class SellerOrderService {
                             quantity: true,
                             price: true,
                             subtotal: true,
+                            selectedShippingChoice: true,
+                            selectedShippingFee: true,
                             product: {
                                 select: {
                                     id: true,
@@ -196,6 +198,8 @@ export class SellerOrderService {
                     quantity: item.quantity,
                     price: item.price,
                     subtotal: item.subtotal,
+                    selectedShippingChoice: item.selectedShippingChoice,
+                    selectedShippingFee: item.selectedShippingFee,
                     product: item.product
                         ? {
                             id: item.product.id,

@@ -922,19 +922,22 @@ model ClosetChatMessage {
 }
 
 model OrderItem {
-  id           String      @id @default(uuid())
-  orderId      String
-  productId    String
-  productName  String
-  productImage String
-  quantity     Int
-  price        Float
-  subtotal     Float
-  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product      ClosetItems @relation(fields: [productId], references: [id], onDelete: Restrict)
+  id                     String                  @id @default(uuid())
+  orderId                String
+  productId              String
+  productName            String
+  productImage           String
+  quantity               Int
+  price                  Float
+  subtotal               Float
+  selectedShippingChoice CartItemShippingChoice?
+  selectedShippingFee    Float                   @default(0)
+  order                  Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product                ClosetItems             @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([productId])
+  @@index([selectedShippingChoice])
 }
 
 model MarketPlaceOrder {
