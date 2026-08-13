@@ -1,17 +1,24 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import {
+  BattleType,
   BattleStatus,
   FollowStatus,
   MarketplaceBattleMode,
   MarketplaceBattleStatus,
   Prisma,
+  PredictionCategory,
+  PredictionProvider,
   WhoCanBuy,
 } from '@prisma/client';
 import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
+import { CreatePredictionBattleDto } from './dto/prediction-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
+import { PolymarketPredictionProvider } from './prediction/polymarket-prediction.provider';
+import { ManifoldPredictionProvider } from './prediction/manifold-prediction.provider';
+import { PredictionMarket, PredictionProviderClient } from './prediction/prediction-provider.types';
 
 const BASE_JOIN_POINTS = 5;
 const ARGUMENT_POINTS = 10;
@@ -37,7 +44,15 @@ export class BattleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly polymarketPredictionProvider: PolymarketPredictionProvider,
+    private readonly manifoldPredictionProvider: ManifoldPredictionProvider,
   ) { }
+
+  private getPredictionProvider(provider: PredictionProvider = PredictionProvider.POLYMARKET): PredictionProviderClient {
+    if (provider === PredictionProvider.POLYMARKET) return this.polymarketPredictionProvider;
+    if (provider === PredictionProvider.MANIFOLD) return this.manifoldPredictionProvider;
+    throw new BadRequestException('Unsupported prediction provider');
+  }
 
   private normalizeBattleSide(side: string | undefined, options: string[] = []): string {
     const normalizedSide = (side || '').trim();
@@ -237,17 +252,39 @@ export class BattleService {
     optionImageFiles: Express.Multer.File[] = [],
   ) {
     if (!userId) throw new BadRequestException('User ID required');
-    if (!dto?.question || dto.question.trim() === '') throw new BadRequestException('Question required');
-    if (!dto?.endTime) throw new BadRequestException('End time required');
+    const isPredictionBattle = dto.battleType === BattleType.PREDICTION;
+    if (!isPredictionBattle && (!dto?.question || dto.question.trim() === '')) {
+      throw new BadRequestException('Question required');
+    }
+    if (!isPredictionBattle && !dto?.endTime) throw new BadRequestException('End time required');
+
+    let providerMarket: PredictionMarket | null = null;
+    const predictionProvider = dto.predictionProvider || PredictionProvider.POLYMARKET;
+    if (isPredictionBattle) {
+      if (dto.format !== 'POLL') throw new BadRequestException('Prediction battles must use POLL format');
+      if (!dto.predictionCategory) throw new BadRequestException('Prediction category required');
+      if (!dto.externalMarketId) throw new BadRequestException('External market ID required');
+      if (!dto?.question || dto.question.trim() === '') throw new BadRequestException('Question required');
+      if (!Array.isArray(dto.options) || dto.options.length < 2) {
+        throw new BadRequestException('Prediction battles require at least two options');
+      }
+
+      const client = this.getPredictionProvider(predictionProvider);
+      providerMarket = await client.getMarket(dto.externalMarketId.trim(), dto.predictionCategory);
+      if (!providerMarket) throw new NotFoundException('Prediction question not found');
+      if (providerMarket.status !== 'OPEN') throw new BadRequestException('Prediction question is not open');
+      if (!providerMarket.closeTime) throw new BadRequestException('Prediction question close time is missing');
+      if (providerMarket.closeTime <= new Date()) throw new BadRequestException('Prediction question is already closed');
+    }
 
     const startTime = dto.startTime ? new Date(dto.startTime) : undefined;
-    const endTime = new Date(dto.endTime);
+    const endTime = providerMarket?.closeTime || new Date(dto.endTime);
 
     if (Number.isNaN(endTime.getTime())) throw new BadRequestException('Invalid end time');
     if (startTime && Number.isNaN(startTime.getTime())) throw new BadRequestException('Invalid start time');
     if (startTime && endTime <= startTime) throw new BadRequestException('End time must be after start time');
 
-    const options = dto.options || [];
+    const options = dto.options || providerMarket?.options || [];
     const isHeadToHead = dto.format === 'HEAD_TO_HEAD';
     const status = isHeadToHead ? 'DRAFT' : 'LIVE';
     const liveAt = status === 'LIVE' ? new Date() : null;
@@ -268,6 +305,21 @@ export class BattleService {
     const optionImages = this.buildOptionImages(options, uploadedOptionImages, dto.optionImageIndexes, dto.optionImages);
 
     const battle = await this.prisma.$transaction(async (tx) => {
+      if (providerMarket) {
+        const existing = await tx.battleExternalPredictionMarket.findUnique({
+          where: {
+            provider_externalMarketId: {
+              provider: predictionProvider,
+              externalMarketId: providerMarket.externalMarketId,
+            },
+          },
+          select: { battleId: true },
+        });
+        if (existing) {
+          throw new BadRequestException('A prediction battle already exists for this question');
+        }
+      }
+
       if (stakeAmount > 0) {
         const user = await tx.user.findUnique({
           where: { id: userId },
@@ -287,17 +339,39 @@ export class BattleService {
         data: {
           creatorId: userId,
           format: dto.format,
+          battleType: isPredictionBattle ? BattleType.PREDICTION : BattleType.NORMAL,
           status,
           question: dto.question.trim(),
           options,
           optionImages,
           startTime: startTime || null,
           endTime,
-          resolutionMethod: dto.resolutionMethod || null,
+          resolutionMethod: providerMarket
+            ? `${predictionProvider}:${providerMarket.externalMarketId}`
+            : dto.resolutionMethod || null,
           isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
           stakeAmount: dto.stake ?? null,
           liveAt,
           image: imageUrl,
+          ...(providerMarket
+            ? {
+                externalPrediction: {
+                  create: {
+                    provider: predictionProvider,
+                    category: dto.predictionCategory!,
+                    externalMarketId: providerMarket.externalMarketId,
+                    externalEventId: dto.externalEventId || providerMarket.externalEventId || null,
+                    question: dto.question.trim(),
+                    options,
+                    providerStatus: providerMarket.status,
+                    resultSide: providerMarket.resultSide || null,
+                    raw: (providerMarket.raw || {}) as Prisma.InputJsonValue,
+                    closeTime: providerMarket.closeTime,
+                    lastSyncedAt: new Date(),
+                  },
+                },
+              }
+            : {}),
         },
       });
 
@@ -323,6 +397,201 @@ export class BattleService {
         battle.question,
       );
     }
+
+    return battle;
+  }
+
+  getPredictionCategories() {
+    return Object.values(PredictionCategory);
+  }
+
+  async listPredictionQuestions(
+    category: PredictionCategory,
+    provider?: PredictionProvider,
+    pageInput?: string | number,
+    limitInput?: string | number,
+  ) {
+    if (!category) throw new BadRequestException('Prediction category required');
+    const pagination = this.parsePredictionQuestionPagination(pageInput, limitInput);
+
+    if (provider) {
+      const client = this.getPredictionProvider(provider);
+      const markets = await client.listMarkets(category);
+      return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
+    }
+
+    const providerOrder = [PredictionProvider.POLYMARKET, PredictionProvider.MANIFOLD];
+    const errors: string[] = [];
+
+    for (const currentProvider of providerOrder) {
+      try {
+        const markets = await this.getPredictionProvider(currentProvider).listMarkets(category);
+        if (markets.length > 0) {
+          return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
+        }
+        errors.push(`${currentProvider}: no open future markets`);
+      } catch (error: any) {
+        errors.push(`${currentProvider}: ${error?.message || 'unavailable'}`);
+      }
+    }
+
+    throw new ServiceUnavailableException({
+      message: 'Prediction providers are unavailable or returned no open future markets',
+      providersTried: providerOrder,
+      errors,
+    });
+  }
+
+  private parsePredictionQuestionPagination(pageInput?: string | number, limitInput?: string | number) {
+    const page = Number(pageInput || 1);
+    const limit = Number(limitInput || 20);
+
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('Page must be a positive integer');
+    }
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be between 1 and 100');
+    }
+
+    return { page, limit };
+  }
+
+  private paginatePredictionMarkets(markets: PredictionMarket[], page: number, limit: number) {
+    const total = markets.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const offset = (page - 1) * limit;
+
+    return {
+      data: markets.slice(offset, offset + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
+  async createPredictionBattle(userId: string, dto: CreatePredictionBattleDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.externalMarketId) throw new BadRequestException('External market ID required');
+    if (!dto?.selectedSide) throw new BadRequestException('Selected side required');
+
+    const provider = dto.provider || PredictionProvider.POLYMARKET;
+    const client = this.getPredictionProvider(provider);
+    const market = await client.getMarket(dto.externalMarketId.trim(), dto.category);
+    if (!market) throw new NotFoundException('Prediction question not found');
+    if (market.status !== 'OPEN') throw new BadRequestException('Prediction question is not open');
+    if (!market.closeTime) throw new BadRequestException('Prediction question close time is missing');
+    const closeTime = market.closeTime;
+    if (closeTime <= new Date()) throw new BadRequestException('Prediction question is already closed');
+
+    const selectedSide = this.normalizeBattleSide(dto.selectedSide, market.options);
+    const stakeAmount = dto.stake ?? 0;
+    const justification = (dto.justification || selectedSide).trim();
+
+    const battle = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.battleExternalPredictionMarket.findUnique({
+        where: { provider_externalMarketId: { provider, externalMarketId: market.externalMarketId } },
+        select: { battleId: true },
+      });
+      if (existing) {
+        throw new BadRequestException('A prediction battle already exists for this question');
+      }
+
+      if (stakeAmount > 0) {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true, totalPlatformPoints: true },
+        });
+        if (!user) throw new NotFoundException('User not found');
+        if ((user.totalPlatformPoints ?? 0) < stakeAmount) {
+          throw new BadRequestException('Insufficient platform points');
+        }
+        await tx.user.update({
+          where: { id: userId },
+          data: { totalPlatformPoints: { decrement: stakeAmount } },
+        });
+      }
+
+      const created = await tx.battle.create({
+        data: {
+          creatorId: userId,
+          format: 'POLL',
+          battleType: BattleType.PREDICTION,
+          status: 'LIVE',
+          question: market.question,
+          options: market.options,
+          startTime: new Date(),
+          endTime: closeTime,
+          resolutionMethod: `${provider}:${market.externalMarketId}`,
+          isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
+          stakeAmount: dto.stake ?? null,
+          liveAt: new Date(),
+          externalPrediction: {
+            create: {
+              provider,
+              category: dto.category,
+              externalMarketId: market.externalMarketId,
+              externalEventId: market.externalEventId || null,
+              question: market.question,
+              options: market.options,
+              providerStatus: market.status,
+              resultSide: market.resultSide || null,
+              raw: (market.raw || {}) as Prisma.InputJsonValue,
+              closeTime,
+              lastSyncedAt: new Date(),
+            },
+          },
+        },
+      });
+
+      await tx.battlePrediction.create({
+        data: {
+          battleId: created.id,
+          userId,
+          side: selectedSide,
+          justification,
+          sourceUrl: dto.sourceUrl || null,
+        },
+      });
+
+      await tx.battleParticipant.create({
+        data: { battleId: created.id, userId, side: selectedSide },
+      });
+
+      await tx.battleComment.create({
+        data: {
+          battleId: created.id,
+          userId,
+          comment: justification,
+        },
+      });
+
+      const externalPrediction = await tx.battleExternalPredictionMarket.findUniqueOrThrow({
+        where: { battleId: created.id },
+        select: { id: true },
+      });
+
+      await tx.battleExternalPredictionVote.create({
+        data: {
+          predictionId: externalPrediction.id,
+          userId,
+          selectedSide,
+        },
+      });
+
+      return created;
+    });
+
+    const followerIds = await this.getFollowerIds(userId);
+    await this.notificationService.sendBattleCreatedToFollowers(
+      followerIds,
+      battle.id,
+      battle.question,
+    );
 
     return battle;
   }
@@ -733,39 +1002,64 @@ export class BattleService {
 
   async submitPrediction(userId: string, dto: BattlePredictionDto) {
     if (!userId) throw new BadRequestException('User ID required');
-    if (!dto?.battleId || !dto?.side || !dto?.justification) {
-      throw new BadRequestException('Battle ID, side, and justification required');
+    if (!dto?.battleId || !dto?.side) {
+      throw new BadRequestException('Battle ID and side required');
     }
 
-    const battle = await this.prisma.battle.findUnique({ where: { id: dto.battleId } });
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: dto.battleId },
+      include: { externalPrediction: true },
+    });
     if (!battle) throw new NotFoundException('Battle not found');
     if (battle.format !== 'POLL') throw new BadRequestException('Prediction only applies to poll battles');
     if (battle.status !== 'LIVE') throw new BadRequestException('Battle is not live');
+    if (battle.battleType !== BattleType.PREDICTION && !dto.justification) {
+      throw new BadRequestException('Justification required');
+    }
+    const selectedSide = this.normalizeBattleSide(dto.side, battle.options);
+    const justification = (dto.justification || selectedSide).trim();
 
     const prediction = await this.prisma.$transaction(async (tx) => {
       const upserted = await tx.battlePrediction.upsert({
         where: { battleId_userId: { battleId: dto.battleId, userId } },
-        update: { side: dto.side, justification: dto.justification, sourceUrl: dto.sourceUrl || null },
+        update: { side: selectedSide, justification, sourceUrl: dto.sourceUrl || null },
         create: {
           battleId: dto.battleId,
           userId,
-          side: dto.side,
-          justification: dto.justification,
+          side: selectedSide,
+          justification,
           sourceUrl: dto.sourceUrl || null,
         },
       });
 
       await tx.battleParticipant.upsert({
         where: { battleId_userId: { battleId: dto.battleId, userId } },
-        update: { side: dto.side },
-        create: { battleId: dto.battleId, userId, side: dto.side },
+        update: { side: selectedSide },
+        create: { battleId: dto.battleId, userId, side: selectedSide },
       });
+
+      if (battle.battleType === BattleType.PREDICTION && battle.externalPrediction) {
+        await tx.battleExternalPredictionVote.upsert({
+          where: {
+            predictionId_userId: {
+              predictionId: battle.externalPrediction.id,
+              userId,
+            },
+          },
+          update: { selectedSide },
+          create: {
+            predictionId: battle.externalPrediction.id,
+            userId,
+            selectedSide,
+          },
+        });
+      }
 
       await tx.battleComment.create({
         data: {
           battleId: dto.battleId,
           userId,
-          comment: dto.justification,
+          comment: justification,
         },
       });
 
@@ -1438,6 +1732,7 @@ export class BattleService {
       },
       include: {
         creator: true,
+        externalPrediction: true,
         participants: {
           include: {
             user: { select: BATTLE_PUBLIC_USER_SELECT },
@@ -1857,6 +2152,7 @@ export class BattleService {
       include: {
         creator: { select: BATTLE_PUBLIC_USER_SELECT },
         winner: { select: BATTLE_PUBLIC_USER_SELECT },
+        externalPrediction: true,
         participants: {
           include: {
             user: { select: BATTLE_PUBLIC_USER_SELECT },
@@ -2032,6 +2328,7 @@ export class BattleService {
       where: { id: battleId },
       include: {
         creator: true,
+        externalPrediction: true,
         participants: {
           include: {
             user: { select: BATTLE_PUBLIC_USER_SELECT },
@@ -2263,6 +2560,14 @@ export class BattleService {
     });
     if (!battle) throw new NotFoundException('Battle not found');
 
+    if (battle.format === 'POLL' && battle.battleType === BattleType.PREDICTION && !dto.correctSide) {
+      const resultSide = await this.syncPredictionBattleResult(battle.id);
+      if (!resultSide) {
+        throw new BadRequestException('Third-party result is not available yet');
+      }
+      return this.resolvePollBattle(battle.id, resultSide);
+    }
+
     if (battle.format === 'POLL') {
       return this.resolvePollBattle(battle.id, dto.correctSide || null);
     }
@@ -2373,6 +2678,7 @@ export class BattleService {
       where: {
         status: 'CLOSED',
         format: 'POLL',
+        battleType: BattleType.NORMAL,
         resolvedAt: null,
       },
       select: { id: true },
@@ -2427,6 +2733,67 @@ export class BattleService {
     }
 
     return { resolved: resolvedCount };
+  }
+
+  async resolveClosedPredictionBattles() {
+    const battles = await this.prisma.battle.findMany({
+      where: {
+        status: 'CLOSED',
+        format: 'POLL',
+        battleType: BattleType.PREDICTION,
+        resolvedAt: null,
+        externalPrediction: { isNot: null },
+      },
+      select: { id: true },
+      take: 50,
+    });
+
+    if (battles.length === 0) return { resolved: 0, pending: 0 };
+
+    let resolvedCount = 0;
+    let pendingCount = 0;
+
+    for (const battle of battles) {
+      const resultSide = await this.syncPredictionBattleResult(battle.id);
+      if (!resultSide) {
+        pendingCount += 1;
+        continue;
+      }
+
+      await this.resolvePollBattle(battle.id, resultSide);
+      resolvedCount += 1;
+    }
+
+    return { resolved: resolvedCount, pending: pendingCount };
+  }
+
+  private async syncPredictionBattleResult(battleId: string): Promise<string | null> {
+    const externalPrediction = await this.prisma.battleExternalPredictionMarket.findUnique({
+      where: { battleId },
+    });
+    if (!externalPrediction) throw new BadRequestException('Prediction provider metadata not found');
+
+    const client = this.getPredictionProvider(externalPrediction.provider);
+    const market = await client.getMarket(externalPrediction.externalMarketId, externalPrediction.category);
+    if (!market) return externalPrediction.resultSide || null;
+
+    const resultSide = market.resultSide
+      ? this.normalizeBattleSide(market.resultSide, externalPrediction.options)
+      : null;
+
+    await this.prisma.battleExternalPredictionMarket.update({
+      where: { id: externalPrediction.id },
+      data: {
+        providerStatus: market.status,
+        resultSide,
+        resultRaw: resultSide ? ((market.raw || {}) as Prisma.InputJsonValue) : Prisma.DbNull,
+        raw: (market.raw || {}) as Prisma.InputJsonValue,
+        closeTime: market.closeTime || externalPrediction.closeTime,
+        lastSyncedAt: new Date(),
+      },
+    });
+
+    return resultSide;
   }
 
   private async resolvePollBattle(battleId: string, correctSide: string | null) {

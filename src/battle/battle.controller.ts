@@ -6,6 +6,8 @@ import { Request } from 'express';
 import { BattleService } from './battle.service';
 import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
+import { CreatePredictionBattleDto } from './dto/prediction-battle.dto';
+import { PredictionCategory, PredictionProvider } from '@prisma/client';
 
 @ApiTags('battle')
 @Controller('battle')
@@ -25,6 +27,7 @@ export class BattleController {
       type: 'object',
       properties: {
         format: { type: 'string', enum: ['POLL', 'HEAD_TO_HEAD'] },
+        battleType: { type: 'string', enum: ['NORMAL', 'PREDICTION'] },
         question: { type: 'string' },
         options: { type: 'array', items: { type: 'string' } },
         startTime: { type: 'string' },
@@ -33,6 +36,10 @@ export class BattleController {
         isPublic: { type: 'boolean' },
         invitedUserId: { type: 'string' },
         resolutionMethod: { type: 'string' },
+        predictionCategory: { type: 'string', enum: ['SPORTS', 'FINANCE', 'ELECTIONS', 'CRYPTO'] },
+        predictionProvider: { type: 'string', enum: ['POLYMARKET', 'MANIFOLD'] },
+        externalMarketId: { type: 'string' },
+        externalEventId: { type: 'string' },
         image: { type: 'string', format: 'binary' },
         optionImages: {
           type: 'array',
@@ -112,6 +119,38 @@ export class BattleController {
       files?.image?.[0],
       files?.optionImages || [],
     );
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('prediction/categories')
+  @ApiOperation({ summary: 'Get supported prediction battle categories' })
+  async getPredictionCategories() {
+    return this.battleService.getPredictionCategories();
+  }
+
+  @Get('prediction/questions')
+  @ApiQuery({ name: 'category', required: true, enum: PredictionCategory })
+  @ApiQuery({ name: 'provider', required: false, enum: PredictionProvider })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiOperation({ summary: 'Get third-party prediction questions by category' })
+  async getPredictionQuestions(
+    @Query('category') category: PredictionCategory,
+    @Query('provider') provider?: PredictionProvider,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.battleService.listPredictionQuestions(category, provider, page, limit);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('prediction/create')
+  @ApiOperation({ summary: 'Create a provider-backed prediction battle' })
+  async createPredictionBattle(@Req() req: Request, @Body() dto: CreatePredictionBattleDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.createPredictionBattle(userId, dto);
   }
 
   @UseGuards(AuthGuard('jwt'))

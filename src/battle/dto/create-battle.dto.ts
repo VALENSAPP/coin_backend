@@ -1,5 +1,6 @@
 import { IsArray, IsBoolean, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { BattleType, PredictionCategory, PredictionProvider } from '@prisma/client';
 
 export enum BattleFormat {
   POLL = 'POLL',
@@ -7,6 +8,11 @@ export enum BattleFormat {
 }
 
 export class CreateBattleDto {
+  @ApiPropertyOptional({ enum: BattleType, default: BattleType.NORMAL })
+  @IsOptional()
+  @IsEnum(BattleType)
+  battleType?: BattleType;
+
   @ApiProperty({ enum: BattleFormat })
   @IsEnum(BattleFormat)
   format!: BattleFormat;
@@ -61,4 +67,25 @@ export class CreateBattleDto {
   @IsOptional()
   @IsString()
   resolutionMethod?: string;
+
+  @ApiPropertyOptional({ enum: PredictionCategory, description: 'Required when battleType is PREDICTION' })
+  @IsOptional()
+  @IsEnum(PredictionCategory)
+  predictionCategory?: PredictionCategory;
+
+  @ApiPropertyOptional({ enum: PredictionProvider, default: PredictionProvider.POLYMARKET })
+  @IsOptional()
+  @IsEnum(PredictionProvider)
+  predictionProvider?: PredictionProvider;
+
+  @ApiPropertyOptional({ description: 'Third-party market/question id from prediction/questions API' })
+  @IsOptional()
+  @IsString()
+  externalMarketId?: string;
+
+  @ApiPropertyOptional({ description: 'Third-party event id from prediction/questions API' })
+  @IsOptional()
+  @IsString()
+  externalEventId?: string;
+
 }

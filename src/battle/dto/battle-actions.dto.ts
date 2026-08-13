@@ -62,9 +62,10 @@ export class BattlePredictionDto {
   @IsString()
   side!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Required for normal poll battles; optional for provider-backed prediction battles' })
+  @IsOptional()
   @IsString()
-  justification!: string;
+  justification?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

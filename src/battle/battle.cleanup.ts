@@ -33,4 +33,10 @@ export class BattleCleanupService {
     // console.log('Resolving closed poll battles...');
     await this.battleService.resolveClosedPollBattles();
   }
+
+  // Runs every minute to resolve provider-backed prediction battles when the API result is available
+  @Cron('*/1 * * * *')
+  async resolveClosedPredictionBattles() {
+    await this.battleService.resolveClosedPredictionBattles();
+  }
 }
