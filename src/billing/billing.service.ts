@@ -3264,6 +3264,33 @@ export class BillingService {
     };
   }
 
+  async getTotalTipEarningByUserId(userId: string) {
+    const normalizedUserId = (userId || '').trim();
+    if (!normalizedUserId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    await this.ensureUserExists(normalizedUserId);
+
+    const tipSummary = await this.prisma.payment.aggregate({
+      where: {
+        receiverId: normalizedUserId,
+        forPayment: 'TIP',
+        status: 'succeeded',
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    const totalTipEarning = Number(Number(tipSummary._sum.amount ?? 0).toFixed(2));
+
+    return {
+      userId: normalizedUserId,
+      totalTipEarning,
+    };
+  }
+
   async getMissionDonationsGraph(userId: string) {
     const now = new Date();
     const startDate = new Date(Date.UTC(

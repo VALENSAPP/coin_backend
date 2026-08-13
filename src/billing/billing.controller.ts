@@ -28,6 +28,16 @@ export class RequestWithdrawalDto {
   amount!: number;
 }
 
+export class TotalTipEarningDto {
+  @ApiProperty({
+    description: 'User ID for which to fetch total tip earning',
+    example: 'user_123',
+  })
+  @IsString()
+  @IsNotEmpty()
+  userId!: string;
+}
+
 @ApiTags('billing')
 @Controller('billing')
 export class BillingController {
@@ -443,6 +453,15 @@ export class BillingController {
   async getTipGraph(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.billingService.getTipGraph(userId);
+  }
+
+  @Post('total-tip-earning')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get total tip earning by user id' })
+  @ApiBody({ type: TotalTipEarningDto })
+  async getTotalTipEarning(@Body() dto: TotalTipEarningDto) {
+    return this.billingService.getTotalTipEarningByUserId(dto.userId);
   }
 
   @Get('mission-donations-graph')
