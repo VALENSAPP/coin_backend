@@ -1688,16 +1688,38 @@ export class UserService {
     return users; // Always return array (possibly empty)
   }
 
-  async recentActivities(userId: string, type?: 'purchase' | 'sell' | 'following') {
-    const result: any = {};
+  async recentActivities(
+    userId: string,
+    type?: 'all' | 'following' | 'unfollowing' | 'drops' | 'flips' | 'purchase' | 'sell',
+  ) {
+    const normalizedType = !type || type === 'purchase' || type === 'sell' ? 'all' : type;
+    const includeFollowing = normalizedType === 'all' || normalizedType === 'following';
+    const includeUnfollowing = normalizedType === 'all' || normalizedType === 'unfollowing';
+    const includeDrops = normalizedType === 'all' || normalizedType === 'drops';
+    const includeFlips = normalizedType === 'all' || normalizedType === 'flips';
 
-    if (!type || type === 'following') {
+    const result: any = {
+      filter: normalizedType,
+      following: [],
+      unfollowing: [],
+      drops: [],
+      flips: [],
+      activities: [],
+    };
+
+    if (includeFollowing) {
       const following = await this.prisma.followerAndFollowing.findMany({
-        where: { followingId: userId },
+        where: {
+          followingId: userId,
+          status: 'ACCEPTED',
+        },
         include: {
           follower: {
             select: {
+              id: true,
               displayName: true,
+              userName: true,
+              image: true,
             },
           },
         },
@@ -1707,22 +1729,278 @@ export class UserService {
       });
 
       result.following = following.map(f => ({
+        activityType: 'following',
         followingId: f.followingId,
         followerId: f.followerId,
-        followerName: f.follower.displayName,
+        actorId: f.followerId,
+        actorName: f.follower.displayName || f.follower.userName || 'Someone',
+        actorImage: f.follower.image,
         createdAt: f.createdAt,
       }));
     }
 
-    // Valens: no token purchase/sale display; revenue not linked to token activity.
-    // if (!type || type === 'purchase') {
-    //   const purchases = await this.prisma.tokenPurchase.findMany({ ... });
-    //   result.purchase = purchases.map(...);
-    // }
-    // if (!type || type === 'sell') {
-    //   const sales = await this.prisma.tokenSale.findMany({ ... });
-    //   result.sell = sales.map(...);
-    // }
+    if (includeUnfollowing) {
+      const unfollowNotifications = await this.prisma.notification.findMany({
+        where: {
+          userId,
+          data: { path: ['type'], equals: 'unfollow' } as any,
+        },
+        select: {
+          id: true,
+          data: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      const unfollowData = unfollowNotifications.map((n) => {
+        const data = (n.data && typeof n.data === 'object' && !Array.isArray(n.data))
+          ? (n.data as Record<string, any>)
+          : {};
+        const followerId = typeof data.followerId === 'string' ? data.followerId : null;
+        return { id: n.id, createdAt: n.createdAt, followerId };
+      });
+
+      const followerIds = Array.from(new Set(unfollowData.map((n) => n.followerId).filter(Boolean))) as string[];
+      const followers = followerIds.length > 0
+        ? await this.prisma.user.findMany({
+          where: { id: { in: followerIds } },
+          select: { id: true, displayName: true, userName: true, image: true },
+        })
+        : [];
+
+      const followerMap = new Map(followers.map((u) => [u.id, u]));
+
+      result.unfollowing = unfollowData.map((n) => {
+        const actor = n.followerId ? followerMap.get(n.followerId) : null;
+        return {
+          activityType: 'unfollowing',
+          actorId: n.followerId,
+          actorName: actor?.displayName || actor?.userName || 'Someone',
+          actorImage: actor?.image,
+          createdAt: n.createdAt,
+        };
+      });
+    }
+
+    if (includeDrops) {
+      const storyViews = await this.prisma.storyView.findMany({
+        where: { ownerId: userId },
+        include: {
+          viewer: {
+            select: {
+              id: true,
+              displayName: true,
+              userName: true,
+              image: true,
+            },
+          },
+          story: {
+            select: {
+              id: true,
+              caption: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      result.drops = storyViews.map((s) => ({
+        activityType: 'drops',
+        storyId: s.storyId,
+        storyCaption: s.story?.caption,
+        actorId: s.viewerId,
+        actorName: s.viewer.displayName || s.viewer.userName || 'Someone',
+        actorImage: s.viewer.image,
+        createdAt: s.createdAt,
+      }));
+    }
+
+    if (includeFlips) {
+      const [reelLikes, reelComments, reelMentions] = await Promise.all([
+        this.prisma.postLike.findMany({
+          where: {
+            post: {
+              userId,
+              format: 'reel',
+              deletedAt: null,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            post: {
+              select: {
+                id: true,
+                caption: true,
+                text: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.postComment.findMany({
+          where: {
+            post: {
+              userId,
+              format: 'reel',
+              deletedAt: null,
+            },
+            NOT: {
+              userId,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            post: {
+              select: {
+                id: true,
+                caption: true,
+                text: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.notification.findMany({
+          where: {
+            userId,
+            AND: [
+              { data: { path: ['type'], equals: 'mention' } as any },
+              { data: { path: ['contextType'], equals: 'post' } as any },
+            ],
+          },
+          select: {
+            id: true,
+            data: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+      ]);
+
+      const mentionEntries = reelMentions.map((n) => {
+        const data = (n.data && typeof n.data === 'object' && !Array.isArray(n.data))
+          ? (n.data as Record<string, any>)
+          : {};
+        const postId = typeof data.postId === 'string' ? data.postId : null;
+        const mentionerId = typeof data.mentionerId === 'string' ? data.mentionerId : null;
+        return {
+          id: n.id,
+          postId,
+          mentionerId,
+          createdAt: n.createdAt,
+        };
+      });
+
+      const mentionPostIds = Array.from(new Set(mentionEntries.map((m) => m.postId).filter(Boolean))) as string[];
+      const [reelPosts, mentioners] = await Promise.all([
+        mentionPostIds.length > 0
+          ? this.prisma.post.findMany({
+            where: {
+              id: { in: mentionPostIds },
+              userId,
+              format: 'reel',
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              caption: true,
+              text: true,
+            },
+          })
+          : Promise.resolve([]),
+        this.prisma.user.findMany({
+          where: {
+            id: {
+              in: Array.from(new Set(mentionEntries.map((m) => m.mentionerId).filter(Boolean))) as string[],
+            },
+          },
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+          },
+        }),
+      ]);
+
+      const reelPostMap = new Map(reelPosts.map((p) => [p.id, p]));
+      const mentionerMap = new Map(mentioners.map((u) => [u.id, u]));
+
+      const likeActivities = reelLikes.map((like) => ({
+        activityType: 'flips',
+        interactionType: 'like',
+        postId: like.postId,
+        postCaption: like.post.caption || like.post.text,
+        actorId: like.userId,
+        actorName: like.user.displayName || like.user.userName || 'Someone',
+        actorImage: like.user.image,
+        createdAt: like.createdAt,
+      }));
+
+      const commentActivities = reelComments.map((comment) => ({
+        activityType: 'flips',
+        interactionType: 'comment',
+        postId: comment.postId,
+        postCaption: comment.post.caption || comment.post.text,
+        actorId: comment.userId,
+        actorName: comment.user.displayName || comment.user.userName || 'Someone',
+        actorImage: comment.user.image,
+        createdAt: comment.createdAt,
+      }));
+
+      const mentionActivities = mentionEntries
+        .filter((entry) => !!entry.postId && reelPostMap.has(entry.postId))
+        .map((entry) => {
+          const actor = entry.mentionerId ? mentionerMap.get(entry.mentionerId) : null;
+          const reelPost = entry.postId ? reelPostMap.get(entry.postId) : null;
+          return {
+            activityType: 'flips',
+            interactionType: 'mention',
+            postId: entry.postId,
+            postCaption: reelPost?.caption || reelPost?.text,
+            actorId: entry.mentionerId,
+            actorName: actor?.displayName || actor?.userName || 'Someone',
+            actorImage: actor?.image,
+            createdAt: entry.createdAt,
+          };
+        });
+
+      result.flips = [...likeActivities, ...commentActivities, ...mentionActivities].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    }
+
+    result.activities = [
+      ...result.following,
+      ...result.unfollowing,
+      ...result.drops,
+      ...result.flips,
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return result;
   }

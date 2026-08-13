@@ -4,10 +4,10 @@ import { IsOptional, IsIn } from 'class-validator';
 export class RecentActivitiesDto {
   @ApiPropertyOptional({
     description: 'Filter by activity type',
-    enum: ['purchase', 'sell', 'following'],
-    example: 'purchase'
+    enum: ['all', 'following', 'unfollowing', 'drops', 'flips'],
+    example: 'all'
   })
   @IsOptional()
-  @IsIn(['purchase', 'sell', 'following'])
-  type?: 'purchase' | 'sell' | 'following';
+  @IsIn(['all', 'following', 'unfollowing', 'drops', 'flips', 'purchase', 'sell'])
+  type?: 'all' | 'following' | 'unfollowing' | 'drops' | 'flips' | 'purchase' | 'sell';
 }

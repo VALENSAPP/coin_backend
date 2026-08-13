@@ -714,7 +714,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get recent activities for the authenticated user' })
-  @ApiQuery({ name: 'type', type: String, required: false, description: 'Filter by activity type: purchase, sell, following' })
+  @ApiQuery({ name: 'type', type: String, required: false, description: 'Filter by activity type: all, following, unfollowing, drops, flips' })
   async getRecentActivities(@Req() req: Request, @Query() query: RecentActivitiesDto) {
     const userId = (req.user as any).userId;
     const activities = await this.userService.recentActivities(userId, query.type);
