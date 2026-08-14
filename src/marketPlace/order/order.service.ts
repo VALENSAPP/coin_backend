@@ -394,36 +394,46 @@ export class OrderService {
             },
         });
 
-        return orders.map((order) => ({
-            ...order,
-            totalItemCount: order.items.length,
-            items: order.items.map((item) => ({
-                id: item.id,
-                productId: item.productId,
-                productName: item.productName,
-                productImage: item.productImage,
-                quantity: item.quantity,
-                price: item.price,
-                subtotal: item.subtotal,
-                selectedShippingChoice: item.selectedShippingChoice,
-                selectedShippingFee: item.selectedShippingFee,
-                product: item.product
-                    ? {
-                        id: item.product.id,
-                        name: item.product.name,
-                        images: item.product.images,
-                        category: item.product.category,
-                        brand: item.product.brand,
-                        condition: item.product.condition,
-                        isActive: item.product.isActive,
-                        isDeleted: item.product.isDeleted,
-                        shippingOption: item.product.shippingOption,
-                        shippingFee: item.product.shippingFee,
-                        estimateShippingTime: item.product.estimateShippingTime,
-                    }
-                    : null,
-            })),
-        }));
+        return orders.map((order) => {
+            const isLocalPickupOrder =
+                order.items.length > 0 &&
+                order.items.every((item) => item.selectedShippingChoice === CartItemShippingChoice.local_pick);
+
+            return {
+                ...order,
+                orderStatus:
+                    isLocalPickupOrder && order.orderStatus === OrderStatus.PENDING
+                        ? 'localpickup'
+                        : order.orderStatus,
+                totalItemCount: order.items.length,
+                items: order.items.map((item) => ({
+                    id: item.id,
+                    productId: item.productId,
+                    productName: item.productName,
+                    productImage: item.productImage,
+                    quantity: item.quantity,
+                    price: item.price,
+                    subtotal: item.subtotal,
+                    selectedShippingChoice: item.selectedShippingChoice,
+                    selectedShippingFee: item.selectedShippingFee,
+                    product: item.product
+                        ? {
+                            id: item.product.id,
+                            name: item.product.name,
+                            images: item.product.images,
+                            category: item.product.category,
+                            brand: item.product.brand,
+                            condition: item.product.condition,
+                            isActive: item.product.isActive,
+                            isDeleted: item.product.isDeleted,
+                            shippingOption: item.product.shippingOption,
+                            shippingFee: item.product.shippingFee,
+                            estimateShippingTime: item.product.estimateShippingTime,
+                        }
+                        : null,
+                })),
+            };
+        });
     }
 
     async getBuyerOrderDetails(userId: string, orderId: string) {
