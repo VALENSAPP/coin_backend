@@ -181,45 +181,51 @@ export class SellerOrderService {
         ]);
 
         return {
-            data: orders.map((order) => ({
-                id: order.id,
-                orderNumber: order.orderNumber,
-                buyerId: order.buyer.id,
-                buyerName: order.buyer.displayName || order.buyer.userName || 'Unknown Buyer',
-                totalAmount: order.total,
-                orderStatus:
-                    shippingType === SellerOrderShippingType.LOCAL_PICKUP && order.orderStatus === OrderStatus.PENDING
-                        ? 'localpickup'
-                        : order.orderStatus,
-                createdAt: order.createdAt,
-                totalItemCount: order.items.length,
-                items: order.items.map((item) => ({
-                    id: item.id,
-                    productId: item.productId,
-                    productName: item.productName,
-                    productImage: item.productImage,
-                    quantity: item.quantity,
-                    price: item.price,
-                    subtotal: item.subtotal,
-                    selectedShippingChoice: item.selectedShippingChoice,
-                    selectedShippingFee: item.selectedShippingFee,
-                    product: item.product
-                        ? {
-                            id: item.product.id,
-                            name: item.product.name,
-                            images: item.product.images,
-                            category: item.product.category,
-                            brand: item.product.brand,
-                            condition: item.product.condition,
-                            isActive: item.product.isActive,
-                            isDeleted: item.product.isDeleted,
-                            shippingOption: item.product.shippingOption,
-                            shippingFee: item.product.shippingFee,
-                            estimateShippingTime: item.product.estimateShippingTime,
-                        }
-                        : null,
-                })),
-            })),
+            data: orders.map((order) => {
+                const isLocalPickupOrder =
+                    order.items.length > 0 &&
+                    order.items.every((item) => item.selectedShippingChoice === CartItemShippingChoice.local_pick);
+
+                return {
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                    buyerId: order.buyer.id,
+                    buyerName: order.buyer.displayName || order.buyer.userName || 'Unknown Buyer',
+                    totalAmount: order.total,
+                    orderStatus:
+                        isLocalPickupOrder && order.orderStatus === OrderStatus.PENDING
+                            ? 'localpickup'
+                            : order.orderStatus,
+                    createdAt: order.createdAt,
+                    totalItemCount: order.items.length,
+                    items: order.items.map((item) => ({
+                        id: item.id,
+                        productId: item.productId,
+                        productName: item.productName,
+                        productImage: item.productImage,
+                        quantity: item.quantity,
+                        price: item.price,
+                        subtotal: item.subtotal,
+                        selectedShippingChoice: item.selectedShippingChoice,
+                        selectedShippingFee: item.selectedShippingFee,
+                        product: item.product
+                            ? {
+                                id: item.product.id,
+                                name: item.product.name,
+                                images: item.product.images,
+                                category: item.product.category,
+                                brand: item.product.brand,
+                                condition: item.product.condition,
+                                isActive: item.product.isActive,
+                                isDeleted: item.product.isDeleted,
+                                shippingOption: item.product.shippingOption,
+                                shippingFee: item.product.shippingFee,
+                                estimateShippingTime: item.product.estimateShippingTime,
+                            }
+                            : null,
+                    })),
+                };
+            }),
             pagination: {
                 page,
                 limit,
