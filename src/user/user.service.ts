@@ -1995,12 +1995,21 @@ export class UserService {
       );
     }
 
-    result.activities = [
+    const mixedActivities = [
       ...result.following,
       ...result.unfollowing,
       ...result.drops,
       ...result.flips,
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    if (normalizedType === 'all') {
+      return {
+        filter: normalizedType,
+        activities: mixedActivities,
+      };
+    }
+
+    result.activities = mixedActivities;
 
     return result;
   }
