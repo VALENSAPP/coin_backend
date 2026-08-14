@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ClosetChatMessageEventType, ClosetChatMessageType, ClosetChatThreadStatus, Prisma } from '@prisma/client';
+import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ClosetChatService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly notificationService: NotificationService,
+    ) { }
 
     private async assertThreadParticipant(threadId: string, userId: string) {
         const thread = await this.prisma.closetChatThread.findUnique({
@@ -147,8 +151,8 @@ export class ClosetChatService {
         const receiverId = thread.buyerId === userId ? thread.sellerId : thread.buyerId;
         const text = content.trim();
 
-        return this.prisma.$transaction(async (tx) => {
-            const message = await tx.closetChatMessage.create({
+        const message = await this.prisma.$transaction(async (tx) => {
+            const createdMessage = await tx.closetChatMessage.create({
                 data: {
                     threadId,
                     senderId: userId,
@@ -160,11 +164,25 @@ export class ClosetChatService {
 
             await tx.closetChatThread.update({
                 where: { id: threadId },
-                data: { lastMessageAt: message.createdAt },
+                data: { lastMessageAt: createdMessage.createdAt },
             });
 
-            return message;
+            return createdMessage;
         });
+
+        await this.notificationService.sendNotificationToUser(
+            receiverId,
+            'New chat message',
+            'You have a new message in your marketplace chat.',
+            {
+                type: 'closet_chat_message',
+                threadId,
+                messageId: message.id,
+                senderId: userId,
+            },
+        );
+
+        return message;
     }
 
     async markMessageSeen(userId: string, messageId: string) {
