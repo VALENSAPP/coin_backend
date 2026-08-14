@@ -81,15 +81,22 @@ export class OrderService {
         const cartId = paymentRecord.cartId;
 
         let createdOrderIds: string[] = [];
-        const sellerIdsToNotify = new Set<string>();
+        const orderNotifications: Array<{ sellerId: string; orderId: string; orderNumber: string }> = [];
 
         await this.prisma.$transaction(async (tx) => {
             const existingOrders = await tx.order.findMany({
                 where: { paymentId: paymentRecord.id },
-                select: { id: true },
+                select: { id: true, orderNumber: true, sellerId: true },
             });
             if (existingOrders.length) {
                 createdOrderIds = existingOrders.map((existingOrder) => existingOrder.id);
+                for (const existingOrder of existingOrders) {
+                    orderNotifications.push({
+                        sellerId: existingOrder.sellerId,
+                        orderId: existingOrder.id,
+                        orderNumber: existingOrder.orderNumber,
+                    });
+                }
                 await tx.marketPlacePayments.update({
                     where: { id: paymentRecord.id },
                     data: {
@@ -233,7 +240,11 @@ export class OrderService {
                 });
 
                 createdOrderIds.push(order.id);
-                sellerIdsToNotify.add(item.sellerId);
+                orderNotifications.push({
+                    sellerId: item.sellerId,
+                    orderId: order.id,
+                    orderNumber: order.orderNumber,
+                });
 
                 if (sellerAmountMinor > 0) {
                     const seller = await tx.user.findUnique({
@@ -299,14 +310,20 @@ export class OrderService {
             await this.closetChatService.ensureOrderPlacedThreadAndMessage(orderId);
         }
 
-        for (const sellerId of sellerIdsToNotify) {
+        for (const orderNotification of orderNotifications) {
             await this.notificationService.sendNotificationToUser(
-                sellerId,
+                orderNotification.sellerId,
                 'You have a new order',
                 'A buyer has placed a new order in your closet.',
                 {
                     type: 'marketplace_order_paid',
                     paymentId: paymentRecord.id,
+                    paymentIntentId: paymentRecord.paymentIntentId || paymentIntent.id,
+                    transactionId:
+                        paymentRecord.transactionId ||
+                        (typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : ''),
+                    orderId: orderNotification.orderId,
+                    orderNumber: orderNotification.orderNumber,
                 },
             );
         }
