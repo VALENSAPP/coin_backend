@@ -187,7 +187,10 @@ export class SellerOrderService {
                 buyerId: order.buyer.id,
                 buyerName: order.buyer.displayName || order.buyer.userName || 'Unknown Buyer',
                 totalAmount: order.total,
-                orderStatus: order.orderStatus,
+                orderStatus:
+                    shippingType === SellerOrderShippingType.LOCAL_PICKUP && order.orderStatus === OrderStatus.PENDING
+                        ? 'localpickup'
+                        : order.orderStatus,
                 createdAt: order.createdAt,
                 totalItemCount: order.items.length,
                 items: order.items.map((item) => ({
