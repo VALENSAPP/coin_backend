@@ -203,6 +203,21 @@ export class BillingController {
     return { transactions };
   }
 
+  @Get('transaction-details')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get details for a payment by payment ID or provider transaction ID' })
+  @ApiQuery({ name: 'paymentId', required: false, description: 'Internal Payment.id' })
+  @ApiQuery({ name: 'transactionId', required: false, description: 'Stripe PaymentIntent ID or PagBank order ID' })
+  async getTransactionDetails(
+    @Req() req: Request,
+    @Query('paymentId') paymentId?: string,
+    @Query('transactionId') transactionId?: string,
+  ) {
+    const userId = (req.user as any).userId;
+    return this.billingService.getTransactionDetails(userId, paymentId, transactionId);
+  }
+
   @Get('getfanSubscriptionStatus/:id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

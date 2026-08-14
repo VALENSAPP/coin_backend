@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1632,6 +1632,189 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(1, limit), 100),
     });
+  }
+
+  async getTransactionDetails(userId: string, paymentId?: string, transactionId?: string) {
+    const normalizedPaymentId = paymentId?.trim();
+    const normalizedTransactionId = transactionId?.trim();
+    if (!normalizedPaymentId && !normalizedTransactionId) {
+      throw new BadRequestException('paymentId or transactionId is required');
+    }
+
+    const identifiers = [
+      ...(normalizedPaymentId ? [{ id: normalizedPaymentId }] : []),
+      ...(normalizedTransactionId
+        ? [
+          { stripePaymentIntentId: normalizedTransactionId },
+          { paymentIntentId: normalizedTransactionId },
+          { transactionId: normalizedTransactionId },
+          { stripeCheckoutSessionId: normalizedTransactionId },
+        ]
+        : []),
+    ];
+    const profileSelect = { id: true, displayName: true, userName: true, image: true };
+    const paymentAccess = { OR: [{ userId }, { receiverId: userId }] };
+
+    const payment = await this.prisma.payment.findFirst({
+      where: { AND: [paymentAccess, { OR: identifiers.filter((item) => 'stripePaymentIntentId' in item || 'id' in item) }] },
+      include: { user: { select: profileSelect }, receiver: { select: profileSelect } },
+    });
+    if (payment) {
+      const provider = payment.currency.toUpperCase() === 'BRL' ? 'PAGBANK' : 'STRIPE';
+      const mission = payment.forPayment === 'missionDonation'
+        ? await this.prisma.donationData.findFirst({
+          where: {
+            userId: payment.userId,
+            OR: [
+              ...(payment.stripePaymentIntentId ? [{ stripePaymentIntentId: payment.stripePaymentIntentId }] : []),
+              ...(payment.stripePaymentIntentId ? [{ stripeCheckoutSessionId: payment.stripePaymentIntentId }] : []),
+            ],
+          },
+          select: { postId: true, note: true },
+        })
+        : null;
+      return {
+        paymentId: payment.id,
+        transactionId: payment.stripePaymentIntentId,
+        source: payment.forPayment === 'missionDonation' ? 'MISSION_DONATION' : payment.forPayment,
+        status: payment.status,
+        type: payment.forPayment,
+        currency: payment.currency,
+        amount: payment.amount,
+        fee: payment.platformFee || 0,
+        total: payment.totalAmount ?? payment.amount + (payment.platformFee || 0),
+        paymentMethod: provider,
+        createdAt: payment.createdAt,
+        periodStart: payment.periodStart,
+        periodEnd: payment.periodEnd,
+        note: mission?.note ?? null,
+        from: payment.user,
+        to: payment.receiver,
+        direction: payment.userId === userId ? 'SENT' : 'RECEIVED',
+        ...(mission?.postId ? { postId: mission.postId } : {}),
+      };
+    }
+
+    const [mission, ebook, shopEbook, marketplace] = await Promise.all([
+      this.prisma.donationData.findFirst({
+        where: {
+          AND: [
+            { OR: [{ userId }, { vendorId: userId }] },
+            { OR: identifiers.filter((item) => 'id' in item || 'stripePaymentIntentId' in item || 'stripeCheckoutSessionId' in item) },
+          ],
+        },
+      }),
+      (this.prisma as any).ebookPayments.findFirst({
+        where: {
+          AND: [
+            { OR: [{ buyerId: userId }, { sellerId: userId }] },
+            { OR: identifiers.filter((item) => 'id' in item || 'paymentIntentId' in item) },
+          ],
+        },
+        include: { buyer: { select: profileSelect }, seller: { select: profileSelect } },
+      }),
+      (this.prisma as any).shopEbookPayments.findFirst({
+        where: {
+          AND: [
+            { OR: [{ buyerId: userId }, { sellerId: userId }] },
+            { OR: identifiers.filter((item) => 'id' in item || 'paymentIntentId' in item) },
+          ],
+        },
+        include: { buyer: { select: profileSelect }, seller: { select: profileSelect } },
+      }),
+      (this.prisma as any).marketPlacePayments.findFirst({
+        where: {
+          AND: [
+            { OR: [{ userId }, { orders: { some: { OR: [{ buyerId: userId }, { sellerId: userId }] } } }] },
+            { OR: identifiers.filter((item) => 'id' in item || 'paymentIntentId' in item || 'transactionId' in item) },
+          ],
+        },
+        include: {
+          orders: {
+            select: {
+              buyer: { select: profileSelect },
+              seller: { select: profileSelect },
+            },
+          },
+        },
+      }),
+    ]);
+
+    if (mission) {
+      const [from, to] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: mission.userId }, select: profileSelect }),
+        mission.vendorId
+          ? this.prisma.user.findUnique({ where: { id: mission.vendorId }, select: profileSelect })
+          : Promise.resolve(null),
+      ]);
+      return {
+        paymentId: mission.id,
+        transactionId: mission.stripePaymentIntentId || mission.stripeCheckoutSessionId,
+        source: 'MISSION_DONATION',
+        status: mission.status,
+        type: 'missionDonation',
+        currency: mission.currency,
+        amount: mission.amount,
+        fee: mission.platformFees || 0,
+        total: mission.totalAmount ?? mission.amount + (mission.platformFees || 0),
+        paymentMethod: mission.currency.toUpperCase() === 'BRL' ? 'PAGBANK' : 'STRIPE',
+        createdAt: mission.createdAt,
+        note: mission.note,
+        from,
+        to,
+        direction: mission.userId === userId ? 'SENT' : 'RECEIVED',
+        postId: mission.postId,
+      };
+    }
+
+    if (ebook || shopEbook) {
+      const record = ebook || shopEbook;
+      return {
+        paymentId: record.id,
+        transactionId: record.paymentIntentId || record.checkoutSessionId,
+        source: ebook ? 'EBOOK' : 'SHOP_EBOOK',
+        status: record.status,
+        type: ebook ? 'ebook' : 'shopEbook',
+        currency: record.currency,
+        amount: record.sellerAmount / 100,
+        fee: record.platformFee / 100,
+        total: record.amount / 100,
+        paymentMethod: record.provider,
+        createdAt: record.createdAt,
+        note: null,
+        from: record.buyer,
+        to: record.seller,
+        direction: record.buyerId === userId ? 'SENT' : 'RECEIVED',
+        ...(ebook ? { postId: record.postId } : { closetId: record.closetId, ebookId: record.ebookId }),
+      };
+    }
+
+    if (marketplace) {
+      const order = marketplace.orders?.find((item: any) => item.buyer?.id === userId || item.seller?.id === userId);
+      const from = order?.buyer || null;
+      const to = order?.seller || null;
+      return {
+        paymentId: marketplace.id,
+        transactionId: marketplace.transactionId || marketplace.paymentIntentId || marketplace.orderId,
+        source: 'SHOP',
+        status: marketplace.status,
+        type: 'shop',
+        currency: marketplace.currency,
+        amount: marketplace.amount / 100,
+        fee: null,
+        total: marketplace.amount / 100,
+        paymentMethod: marketplace.provider,
+        createdAt: marketplace.createdAt,
+        note: null,
+        from,
+        to,
+        direction: marketplace.userId === userId || from?.id === userId ? 'SENT' : 'RECEIVED',
+        orderId: marketplace.orderId,
+        cartId: marketplace.cartId,
+      };
+    }
+
+    throw new NotFoundException('Transaction not found');
   }
 
   async getMyEbookPayments(
