@@ -83,6 +83,7 @@ export class OrderService {
         const cartId = paymentRecord.cartId;
 
         let createdOrderIds: string[] = [];
+        let createdNewOrders = false;
         const orderNotifications: Array<{ sellerId: string; orderId: string; orderNumber: string }> = [];
 
         await this.prisma.$transaction(async (tx) => {
@@ -92,13 +93,6 @@ export class OrderService {
             });
             if (existingOrders.length) {
                 createdOrderIds = existingOrders.map((existingOrder) => existingOrder.id);
-                for (const existingOrder of existingOrders) {
-                    orderNotifications.push({
-                        sellerId: existingOrder.sellerId,
-                        orderId: existingOrder.id,
-                        orderNumber: existingOrder.orderNumber,
-                    });
-                }
                 await tx.marketPlacePayments.update({
                     where: { id: paymentRecord.id },
                     data: {
@@ -110,6 +104,7 @@ export class OrderService {
                 });
                 return;
             }
+            createdNewOrders = true;
 
             const address = await tx.userAddrees.findFirst({
                 where: { id: addressId, userId: buyerId },
@@ -312,24 +307,26 @@ export class OrderService {
             await this.closetChatService.ensureOrderPlacedThreadAndMessage(orderId);
         }
 
-        for (const orderNotification of orderNotifications) {
-            await this.notificationService.sendNotificationToUser(
-                orderNotification.sellerId,
-                'You have a new order',
-                'A buyer has placed a new order in your closet.',
-                {
-                    type: 'marketplace_order_paid',
-                    paymentId: paymentRecord.id,
-                    paymentIntentId: paymentRecord.paymentIntentId || paymentIntent.id,
-                    transactionId:
-                        paymentRecord.transactionId ||
-                        (typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : ''),
-                    orderId: orderNotification.orderId,
-                    orderNumber: orderNotification.orderNumber,
-                },
-            );
+        if (createdNewOrders) {
+            for (const orderNotification of orderNotifications) {
+                await this.notificationService.sendNotificationToUser(
+                    orderNotification.sellerId,
+                    'You have a new order',
+                    'A buyer has placed a new order in your closet.',
+                    {
+                        type: 'marketplace_order_paid',
+                        paymentId: paymentRecord.id,
+                        paymentIntentId: paymentRecord.paymentIntentId || paymentIntent.id,
+                        transactionId:
+                            paymentRecord.transactionId ||
+                            (typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : ''),
+                        orderId: orderNotification.orderId,
+                        orderNumber: orderNotification.orderNumber,
+                    },
+                );
 
-            await this.sendNewOrderEmailToSeller(orderNotification.orderId);
+                await this.sendNewOrderEmailToSeller(orderNotification.orderId);
+            }
         }
 
         return { message: 'Order Created Successfully', orderIds: createdOrderIds };
