@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { MailModule } from '../../common/mail/mail.module';
 import { NotificationModule } from '../../notification/notification.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { WalletModule } from '../../wallet/wallet.module';
@@ -15,6 +16,7 @@ import { SellerOrderService } from './seller-order.service';
 @Module({
     imports: [
         PrismaModule,
+        MailModule,
         NotificationModule,
         ClosetChatModule,
         WalletModule,

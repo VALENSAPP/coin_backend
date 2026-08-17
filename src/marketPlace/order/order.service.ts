@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, Unauthorize
 import { CartItemShippingChoice, DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
+import { MailService } from '../../common/mail/mail.service';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../../wallet/wallet.service';
@@ -16,6 +17,7 @@ export class OrderService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
+        private readonly mailService: MailService,
         private readonly closetChatService: ClosetChatService,
         private readonly orderPayoutService: OrderPayoutService,
         private readonly walletService: WalletService,
@@ -326,9 +328,53 @@ export class OrderService {
                     orderNumber: orderNotification.orderNumber,
                 },
             );
+
+            await this.sendNewOrderEmailToSeller(orderNotification.orderId);
         }
 
         return { message: 'Order Created Successfully', orderIds: createdOrderIds };
+    }
+
+    /** Best-effort email to the seller when a new order is placed; never blocks order creation. */
+    private async sendNewOrderEmailToSeller(orderId: string) {
+        try {
+            const order = await this.prisma.order.findUnique({
+                where: { id: orderId },
+                select: {
+                    orderNumber: true,
+                    total: true,
+                    seller: {
+                        select: {
+                            email: true,
+                            displayName: true,
+                            userName: true,
+                            companyProfile: { select: { email: true } },
+                        },
+                    },
+                    buyer: { select: { displayName: true, userName: true } },
+                    items: { select: { productName: true }, take: 1 },
+                },
+            });
+            if (!order) return;
+
+            const sellerEmail = order.seller?.companyProfile?.email || order.seller?.email;
+            if (!sellerEmail) return;
+
+            await this.mailService.sendTemplateEmail({
+                to: sellerEmail,
+                subject: 'You have a new order on Valens',
+                templateFile: 'new-order-seller.html',
+                replacements: {
+                    seller_name: order.seller?.displayName || order.seller?.userName || 'Seller',
+                    buyer_name: order.buyer?.displayName || order.buyer?.userName || 'A buyer',
+                    order_number: order.orderNumber,
+                    product_name: order.items[0]?.productName || 'your item',
+                    order_total: `$${order.total.toFixed(2)}`,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to send new-order email to seller:', error);
+        }
     }
 
     /** Create marketplace orders after a PagBank PIX payment is confirmed. */
