@@ -1445,7 +1445,7 @@ model BattleExternalPredictionMarket {
   battle Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
   votes  BattleExternalPredictionVote[]
 
-  @@unique([provider, externalMarketId])
+  @@index([provider, externalMarketId])
   @@index([category])
   @@index([providerStatus])
 }

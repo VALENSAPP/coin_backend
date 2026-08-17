@@ -305,21 +305,6 @@ export class BattleService {
     const optionImages = this.buildOptionImages(options, uploadedOptionImages, dto.optionImageIndexes, dto.optionImages);
 
     const battle = await this.prisma.$transaction(async (tx) => {
-      if (providerMarket) {
-        const existing = await tx.battleExternalPredictionMarket.findUnique({
-          where: {
-            provider_externalMarketId: {
-              provider: predictionProvider,
-              externalMarketId: providerMarket.externalMarketId,
-            },
-          },
-          select: { battleId: true },
-        });
-        if (existing) {
-          throw new BadRequestException('A prediction battle already exists for this question');
-        }
-      }
-
       if (stakeAmount > 0) {
         const user = await tx.user.findUnique({
           where: { id: userId },
@@ -355,22 +340,22 @@ export class BattleService {
           image: imageUrl,
           ...(providerMarket
             ? {
-                externalPrediction: {
-                  create: {
-                    provider: predictionProvider,
-                    category: dto.predictionCategory!,
-                    externalMarketId: providerMarket.externalMarketId,
-                    externalEventId: dto.externalEventId || providerMarket.externalEventId || null,
-                    question: dto.question.trim(),
-                    options,
-                    providerStatus: providerMarket.status,
-                    resultSide: providerMarket.resultSide || null,
-                    raw: (providerMarket.raw || {}) as Prisma.InputJsonValue,
-                    closeTime: providerMarket.closeTime,
-                    lastSyncedAt: new Date(),
-                  },
+              externalPrediction: {
+                create: {
+                  provider: predictionProvider,
+                  category: dto.predictionCategory!,
+                  externalMarketId: providerMarket.externalMarketId,
+                  externalEventId: dto.externalEventId || providerMarket.externalEventId || null,
+                  question: dto.question.trim(),
+                  options,
+                  providerStatus: providerMarket.status,
+                  resultSide: providerMarket.resultSide || null,
+                  raw: (providerMarket.raw || {}) as Prisma.InputJsonValue,
+                  closeTime: providerMarket.closeTime,
+                  lastSyncedAt: new Date(),
                 },
-              }
+              },
+            }
             : {}),
         },
       });
@@ -493,14 +478,6 @@ export class BattleService {
     const justification = (dto.justification || selectedSide).trim();
 
     const battle = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.battleExternalPredictionMarket.findUnique({
-        where: { provider_externalMarketId: { provider, externalMarketId: market.externalMarketId } },
-        select: { battleId: true },
-      });
-      if (existing) {
-        throw new BadRequestException('A prediction battle already exists for this question');
-      }
-
       if (stakeAmount > 0) {
         const user = await tx.user.findUnique({
           where: { id: userId },
@@ -1767,23 +1744,23 @@ export class BattleService {
       AND: [this.getMarketplaceVisibilityWhere(viewerUserId)],
       ...(status === MarketplaceBattleStatus.LIVE
         ? {
-            startAt: { lte: now },
-            endAt: { gt: now },
-            participants: {
-              every: {
-                product: {
-                  isActive: true,
-                  isDeleted: false,
-                },
-              },
-              some: {
-                product: {
-                  isActive: true,
-                  isDeleted: false,
-                },
+          startAt: { lte: now },
+          endAt: { gt: now },
+          participants: {
+            every: {
+              product: {
+                isActive: true,
+                isDeleted: false,
               },
             },
-          }
+            some: {
+              product: {
+                isActive: true,
+                isDeleted: false,
+              },
+            },
+          },
+        }
         : {}),
     };
 
@@ -1891,9 +1868,9 @@ export class BattleService {
         if (status === MarketplaceBattleStatus.LIVE) {
           return Boolean(
             battle.startAt &&
-              battle.endAt &&
-              battle.startAt <= now &&
-              battle.endAt > now,
+            battle.endAt &&
+            battle.startAt <= now &&
+            battle.endAt > now,
           );
         }
         return true;
@@ -2007,15 +1984,15 @@ export class BattleService {
           votePercentage,
           product: participant.product
             ? {
-                id: participant.product.id,
-                name: participant.product.name,
-                images: participant.product.images,
-                price: participant.product.price,
-                quantity: participant.product.quantity,
-                category: participant.product.category,
-                brand: participant.product.brand,
-                condition: participant.product.condition,
-              }
+              id: participant.product.id,
+              name: participant.product.name,
+              images: participant.product.images,
+              price: participant.product.price,
+              quantity: participant.product.quantity,
+              category: participant.product.category,
+              brand: participant.product.brand,
+              condition: participant.product.condition,
+            }
             : null,
         };
       });
@@ -2029,23 +2006,23 @@ export class BattleService {
 
     const winner =
       battle.status === 'COMPLETED' &&
-      battle.outcome === 'WINNER' &&
-      battle.winnerParticipant
+        battle.outcome === 'WINNER' &&
+        battle.winnerParticipant
         ? {
-            participantId: battle.winnerParticipant.id,
-            product: battle.winnerParticipant.product
-              ? {
-                  id: battle.winnerParticipant.product.id,
-                  name: battle.winnerParticipant.product.name,
-                  images: battle.winnerParticipant.product.images,
-                  price: battle.winnerParticipant.product.price,
-                  quantity: battle.winnerParticipant.product.quantity,
-                  category: battle.winnerParticipant.product.category,
-                  brand: battle.winnerParticipant.product.brand,
-                  condition: battle.winnerParticipant.product.condition,
-                }
-              : null,
-          }
+          participantId: battle.winnerParticipant.id,
+          product: battle.winnerParticipant.product
+            ? {
+              id: battle.winnerParticipant.product.id,
+              name: battle.winnerParticipant.product.name,
+              images: battle.winnerParticipant.product.images,
+              price: battle.winnerParticipant.product.price,
+              quantity: battle.winnerParticipant.product.quantity,
+              category: battle.winnerParticipant.product.category,
+              brand: battle.winnerParticipant.product.brand,
+              condition: battle.winnerParticipant.product.condition,
+            }
+            : null,
+        }
         : null;
 
     return {
@@ -2086,11 +2063,11 @@ export class BattleService {
       },
       opponentCloset: battle.opponentCloset
         ? {
-            id: battle.opponentCloset.id,
-            shopName: battle.opponentCloset.shopName,
-            shopUsername: battle.opponentCloset.shopUsername,
-            shopLogo: battle.opponentCloset.shopLogo,
-          }
+          id: battle.opponentCloset.id,
+          shopName: battle.opponentCloset.shopName,
+          shopUsername: battle.opponentCloset.shopUsername,
+          shopLogo: battle.opponentCloset.shopLogo,
+        }
         : null,
       participants,
       winnerProductId: winner?.product?.id ?? null,
