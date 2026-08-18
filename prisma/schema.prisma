@@ -933,6 +933,8 @@ model OrderItem {
   subtotal               Float
   selectedShippingChoice CartItemShippingChoice?
   selectedShippingFee    Float                   @default(0)
+  pickupAddress        String?                 @db.Text
+  pickupAvailableHours String?
   order                  Order                   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product                ClosetItems             @relation(fields: [productId], references: [id], onDelete: Restrict)
 

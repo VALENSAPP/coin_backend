@@ -159,6 +159,8 @@ export class SellerOrderService {
                             subtotal: true,
                             selectedShippingChoice: true,
                             selectedShippingFee: true,
+                            pickupAddress: true,
+                            pickupAvailableHours: true,
                             product: {
                                 select: {
                                     id: true,
@@ -208,6 +210,14 @@ export class SellerOrderService {
                         subtotal: item.subtotal,
                         selectedShippingChoice: item.selectedShippingChoice,
                         selectedShippingFee: item.selectedShippingFee,
+                        pickupAddress:
+                            item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                                ? item.pickupAddress
+                                : null,
+                        pickupAvailableHours:
+                            item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                                ? item.pickupAvailableHours
+                                : null,
                         product: item.product
                             ? {
                                 id: item.product.id,

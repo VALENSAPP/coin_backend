@@ -147,6 +147,8 @@ export class OrderService {
                 selectedShippingChoice: CartItemShippingChoice;
                 productName: string;
                 productImage: string;
+                pickupAddress: string | null;
+                pickupAvailableHours: string | null;
             }> = [];
 
             for (const item of parsedItems) {
@@ -160,6 +162,8 @@ export class OrderService {
                         quantity: true,
                         isActive: true,
                         isDeleted: true,
+                        pickupAddress: true,
+                        pickupAvailableHours: true,
                     },
                 });
 
@@ -180,6 +184,8 @@ export class OrderService {
                     selectedShippingChoice: item.selectedShippingChoice,
                     productName: product.name,
                     productImage: product.images[0] || '',
+                    pickupAddress: product.pickupAddress,
+                    pickupAvailableHours: product.pickupAvailableHours,
                 });
             }
 
@@ -276,6 +282,14 @@ export class OrderService {
                         subtotal: this.toMajor(item.subtotalMinor),
                         selectedShippingChoice: item.selectedShippingChoice,
                         selectedShippingFee: this.toMajor(item.shippingMinor),
+                        pickupAddress:
+                            item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                                ? item.pickupAddress
+                                : null,
+                        pickupAvailableHours:
+                            item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                                ? item.pickupAvailableHours
+                                : null,
                     },
                 });
 
@@ -417,6 +431,8 @@ export class OrderService {
                         subtotal: true,
                         selectedShippingChoice: true,
                         selectedShippingFee: true,
+                        pickupAddress: true,
+                        pickupAvailableHours: true,
                         product: {
                             select: {
                                 id: true,
@@ -459,6 +475,14 @@ export class OrderService {
                     subtotal: item.subtotal,
                     selectedShippingChoice: item.selectedShippingChoice,
                     selectedShippingFee: item.selectedShippingFee,
+                    pickupAddress:
+                        item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                            ? item.pickupAddress
+                            : null,
+                    pickupAvailableHours:
+                        item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                            ? item.pickupAvailableHours
+                            : null,
                     product: item.product
                         ? {
                             id: item.product.id,
@@ -502,6 +526,8 @@ export class OrderService {
                         subtotal: true,
                         selectedShippingChoice: true,
                         selectedShippingFee: true,
+                        pickupAddress: true,
+                        pickupAvailableHours: true,
                         product: {
                             select: {
                                 id: true,
@@ -542,6 +568,14 @@ export class OrderService {
                 subtotal: item.subtotal,
                 selectedShippingChoice: item.selectedShippingChoice,
                 selectedShippingFee: item.selectedShippingFee,
+                pickupAddress:
+                    item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                        ? item.pickupAddress
+                        : null,
+                pickupAvailableHours:
+                    item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                        ? item.pickupAvailableHours
+                        : null,
                 product: item.product
                     ? {
                         id: item.product.id,
