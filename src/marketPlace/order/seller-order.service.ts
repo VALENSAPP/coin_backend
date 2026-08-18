@@ -38,7 +38,28 @@ export class SellerOrderService {
                 buyer: { select: { id: true, userName: true, displayName: true, email: true, image: true } },
                 address: true,
                 payment: true,
-                items: true,
+                items: {
+                    include: {
+                        product: {
+                            select: {
+                                id: true,
+                                name: true,
+                                images: true,
+                                category: true,
+                                brand: true,
+                                condition: true,
+                                isActive: true,
+                                isDeleted: true,
+                                shippingOption: true,
+                                shippingFee: true,
+                                estimateShippingTime: true,
+                                pickUpCity: true,
+                                pickupAddress: true,
+                                pickupAvailableHours: true,
+                            },
+                        },
+                    },
+                },
             },
         });
 
@@ -177,6 +198,8 @@ export class SellerOrderService {
                                     shippingFee: true,
                                     estimateShippingTime: true,
                                     pickUpCity: true,
+                                    pickupAddress: true,
+                                    pickupAvailableHours: true,
                                 },
                             },
                         },
@@ -217,11 +240,15 @@ export class SellerOrderService {
                         selectedShippingFee: item.selectedShippingFee,
                         pickupAddress:
                             item.selectedShippingChoice === CartItemShippingChoice.local_pick
-                                ? item.pickupAddress
+                                ? (item.product?.pickupAddress ?? item.pickupAddress ?? null)
                                 : null,
                         pickupAvailableHours:
                             item.selectedShippingChoice === CartItemShippingChoice.local_pick
-                                ? item.pickupAvailableHours
+                                ? (item.product?.pickupAvailableHours ?? item.pickupAvailableHours ?? null)
+                                : null,
+                        pickUpCity:
+                            item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                                ? (item.product?.pickUpCity ?? null)
                                 : null,
                         product: item.product
                             ? {
@@ -237,6 +264,8 @@ export class SellerOrderService {
                                 shippingFee: item.product.shippingFee,
                                 estimateShippingTime: item.product.estimateShippingTime,
                                 pickUpCity: item.product.pickUpCity,
+                                pickupAddress: item.product.pickupAddress,
+                                pickupAvailableHours: item.product.pickupAvailableHours,
                             }
                             : null,
                     })),

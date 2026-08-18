@@ -446,6 +446,9 @@ export class OrderService {
                                 shippingOption: true,
                                 shippingFee: true,
                                 estimateShippingTime: true,
+                                pickUpCity: true,
+                                pickupAddress: true,
+                                pickupAvailableHours: true,
                             },
                         },
                     },
@@ -477,11 +480,15 @@ export class OrderService {
                     selectedShippingFee: item.selectedShippingFee,
                     pickupAddress:
                         item.selectedShippingChoice === CartItemShippingChoice.local_pick
-                            ? item.pickupAddress
+                            ? (item.product?.pickupAddress ?? item.pickupAddress ?? null)
                             : null,
                     pickupAvailableHours:
                         item.selectedShippingChoice === CartItemShippingChoice.local_pick
-                            ? item.pickupAvailableHours
+                            ? (item.product?.pickupAvailableHours ?? item.pickupAvailableHours ?? null)
+                            : null,
+                    pickUpCity:
+                        item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                            ? (item.product?.pickUpCity ?? null)
                             : null,
                     product: item.product
                         ? {
@@ -496,6 +503,9 @@ export class OrderService {
                             shippingOption: item.product.shippingOption,
                             shippingFee: item.product.shippingFee,
                             estimateShippingTime: item.product.estimateShippingTime,
+                            pickUpCity: item.product.pickUpCity,
+                            pickupAddress: item.product.pickupAddress,
+                            pickupAvailableHours: item.product.pickupAvailableHours,
                         }
                         : null,
                 })),
@@ -541,6 +551,9 @@ export class OrderService {
                                 shippingOption: true,
                                 shippingFee: true,
                                 estimateShippingTime: true,
+                                pickUpCity: true,
+                                pickupAddress: true,
+                                pickupAvailableHours: true,
                             },
                         },
                     },
@@ -570,11 +583,15 @@ export class OrderService {
                 selectedShippingFee: item.selectedShippingFee,
                 pickupAddress:
                     item.selectedShippingChoice === CartItemShippingChoice.local_pick
-                        ? item.pickupAddress
+                        ? (item.product?.pickupAddress ?? item.pickupAddress ?? null)
                         : null,
                 pickupAvailableHours:
                     item.selectedShippingChoice === CartItemShippingChoice.local_pick
-                        ? item.pickupAvailableHours
+                        ? (item.product?.pickupAvailableHours ?? item.pickupAvailableHours ?? null)
+                        : null,
+                pickUpCity:
+                    item.selectedShippingChoice === CartItemShippingChoice.local_pick
+                        ? (item.product?.pickUpCity ?? null)
                         : null,
                 product: item.product
                     ? {
@@ -589,6 +606,9 @@ export class OrderService {
                         shippingOption: item.product.shippingOption,
                         shippingFee: item.product.shippingFee,
                         estimateShippingTime: item.product.estimateShippingTime,
+                        pickUpCity: item.product.pickUpCity,
+                        pickupAddress: item.product.pickupAddress,
+                        pickupAvailableHours: item.product.pickupAvailableHours,
                     }
                     : null,
             })),
