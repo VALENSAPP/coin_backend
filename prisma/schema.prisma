@@ -859,6 +859,8 @@ model Order {
   payoutReleasedAt      DateTime?
   disputeStatus         DisputeStatus        @default(NONE)
   disputeReason         String?
+  isViewedBySeller      Boolean              @default(false)
+  sellerViewedAt        DateTime?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   buyer                 User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
@@ -871,6 +873,7 @@ model Order {
 
   @@index([buyerId, createdAt])
   @@index([sellerId, orderStatus])
+  @@index([sellerId, isViewedBySeller])
   @@index([sellerId, paymentStatus, createdAt])
   @@index([sellerId, transferStatus, createdAt])
   @@index([paymentId])

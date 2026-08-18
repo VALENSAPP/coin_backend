@@ -45,6 +45,28 @@ export class SellerOrderController {
         return this.sellerOrderService.getSellerOrders(userId, query);
     }
 
+    @Get('unviewed-ids')
+    @ApiOperation({ summary: 'Get all unviewed order IDs and count for authenticated seller' })
+    async getUnviewedOrderIds(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.sellerOrderService.getUnviewedOrderIds(userId);
+    }
+
+    @Patch('mark-all-viewed')
+    @ApiOperation({ summary: 'Mark all unviewed orders as viewed for authenticated seller' })
+    async markAllOrdersAsViewed(@Req() req: Request) {
+        const userId = (req.user as any)?.userId;
+        return this.sellerOrderService.markAllOrdersAsViewed(userId);
+    }
+
+    @Patch(':orderId/view')
+    @ApiOperation({ summary: 'Mark a specific order as viewed for authenticated seller' })
+    @ApiParam({ name: 'orderId', description: 'Order id' })
+    async markOrderAsViewed(@Req() req: Request, @Param('orderId') orderId: string) {
+        const userId = (req.user as any)?.userId;
+        return this.sellerOrderService.markOrderAsViewed(userId, orderId);
+    }
+
     @Get(':orderId')
     @ApiOperation({ summary: 'Get complete order details for authenticated seller' })
     @ApiParam({ name: 'orderId', description: 'Order id' })

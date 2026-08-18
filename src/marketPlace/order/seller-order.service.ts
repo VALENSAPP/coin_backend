@@ -140,6 +140,8 @@ export class SellerOrderService {
                     orderNumber: true,
                     total: true,
                     orderStatus: true,
+                    isViewedBySeller: true,
+                    sellerViewedAt: true,
                     createdAt: true,
                     buyer: {
                         select: {
@@ -174,6 +176,7 @@ export class SellerOrderService {
                                     shippingOption: true,
                                     shippingFee: true,
                                     estimateShippingTime: true,
+                                    pickUpCity: true,
                                 },
                             },
                         },
@@ -194,6 +197,8 @@ export class SellerOrderService {
                     buyerId: order.buyer.id,
                     buyerName: order.buyer.displayName || order.buyer.userName || 'Unknown Buyer',
                     totalAmount: order.total,
+                    isViewedBySeller: order.isViewedBySeller,
+                    sellerViewedAt: order.sellerViewedAt,
                     orderStatus:
                         isLocalPickupOrder && order.orderStatus === OrderStatus.PENDING
                             ? 'localpickup'
@@ -231,6 +236,7 @@ export class SellerOrderService {
                                 shippingOption: item.product.shippingOption,
                                 shippingFee: item.product.shippingFee,
                                 estimateShippingTime: item.product.estimateShippingTime,
+                                pickUpCity: item.product.pickUpCity,
                             }
                             : null,
                     })),
@@ -245,9 +251,91 @@ export class SellerOrderService {
         };
     }
 
+    async getUnviewedOrderIds(userId: string | undefined) {
+        const sellerId = this.assertSellerUserId(userId);
+
+        const unviewedOrders = await this.prisma.order.findMany({
+            where: {
+                sellerId,
+                isViewedBySeller: false,
+            },
+            select: {
+                id: true,
+                orderNumber: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        return {
+            success: true,
+            count: unviewedOrders.length,
+            unviewedOrderIds: unviewedOrders.map((o) => o.id),
+            orders: unviewedOrders,
+        };
+    }
+
+    async markAllOrdersAsViewed(userId: string | undefined) {
+        const sellerId = this.assertSellerUserId(userId);
+
+        const result = await this.prisma.order.updateMany({
+            where: {
+                sellerId,
+                isViewedBySeller: false,
+            },
+            data: {
+                isViewedBySeller: true,
+                sellerViewedAt: new Date(),
+            },
+        });
+
+        return {
+            success: true,
+            message: 'All orders marked as viewed successfully',
+            updatedCount: result.count,
+        };
+    }
+
+    async markOrderAsViewed(userId: string | undefined, orderId: string) {
+        const sellerId = this.assertSellerUserId(userId);
+        const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
+
+        if (!order.isViewedBySeller) {
+            await this.prisma.order.update({
+                where: { id: order.id },
+                data: {
+                    isViewedBySeller: true,
+                    sellerViewedAt: new Date(),
+                },
+            });
+        }
+
+        return {
+            success: true,
+            message: 'Order marked as viewed successfully',
+            orderId: order.id,
+            isViewedBySeller: true,
+        };
+    }
+
     async getSellerOrderDetails(userId: string | undefined, orderId: string) {
         const sellerId = this.assertSellerUserId(userId);
-        return this.getOwnedOrderOrThrow(sellerId, orderId);
+        const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
+
+        // Auto mark as viewed when seller opens full order details if not already viewed
+        if (!order.isViewedBySeller) {
+            await this.prisma.order.update({
+                where: { id: order.id },
+                data: {
+                    isViewedBySeller: true,
+                    sellerViewedAt: new Date(),
+                },
+            });
+            order.isViewedBySeller = true;
+            order.sellerViewedAt = new Date();
+        }
+
+        return order;
     }
 
     async markOrderProcessing(userId: string | undefined, orderId: string) {
