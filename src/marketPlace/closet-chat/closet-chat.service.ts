@@ -345,7 +345,7 @@ export class ClosetChatService {
 
         if (!order) throw new NotFoundException('Order not found');
 
-        const chatContent = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.\n\nView Pickup Details\n\nChat with Seller`;
+        const chatContent = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.`;
 
         let threadId = '';
         let createdMessage: any = null;
@@ -371,8 +371,8 @@ export class ClosetChatService {
             createdMessage = await tx.closetChatMessage.create({
                 data: {
                     threadId: thread.id,
-                    senderId: order.buyerId,
-                    receiverId: order.sellerId,
+                    senderId: order.sellerId,
+                    receiverId: order.buyerId,
                     content: chatContent,
                     type: ClosetChatMessageType.USER,
                 },
@@ -388,14 +388,14 @@ export class ClosetChatService {
 
         if (createdMessage) {
             await this.notificationService.sendNotificationToUser(
-                order.sellerId,
+                order.buyerId,
                 'New chat message',
                 'You have a new message in your marketplace chat.',
                 {
                     type: 'closet_chat_message',
                     threadId,
                     messageId: createdMessage.id,
-                    senderId: order.buyerId,
+                    senderId: order.sellerId,
                 },
             );
         }
@@ -421,7 +421,7 @@ export class ClosetChatService {
 
         if (!order) throw new NotFoundException('Order not found');
 
-        const chatContent = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.\n\nView Order Details`;
+        const chatContent = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.`;
 
         let threadId = '';
         let createdMessage: any = null;
@@ -447,8 +447,8 @@ export class ClosetChatService {
             createdMessage = await tx.closetChatMessage.create({
                 data: {
                     threadId: thread.id,
-                    senderId: order.buyerId,
-                    receiverId: order.sellerId,
+                    senderId: order.sellerId,
+                    receiverId: order.buyerId,
                     content: chatContent,
                     type: ClosetChatMessageType.USER,
                 },
@@ -464,14 +464,14 @@ export class ClosetChatService {
 
         if (createdMessage) {
             await this.notificationService.sendNotificationToUser(
-                order.sellerId,
+                order.buyerId,
                 'New chat message',
                 'You have a new message in your marketplace chat.',
                 {
                     type: 'closet_chat_message',
                     threadId,
                     messageId: createdMessage.id,
-                    senderId: order.buyerId,
+                    senderId: order.sellerId,
                 },
             );
         }

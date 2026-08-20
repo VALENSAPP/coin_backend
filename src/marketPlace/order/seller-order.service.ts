@@ -395,7 +395,7 @@ export class SellerOrderService {
             const orderDetailsLink = `${appBaseUrl}/orders/${order.id}`;
             const chatLink = `${appBaseUrl}/marketplace/chat?orderId=${order.id}`;
 
-            const plainText = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.\n\nView Pickup Details\n\nChat with Seller`;
+            const plainText = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.`;
 
             await this.mailService.sendTemplateEmail({
                 to: order.buyer.email,
@@ -428,7 +428,7 @@ export class SellerOrderService {
             const orderDetailsLink = `${appBaseUrl}/orders/${order.id}`;
             const chatLink = `${appBaseUrl}/marketplace/chat?orderId=${order.id}`;
 
-            const plainText = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.\n\nView Order Details: ${orderDetailsLink}`;
+            const plainText = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.`;
 
             await this.mailService.sendTemplateEmail({
                 to: order.buyer.email,
@@ -468,7 +468,7 @@ export class SellerOrderService {
         const sellerUsername = (order as any).seller?.userName || (order as any).seller?.displayName || 'Seller';
 
         if (isLocalPickupOrder) {
-            // 1. Send closet chat message from buyer side to seller
+            // 1. Send closet chat message from seller side to buyer
             try {
                 await this.closetChatService.sendLocalPickupProcessingMessage(order.id, sellerUsername);
             } catch (chatError) {
@@ -491,7 +491,7 @@ export class SellerOrderService {
                 },
             );
         } else {
-            // 1. Send closet chat message from buyer side to seller
+            // 1. Send closet chat message from seller side to buyer
             try {
                 await this.closetChatService.sendShipItemsProcessingMessage(order.id, sellerUsername);
             } catch (chatError) {
