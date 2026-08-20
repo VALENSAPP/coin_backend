@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Order Is Ready for Pickup!</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f7;
+            margin: 0;
+            padding: 0;
+            color: #2d3748;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .email-wrapper {
+            width: 100%;
+            background-color: #f4f4f7;
+            padding: 30px 10px;
+        }
+
+        .email-container {
+            max-width: 580px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            border: 1px solid #edf2f7;
+        }
+
+        .header {
+            text-align: center;
+            padding: 24px 24px 10px 24px;
+            background-color: #ffffff;
+        }
+
+        .header img {
+            width: 100%;
+            max-width: 480px;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .divider {
+            border-top: 3px dotted #c4b5fd;
+            margin: 18px 32px 24px 32px;
+        }
+
+        .content {
+            padding: 0 32px 32px 32px;
+            font-size: 15px;
+            line-height: 1.65;
+            color: #374151;
+        }
+
+        .headline {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0 0 16px 0;
+            line-height: 1.3;
+        }
+
+        .message-p {
+            margin: 0 0 14px 0;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #4b5563;
+        }
+
+        .order-box {
+            border-radius: 12px;
+            padding: 20px;
+            margin: 24px 0;
+            background: linear-gradient(135deg, #f5f3ff 0%, #fbf9ff 100%);
+            border: 1px solid #e9d5ff;
+        }
+
+        .order-box-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #7c3aed;
+            margin: 0 0 12px 0;
+        }
+
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #ede9fe;
+            font-size: 14px;
+        }
+
+        .order-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .order-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .order-value {
+            color: #111827;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .actions-container {
+            margin: 28px 0 16px 0;
+            text-align: center;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            color: #ffffff !important;
+            font-weight: 600;
+            font-size: 15px;
+            text-decoration: none;
+            padding: 13px 28px;
+            border-radius: 10px;
+            margin: 6px 8px;
+            box-shadow: 0 4px 12px rgba(109, 40, 217, 0.25);
+            transition: all 0.2s ease;
+        }
+
+        .btn-secondary {
+            display: inline-block;
+            background-color: #ffffff;
+            color: #7c3aed !important;
+            font-weight: 600;
+            font-size: 15px;
+            text-decoration: none;
+            padding: 12px 26px;
+            border-radius: 10px;
+            margin: 6px 8px;
+            border: 1.5px solid #c4b5fd;
+            transition: all 0.2s ease;
+        }
+
+        .footer {
+            border-top: 1px solid #f3f4f6;
+            padding: 20px 32px;
+            font-size: 12px;
+            color: #9ca3af;
+            background-color: #fafafa;
+            text-align: center;
+        }
+
+        .footer p {
+            margin: 4px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-wrapper">
+        <div class="email-container">
+            <div class="header">
+                <img src="https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png"
+                    alt="Valens">
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="content">
+                <h1 class="headline">Your Order Is Ready for Pickup! 🎉</h1>
+
+                <p class="message-p">
+                    Good news! <strong>{{seller_username}}</strong> is preparing your order and is ready to coordinate the pickup with you.
+                </p>
+
+                <p class="message-p">
+                    Please check the pickup location, date, and time in your order details and arrive at the agreed time.
+                </p>
+
+                <p class="message-p">
+                    Need to make arrangements or have a question? Chat directly with the seller through Valens.
+                </p>
+
+                <div class="order-box">
+                    <div class="order-box-title">Pickup & Order Details</div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Order Number:</td>
+                            <td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{order_number}}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Item:</td>
+                            <td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{product_name}}</td>
+                        </tr>
+                        {{pickup_address_row}}
+                        {{pickup_hours_row}}
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Total:</td>
+                            <td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{order_total}}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="actions-container">
+                    <a href="{{order_details_link}}" class="btn-primary">View Pickup Details</a>
+                    <a href="{{chat_link}}" class="btn-secondary">Chat with Seller</a>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p><strong>Valens Technologies Inc.</strong></p>
+                <p>This is an automated notification regarding your Valens marketplace order.</p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

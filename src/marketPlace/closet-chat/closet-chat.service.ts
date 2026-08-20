@@ -329,4 +329,157 @@ export class ClosetChatService {
             threadId,
         };
     }
+
+    async sendLocalPickupProcessingMessage(orderId: string, sellerUsername: string) {
+        if (!orderId) throw new BadRequestException('orderId is required');
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                buyerId: true,
+                sellerId: true,
+                closetId: true,
+            },
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+
+        const chatContent = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.\n\nView Pickup Details\n\nChat with Seller`;
+
+        let threadId = '';
+        let createdMessage: any = null;
+
+        await this.prisma.$transaction(async (tx) => {
+            const thread = await tx.closetChatThread.upsert({
+                where: { orderId: order.id },
+                create: {
+                    orderId: order.id,
+                    buyerId: order.buyerId,
+                    sellerId: order.sellerId,
+                    closetId: order.closetId,
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                update: {
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                select: { id: true },
+            });
+
+            threadId = thread.id;
+
+            createdMessage = await tx.closetChatMessage.create({
+                data: {
+                    threadId: thread.id,
+                    senderId: order.buyerId,
+                    receiverId: order.sellerId,
+                    content: chatContent,
+                    type: ClosetChatMessageType.USER,
+                },
+            });
+
+            await tx.closetChatThread.update({
+                where: { id: thread.id },
+                data: {
+                    lastMessageAt: createdMessage.createdAt,
+                },
+            });
+        });
+
+        if (createdMessage) {
+            await this.notificationService.sendNotificationToUser(
+                order.sellerId,
+                'New chat message',
+                'You have a new message in your marketplace chat.',
+                {
+                    type: 'closet_chat_message',
+                    threadId,
+                    messageId: createdMessage.id,
+                    senderId: order.buyerId,
+                },
+            );
+        }
+
+        return {
+            threadId,
+            message: createdMessage,
+        };
+    }
+
+    async sendShipItemsProcessingMessage(orderId: string, sellerUsername: string) {
+        if (!orderId) throw new BadRequestException('orderId is required');
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                buyerId: true,
+                sellerId: true,
+                closetId: true,
+            },
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+
+        const chatContent = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.\n\nView Order Details`;
+
+        let threadId = '';
+        let createdMessage: any = null;
+
+        await this.prisma.$transaction(async (tx) => {
+            const thread = await tx.closetChatThread.upsert({
+                where: { orderId: order.id },
+                create: {
+                    orderId: order.id,
+                    buyerId: order.buyerId,
+                    sellerId: order.sellerId,
+                    closetId: order.closetId,
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                update: {
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                select: { id: true },
+            });
+
+            threadId = thread.id;
+
+            createdMessage = await tx.closetChatMessage.create({
+                data: {
+                    threadId: thread.id,
+                    senderId: order.buyerId,
+                    receiverId: order.sellerId,
+                    content: chatContent,
+                    type: ClosetChatMessageType.USER,
+                },
+            });
+
+            await tx.closetChatThread.update({
+                where: { id: thread.id },
+                data: {
+                    lastMessageAt: createdMessage.createdAt,
+                },
+            });
+        });
+
+        if (createdMessage) {
+            await this.notificationService.sendNotificationToUser(
+                order.sellerId,
+                'New chat message',
+                'You have a new message in your marketplace chat.',
+                {
+                    type: 'closet_chat_message',
+                    threadId,
+                    messageId: createdMessage.id,
+                    senderId: order.buyerId,
+                },
+            );
+        }
+
+        return {
+            threadId,
+            message: createdMessage,
+        };
+    }
 }
+

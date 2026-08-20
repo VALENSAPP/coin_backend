@@ -323,12 +323,30 @@ export class OrderService {
 
         if (createdNewOrders) {
             for (const orderNotification of orderNotifications) {
+                // Send notification to seller
                 await this.notificationService.sendNotificationToUser(
                     orderNotification.sellerId,
                     'You have a new order',
                     'A buyer has placed a new order in your closet.',
                     {
                         type: 'marketplace_order_paid',
+                        paymentId: paymentRecord.id,
+                        paymentIntentId: paymentRecord.paymentIntentId || paymentIntent.id,
+                        transactionId:
+                            paymentRecord.transactionId ||
+                            (typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : ''),
+                        orderId: orderNotification.orderId,
+                        orderNumber: orderNotification.orderNumber,
+                    },
+                );
+
+                // Send notification to buyer
+                await this.notificationService.sendNotificationToUser(
+                    buyerId,
+                    'Order Placed Successfully',
+                    `Your order #${orderNotification.orderNumber} has been placed successfully.`,
+                    {
+                        type: 'marketplace_order_placed',
                         paymentId: paymentRecord.id,
                         paymentIntentId: paymentRecord.paymentIntentId || paymentIntent.id,
                         transactionId:

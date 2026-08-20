@@ -9,8 +9,10 @@ import {
 } from '@nestjs/common';
 import { CartItemShippingChoice, OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
 import * as sgMail from '@sendgrid/mail';
+import { MailService } from '../../common/mail/mail.service';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
@@ -22,6 +24,8 @@ export class SellerOrderService {
         private readonly prisma: PrismaService,
         private readonly notificationService: NotificationService,
         private readonly orderPayoutService: OrderPayoutService,
+        private readonly mailService: MailService,
+        private readonly closetChatService: ClosetChatService,
         @Inject(forwardRef(() => ShippingService))
         private readonly shippingService: ShippingService,
     ) { }
@@ -35,6 +39,7 @@ export class SellerOrderService {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
+                seller: { select: { id: true, userName: true, displayName: true, email: true } },
                 buyer: { select: { id: true, userName: true, displayName: true, email: true, image: true } },
                 address: true,
                 payment: true,
@@ -367,6 +372,83 @@ export class SellerOrderService {
         return order;
     }
 
+    private async sendLocalPickupReadyEmail(order: any, sellerUsername: string) {
+        try {
+            if (!order.buyer?.email) return;
+
+            const firstItem = order.items?.[0];
+            const pickupAddress = firstItem?.pickupAddress || firstItem?.product?.pickupAddress;
+            const pickupHours = firstItem?.pickupAvailableHours || firstItem?.product?.pickupAvailableHours;
+            const pickupCity = firstItem?.product?.pickUpCity;
+
+            const pickupLocationDisplay = [pickupAddress, pickupCity].filter(Boolean).join(', ');
+
+            const pickupAddressRow = pickupLocationDisplay
+                ? `<tr><td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Pickup Location:</td><td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${pickupLocationDisplay}</td></tr>`
+                : '';
+
+            const pickupHoursRow = pickupHours
+                ? `<tr><td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Pickup Hours:</td><td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${pickupHours}</td></tr>`
+                : '';
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            const orderDetailsLink = `${appBaseUrl}/orders/${order.id}`;
+            const chatLink = `${appBaseUrl}/marketplace/chat?orderId=${order.id}`;
+
+            const plainText = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.\n\nView Pickup Details\n\nChat with Seller`;
+
+            await this.mailService.sendTemplateEmail({
+                to: order.buyer.email,
+                subject: 'Your Order Is Ready for Pickup! 🎉',
+                templateFile: 'local-pickup-order-ready.html',
+                replacements: {
+                    seller_username: sellerUsername,
+                    buyer_name: order.buyer?.displayName || order.buyer?.userName || 'Valued Customer',
+                    order_number: order.orderNumber,
+                    product_name: firstItem?.productName || firstItem?.product?.name || 'your item',
+                    pickup_address_row: pickupAddressRow,
+                    pickup_hours_row: pickupHoursRow,
+                    order_total: `$${Number(order.total || 0).toFixed(2)}`,
+                    order_details_link: orderDetailsLink,
+                    chat_link: chatLink,
+                },
+                text: plainText,
+            });
+        } catch (error) {
+            console.error('Failed to send local pickup ready email to buyer:', error);
+        }
+    }
+
+    private async sendShipItemsProcessingEmail(order: any, sellerUsername: string) {
+        try {
+            if (!order.buyer?.email) return;
+
+            const firstItem = order.items?.[0];
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            const orderDetailsLink = `${appBaseUrl}/orders/${order.id}`;
+            const chatLink = `${appBaseUrl}/marketplace/chat?orderId=${order.id}`;
+
+            const plainText = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.\n\nView Order Details: ${orderDetailsLink}`;
+
+            await this.mailService.sendTemplateEmail({
+                to: order.buyer.email,
+                subject: 'Your Order Is Being Prepared for Shipping! 📦',
+                templateFile: 'ship-items-order-processing.html',
+                replacements: {
+                    seller_username: sellerUsername,
+                    order_number: order.orderNumber,
+                    product_name: firstItem?.productName || firstItem?.product?.name || 'your item',
+                    order_total: `$${Number(order.total || 0).toFixed(2)}`,
+                    order_details_link: orderDetailsLink,
+                    chat_link: chatLink,
+                },
+                text: plainText,
+            });
+        } catch (error) {
+            console.error('Failed to send ship-items processing email to buyer:', error);
+        }
+    }
+
     async markOrderProcessing(userId: string | undefined, orderId: string) {
         const sellerId = this.assertSellerUserId(userId);
         const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
@@ -379,16 +461,59 @@ export class SellerOrderService {
             select: { id: true, orderStatus: true, buyerId: true, orderNumber: true },
         });
 
-        await this.notificationService.sendNotificationToUser(
-            updatedOrder.buyerId,
-            'Order Update',
-            'Your order is now being prepared.',
-            {
-                type: 'seller_order_processing',
-                orderId: updatedOrder.id,
-                orderNumber: updatedOrder.orderNumber,
-            },
-        );
+        const isLocalPickupOrder =
+            order.items.length > 0 &&
+            order.items.some((item) => item.selectedShippingChoice === CartItemShippingChoice.local_pick);
+
+        const sellerUsername = (order as any).seller?.userName || (order as any).seller?.displayName || 'Seller';
+
+        if (isLocalPickupOrder) {
+            // 1. Send closet chat message from buyer side to seller
+            try {
+                await this.closetChatService.sendLocalPickupProcessingMessage(order.id, sellerUsername);
+            } catch (chatError) {
+                console.error('Failed to send local pickup processing message to closet chat:', chatError);
+            }
+
+            // 2. Send email to buyer
+            await this.sendLocalPickupReadyEmail(order, sellerUsername);
+
+            // 3. Send push notification to buyer
+            await this.notificationService.sendNotificationToUser(
+                updatedOrder.buyerId,
+                'Your Order is being prepared! 📦',
+                `${sellerUsername} is getting your order ready. Check your pickup details and chat with the seller if you need to coordinate anything.`,
+                {
+                    type: 'seller_order_processing',
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber,
+                    shippingType: 'local_pickup',
+                },
+            );
+        } else {
+            // 1. Send closet chat message from buyer side to seller
+            try {
+                await this.closetChatService.sendShipItemsProcessingMessage(order.id, sellerUsername);
+            } catch (chatError) {
+                console.error('Failed to send ship items processing message to closet chat:', chatError);
+            }
+
+            // 2. Send email to buyer
+            await this.sendShipItemsProcessingEmail(order, sellerUsername);
+
+            // 3. Send push notification to buyer
+            await this.notificationService.sendNotificationToUser(
+                updatedOrder.buyerId,
+                'Your Order is being prepared! 📦',
+                `${sellerUsername} is preparing your order for shipment. We’ll notify you as soon as it ships and your tracking information is available.`,
+                {
+                    type: 'seller_order_processing',
+                    orderId: updatedOrder.id,
+                    orderNumber: updatedOrder.orderNumber,
+                    shippingType: 'ship_items',
+                },
+            );
+        }
 
         return {
             message: 'Order marked as processing successfully',
