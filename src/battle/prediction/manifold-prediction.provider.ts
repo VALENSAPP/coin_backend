@@ -44,10 +44,16 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
   private readonly baseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.baseUrl = (
+    let url = (
       this.configService.get<string>('MANIFOLD_API_BASE_URL')
       || 'https://api.manifold.markets'
-    ).replace(/\/$/, '');
+    ).trim().replace(/\/$/, '');
+
+    if (url.includes('api.manifold.marketsx')) {
+      url = url.replace('api.manifold.marketsx', 'api.manifold.markets');
+    }
+
+    this.baseUrl = url;
   }
 
   async listMarkets(category: PredictionCategory, subCategory?: string): Promise<PredictionMarket[]> {
