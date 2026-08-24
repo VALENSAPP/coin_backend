@@ -407,19 +407,43 @@ export class BattleService {
     ];
   }
 
+  getPredictionSportsLeagues(subCategory?: string) {
+    const leaguesBySubCategory: Record<string, string[]> = {
+      CRICKET: ['IPL', 'T20_WORLD_CUP', 'BBL', 'PSL', 'THE_HUNDRED', 'WPL'],
+      FOOTBALL: ['PREMIER_LEAGUE', 'CHAMPIONS_LEAGUE', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA', 'MLS', 'EUROPA_LEAGUE', 'FIFA_WORLD_CUP'],
+      BASKETBALL: ['NBA', 'WNBA', 'EUROLEAGUE'],
+      AMERICAN_FOOTBALL: ['NFL', 'NCAA_FOOTBALL'],
+      BASEBALL: ['MLB'],
+      MMA_BOXING: ['UFC', 'ONE_CHAMPIONSHIP'],
+      FORMULA1: ['FORMULA_1', 'NASCAR'],
+      HOCKEY: ['NHL'],
+    };
+
+    if (subCategory) {
+      const clean = subCategory.trim().toUpperCase().replace(/[\s-_]+/g, '_');
+      if (clean !== 'ALL' && leaguesBySubCategory[clean]) {
+        return ['ALL', ...leaguesBySubCategory[clean]];
+      }
+    }
+
+    const allLeagues = Array.from(new Set(Object.values(leaguesBySubCategory).flat()));
+    return ['ALL', ...allLeagues];
+  }
+
   async listPredictionQuestions(
     category: PredictionCategory,
     provider?: PredictionProvider,
     pageInput?: string | number,
     limitInput?: string | number,
     subCategory?: string,
+    league?: string,
   ) {
     if (!category) throw new BadRequestException('Prediction category required');
     const pagination = this.parsePredictionQuestionPagination(pageInput, limitInput);
 
     if (provider) {
       const client = this.getPredictionProvider(provider);
-      const markets = await client.listMarkets(category, subCategory);
+      const markets = await client.listMarkets(category, subCategory, league);
       return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
     }
 
@@ -429,7 +453,7 @@ export class BattleService {
 
     for (const currentProvider of providerOrder) {
       try {
-        const markets = await this.getPredictionProvider(currentProvider).listMarkets(category, subCategory);
+        const markets = await this.getPredictionProvider(currentProvider).listMarkets(category, subCategory, league);
         hadReachableProvider = true;
         if (markets.length > 0) {
           return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);

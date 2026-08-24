@@ -8,6 +8,7 @@ export interface PredictionMarket {
   externalEventId?: string | null;
   category: PredictionCategory;
   subCategory?: string | null;
+  league?: string | null;
   question: string;
   options: string[];
   closeTime?: Date | null;
@@ -18,6 +19,6 @@ export interface PredictionMarket {
 
 export interface PredictionProviderClient {
   readonly provider: PredictionProvider;
-  listMarkets(category: PredictionCategory, subCategory?: string): Promise<PredictionMarket[]>;
+  listMarkets(category: PredictionCategory, subCategory?: string, league?: string): Promise<PredictionMarket[]>;
   getMarket(externalMarketId: string, category?: PredictionCategory): Promise<PredictionMarket | null>;
 }

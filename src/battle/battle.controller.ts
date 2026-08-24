@@ -121,37 +121,42 @@ export class BattleController {
     );
   }
 
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @Get('prediction/categories')
   @ApiOperation({ summary: 'Get supported prediction battle categories' })
   async getPredictionCategories() {
     return this.battleService.getPredictionCategories();
   }
 
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
   @Get('prediction/sports-categories')
   @ApiOperation({ summary: 'Get supported sports subcategories for prediction battles' })
   async getPredictionSportsCategories() {
     return this.battleService.getPredictionSportsCategories();
   }
 
+  @Get('prediction/sports-leagues')
+  @ApiQuery({ name: 'subCategory', required: false, type: String, description: 'Optional sports subcategory filter (e.g. cricket, football, basketball)' })
+  @ApiOperation({ summary: 'Get supported sports leagues/tournaments for prediction battles' })
+  async getPredictionSportsLeagues(@Query('subCategory') subCategory?: string) {
+    return this.battleService.getPredictionSportsLeagues(subCategory);
+  }
+
   @Get('prediction/questions')
   @ApiQuery({ name: 'category', required: true, enum: PredictionCategory })
   @ApiQuery({ name: 'subCategory', required: false, type: String, description: 'Sport type or subcategory (e.g. cricket, football, basketball, tennis)' })
+  @ApiQuery({ name: 'league', required: false, type: String, description: 'League or tournament (e.g. ipl, nba, nfl, premier-league, la-liga, ufc, f1)' })
   @ApiQuery({ name: 'provider', required: false, enum: PredictionProvider })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
-  @ApiOperation({ summary: 'Get third-party prediction questions by category and optional sports subcategory' })
+  @ApiOperation({ summary: 'Get third-party prediction questions by category, sports subcategory, and league' })
   async getPredictionQuestions(
     @Query('category') category: PredictionCategory,
     @Query('subCategory') subCategory?: string,
+    @Query('league') league?: string,
     @Query('provider') provider?: PredictionProvider,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.battleService.listPredictionQuestions(category, provider, page, limit, subCategory);
+    return this.battleService.listPredictionQuestions(category, provider, page, limit, subCategory, league);
   }
 
   @UseGuards(AuthGuard('jwt'))

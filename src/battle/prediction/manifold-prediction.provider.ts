@@ -19,6 +19,49 @@ function textMatchesKeywords(text: string, keywords: string[]): boolean {
   });
 }
 
+const SPORTS_LEAGUE_KEYWORDS: Record<string, string[]> = {
+  // Cricket
+  IPL: ['ipl', 'indian premier league', 'chennai super kings', 'csk', 'royal challengers', 'rcb', 'mumbai indians', 'kolkata knight riders', 'kkr', 'rajasthan royals', 'sunrisers hyderabad', 'delhi capitals', 'punjab kings', 'gujarat titans', 'lucknow super giants'],
+  T20_WORLD_CUP: ['t20 world cup', 'icc men t20', 'icc t20'],
+  BBL: ['bbl', 'big bash league', 'big bash'],
+  PSL: ['psl', 'pakistan super league'],
+  THE_HUNDRED: ['the hundred', 'hundred cricket'],
+  WPL: ['wpl', 'womens premier league', 'women premier league'],
+
+  // Football / Soccer
+  PREMIER_LEAGUE: ['premier league', 'epl', 'english premier league', 'premier-league'],
+  CHAMPIONS_LEAGUE: ['champions league', 'ucl', 'uefa champions league'],
+  LA_LIGA: ['la liga', 'laliga', 'la-liga', 'primera division'],
+  SERIE_A: ['serie a', 'seriea', 'serie-a'],
+  BUNDESLIGA: ['bundesliga'],
+  MLS: ['mls', 'major league soccer'],
+  FIFA_WORLD_CUP: ['fifa world cup', 'world cup 2026', 'world cup 2030'],
+  EUROPA_LEAGUE: ['europa league', 'uel'],
+
+  // Basketball
+  NBA: ['nba', 'national basketball association'],
+  WNBA: ['wnba'],
+  EUROLEAGUE: ['euroleague'],
+
+  // American Football
+  NFL: ['nfl', 'national football league', 'super bowl', 'superbowl'],
+  NCAA_FOOTBALL: ['ncaa football', 'college football', 'cfb'],
+
+  // Baseball
+  MLB: ['mlb', 'major league baseball', 'world series'],
+
+  // Combat
+  UFC: ['ufc', 'ultimate fighting championship'],
+  ONE_CHAMPIONSHIP: ['one championship', 'one fc'],
+
+  // Motorsport
+  FORMULA_1: ['f1', 'formula 1', 'formula-1', 'grand prix'],
+  NASCAR: ['nascar'],
+
+  // Hockey
+  NHL: ['nhl', 'national hockey league', 'stanley cup'],
+};
+
 const SPORTS_SUBCATEGORY_KEYWORDS: Record<string, string[]> = {
   CRICKET: ['cricket', 'ipl', 't20', 'odi', 'bcci', 'icc', 'test match', 'wpl'],
   FOOTBALL: [
@@ -56,13 +99,14 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     this.baseUrl = url;
   }
 
-  async listMarkets(category: PredictionCategory, subCategory?: string): Promise<PredictionMarket[]> {
+  async listMarkets(category: PredictionCategory, subCategory?: string, league?: string): Promise<PredictionMarket[]> {
     const normalizedSubCategory = this.normalizeSubCategoryKey(subCategory);
+    const normalizedLeague = this.normalizeLeagueKey(league);
     const params = new URLSearchParams({
       limit: '100',
       filter: 'open',
       sort: 'score',
-      term: this.getSearchTerm(category, normalizedSubCategory),
+      term: this.getSearchTerm(category, normalizedSubCategory, normalizedLeague),
     });
 
     const response = await this.fetchJson(`/v0/search-markets?${params.toString()}`);
@@ -73,7 +117,8 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
       .filter((market: PredictionMarket | null): market is PredictionMarket => !!market)
       .filter((market: PredictionMarket) => this.isOpenFutureMarket(market))
       .filter((market: PredictionMarket) => this.matchesCategory(market.raw, category))
-      .filter((market: PredictionMarket) => this.matchesSubCategory(market, normalizedSubCategory));
+      .filter((market: PredictionMarket) => this.matchesSubCategory(market, normalizedSubCategory))
+      .filter((market: PredictionMarket) => this.matchesLeague(market, normalizedLeague));
   }
 
   async getMarket(externalMarketId: string, category?: PredictionCategory): Promise<PredictionMarket | null> {
@@ -139,6 +184,7 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     const closeTime = typeof market?.closeTime === 'number' ? new Date(market.closeTime) : null;
     const resultSide = this.extractResultSide(market, options);
     const subCategory = this.inferSubCategory(market, category);
+    const league = this.inferLeague(market, category);
 
     return {
       provider: this.provider,
@@ -146,6 +192,7 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
       externalEventId: null,
       category,
       subCategory,
+      league,
       question,
       options,
       closeTime: closeTime && !Number.isNaN(closeTime.getTime()) ? closeTime : null,
@@ -200,10 +247,17 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
       && market.closeTime.getTime() > Date.now();
   }
 
-  private getSearchTerm(category: PredictionCategory, normalizedSubCategory?: string | null): string {
-    if (category === PredictionCategory.SPORTS && normalizedSubCategory) {
-      const keywords = SPORTS_SUBCATEGORY_KEYWORDS[normalizedSubCategory];
-      return keywords && keywords.length > 0 ? keywords[0] : normalizedSubCategory.toLowerCase();
+  private getSearchTerm(category: PredictionCategory, normalizedSubCategory?: string | null, normalizedLeague?: string | null): string {
+    if (category === PredictionCategory.SPORTS) {
+      if (normalizedLeague) {
+        const leagueKeywords = SPORTS_LEAGUE_KEYWORDS[normalizedLeague];
+        if (leagueKeywords && leagueKeywords.length > 0) return leagueKeywords[0];
+        return normalizedLeague.toLowerCase();
+      }
+      if (normalizedSubCategory) {
+        const keywords = SPORTS_SUBCATEGORY_KEYWORDS[normalizedSubCategory];
+        return keywords && keywords.length > 0 ? keywords[0] : normalizedSubCategory.toLowerCase();
+      }
     }
 
     const terms: Record<PredictionCategory, string> = {
@@ -331,6 +385,29 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     return clean;
   }
 
+  private normalizeLeagueKey(league?: string | null): string | null {
+    if (!league) return null;
+    const clean = league.trim().toUpperCase().replace(/[\s-_]+/g, '_');
+    if (clean === 'ALL') return null;
+
+    if (clean === 'EPL') return 'PREMIER_LEAGUE';
+    if (clean === 'UCL') return 'CHAMPIONS_LEAGUE';
+    if (clean === 'UEL') return 'EUROPA_LEAGUE';
+    if (clean === 'F1' || clean === 'FORMULA1') return 'FORMULA_1';
+
+    for (const key of Object.keys(SPORTS_LEAGUE_KEYWORDS)) {
+      if (key === clean) return key;
+    }
+
+    for (const [key, keywords] of Object.entries(SPORTS_LEAGUE_KEYWORDS)) {
+      if (keywords.some((k) => k.toUpperCase().replace(/[\s-_]+/g, '_') === clean)) {
+        return key;
+      }
+    }
+
+    return clean;
+  }
+
   private inferSubCategory(market: any, category: PredictionCategory): string | null {
     if (category !== PredictionCategory.SPORTS) return null;
 
@@ -344,11 +421,33 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     return 'OTHER';
   }
 
+  private inferLeague(market: any, category: PredictionCategory): string | null {
+    if (category !== PredictionCategory.SPORTS) return null;
+
+    const text = this.getSearchableText(market);
+    for (const [leagueKey, keywords] of Object.entries(SPORTS_LEAGUE_KEYWORDS)) {
+      if (textMatchesKeywords(text, keywords)) {
+        return leagueKey;
+      }
+    }
+
+    return null;
+  }
+
   private matchesSubCategory(market: PredictionMarket, normalizedSubCategory?: string | null): boolean {
     if (!normalizedSubCategory) return true;
     if (market.subCategory && market.subCategory === normalizedSubCategory) return true;
 
     const keywords = SPORTS_SUBCATEGORY_KEYWORDS[normalizedSubCategory] || [normalizedSubCategory.toLowerCase()];
+    const text = this.getSearchableText(market.raw);
+    return textMatchesKeywords(text, keywords);
+  }
+
+  private matchesLeague(market: PredictionMarket, normalizedLeague?: string | null): boolean {
+    if (!normalizedLeague) return true;
+    if (market.league && market.league === normalizedLeague) return true;
+
+    const keywords = SPORTS_LEAGUE_KEYWORDS[normalizedLeague] || [normalizedLeague.toLowerCase()];
     const text = this.getSearchableText(market.raw);
     return textMatchesKeywords(text, keywords);
   }
