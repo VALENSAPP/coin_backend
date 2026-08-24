@@ -700,15 +700,13 @@ export class UserController {
     return { dashboardData };
   }
 
-  // Place static route before dynamic ":id" to avoid conflicts
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @Get('search')
   @ApiOperation({ summary: 'Search users by display name, user name, or email' })
   @ApiQuery({ name: 'query', type: String, description: 'Search term', required: true })
-  async searchUser(@Req() req: Request, @Query('query') query: string) {
-    const userId = (req.user as any)?.userId;
-    const users = await this.userService.searchUser(query, userId);
+  async searchUser(@Query('query') query: string) {
+    const users = await this.userService.searchUser(query);
     return { users };
   }
 
@@ -722,15 +720,15 @@ export class UserController {
     return { history };
   }
 
-  // @UseGuards(AuthGuard('jwt'))
-  // @ApiBearerAuth()
-  // @Post('search/history')
-  // @ApiOperation({ summary: 'Record a search history entry (query or clicked user profile)' })
-  // async addSearchHistory(@Req() req: Request, @Body() body: AddSearchHistoryDto) {
-  //   const userId = (req.user as any)?.userId;
-  //   const history = await this.userService.addSearchHistory(userId, body);
-  //   return { success: true, history };
-  // }
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('search/history')
+  @ApiOperation({ summary: 'Record a search history entry (query or clicked user profile)' })
+  async addSearchHistory(@Req() req: Request, @Body() body: AddSearchHistoryDto) {
+    const userId = (req.user as any)?.userId;
+    const history = await this.userService.addSearchHistory(userId, body);
+    return { success: true, history };
+  }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

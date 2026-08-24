@@ -1675,7 +1675,7 @@ export class UserService {
     return { hitLeft, postCount, profile: user?.profile || null };
   }
 
-  async searchUser(query: string, userId?: string) {
+  async searchUser(query: string) {
     if (!query || !query.trim()) throw new BadRequestException('Search query required');
     const trimmedQuery = query.trim();
 
@@ -1697,34 +1697,6 @@ export class UserService {
         profile: true,
       },
     });
-
-    // Save search history if authenticated userId is available
-    if (userId) {
-      try {
-        const existing = await (this.prisma as any).searchHistory.findFirst({
-          where: {
-            userId,
-            query: trimmedQuery,
-          },
-        });
-
-        if (existing) {
-          await (this.prisma as any).searchHistory.update({
-            where: { id: existing.id },
-            data: { updatedAt: new Date() },
-          });
-        } else {
-          await (this.prisma as any).searchHistory.create({
-            data: {
-              userId,
-              query: trimmedQuery,
-            },
-          });
-        }
-      } catch (err) {
-        console.error('Failed to save search history:', err);
-      }
-    }
 
     return users; // Always return array (possibly empty)
   }
