@@ -77,8 +77,11 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}${path}`, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(8000),
       });
     } catch {
       throw new ServiceUnavailableException('Prediction provider is unavailable');

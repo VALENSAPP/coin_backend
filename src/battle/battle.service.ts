@@ -425,10 +425,12 @@ export class BattleService {
 
     const providerOrder = [PredictionProvider.POLYMARKET, PredictionProvider.MANIFOLD];
     const errors: string[] = [];
+    let hadReachableProvider = false;
 
     for (const currentProvider of providerOrder) {
       try {
         const markets = await this.getPredictionProvider(currentProvider).listMarkets(category, subCategory);
+        hadReachableProvider = true;
         if (markets.length > 0) {
           return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
         }
@@ -436,6 +438,10 @@ export class BattleService {
       } catch (error: any) {
         errors.push(`${currentProvider}: ${error?.message || 'unavailable'}`);
       }
+    }
+
+    if (hadReachableProvider) {
+      return this.paginatePredictionMarkets([], pagination.page, pagination.limit);
     }
 
     throw new ServiceUnavailableException({

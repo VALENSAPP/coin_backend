@@ -74,8 +74,18 @@ export class PolymarketPredictionProvider implements PredictionProviderClient {
     const tagSlug = this.getTagSlug(category, normalizedSubCategory);
     if (tagSlug) params.set('tag_slug', tagSlug);
 
-    const response = await this.fetchJson(`/markets?${params.toString()}`);
-    const markets = Array.isArray(response) ? response : [];
+    let response = await this.fetchJson(`/markets?${params.toString()}`);
+    let markets = Array.isArray(response) ? response : [];
+
+    if (markets.length === 0 && tagSlug && tagSlug !== 'sports') {
+      params.set('tag_slug', 'sports');
+      try {
+        response = await this.fetchJson(`/markets?${params.toString()}`);
+        markets = Array.isArray(response) ? response : [];
+      } catch {
+        // ignore fallback error
+      }
+    }
 
     return markets
       .map((market: any) => this.toPredictionMarket(market, category))
@@ -98,8 +108,11 @@ export class PolymarketPredictionProvider implements PredictionProviderClient {
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}${path}`, {
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(5000),
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        signal: AbortSignal.timeout(8000),
       });
     } catch {
       throw new ServiceUnavailableException('Prediction provider is unavailable');
