@@ -1,6 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PredictionCategory, PredictionProvider } from '@prisma/client';
+import * as https from 'node:https';
+import * as http from 'node:http';
 import { PredictionMarket, PredictionMarketStatus, PredictionProviderClient } from './prediction-provider.types';
 
 function escapeRegExp(str: string): string {
@@ -105,24 +107,50 @@ export class PolymarketPredictionProvider implements PredictionProviderClient {
   }
 
   private async fetchJson(path: string): Promise<any> {
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    const fullUrl = `${this.baseUrl}${path}`;
+    return new Promise((resolve, reject) => {
+      const isHttps = fullUrl.startsWith('https:');
+      const client = isHttps ? https : http;
+
+      const req = client.get(
+        fullUrl,
+        {
+          family: 4,
+          timeout: 8000,
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
         },
-        signal: AbortSignal.timeout(8000),
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+              try {
+                resolve(JSON.parse(data));
+              } catch (e: any) {
+                reject(new ServiceUnavailableException(`Failed to parse Polymarket response: ${e.message}`));
+              }
+            } else {
+              reject(new ServiceUnavailableException(`Polymarket provider returned HTTP ${res.statusCode}`));
+            }
+          });
+        },
+      );
+
+      req.on('error', (err: any) => {
+        reject(new ServiceUnavailableException(`Polymarket provider unavailable: ${err?.message || err}`));
       });
-    } catch (error: any) {
-      throw new ServiceUnavailableException(`Polymarket provider unavailable: ${error?.message || 'timeout'}`);
-    }
 
-    if (!response.ok) {
-      throw new ServiceUnavailableException(`Polymarket provider returned HTTP ${response.status}`);
-    }
-
-    return response.json();
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new ServiceUnavailableException('Polymarket provider request timed out'));
+      });
+    });
   }
 
   private toPredictionMarket(market: any, category: PredictionCategory): PredictionMarket | null {
