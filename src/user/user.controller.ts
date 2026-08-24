@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 import { RecentActivitiesDto } from './dto/recent-activities.dto';
+import { AddSearchHistoryDto, GetSearchHistoryDto } from './dto/search-history.dto';
 import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto, UserSubscriptionStatus } from './dto/user-subscription.dto';
 
 export enum RegistrationType {
@@ -705,10 +706,60 @@ export class UserController {
   @Get('search')
   @ApiOperation({ summary: 'Search users by display name, user name, or email' })
   @ApiQuery({ name: 'query', type: String, description: 'Search term', required: true })
-  async searchUser(@Query('query') query: string) {
-    const users = await this.userService.searchUser(query);
+  async searchUser(@Req() req: Request, @Query('query') query: string) {
+    const userId = (req.user as any)?.userId;
+    const users = await this.userService.searchUser(query, userId);
     return { users };
   }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Get('search/history')
+  @ApiOperation({ summary: 'Get recent search history for the authenticated user' })
+  async getSearchHistory(@Req() req: Request, @Query() query: GetSearchHistoryDto) {
+    const userId = (req.user as any)?.userId;
+    const history = await this.userService.getSearchHistory(userId, query?.limit);
+    return { history };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('search/history')
+  @ApiOperation({ summary: 'Record a search history entry (query or clicked user profile)' })
+  async addSearchHistory(@Req() req: Request, @Body() body: AddSearchHistoryDto) {
+    const userId = (req.user as any)?.userId;
+    const history = await this.userService.addSearchHistory(userId, body);
+    return { success: true, history };
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Delete('search/history/clear-all')
+  @ApiOperation({ summary: 'Clear all search history for the authenticated user' })
+  async clearAllSearchHistoryAlt(@Req() req: Request) {
+    const userId = (req.user as any)?.userId;
+    return await this.userService.clearAllSearchHistory(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Delete('search/history/:id')
+  @ApiOperation({ summary: 'Delete a single search history item' })
+  @ApiParam({ name: 'id', type: String, description: 'Search history record ID' })
+  async deleteSearchHistoryItem(@Req() req: Request, @Param('id') id: string) {
+    const userId = (req.user as any)?.userId;
+    return await this.userService.deleteSearchHistoryItem(userId, id);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Delete('search/history')
+  @ApiOperation({ summary: 'Clear all search history for the authenticated user' })
+  async clearAllSearchHistory(@Req() req: Request) {
+    const userId = (req.user as any)?.userId;
+    return await this.userService.clearAllSearchHistory(userId);
+  }
+
 
   @Get('recent-activities')
   @UseGuards(AuthGuard('jwt'))

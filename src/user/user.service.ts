@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { Gender } from './user.controller';
@@ -1675,14 +1675,17 @@ export class UserService {
     return { hitLeft, postCount, profile: user?.profile || null };
   }
 
-  async searchUser(query: string) {
-    if (!query) throw new BadRequestException('Search query required');
+  async searchUser(query: string, userId?: string) {
+    if (!query || !query.trim()) throw new BadRequestException('Search query required');
+    const trimmedQuery = query.trim();
+
     const users = await this.prisma.user.findMany({
       where: {
+        isDeleted: 0,
         OR: [
-          { displayName: { contains: query, mode: 'insensitive' } },
-          { userName: { contains: query, mode: 'insensitive' } },
-          { email: { contains: query, mode: 'insensitive' } },
+          { displayName: { contains: trimmedQuery, mode: 'insensitive' } },
+          { userName: { contains: trimmedQuery, mode: 'insensitive' } },
+          { email: { contains: trimmedQuery, mode: 'insensitive' } },
         ],
       },
       select: {
@@ -1691,11 +1694,164 @@ export class UserService {
         userName: true,
         image: true,
         email: true,
+        profile: true,
       },
     });
-    // Do NOT throw if users.length === 0
+
+    // Save search history if authenticated userId is available
+    if (userId) {
+      try {
+        const existing = await (this.prisma as any).searchHistory.findFirst({
+          where: {
+            userId,
+            query: trimmedQuery,
+          },
+        });
+
+        if (existing) {
+          await (this.prisma as any).searchHistory.update({
+            where: { id: existing.id },
+            data: { updatedAt: new Date() },
+          });
+        } else {
+          await (this.prisma as any).searchHistory.create({
+            data: {
+              userId,
+              query: trimmedQuery,
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Failed to save search history:', err);
+      }
+    }
+
     return users; // Always return array (possibly empty)
   }
+
+  async addSearchHistory(userId: string, data: { query?: string; searchedUserId?: string }) {
+    if (!data.query && !data.searchedUserId) {
+      throw new BadRequestException('Either query or searchedUserId must be provided');
+    }
+
+    if (data.searchedUserId) {
+      const existing = await (this.prisma as any).searchHistory.findFirst({
+        where: {
+          userId,
+          searchedUserId: data.searchedUserId,
+        },
+      });
+
+      if (existing) {
+        return (this.prisma as any).searchHistory.update({
+          where: { id: existing.id },
+          data: { updatedAt: new Date() },
+          include: {
+            searchedUser: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+                email: true,
+                profile: true,
+              },
+            },
+          },
+        });
+      }
+
+      return (this.prisma as any).searchHistory.create({
+        data: {
+          userId,
+          searchedUserId: data.searchedUserId,
+          query: data.query?.trim() || null,
+        },
+        include: {
+          searchedUser: {
+            select: {
+              id: true,
+              displayName: true,
+              userName: true,
+              image: true,
+              email: true,
+              profile: true,
+            },
+          },
+        },
+      });
+    }
+
+    const trimmedQuery = data.query!.trim();
+    const existing = await (this.prisma as any).searchHistory.findFirst({
+      where: {
+        userId,
+        query: trimmedQuery,
+      },
+    });
+
+    if (existing) {
+      return (this.prisma as any).searchHistory.update({
+        where: { id: existing.id },
+        data: { updatedAt: new Date() },
+      });
+    }
+
+    return (this.prisma as any).searchHistory.create({
+      data: {
+        userId,
+        query: trimmedQuery,
+      },
+    });
+  }
+
+  async getSearchHistory(userId: string, limit: number = 20) {
+    const take = limit && limit > 0 ? Math.min(Number(limit), 50) : 20;
+    const history = await (this.prisma as any).searchHistory.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      take,
+      include: {
+        searchedUser: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+            email: true,
+            profile: true,
+          },
+        },
+      },
+    });
+
+    return history;
+  }
+
+  async deleteSearchHistoryItem(userId: string, historyId: string) {
+    const item = await (this.prisma as any).searchHistory.findFirst({
+      where: { id: historyId, userId },
+    });
+
+    if (!item) {
+      throw new NotFoundException('Search history item not found');
+    }
+
+    await (this.prisma as any).searchHistory.delete({
+      where: { id: historyId },
+    });
+
+    return { success: true, message: 'Search history item deleted successfully' };
+  }
+
+  async clearAllSearchHistory(userId: string) {
+    await (this.prisma as any).searchHistory.deleteMany({
+      where: { userId },
+    });
+
+    return { success: true, message: 'All search history cleared successfully' };
+  }
+
 
   async recentActivities(
     userId: string,

@@ -112,6 +112,8 @@ model User {
   boughtSubscriptions   FansSubscriptionBuyData[] @relation("Buy")
 
   loginHistories              LoginHistory[]
+  searchHistories             SearchHistory[]            @relation("UserSearchHistories")
+  searchedInHistories         SearchHistory[]            @relation("SearchedTargetUsers")
   sessions                    UserSession[]
   sentChats                   ChatBox[]                  @relation("ChatSender")
   receivedChats               ChatBox[]                  @relation("ChatReceiver")
@@ -2250,4 +2252,20 @@ enum ClosetChatMessageType {
 
 enum ClosetChatMessageEventType {
   ORDER_PLACED
+}
+
+model SearchHistory {
+  id             String    @id @default(uuid())
+  userId         String
+  query          String?
+  searchedUserId String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation("UserSearchHistories", fields: [userId], references: [id], onDelete: Cascade)
+  searchedUser   User?     @relation("SearchedTargetUsers", fields: [searchedUserId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([searchedUserId])
+  @@index([userId, updatedAt])
 }
