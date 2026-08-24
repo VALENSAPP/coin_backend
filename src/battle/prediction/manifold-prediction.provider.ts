@@ -83,12 +83,12 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
         },
         signal: AbortSignal.timeout(8000),
       });
-    } catch {
-      throw new ServiceUnavailableException('Prediction provider is unavailable');
+    } catch (error: any) {
+      throw new ServiceUnavailableException(`Manifold provider unavailable: ${error?.message || 'timeout'}`);
     }
 
     if (!response.ok) {
-      throw new ServiceUnavailableException(`Prediction provider returned ${response.status}`);
+      throw new ServiceUnavailableException(`Manifold provider returned HTTP ${response.status}`);
     }
 
     return response.json();
