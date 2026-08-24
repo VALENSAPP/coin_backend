@@ -722,15 +722,15 @@ export class UserController {
     return { history };
   }
 
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @Post('search/history')
-  @ApiOperation({ summary: 'Record a search history entry (query or clicked user profile)' })
-  async addSearchHistory(@Req() req: Request, @Body() body: AddSearchHistoryDto) {
-    const userId = (req.user as any)?.userId;
-    const history = await this.userService.addSearchHistory(userId, body);
-    return { success: true, history };
-  }
+  // @UseGuards(AuthGuard('jwt'))
+  // @ApiBearerAuth()
+  // @Post('search/history')
+  // @ApiOperation({ summary: 'Record a search history entry (query or clicked user profile)' })
+  // async addSearchHistory(@Req() req: Request, @Body() body: AddSearchHistoryDto) {
+  //   const userId = (req.user as any)?.userId;
+  //   const history = await this.userService.addSearchHistory(userId, body);
+  //   return { success: true, history };
+  // }
 
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
@@ -751,14 +751,14 @@ export class UserController {
     return await this.userService.deleteSearchHistoryItem(userId, id);
   }
 
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @Delete('search/history')
-  @ApiOperation({ summary: 'Clear all search history for the authenticated user' })
-  async clearAllSearchHistory(@Req() req: Request) {
-    const userId = (req.user as any)?.userId;
-    return await this.userService.clearAllSearchHistory(userId);
-  }
+  // @UseGuards(AuthGuard('jwt'))
+  // @ApiBearerAuth()
+  // @Delete('search/history')
+  // @ApiOperation({ summary: 'Clear all search history for the authenticated user' })
+  // async clearAllSearchHistory(@Req() req: Request) {
+  //   const userId = (req.user as any)?.userId;
+  //   return await this.userService.clearAllSearchHistory(userId);
+  // }
 
 
   @Get('recent-activities')
