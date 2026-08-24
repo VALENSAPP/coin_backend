@@ -390,18 +390,36 @@ export class BattleService {
     return Object.values(PredictionCategory);
   }
 
+  getPredictionSportsCategories() {
+    return [
+      'ALL',
+      'CRICKET',
+      'FOOTBALL',
+      'BASKETBALL',
+      'AMERICAN_FOOTBALL',
+      'TENNIS',
+      'BASEBALL',
+      'MMA_BOXING',
+      'FORMULA1',
+      'HOCKEY',
+      'ESPORTS',
+      'OTHER',
+    ];
+  }
+
   async listPredictionQuestions(
     category: PredictionCategory,
     provider?: PredictionProvider,
     pageInput?: string | number,
     limitInput?: string | number,
+    subCategory?: string,
   ) {
     if (!category) throw new BadRequestException('Prediction category required');
     const pagination = this.parsePredictionQuestionPagination(pageInput, limitInput);
 
     if (provider) {
       const client = this.getPredictionProvider(provider);
-      const markets = await client.listMarkets(category);
+      const markets = await client.listMarkets(category, subCategory);
       return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
     }
 
@@ -410,7 +428,7 @@ export class BattleService {
 
     for (const currentProvider of providerOrder) {
       try {
-        const markets = await this.getPredictionProvider(currentProvider).listMarkets(category);
+        const markets = await this.getPredictionProvider(currentProvider).listMarkets(category, subCategory);
         if (markets.length > 0) {
           return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
         }

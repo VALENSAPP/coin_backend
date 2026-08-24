@@ -3,6 +3,38 @@ import { ConfigService } from '@nestjs/config';
 import { PredictionCategory, PredictionProvider } from '@prisma/client';
 import { PredictionMarket, PredictionMarketStatus, PredictionProviderClient } from './prediction-provider.types';
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function textMatchesKeywords(text: string, keywords: string[]): boolean {
+  if (!text) return false;
+  return keywords.some((keyword) => {
+    const escaped = escapeRegExp(keyword.trim());
+    if (!escaped) return false;
+    const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, 'i');
+    return regex.test(text);
+  });
+}
+
+const SPORTS_SUBCATEGORY_KEYWORDS: Record<string, string[]> = {
+  CRICKET: ['cricket', 'ipl', 't20', 'odi', 'bcci', 'icc', 'test match', 'wpl'],
+  FOOTBALL: [
+    'soccer', 'football', 'premier league', 'epl', 'champions league', 'la liga',
+    'serie a', 'bundesliga', 'fifa', 'uefa', 'mls', 'copa', 'messi', 'ronaldo',
+    'real madrid', 'barcelona', 'arsenal', 'liverpool', 'manchester', 'chelsea',
+    'bayern', 'psg', 'ballon dor', 'laliga',
+  ],
+  BASKETBALL: ['nba', 'basketball', 'wnba', 'euroleague', 'lakers', 'celtics', 'warriors', 'lebron', 'curry'],
+  AMERICAN_FOOTBALL: ['nfl', 'super bowl', 'quarterback', 'touchdown', 'afc', 'nfc', 'chiefs', 'eagles', '49ers', 'mahomes'],
+  TENNIS: ['tennis', 'atp', 'wta', 'wimbledon', 'us open', 'australian open', 'french open', 'roland garros', 'djokovic', 'alcaraz', 'sinner', 'nadal', 'federer'],
+  BASEBALL: ['mlb', 'baseball', 'yankees', 'dodgers', 'world series', 'red sox', 'mets'],
+  MMA_BOXING: ['ufc', 'mma', 'boxing', 'fight night', 'knockout', 'mcgregor', 'fury', 'joshua', 'tyson'],
+  FORMULA1: ['f1', 'formula 1', 'formula-1', 'grand prix', 'nascar', 'verstappen', 'hamilton', 'ferrari', 'red bull', 'mclaren'],
+  HOCKEY: ['nhl', 'hockey', 'stanley cup'],
+  ESPORTS: ['esports', 'dota', 'cs:go', 'cs2', 'league of legends', 'lol', 'valorant', 'overwatch'],
+};
+
 @Injectable()
 export class ManifoldPredictionProvider implements PredictionProviderClient {
   readonly provider = PredictionProvider.MANIFOLD;
@@ -16,12 +48,13 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     ).replace(/\/$/, '');
   }
 
-  async listMarkets(category: PredictionCategory): Promise<PredictionMarket[]> {
+  async listMarkets(category: PredictionCategory, subCategory?: string): Promise<PredictionMarket[]> {
+    const normalizedSubCategory = this.normalizeSubCategoryKey(subCategory);
     const params = new URLSearchParams({
       limit: '100',
       filter: 'open',
-      sort: '24-hour-vol',
-      term: this.getSearchTerm(category),
+      sort: 'score',
+      term: this.getSearchTerm(category, normalizedSubCategory),
     });
 
     const response = await this.fetchJson(`/v0/search-markets?${params.toString()}`);
@@ -31,7 +64,8 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
       .map((market: any) => this.toPredictionMarket(market, category))
       .filter((market: PredictionMarket | null): market is PredictionMarket => !!market)
       .filter((market: PredictionMarket) => this.isOpenFutureMarket(market))
-      .filter((market: PredictionMarket) => this.matchesCategory(market.raw, category));
+      .filter((market: PredictionMarket) => this.matchesCategory(market.raw, category))
+      .filter((market: PredictionMarket) => this.matchesSubCategory(market, normalizedSubCategory));
   }
 
   async getMarket(externalMarketId: string, category?: PredictionCategory): Promise<PredictionMarket | null> {
@@ -44,6 +78,7 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     try {
       response = await fetch(`${this.baseUrl}${path}`, {
         headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
       });
     } catch {
       throw new ServiceUnavailableException('Prediction provider is unavailable');
@@ -66,12 +101,14 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
 
     const closeTime = typeof market?.closeTime === 'number' ? new Date(market.closeTime) : null;
     const resultSide = this.extractResultSide(market, options);
+    const subCategory = this.inferSubCategory(market, category);
 
     return {
       provider: this.provider,
       externalMarketId,
       externalEventId: null,
       category,
+      subCategory,
       question,
       options,
       closeTime: closeTime && !Number.isNaN(closeTime.getTime()) ? closeTime : null,
@@ -126,7 +163,12 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
       && market.closeTime.getTime() > Date.now();
   }
 
-  private getSearchTerm(category: PredictionCategory): string {
+  private getSearchTerm(category: PredictionCategory, normalizedSubCategory?: string | null): string {
+    if (category === PredictionCategory.SPORTS && normalizedSubCategory) {
+      const keywords = SPORTS_SUBCATEGORY_KEYWORDS[normalizedSubCategory];
+      return keywords && keywords.length > 0 ? keywords[0] : normalizedSubCategory.toLowerCase();
+    }
+
     const terms: Record<PredictionCategory, string> = {
       [PredictionCategory.SPORTS]: 'sports',
       [PredictionCategory.FINANCE]: 'finance economy',
@@ -136,12 +178,36 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
     return terms[category];
   }
 
+  private getSearchableText(market: any): string {
+    const parts: string[] = [];
+    if (market?.question) parts.push(String(market.question));
+    if (market?.description) {
+      if (typeof market.description === 'string') parts.push(market.description);
+      else if (typeof market.description === 'object') parts.push(JSON.stringify(market.description));
+    }
+    if (market?.groupSlugs && Array.isArray(market.groupSlugs)) {
+      parts.push(market.groupSlugs.join(' ').replace(/[-_]/g, ' '));
+    }
+    if (Array.isArray(market?.tags)) {
+      parts.push(market.tags.join(' '));
+    }
+    return parts.join(' ');
+  }
+
   private matchesCategory(raw: unknown, category: PredictionCategory): boolean {
-    const searchable = JSON.stringify(raw || {}).toLowerCase();
+    const text = this.getSearchableText(raw);
+    if (category === PredictionCategory.SPORTS) {
+      for (const keywords of Object.values(SPORTS_SUBCATEGORY_KEYWORDS)) {
+        if (textMatchesKeywords(text, keywords)) return true;
+      }
+    }
+
     const keywordsByCategory: Record<PredictionCategory, string[]> = {
       [PredictionCategory.SPORTS]: [
         'sport',
         'sports',
+        'cricket',
+        'ipl',
         'nba',
         'nfl',
         'mlb',
@@ -151,6 +217,15 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
         'tennis',
         'ufc',
         'fifa',
+        'formula 1',
+        'f1',
+        'boxing',
+        'mma',
+        'basketball',
+        'baseball',
+        'la liga',
+        'premier league',
+        'champions league',
       ],
       [PredictionCategory.FINANCE]: [
         'finance',
@@ -165,6 +240,7 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
         'nasdaq',
         's&p',
         'gdp',
+        'fomc',
       ],
       [PredictionCategory.ELECTIONS]: [
         'election',
@@ -193,18 +269,62 @@ export class ManifoldPredictionProvider implements PredictionProviderClient {
       ],
     };
 
-    return keywordsByCategory[category].some((keyword) => searchable.includes(keyword));
+    return textMatchesKeywords(text, keywordsByCategory[category]);
+  }
+
+  private normalizeSubCategoryKey(subCategory?: string | null): string | null {
+    if (!subCategory) return null;
+    const clean = subCategory.trim().toUpperCase().replace(/[\s-_]+/g, '_');
+    if (clean === 'ALL') return null;
+
+    if (clean === 'SOCCER') return 'FOOTBALL';
+    if (clean === 'BOXING' || clean === 'UFC' || clean === 'MMA') return 'MMA_BOXING';
+    if (clean === 'F1' || clean === 'FORMULA_1' || clean === 'MOTORSPORT') return 'FORMULA1';
+
+    for (const key of Object.keys(SPORTS_SUBCATEGORY_KEYWORDS)) {
+      if (key === clean) return key;
+    }
+
+    for (const [key, keywords] of Object.entries(SPORTS_SUBCATEGORY_KEYWORDS)) {
+      if (keywords.some((k) => k.toUpperCase().replace(/\s+/g, '_') === clean)) {
+        return key;
+      }
+    }
+
+    return clean;
+  }
+
+  private inferSubCategory(market: any, category: PredictionCategory): string | null {
+    if (category !== PredictionCategory.SPORTS) return null;
+
+    const text = this.getSearchableText(market);
+    for (const [subCat, keywords] of Object.entries(SPORTS_SUBCATEGORY_KEYWORDS)) {
+      if (textMatchesKeywords(text, keywords)) {
+        return subCat;
+      }
+    }
+
+    return 'OTHER';
+  }
+
+  private matchesSubCategory(market: PredictionMarket, normalizedSubCategory?: string | null): boolean {
+    if (!normalizedSubCategory) return true;
+    if (market.subCategory && market.subCategory === normalizedSubCategory) return true;
+
+    const keywords = SPORTS_SUBCATEGORY_KEYWORDS[normalizedSubCategory] || [normalizedSubCategory.toLowerCase()];
+    const text = this.getSearchableText(market.raw);
+    return textMatchesKeywords(text, keywords);
   }
 
   private inferCategory(market: any): PredictionCategory {
-    const searchable = JSON.stringify(market || {}).toLowerCase();
-    if (['sport', 'nba', 'nfl', 'mlb', 'nhl', 'soccer', 'football'].some((word) => searchable.includes(word))) {
+    const text = this.getSearchableText(market);
+    if (textMatchesKeywords(text, ['sport', 'cricket', 'ipl', 'nba', 'nfl', 'mlb', 'nhl', 'soccer', 'football', 'tennis', 'ufc', 'f1', 'basketball', 'baseball'])) {
       return PredictionCategory.SPORTS;
     }
-    if (['crypto', 'bitcoin', 'btc', 'ethereum', 'eth'].some((word) => searchable.includes(word))) {
+    if (textMatchesKeywords(text, ['crypto', 'bitcoin', 'btc', 'ethereum', 'eth', 'solana', 'xrp'])) {
       return PredictionCategory.CRYPTO;
     }
-    if (['election', 'president', 'senate', 'house', 'politic'].some((word) => searchable.includes(word))) {
+    if (textMatchesKeywords(text, ['election', 'president', 'senate', 'house', 'politics', 'vote'])) {
       return PredictionCategory.ELECTIONS;
     }
     return PredictionCategory.FINANCE;
