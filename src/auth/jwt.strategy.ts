@@ -28,7 +28,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // console.log('Authenticated user:', { userId: payload.sub, email: payload.email, sessionId: payload.sessionId });
+    if (user.bannedUntil && user.bannedUntil > new Date()) {
+      const remainingMs = user.bannedUntil.getTime() - Date.now();
+      const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
+      throw new UnauthorizedException(
+        `Account is temporarily suspended until ${user.bannedUntil.toUTCString()} (approx. ${remainingHours}h remaining) due to security policy violations.`,
+      );
+    }
 
     return {
       userId: payload.sub,

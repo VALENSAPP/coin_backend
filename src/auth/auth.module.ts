@@ -41,6 +41,7 @@ import { GoogleStrategy } from './google.strategy';
 import { TwitterStrategy } from './twitter.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailModule } from '../common/mail/mail.module';
 import './firebase.config'; // Initialize Firebase
 
 @Module({
@@ -52,6 +53,7 @@ import './firebase.config'; // Initialize Firebase
     }),
     forwardRef(() => UserModule),
     PrismaModule,
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, GoogleStrategy, TwitterStrategy, PrismaService],

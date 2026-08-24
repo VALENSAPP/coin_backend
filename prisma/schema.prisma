@@ -67,6 +67,8 @@ model User {
   social_media_links    Json?
   fcmToken              String?
   canAccessPlatform     String                    @default("false")
+  bannedUntil           DateTime?
+  screenshotAttempts    Int                       @default(0)
   referCode             String?
   referPoints           Float                     @default(1000)
   totalPlatformPoints   Float                     @default(1000)

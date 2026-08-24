@@ -234,4 +234,13 @@ export class AuthController {
     const currentUserId = req.user.userId;
     return this.authService.removeDeviceAccount(currentUserId, body.deviceId, body.userId);
   }
+
+  @Post('report-screenshot')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Report a screenshot or snapshot attempt (3 strikes triggers 24h ban)' })
+  async reportScreenshot(@Request() req: any) {
+    const userId = req.user.userId;
+    return this.authService.reportScreenshotAttempt(userId);
+  }
 }

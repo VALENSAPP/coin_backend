@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService, RegistrationType } from '../user/user.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,6 +6,7 @@ import { randomBytes, createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import admin from './firebase.config';
 import axios from 'axios';
+import { MailService } from '../common/mail/mail.service';
 
 @Injectable()
 export class AuthService {
@@ -13,9 +14,20 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
   ) { }
 
   private readonly locationNameCache = new Map<string, string>();
+
+  private checkUserBan(user: { bannedUntil?: Date | null }) {
+    if (user?.bannedUntil && user.bannedUntil > new Date()) {
+      const remainingMs = user.bannedUntil.getTime() - Date.now();
+      const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
+      throw new ForbiddenException(
+        `Your account has been temporarily suspended until ${user.bannedUntil.toUTCString()} (approx. ${remainingHours}h remaining) due to security policy violations.`,
+      );
+    }
+  }
 
   private hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
@@ -280,6 +292,8 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
+    this.checkUserBan(session.user);
+
     // Rotate refresh token
     const newRefreshToken = randomBytes(32).toString('hex');
     const newRefreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -353,6 +367,8 @@ export class AuthService {
         if (existingUser.isDeleted === 1) {
           throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
         }
+
+        this.checkUserBan(existingUser);
 
         // Check email verification for password provider
         if (provider === 'password' && existingUser.verifyEmail !== 1) {
@@ -457,6 +473,8 @@ export class AuthService {
           throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
         }
 
+        this.checkUserBan(existingUser);
+
         // Check email verification for password provider
         if (provider === 'password' && existingUser.verifyEmail !== 1) {
           throw new BadRequestException('Please verify your email before signing in.');
@@ -559,6 +577,10 @@ export class AuthService {
 
       if (existingUser && existingUser.isDeleted === 1) {
         throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
+      }
+
+      if (existingUser) {
+        this.checkUserBan(existingUser);
       }
 
       // If not found, create new user
@@ -748,6 +770,8 @@ export class AuthService {
       throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
     }
 
+    this.checkUserBan(targetUser);
+
     const targetDeviceAccount = await this.prisma.deviceAccount.findFirst({
       where: { deviceId, userId: targetUserId, removedAt: null },
     });
@@ -795,5 +819,100 @@ export class AuthService {
     });
 
     return { message: 'Account removed from device' };
+  }
+
+  async reportScreenshotAttempt(userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Invalid user');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || user.isDeleted === 1) {
+      throw new NotFoundException('User not found');
+    }
+
+    // If user is already banned
+    if (user.bannedUntil && user.bannedUntil > new Date()) {
+      const remainingMs = user.bannedUntil.getTime() - Date.now();
+      const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
+      throw new ForbiddenException({
+        status: 'banned',
+        bannedUntil: user.bannedUntil.toISOString(),
+        message: `Account is already suspended until ${user.bannedUntil.toUTCString()} (approx. ${remainingHours}h remaining).`,
+      });
+    }
+
+    const currentAttempts = user.screenshotAttempts || 0;
+    const newAttempts = currentAttempts + 1;
+
+    if (newAttempts < 3) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { screenshotAttempts: newAttempts },
+      });
+
+      const remainingAttempts = 3 - newAttempts;
+      return {
+        status: 'warning',
+        attempts: newAttempts,
+        maxAttempts: 3,
+        remainingAttempts,
+        message: `Warning: Taking screenshots or screen recordings is strictly prohibited. You have ${remainingAttempts} warning strike(s) left before a 24-hour account suspension.`,
+      };
+    }
+
+    // 3rd violation: Trigger 24-hour ban
+    const banDurationMs = 24 * 60 * 60 * 1000; // 24 hours
+    const bannedUntil = new Date(Date.now() + banDurationMs);
+
+    // 1. Reset strike count to 0 and set bannedUntil
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        screenshotAttempts: 0,
+        bannedUntil,
+        refreshToken: null,
+        refreshTokenExpiresAt: null,
+        canAccessPlatform: 'false',
+      },
+    });
+
+    // 2. Revoke all active sessions immediately
+    await this.prisma.userSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    // 3. Send professional email notification via SendGrid
+    if (user.email) {
+      try {
+        await this.mailService.sendTemplateEmail({
+          to: user.email,
+          subject: '⚠️ Important Security Notice: Temporary Account Suspension (24 Hours) - Valens',
+          templateFile: 'snapshot-ban-email.html',
+          replacements: {
+            user_name: user.displayName || user.userName || 'Valens User',
+            reason: 'Repeated unauthorized screen capture / snapshot attempts (3 strikes reached)',
+            suspension_duration: '24 Hours',
+            locked_at: new Date().toUTCString(),
+            unlock_time: bannedUntil.toUTCString(),
+          },
+        });
+      } catch (emailError) {
+        console.error('Failed to send snapshot ban notification email:', emailError);
+      }
+    }
+
+    // 4. Throw ForbiddenException with structured details for frontend
+    throw new ForbiddenException({
+      status: 'banned',
+      attempts: 3,
+      maxAttempts: 3,
+      bannedUntil: bannedUntil.toISOString(),
+      message: `Your account has been suspended for 24 hours until ${bannedUntil.toUTCString()} due to repeated snapshot attempts. You have been logged out from all devices.`,
+    });
   }
 }

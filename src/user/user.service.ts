@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { Gender } from './user.controller';
@@ -723,6 +723,15 @@ export class UserService {
     // Check if account is deleted
     if (user && user.isDeleted === 1) {
       throw new BadRequestException('Account has been deleted. Please contact support to reactivate.');
+    }
+
+    // Check if account is currently suspended/banned
+    if (user && user.bannedUntil && user.bannedUntil > new Date()) {
+      const remainingMs = user.bannedUntil.getTime() - Date.now();
+      const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
+      throw new ForbiddenException(
+        `Your account has been temporarily suspended until ${user.bannedUntil.toUTCString()} (approx. ${remainingHours}h remaining) due to security policy violations.`,
+      );
     }
 
     return {
