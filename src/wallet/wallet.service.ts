@@ -282,6 +282,82 @@ export class WalletService {
         return this.prisma.$transaction((client) => run(client));
     }
 
+    /**
+     * Marketplace order cancelled / refunded: reverse pending credit from seller wallet.
+     * Idempotent on (refType, refId, PENDING_REVERSAL).
+     */
+    async reversePendingCredit(params: WalletCreditParams, tx?: TxClient) {
+        const run = async (client: TxClient) => {
+            const amountMinor = Math.trunc(params.amountMinor);
+            if (amountMinor <= 0) {
+                return { skipped: true as const, reason: 'amountMinor must be positive' };
+            }
+
+            const currency = this.normalizeCurrency(params.currency);
+            const provider = this.normalizeProvider(params.provider);
+
+            const alreadyReversed = await this.findExistingEntry(
+                client,
+                params.refType,
+                params.refId,
+                'PENDING_REVERSAL',
+            );
+            if (alreadyReversed) {
+                return {
+                    skipped: true as const,
+                    entryId: alreadyReversed.id,
+                    amountMinor: alreadyReversed.amountMinor,
+                };
+            }
+
+            const pendingCredit = await this.findExistingEntry(
+                client,
+                params.refType,
+                params.refId,
+                'PENDING_CREDIT',
+            );
+            if (!pendingCredit) {
+                return { skipped: true as const, reason: 'No pending credit found to reverse' };
+            }
+
+            const wallet = await this.ensureWallet(client, params.userId, currency, provider);
+            const debitAmount = Math.min(wallet.pendingBalance, amountMinor);
+
+            const updatedWallet = await client.sellerWallet.update({
+                where: { id: wallet.id },
+                data: {
+                    pendingBalance: { decrement: debitAmount },
+                },
+            });
+
+            const entry = await client.walletLedgerEntry.create({
+                data: {
+                    walletId: wallet.id,
+                    userId: params.userId,
+                    entryType: 'PENDING_REVERSAL',
+                    source: params.source,
+                    amountMinor,
+                    currency,
+                    provider,
+                    refType: params.refType,
+                    refId: params.refId,
+                    note: params.note || `Reversed pending credit for ${params.refType} ${params.refId}`,
+                },
+            });
+
+            return {
+                skipped: false as const,
+                entryId: entry.id,
+                amountMinor,
+                pendingBalance: updatedWallet.pendingBalance,
+                availableBalance: updatedWallet.availableBalance,
+            };
+        };
+
+        if (tx) return run(tx);
+        return this.prisma.$transaction((client) => run(client));
+    }
+
     async getBalance(userId: string, options?: { currency?: string; provider?: WalletProvider }) {
         const currency = options?.currency
             ? this.normalizeCurrency(options.currency)

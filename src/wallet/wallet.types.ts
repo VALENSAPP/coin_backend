@@ -4,6 +4,7 @@ export type WalletLedgerEntryType =
     | 'PENDING_CREDIT'
     | 'AVAILABLE_CREDIT'
     | 'PENDING_TO_AVAILABLE'
+    | 'PENDING_REVERSAL'
     | 'WITHDRAWAL'
     | 'WITHDRAWAL_REVERSAL';
 

@@ -633,91 +633,321 @@ export class OrderService {
         };
     }
 
-    async cancelOrder(userId: string, orderId: string, reason?: string) {
-        if (!userId) throw new UnauthorizedException('User not authenticated');
+    /** Best-effort email to the buyer when an order is cancelled; never blocks cancellation. */
+    private async sendCancellationEmailToBuyer(params: {
+        orderId: string;
+        cancelledBy: string;
+        reason?: string;
+        refundAmount: number;
+    }) {
+        try {
+            const order = await this.prisma.order.findUnique({
+                where: { id: params.orderId },
+                include: {
+                    buyer: { select: { email: true, displayName: true, userName: true } },
+                    items: { select: { productName: true }, take: 1 },
+                },
+            });
+            if (!order || !order.buyer?.email) return;
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            await this.mailService.sendTemplateEmail({
+                to: order.buyer.email,
+                subject: `Your Valens Order #${order.orderNumber} Has Been Cancelled`,
+                templateFile: 'order-cancelled-buyer.html',
+                replacements: {
+                    buyer_name: order.buyer.displayName || order.buyer.userName || 'Valued Customer',
+                    order_number: order.orderNumber,
+                    product_name: order.items[0]?.productName || 'your item',
+                    cancelled_by: params.cancelledBy === 'SELLER' ? 'Seller' : 'You (Buyer)',
+                    cancellation_reason: params.reason || 'Order cancelled before shipping',
+                    refund_amount: `$${params.refundAmount.toFixed(2)}`,
+                    order_details_link: `${appBaseUrl}/orders/${order.id}`,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to send cancellation email to buyer:', error);
+        }
+    }
+
+    /** Best-effort email to the seller when an order is cancelled; never blocks cancellation. */
+    private async sendCancellationEmailToSeller(params: {
+        orderId: string;
+        cancelledBy: string;
+        reason?: string;
+    }) {
+        try {
+            const order = await this.prisma.order.findUnique({
+                where: { id: params.orderId },
+                include: {
+                    seller: {
+                        select: {
+                            email: true,
+                            displayName: true,
+                            userName: true,
+                            companyProfile: { select: { email: true } },
+                        },
+                    },
+                    buyer: { select: { displayName: true, userName: true } },
+                    items: { select: { productName: true }, take: 1 },
+                },
+            });
+            if (!order) return;
+            const sellerEmail = order.seller?.companyProfile?.email || order.seller?.email;
+            if (!sellerEmail) return;
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            await this.mailService.sendTemplateEmail({
+                to: sellerEmail,
+                subject: `Order #${order.orderNumber} Has Been Cancelled`,
+                templateFile: 'order-cancelled-seller.html',
+                replacements: {
+                    seller_name: order.seller?.displayName || order.seller?.userName || 'Seller',
+                    buyer_name: order.buyer?.displayName || order.buyer?.userName || 'Buyer',
+                    order_number: order.orderNumber,
+                    product_name: order.items[0]?.productName || 'your item',
+                    cancelled_by: params.cancelledBy === 'SELLER' ? 'You (Seller)' : 'Buyer',
+                    cancellation_reason: params.reason || 'Order cancelled before shipping',
+                    inventory_status: 'Restocked to your closet',
+                    order_details_link: `${appBaseUrl}/seller/orders/${order.id}`,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to send cancellation email to seller:', error);
+        }
+    }
+
+    async executeRefundAndCancel(params: {
+        orderId: string;
+        cancelledBy: 'BUYER' | 'SELLER' | 'ADMIN';
+        reason?: string;
+        restock?: boolean;
+    }) {
+        const { orderId, cancelledBy, reason, restock = true } = params;
 
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
                 items: true,
                 payment: true,
+                seller: {
+                    select: {
+                        id: true,
+                        paymentProvider: true,
+                        email: true,
+                        displayName: true,
+                        userName: true,
+                        companyProfile: { select: { email: true } },
+                    },
+                },
+                buyer: { select: { id: true, email: true, displayName: true, userName: true } },
             },
+        });
+
+        if (!order) throw new NotFoundException('Order not found');
+
+        const cancellableStatuses = new Set<OrderStatus>([
+            OrderStatus.PENDING,
+            OrderStatus.CONFIRMED,
+            OrderStatus.PROCESSING,
+        ]);
+        if (!cancellableStatuses.has(order.orderStatus)) {
+            throw new BadRequestException(
+                `Order cannot be cancelled in status ${order.orderStatus}. Only unshipped orders can be cancelled.`,
+            );
+        }
+
+        if (order.transferStatus === TransferStatus.RELEASED) {
+            throw new BadRequestException('Order payout already released; cannot cancel.');
+        }
+
+        let refundId: string | null = null;
+        let refundStatus = 'NONE';
+        const totalMinor = this.toMinor(order.total);
+
+        // Process refund through payment gateway if order was PAID
+        if (order.paymentStatus === PaymentStatus.PAID && order.payment?.paymentIntentId && totalMinor > 0) {
+            const provider = (order.payment.provider || '').toUpperCase();
+            try {
+                if (provider === 'PAGBANK') {
+                    const pagbankRes = await this.pagBankService.refundCharge({
+                        orderId: order.payment.paymentIntentId,
+                        amountMinor: totalMinor,
+                        reason: reason || `${cancelledBy.toLowerCase()}_cancelled`,
+                    });
+                    refundId = pagbankRes.refundId || order.payment.paymentIntentId;
+                    refundStatus = 'REFUNDED';
+                } else {
+                    const stripeRefund = await this.stripe.refunds.create({
+                        payment_intent: order.payment.paymentIntentId,
+                        amount: totalMinor,
+                        metadata: {
+                            orderId: order.id,
+                            orderNumber: order.orderNumber,
+                            cancelledBy,
+                            reason: reason || `${cancelledBy.toLowerCase()}_cancelled`,
+                        },
+                    });
+                    refundId = stripeRefund.id;
+                    refundStatus = 'REFUNDED';
+                }
+            } catch (refundError: any) {
+                console.error(`Refund failed for order ${order.id}:`, refundError);
+                throw new BadRequestException(
+                    `Payment refund failed: ${refundError?.message || 'Payment provider error'}`,
+                );
+            }
+        }
+
+        const now = new Date();
+
+        await this.prisma.$transaction(async (tx) => {
+            // 1. Update Order
+            await tx.order.update({
+                where: { id: order.id },
+                data: {
+                    orderStatus: OrderStatus.CANCELLED,
+                    paymentStatus:
+                        order.paymentStatus === PaymentStatus.PAID ? PaymentStatus.REFUNDED : order.paymentStatus,
+                    transferStatus: TransferStatus.FROZEN,
+                    cancellationReason: reason || `Cancelled by ${cancelledBy.toLowerCase()}`,
+                    cancelledBy,
+                    cancellationAgreedAt: now,
+                    refundId,
+                    refundAmount: order.paymentStatus === PaymentStatus.PAID ? order.total : 0,
+                    refundedAt: refundStatus === 'REFUNDED' ? now : null,
+                    refundStatus,
+                },
+            });
+
+            // 2. Reverse seller pending balance in wallet
+            if (order.sellerAmountMinor && order.sellerAmountMinor > 0) {
+                const sellerProvider =
+                    (order.seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE';
+                await this.walletService.reversePendingCredit(
+                    {
+                        userId: order.sellerId,
+                        amountMinor: order.sellerAmountMinor,
+                        currency: order.payment?.currency || 'usd',
+                        provider: sellerProvider,
+                        source: 'MARKETPLACE',
+                        refType: 'ORDER',
+                        refId: order.id,
+                        note: `Reversed pending balance for cancelled order #${order.orderNumber}`,
+                    },
+                    tx,
+                );
+            }
+
+            // 3. Restock inventory
+            if (restock) {
+                for (const item of order.items) {
+                    await tx.closetItems.update({
+                        where: { id: item.productId },
+                        data: {
+                            quantity: { increment: item.quantity },
+                            soldCount: { decrement: item.quantity },
+                        },
+                    });
+                }
+            }
+
+            // 4. Update MarketplacePayments status if applicable
+            if (order.paymentId) {
+                const remainingUncancelled = await tx.order.count({
+                    where: {
+                        paymentId: order.paymentId,
+                        id: { not: order.id },
+                        orderStatus: { not: OrderStatus.CANCELLED },
+                    },
+                });
+
+                if (remainingUncancelled === 0) {
+                    await tx.marketPlacePayments.update({
+                        where: { id: order.paymentId },
+                        data: {
+                            status: order.paymentStatus === PaymentStatus.PAID ? 'REFUNDED' : 'CANCELLED',
+                        },
+                    });
+                }
+            }
+        });
+
+        // 5. System message in closet chat
+        try {
+            await this.closetChatService.sendOrderCancelledMessage({
+                orderId: order.id,
+                cancelledBy: cancelledBy === 'SELLER' ? 'SELLER' : 'BUYER',
+                reason,
+                refundAmount: order.paymentStatus === PaymentStatus.PAID ? order.total : undefined,
+            });
+        } catch (chatErr) {
+            console.error('Failed to post cancel message to closet chat:', chatErr);
+        }
+
+        // 6. Emails
+        if (order.paymentStatus === PaymentStatus.PAID) {
+            await this.sendCancellationEmailToBuyer({
+                orderId: order.id,
+                cancelledBy,
+                reason,
+                refundAmount: order.total,
+            });
+        }
+        await this.sendCancellationEmailToSeller({
+            orderId: order.id,
+            cancelledBy,
+            reason,
+        });
+
+        // 7. Push / in-app notifications
+        const notificationTarget = cancelledBy === 'BUYER' ? order.sellerId : order.buyerId;
+        const whoStr = cancelledBy === 'BUYER' ? 'A buyer' : 'The seller';
+        await this.notificationService.sendNotificationToUser(
+            notificationTarget,
+            'Order Cancelled',
+            `${whoStr} cancelled order #${order.orderNumber}.${reason ? ` Reason: ${reason}` : ''}`,
+            {
+                type: 'marketplace_order_cancelled',
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                cancelledBy,
+            },
+        );
+
+        return {
+            success: true,
+            message: 'Order cancelled and full refund processed successfully',
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            orderStatus: OrderStatus.CANCELLED,
+            paymentStatus:
+                order.paymentStatus === PaymentStatus.PAID ? PaymentStatus.REFUNDED : order.paymentStatus,
+            refundId,
+            refundAmount: order.paymentStatus === PaymentStatus.PAID ? order.total : 0,
+            refundTimeline: '5-10 business days for card, within 24h for PIX',
+            cancelledBy,
+            cancellationReason: reason || `Cancelled by ${cancelledBy.toLowerCase()}`,
+        };
+    }
+
+    async cancelOrder(userId: string, orderId: string, reason?: string) {
+        if (!userId) throw new UnauthorizedException('User not authenticated');
+
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: { id: true, buyerId: true },
         });
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.buyerId !== userId) throw new UnauthorizedException('Unauthorized');
 
-        const cancellableStatuses = new Set<OrderStatus>([OrderStatus.PENDING, OrderStatus.CONFIRMED]);
-        if (!cancellableStatuses.has(order.orderStatus)) {
-            throw new BadRequestException('Order cannot be cancelled in current status');
-        }
-
-        if (order.transferStatus === TransferStatus.RELEASED) {
-            throw new BadRequestException('Order payout already released; contact support for refunds');
-        }
-
-        // Refund for paid order (funds still on platform — no Connect destination charge).
-        if (order.paymentStatus === PaymentStatus.PAID && order.payment?.paymentIntentId) {
-            const provider = (order.payment.provider || '').toUpperCase();
-            if (provider === 'PAGBANK') {
-                await this.pagBankService.refundCharge({
-                    orderId: order.payment.paymentIntentId,
-                    amountMinor: this.toMinor(order.total),
-                    reason: reason || 'buyer_cancelled',
-                });
-            } else {
-                await this.stripe.refunds.create({
-                    payment_intent: order.payment.paymentIntentId,
-                    amount: this.toMinor(order.total),
-                    metadata: {
-                        orderId: order.id,
-                        reason: reason || 'buyer_cancelled',
-                    },
-                });
-            }
-        }
-
-        await this.prisma.$transaction(async (tx) => {
-            await tx.order.update({
-                where: { id: order.id },
-                data: {
-                    orderStatus: OrderStatus.CANCELLED,
-                    paymentStatus: order.paymentStatus === PaymentStatus.PAID ? PaymentStatus.REFUNDED : order.paymentStatus,
-                    transferStatus: TransferStatus.FROZEN,
-                },
-            });
-
-            for (const item of order.items) {
-                await tx.closetItems.update({
-                    where: { id: item.productId },
-                    data: {
-                        quantity: { increment: item.quantity },
-                        soldCount: { decrement: item.quantity },
-                    },
-                });
-            }
-
-            if (order.paymentId) {
-                await tx.marketPlacePayments.update({
-                    where: { id: order.paymentId },
-                    data: {
-                        status: order.paymentStatus === PaymentStatus.PAID ? 'REFUNDED' : 'CANCELLED',
-                    },
-                });
-            }
+        return this.executeRefundAndCancel({
+            orderId: order.id,
+            cancelledBy: 'BUYER',
+            reason,
+            restock: true,
         });
-
-        await this.notificationService.sendNotificationToUser(
-            order.sellerId,
-            'Order Cancelled',
-            'A buyer cancelled an order.',
-            {
-                type: 'marketplace_order_cancelled',
-                orderId: order.id,
-            },
-        );
-
-        return { message: 'Order Cancelled Successfully' };
     }
 
     /**

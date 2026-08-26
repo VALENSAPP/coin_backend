@@ -1732,6 +1732,15 @@ export class BillingService {
         include: {
           orders: {
             select: {
+              id: true,
+              orderNumber: true,
+              orderStatus: true,
+              paymentStatus: true,
+              refundId: true,
+              refundAmount: true,
+              refundedAt: true,
+              cancellationReason: true,
+              cancelledBy: true,
               buyer: { select: profileSelect },
               seller: { select: profileSelect },
             },
@@ -1790,7 +1799,7 @@ export class BillingService {
     }
 
     if (marketplace) {
-      const order = marketplace.orders?.find((item: any) => item.buyer?.id === userId || item.seller?.id === userId);
+      const order = marketplace.orders?.find((item: any) => item.buyer?.id === userId || item.seller?.id === userId) || marketplace.orders?.[0];
       const from = order?.buyer || null;
       const to = order?.seller || null;
       return {
@@ -1805,12 +1814,18 @@ export class BillingService {
         total: marketplace.amount / 100,
         paymentMethod: marketplace.provider,
         createdAt: marketplace.createdAt,
-        note: null,
+        note: order?.cancellationReason || null,
         from,
         to,
         direction: marketplace.userId === userId || from?.id === userId ? 'SENT' : 'RECEIVED',
-        orderId: marketplace.orderId,
+        orderId: marketplace.orderId || order?.id,
+        orderNumber: order?.orderNumber || null,
         cartId: marketplace.cartId,
+        refundId: order?.refundId || null,
+        refundAmount: order?.refundAmount != null ? order.refundAmount : (marketplace.status === 'REFUNDED' ? marketplace.amount / 100 : null),
+        refundedAt: order?.refundedAt || null,
+        cancellationReason: order?.cancellationReason || null,
+        cancelledBy: order?.cancelledBy || null,
       };
     }
 
@@ -3039,7 +3054,7 @@ export class BillingService {
   async userTransactionHistory(userId: string, transactionType: string, limit: number = 50) {
     const take = Math.min(Math.max(1, limit), 100);
     if (transactionType === 'all') {
-      const [withdrawals, tokenSales, tokenPurchases, payments] = await Promise.all([
+      const [withdrawals, tokenSales, tokenPurchases, payments, marketplace] = await Promise.all([
         this.prisma.withdrawalRecord.findMany({
           where: { userId },
           orderBy: { createdAt: 'desc' },
@@ -3059,14 +3074,47 @@ export class BillingService {
           where: { userId },
           orderBy: { createdAt: 'desc' },
           take,
-        })
+        }),
+        this.prisma.marketPlacePayments.findMany({
+          where: {
+            OR: [{ userId }, { orders: { some: { OR: [{ buyerId: userId }, { sellerId: userId }] } } }],
+          },
+          include: {
+            orders: {
+              select: {
+                id: true,
+                orderNumber: true,
+                orderStatus: true,
+                paymentStatus: true,
+                refundId: true,
+                refundAmount: true,
+                refundedAt: true,
+                cancellationReason: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          take,
+        }),
       ]);
 
       const allTransactions = [
-        ...withdrawals.map(w => ({ ...w, typeTransaction: 'withdrawal' })),
-        ...tokenSales.map(ts => ({ ...ts, typeTransaction: 'tokenSale' })),
-        ...tokenPurchases.map(tp => ({ ...tp, typeTransaction: 'tokenPurchase' })),
-        ...payments.map(p => ({ ...p, typeTransaction: 'payment' }))
+        ...withdrawals.map((w) => ({ ...w, typeTransaction: 'withdrawal' })),
+        ...tokenSales.map((ts) => ({ ...ts, typeTransaction: 'tokenSale' })),
+        ...tokenPurchases.map((tp) => ({ ...tp, typeTransaction: 'tokenPurchase' })),
+        ...payments.map((p) => ({ ...p, typeTransaction: 'payment' })),
+        ...marketplace.map((mp) => {
+          const firstOrder = mp.orders[0];
+          return {
+            ...mp,
+            typeTransaction: 'marketplace',
+            amount: mp.amount / 100,
+            refundAmount: firstOrder?.refundAmount != null ? firstOrder.refundAmount : (mp.status === 'REFUNDED' ? mp.amount / 100 : null),
+            refundId: firstOrder?.refundId || null,
+            refundedAt: firstOrder?.refundedAt || null,
+            cancellationReason: firstOrder?.cancellationReason || null,
+          };
+        }),
       ];
 
       return allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -3095,6 +3143,41 @@ export class BillingService {
             where: { userId },
             orderBy: { createdAt: 'desc' },
             take,
+          });
+        case 'marketplace':
+        case 'shop':
+          const mpRecords = await this.prisma.marketPlacePayments.findMany({
+            where: {
+              OR: [{ userId }, { orders: { some: { OR: [{ buyerId: userId }, { sellerId: userId }] } } }],
+            },
+            include: {
+              orders: {
+                select: {
+                  id: true,
+                  orderNumber: true,
+                  orderStatus: true,
+                  paymentStatus: true,
+                  refundId: true,
+                  refundAmount: true,
+                  refundedAt: true,
+                  cancellationReason: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take,
+          });
+          return mpRecords.map((mp) => {
+            const firstOrder = mp.orders[0];
+            return {
+              ...mp,
+              typeTransaction: 'marketplace',
+              amount: mp.amount / 100,
+              refundAmount: firstOrder?.refundAmount != null ? firstOrder.refundAmount : (mp.status === 'REFUNDED' ? mp.amount / 100 : null),
+              refundId: firstOrder?.refundId || null,
+              refundedAt: firstOrder?.refundedAt || null,
+              cancellationReason: firstOrder?.cancellationReason || null,
+            };
           });
         default:
           throw new BadRequestException('Invalid transaction type');

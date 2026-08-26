@@ -481,5 +481,92 @@ export class ClosetChatService {
             message: createdMessage,
         };
     }
+
+    async sendOrderCancelledMessage(params: {
+        orderId: string;
+        cancelledBy: 'BUYER' | 'SELLER';
+        reason?: string;
+        refundAmount?: number;
+    }) {
+        const { orderId, cancelledBy, reason, refundAmount } = params;
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                orderNumber: true,
+                buyerId: true,
+                sellerId: true,
+                closetId: true,
+            },
+        });
+
+        if (!order) return null;
+
+        const senderId = cancelledBy === 'BUYER' ? order.buyerId : order.sellerId;
+        const receiverId = cancelledBy === 'BUYER' ? order.sellerId : order.buyerId;
+        const whoStr = cancelledBy === 'BUYER' ? 'Buyer' : 'Seller';
+        const refundStr = refundAmount != null ? ` A full refund of $${refundAmount.toFixed(2)} has been issued.` : '';
+        const reasonStr = reason ? `\nReason: ${reason}` : '';
+        const content = `❌ Order #${order.orderNumber} was cancelled by ${whoStr}.${refundStr}${reasonStr}`;
+
+        let threadId = '';
+        let createdMessage: any = null;
+
+        await this.prisma.$transaction(async (tx) => {
+            const thread = await tx.closetChatThread.upsert({
+                where: { orderId: order.id },
+                create: {
+                    orderId: order.id,
+                    buyerId: order.buyerId,
+                    sellerId: order.sellerId,
+                    closetId: order.closetId,
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                update: {
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                select: { id: true },
+            });
+
+            threadId = thread.id;
+
+            createdMessage = await tx.closetChatMessage.create({
+                data: {
+                    threadId: thread.id,
+                    senderId,
+                    receiverId,
+                    content,
+                    type: ClosetChatMessageType.SYSTEM,
+                    eventType: ClosetChatMessageEventType.ORDER_CANCELLED,
+                },
+            });
+
+            await tx.closetChatThread.update({
+                where: { id: thread.id },
+                data: {
+                    lastMessageAt: createdMessage.createdAt,
+                },
+            });
+        });
+
+        if (createdMessage) {
+            await this.notificationService.sendNotificationToUser(
+                receiverId,
+                'Order Cancelled',
+                content,
+                {
+                    type: 'closet_chat_message',
+                    threadId,
+                    messageId: createdMessage.id,
+                    senderId,
+                },
+            );
+        }
+
+        return {
+            threadId,
+            message: createdMessage,
+        };
+    }
 }
 

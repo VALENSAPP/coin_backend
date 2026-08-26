@@ -17,6 +17,7 @@ import { DeliverOrderOtpDto } from './dto/deliver-order-otp.dto';
 import { SendDeliveryOtpDto } from './dto/send-delivery-otp.dto';
 import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
+import { SellerCancelOrderDto } from './dto/seller-cancel-order.dto';
 import { SellerOrderService } from './seller-order.service';
 
 @ApiTags('seller-orders')
@@ -117,5 +118,17 @@ export class SellerOrderController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.sellerOrderService.sendDeliveryOtp(userId, orderId, dto.expiresInMinutes);
+    }
+
+    @Patch(':orderId/cancel')
+    @ApiOperation({ summary: 'Cancel an unshipped order / agree to cancellation (seller)' })
+    @ApiParam({ name: 'orderId', description: 'Order id' })
+    async cancelOrder(
+        @Req() req: Request,
+        @Param('orderId') orderId: string,
+        @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: SellerCancelOrderDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.sellerOrderService.cancelOrderBySeller(userId, orderId, dto);
     }
 }
