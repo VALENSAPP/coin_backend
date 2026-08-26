@@ -3,13 +3,7 @@ import { CancellationStatus, OrderStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
 
-export enum SellerOrderShippingType {
-    ALL = 'all',
-    LOCAL_PICKUP = 'local-pickup',
-    SHIP_TO_DELIVER = 'ship-to-deliver',
-}
-
-export class SellerOrderListQueryDto {
+export class BuyerOrderListQueryDto {
     @ApiPropertyOptional({ description: 'Page number', example: 1, default: 1 })
     @Type(() => Number)
     @IsInt()
@@ -26,9 +20,9 @@ export class SellerOrderListQueryDto {
     limit?: number = 10;
 
     @ApiPropertyOptional({
-        description: 'Filter by order status',
+        description: 'Filter by order status (e.g. CANCELLED, PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED)',
         enum: OrderStatus,
-        example: OrderStatus.PENDING,
+        example: OrderStatus.CANCELLED,
     })
     @Transform(({ value }) => (typeof value === 'string' ? value.toUpperCase() : value))
     @IsEnum(OrderStatus)
@@ -44,17 +38,4 @@ export class SellerOrderListQueryDto {
     @IsEnum(CancellationStatus)
     @IsOptional()
     cancellationStatus?: CancellationStatus;
-
-    @ApiPropertyOptional({
-        description: 'Filter by fulfillment type',
-        enum: SellerOrderShippingType,
-        default: SellerOrderShippingType.ALL,
-        example: SellerOrderShippingType.ALL,
-    })
-    @Transform(({ value }) =>
-        typeof value === 'string' ? value.trim().toLowerCase() : value,
-    )
-    @IsEnum(SellerOrderShippingType)
-    @IsOptional()
-    shippingType?: SellerOrderShippingType = SellerOrderShippingType.ALL;
 }

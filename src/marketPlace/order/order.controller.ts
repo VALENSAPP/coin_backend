@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, ValidationPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
+import { BuyerOrderListQueryDto } from './dto/buyer-order-list-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { ReportOrderProblemDto } from './dto/report-order-problem.dto';
 import { OrderService } from './order.service';
@@ -14,10 +15,17 @@ export class OrderController {
     @Get()
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get buyer order history' })
-    async getMyOrders(@Req() req: Request) {
+    @ApiOperation({ summary: 'Get buyer order history with optional status / cancellation filtering' })
+    @ApiQuery({ name: 'page', required: false, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, example: 10 })
+    @ApiQuery({ name: 'status', required: false, description: 'Filter by OrderStatus (e.g. CANCELLED, PENDING, PROCESSING, SHIPPED, DELIVERED)' })
+    @ApiQuery({ name: 'cancellationStatus', required: false, description: 'Filter by CancellationStatus (e.g. REQUESTED, APPROVED, DECLINED)' })
+    async getMyOrders(
+        @Req() req: Request,
+        @Query(new ValidationPipe({ whitelist: true, transform: true })) query: BuyerOrderListQueryDto,
+    ) {
         const userId = (req.user as any)?.userId;
-        return this.orderService.getBuyerOrders(userId);
+        return this.orderService.getBuyerOrders(userId, query);
     }
 
     @Get(':id')
@@ -31,10 +39,11 @@ export class OrderController {
     }
 
     @Patch(':id/cancel')
+    @Post(':id/cancel-request')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiParam({ name: 'id', description: 'Order id' })
-    @ApiOperation({ summary: 'Cancel an order (buyer)' })
+    @ApiOperation({ summary: 'Request order cancellation & refund (buyer side; notifies seller)' })
     async cancelOrder(
         @Req() req: Request,
         @Param('id') id: string,

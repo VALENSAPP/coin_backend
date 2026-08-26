@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException, forwardRef } from '@nestjs/common';
-import { CartItemShippingChoice, DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
+import { CancellationStatus, CartItemShippingChoice, DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { MailService } from '../../common/mail/mail.service';
@@ -7,6 +7,7 @@ import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { PagBankService } from '../../pagbank/pagbank.service';
+import { BuyerOrderListQueryDto } from './dto/buyer-order-list-query.dto';
 import { OrderPayoutService } from './order-payout.service';
 
 @Injectable()
@@ -431,13 +432,33 @@ export class OrderService {
         return this.createOrderFromPaymentIntent(fakeIntent);
     }
 
-    async getBuyerOrders(userId: string) {
+    async getBuyerOrders(userId: string, query?: BuyerOrderListQueryDto) {
         if (!userId) throw new UnauthorizedException('User not authenticated');
 
+        const where: Prisma.OrderWhereInput = {
+            buyerId: userId,
+            ...(query?.status ? { orderStatus: query.status } : {}),
+            ...(query?.cancellationStatus ? { cancellationStatus: query.cancellationStatus } : {}),
+        };
+
         const orders = await this.prisma.order.findMany({
-            where: { buyerId: userId },
+            where,
             orderBy: { createdAt: 'desc' },
+            ...(query?.page && query?.limit
+                ? {
+                    skip: (Math.max(1, Number(query.page)) - 1) * Math.min(100, Math.max(1, Number(query.limit))),
+                    take: Math.min(100, Math.max(1, Number(query.limit))),
+                }
+                : {}),
             include: {
+                seller: {
+                    select: {
+                        id: true,
+                        userName: true,
+                        displayName: true,
+                        image: true,
+                    },
+                },
                 items: {
                     select: {
                         id: true,
@@ -633,6 +654,152 @@ export class OrderService {
         };
     }
 
+    /** Email to buyer confirming their cancellation request was submitted and is pending review. */
+    private async sendCancellationRequestEmailToBuyer(params: {
+        orderId: string;
+        reason?: string;
+    }) {
+        try {
+            const order = await this.prisma.order.findUnique({
+                where: { id: params.orderId },
+                include: {
+                    buyer: { select: { email: true, displayName: true, userName: true } },
+                    seller: {
+                        select: {
+                            displayName: true,
+                            userName: true,
+                            companyProfile: { select: { businessName: true } },
+                        },
+                    },
+                    items: { select: { productName: true }, take: 1 },
+                },
+            });
+            if (!order || !order.buyer?.email) return;
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            const sellerName =
+                order.seller?.companyProfile?.businessName ||
+                order.seller?.displayName ||
+                order.seller?.userName ||
+                'Seller';
+
+            await this.mailService.sendTemplateEmail({
+                to: order.buyer.email,
+                subject: `Cancellation Request Submitted for Order #${order.orderNumber}`,
+                templateFile: 'order-cancellation-requested-buyer.html',
+                replacements: {
+                    buyer_name: order.buyer.displayName || order.buyer.userName || 'Valued Customer',
+                    seller_name: sellerName,
+                    order_number: order.orderNumber,
+                    product_name: order.items[0]?.productName || 'your item',
+                    cancellation_reason: params.reason || 'Requested by buyer before shipping',
+                    refund_amount: `$${order.total.toFixed(2)}`,
+                    order_details_link: `${appBaseUrl}/orders/${order.id}`,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to send cancellation request email to buyer:', error);
+        }
+    }
+
+    /** Email to seller alerting them that buyer requested order cancellation. */
+    private async sendCancellationRequestEmailToSeller(params: {
+        orderId: string;
+        reason?: string;
+    }) {
+        try {
+            const order = await this.prisma.order.findUnique({
+                where: { id: params.orderId },
+                include: {
+                    seller: {
+                        select: {
+                            email: true,
+                            displayName: true,
+                            userName: true,
+                            companyProfile: { select: { email: true, businessName: true } },
+                        },
+                    },
+                    buyer: { select: { displayName: true, userName: true } },
+                    items: { select: { productName: true }, take: 1 },
+                },
+            });
+            if (!order) return;
+            const sellerEmail = order.seller?.companyProfile?.email || order.seller?.email;
+            if (!sellerEmail) return;
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            const sellerName =
+                order.seller?.companyProfile?.businessName ||
+                order.seller?.displayName ||
+                order.seller?.userName ||
+                'Seller';
+
+            await this.mailService.sendTemplateEmail({
+                to: sellerEmail,
+                subject: `Action Required: Cancellation Requested for Order #${order.orderNumber}`,
+                templateFile: 'order-cancellation-requested-seller.html',
+                replacements: {
+                    seller_name: sellerName,
+                    buyer_name: order.buyer?.displayName || order.buyer?.userName || 'Buyer',
+                    order_number: order.orderNumber,
+                    product_name: order.items[0]?.productName || 'your item',
+                    cancellation_reason: params.reason || 'Requested by buyer before shipping',
+                    order_total: `$${order.total.toFixed(2)}`,
+                    order_details_link: `${appBaseUrl}/seller/orders/${order.id}`,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to send cancellation request email to seller:', error);
+        }
+    }
+
+    /** Email to buyer informing them that their cancellation request was declined by the seller. */
+    public async sendCancellationDeclinedEmailToBuyer(params: {
+        orderId: string;
+        declineReason?: string;
+    }) {
+        try {
+            const order = await this.prisma.order.findUnique({
+                where: { id: params.orderId },
+                include: {
+                    buyer: { select: { email: true, displayName: true, userName: true } },
+                    seller: {
+                        select: {
+                            displayName: true,
+                            userName: true,
+                            companyProfile: { select: { businessName: true } },
+                        },
+                    },
+                    items: { select: { productName: true }, take: 1 },
+                },
+            });
+            if (!order || !order.buyer?.email) return;
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            const sellerName =
+                order.seller?.companyProfile?.businessName ||
+                order.seller?.displayName ||
+                order.seller?.userName ||
+                'Seller';
+
+            await this.mailService.sendTemplateEmail({
+                to: order.buyer.email,
+                subject: `Cancellation Request Declined for Order #${order.orderNumber}`,
+                templateFile: 'order-cancellation-declined-buyer.html',
+                replacements: {
+                    buyer_name: order.buyer.displayName || order.buyer.userName || 'Valued Customer',
+                    seller_name: sellerName,
+                    order_number: order.orderNumber,
+                    product_name: order.items[0]?.productName || 'your item',
+                    decline_reason: params.declineReason || 'Seller is unable to cancel at this time',
+                    order_details_link: `${appBaseUrl}/orders/${order.id}`,
+                },
+            });
+        } catch (error) {
+            console.error('Failed to send cancellation declined email to buyer:', error);
+        }
+    }
+
     /** Best-effort email to the buyer when an order is cancelled; never blocks cancellation. */
     private async sendCancellationEmailToBuyer(params: {
         orderId: string;
@@ -807,12 +974,14 @@ export class OrderService {
                 where: { id: order.id },
                 data: {
                     orderStatus: OrderStatus.CANCELLED,
+                    cancellationStatus: CancellationStatus.APPROVED,
                     paymentStatus:
                         order.paymentStatus === PaymentStatus.PAID ? PaymentStatus.REFUNDED : order.paymentStatus,
                     transferStatus: TransferStatus.FROZEN,
                     cancellationReason: reason || `Cancelled by ${cancelledBy.toLowerCase()}`,
                     cancelledBy,
                     cancellationAgreedAt: now,
+                    cancellationRespondedAt: now,
                     refundId,
                     refundAmount: order.paymentStatus === PaymentStatus.PAID ? order.total : 0,
                     refundedAt: refundStatus === 'REFUNDED' ? now : null,
@@ -936,18 +1105,93 @@ export class OrderService {
 
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
-            select: { id: true, buyerId: true },
+            include: {
+                seller: { select: { id: true, userName: true, displayName: true } },
+            },
         });
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.buyerId !== userId) throw new UnauthorizedException('Unauthorized');
 
-        return this.executeRefundAndCancel({
-            orderId: order.id,
-            cancelledBy: 'BUYER',
-            reason,
-            restock: true,
+        const cancellableStatuses = new Set<OrderStatus>([
+            OrderStatus.PENDING,
+            OrderStatus.CONFIRMED,
+            OrderStatus.PROCESSING,
+        ]);
+        if (!cancellableStatuses.has(order.orderStatus)) {
+            throw new BadRequestException(
+                `Order cannot be cancelled in status ${order.orderStatus}. Only unshipped orders can have cancellation requested.`,
+            );
+        }
+
+        if (order.cancellationStatus === CancellationStatus.REQUESTED) {
+            throw new BadRequestException(
+                'A cancellation request for this order is already pending seller review.',
+            );
+        }
+
+        if (order.cancellationStatus === CancellationStatus.APPROVED || order.orderStatus === OrderStatus.CANCELLED) {
+            throw new BadRequestException('This order is already cancelled.');
+        }
+
+        const now = new Date();
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: order.id },
+            data: {
+                cancellationStatus: CancellationStatus.REQUESTED,
+                cancellationReason: reason || 'Cancelled by buyer',
+                cancellationRequestedAt: now,
+                cancelledBy: 'BUYER',
+            },
         });
+
+        // Send email to buyer
+        await this.sendCancellationRequestEmailToBuyer({
+            orderId: order.id,
+            reason: reason || 'Cancelled by buyer',
+        });
+
+        // Send email to seller
+        await this.sendCancellationRequestEmailToSeller({
+            orderId: order.id,
+            reason: reason || 'Cancelled by buyer',
+        });
+
+        // Send chat message in closet-chat
+        try {
+            await this.closetChatService.sendCancellationRequestedMessage({
+                orderId: order.id,
+                reason,
+            });
+        } catch (chatErr) {
+            console.error('Failed to post cancellation request message to closet chat:', chatErr);
+        }
+
+        // Send in-app notification to seller
+        await this.notificationService.sendNotificationToUser(
+            order.sellerId,
+            'Cancellation Requested',
+            `Buyer requested to cancel order #${order.orderNumber}.${reason ? ` Reason: ${reason}` : ''}`,
+            {
+                type: 'marketplace_cancellation_requested',
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                cancelledBy: 'BUYER',
+                reason: reason || 'Cancelled by buyer',
+            },
+        );
+
+        return {
+            success: true,
+            message: 'Cancellation request submitted successfully. Email notifications have been sent and the request is awaiting seller review.',
+            orderId: updatedOrder.id,
+            orderNumber: updatedOrder.orderNumber,
+            orderStatus: updatedOrder.orderStatus,
+            cancellationStatus: updatedOrder.cancellationStatus,
+            cancellationReason: updatedOrder.cancellationReason,
+            cancellationRequestedAt: updatedOrder.cancellationRequestedAt,
+            refundAmount: order.paymentStatus === PaymentStatus.PAID ? order.total : 0,
+        };
     }
 
     /**

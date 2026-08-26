@@ -7,7 +7,7 @@ import {
     UnauthorizedException,
     forwardRef,
 } from '@nestjs/common';
-import { CartItemShippingChoice, OrderStatus, Prisma, ShippingStatus } from '@prisma/client';
+import { CancellationStatus, CartItemShippingChoice, OrderStatus, PaymentStatus, Prisma, ShippingStatus } from '@prisma/client';
 import * as sgMail from '@sendgrid/mail';
 import { MailService } from '../../common/mail/mail.service';
 import { NotificationService } from '../../notification/notification.service';
@@ -17,6 +17,7 @@ import { ShippingService } from '../shipping/shipping.service';
 import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
 import { SellerCancelOrderDto } from './dto/seller-cancel-order.dto';
+import { ApproveCancellationDto, DeclineCancellationDto } from './dto/seller-respond-cancellation.dto';
 import { OrderPayoutService } from './order-payout.service';
 import { OrderService } from './order.service';
 
@@ -155,6 +156,7 @@ export class SellerOrderService {
         const where: Prisma.OrderWhereInput = {
             sellerId,
             ...(query.status ? { orderStatus: query.status } : {}),
+            ...(query.cancellationStatus ? { cancellationStatus: query.cancellationStatus } : {}),
             ...shippingTypeWhere,
         };
 
@@ -170,6 +172,14 @@ export class SellerOrderService {
                     orderNumber: true,
                     total: true,
                     orderStatus: true,
+                    paymentStatus: true,
+                    cancellationStatus: true,
+                    cancellationReason: true,
+                    cancellationDeclineReason: true,
+                    cancellationRequestedAt: true,
+                    cancellationRespondedAt: true,
+                    refundAmount: true,
+                    refundStatus: true,
                     isViewedBySeller: true,
                     sellerViewedAt: true,
                     createdAt: true,
@@ -218,6 +228,10 @@ export class SellerOrderService {
         ]);
 
         return {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
             data: orders.map((order) => {
                 const isLocalPickupOrder =
                     order.items.length > 0 &&
@@ -235,6 +249,14 @@ export class SellerOrderService {
                         isLocalPickupOrder && order.orderStatus === OrderStatus.PENDING
                             ? 'localpickup'
                             : order.orderStatus,
+                    paymentStatus: order.paymentStatus,
+                    cancellationStatus: order.cancellationStatus,
+                    cancellationReason: order.cancellationReason,
+                    cancellationDeclineReason: order.cancellationDeclineReason,
+                    cancellationRequestedAt: order.cancellationRequestedAt,
+                    cancellationRespondedAt: order.cancellationRespondedAt,
+                    refundAmount: order.refundAmount,
+                    refundStatus: order.refundStatus,
                     createdAt: order.createdAt,
                     totalItemCount: order.items.length,
                     items: order.items.map((item) => ({
@@ -532,6 +554,12 @@ export class SellerOrderService {
 
         this.ensureTransition(order.orderStatus, OrderStatus.PROCESSING, OrderStatus.SHIPPED);
 
+        if (order.cancellationStatus === CancellationStatus.REQUESTED) {
+            throw new BadRequestException(
+                'Cannot mark order as shipped while a buyer cancellation request is pending review. Please approve or decline the cancellation request first.',
+            );
+        }
+
         const carrier = dto.carrier.trim();
         const trackingNumber = dto.trackingNumber.trim();
         if (!carrier || !trackingNumber) {
@@ -675,6 +703,90 @@ export class SellerOrderService {
             transferStatus: payoutSchedule.transferStatus,
             protectionEndsAt: payoutSchedule.protectionEndsAt,
             deliverySource: 'MANUAL',
+        };
+    }
+
+    async approveCancellationRequest(userId: string | undefined, orderId: string, dto: ApproveCancellationDto) {
+        const sellerId = this.assertSellerUserId(userId);
+        const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
+
+        if (order.cancellationStatus !== CancellationStatus.REQUESTED) {
+            throw new BadRequestException(
+                `No pending cancellation request found for this order. Current cancellation status: ${order.cancellationStatus}`,
+            );
+        }
+
+        const res = await this.orderService.executeRefundAndCancel({
+            orderId: order.id,
+            cancelledBy: 'BUYER',
+            reason: order.cancellationReason || 'Buyer cancellation request approved by seller',
+            restock: dto.restock !== false,
+        });
+
+        return {
+            ...res,
+            message: 'Cancellation request approved. Full refund processed and order cancelled successfully.',
+        };
+    }
+
+    async declineCancellationRequest(userId: string | undefined, orderId: string, dto: DeclineCancellationDto) {
+        const sellerId = this.assertSellerUserId(userId);
+        const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
+
+        if (order.cancellationStatus !== CancellationStatus.REQUESTED) {
+            throw new BadRequestException(
+                `No pending cancellation request found for this order. Current cancellation status: ${order.cancellationStatus}`,
+            );
+        }
+
+        const now = new Date();
+        const updatedOrder = await this.prisma.order.update({
+            where: { id: order.id },
+            data: {
+                cancellationStatus: CancellationStatus.DECLINED,
+                cancellationDeclineReason: dto.declineReason,
+                cancellationRespondedAt: now,
+            },
+        });
+
+        // Send email to buyer
+        await this.orderService.sendCancellationDeclinedEmailToBuyer({
+            orderId: order.id,
+            declineReason: dto.declineReason,
+        });
+
+        // Send chat message in closet-chat
+        try {
+            await this.closetChatService.sendCancellationDeclinedMessage({
+                orderId: order.id,
+                declineReason: dto.declineReason,
+            });
+        } catch (chatErr) {
+            console.error('Failed to post cancellation declined message to closet chat:', chatErr);
+        }
+
+        // Send push notification to buyer
+        await this.notificationService.sendNotificationToUser(
+            order.buyerId,
+            'Cancellation Request Declined',
+            `Seller declined your cancellation request for order #${order.orderNumber}. Reason: ${dto.declineReason}`,
+            {
+                type: 'marketplace_cancellation_declined',
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                declineReason: dto.declineReason,
+            },
+        );
+
+        return {
+            success: true,
+            message: 'Cancellation request declined. Order remains active for fulfillment.',
+            orderId: updatedOrder.id,
+            orderNumber: updatedOrder.orderNumber,
+            orderStatus: updatedOrder.orderStatus,
+            cancellationStatus: updatedOrder.cancellationStatus,
+            cancellationDeclineReason: updatedOrder.cancellationDeclineReason,
+            cancellationRespondedAt: updatedOrder.cancellationRespondedAt,
         };
     }
 

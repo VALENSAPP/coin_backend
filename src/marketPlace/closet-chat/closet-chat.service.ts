@@ -568,5 +568,197 @@ export class ClosetChatService {
             message: createdMessage,
         };
     }
+
+    async sendCancellationRequestedMessage(params: {
+        orderId: string;
+        reason?: string;
+    }) {
+        const { orderId, reason } = params;
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                orderNumber: true,
+                buyerId: true,
+                sellerId: true,
+                closetId: true,
+            },
+        });
+
+        if (!order) return null;
+
+        const senderId = order.buyerId;
+        const receiverId = order.sellerId;
+        const reasonStr = reason ? `\nReason: ${reason}` : '';
+        const content = `⚠️ Buyer requested to cancel Order #${order.orderNumber}.${reasonStr}\nPlease review and approve or decline in your seller dashboard.`;
+
+        let threadId = '';
+        let createdMessage: any = null;
+
+        await this.prisma.$transaction(async (tx) => {
+            const thread = await tx.closetChatThread.upsert({
+                where: { orderId: order.id },
+                create: {
+                    orderId: order.id,
+                    buyerId: order.buyerId,
+                    sellerId: order.sellerId,
+                    closetId: order.closetId,
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                update: {
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                select: { id: true },
+            });
+
+            threadId = thread.id;
+
+            createdMessage = await tx.closetChatMessage.upsert({
+                where: {
+                    threadId_eventType: {
+                        threadId: thread.id,
+                        eventType: ClosetChatMessageEventType.CANCELLATION_REQUESTED,
+                    },
+                },
+                create: {
+                    threadId: thread.id,
+                    senderId,
+                    receiverId,
+                    content,
+                    type: ClosetChatMessageType.SYSTEM,
+                    eventType: ClosetChatMessageEventType.CANCELLATION_REQUESTED,
+                },
+                update: {
+                    senderId,
+                    receiverId,
+                    content,
+                    type: ClosetChatMessageType.SYSTEM,
+                    createdAt: new Date(),
+                },
+            });
+
+            await tx.closetChatThread.update({
+                where: { id: thread.id },
+                data: {
+                    lastMessageAt: createdMessage.createdAt,
+                },
+            });
+        });
+
+        if (createdMessage) {
+            await this.notificationService.sendNotificationToUser(
+                receiverId,
+                'Cancellation Requested',
+                content,
+                {
+                    type: 'closet_chat_message',
+                    threadId,
+                    messageId: createdMessage.id,
+                    senderId,
+                },
+            );
+        }
+
+        return {
+            threadId,
+            message: createdMessage,
+        };
+    }
+
+    async sendCancellationDeclinedMessage(params: {
+        orderId: string;
+        declineReason?: string;
+    }) {
+        const { orderId, declineReason } = params;
+        const order = await this.prisma.order.findUnique({
+            where: { id: orderId },
+            select: {
+                id: true,
+                orderNumber: true,
+                buyerId: true,
+                sellerId: true,
+                closetId: true,
+            },
+        });
+
+        if (!order) return null;
+
+        const senderId = order.sellerId;
+        const receiverId = order.buyerId;
+        const reasonStr = declineReason ? `\nReason: ${declineReason}` : '';
+        const content = `ℹ️ Cancellation request for Order #${order.orderNumber} was declined by Seller.${reasonStr}\nOrder fulfillment will continue.`;
+
+        let threadId = '';
+        let createdMessage: any = null;
+
+        await this.prisma.$transaction(async (tx) => {
+            const thread = await tx.closetChatThread.upsert({
+                where: { orderId: order.id },
+                create: {
+                    orderId: order.id,
+                    buyerId: order.buyerId,
+                    sellerId: order.sellerId,
+                    closetId: order.closetId,
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                update: {
+                    status: ClosetChatThreadStatus.ACTIVE,
+                },
+                select: { id: true },
+            });
+
+            threadId = thread.id;
+
+            createdMessage = await tx.closetChatMessage.upsert({
+                where: {
+                    threadId_eventType: {
+                        threadId: thread.id,
+                        eventType: ClosetChatMessageEventType.CANCELLATION_DECLINED,
+                    },
+                },
+                create: {
+                    threadId: thread.id,
+                    senderId,
+                    receiverId,
+                    content,
+                    type: ClosetChatMessageType.SYSTEM,
+                    eventType: ClosetChatMessageEventType.CANCELLATION_DECLINED,
+                },
+                update: {
+                    senderId,
+                    receiverId,
+                    content,
+                    type: ClosetChatMessageType.SYSTEM,
+                    createdAt: new Date(),
+                },
+            });
+
+            await tx.closetChatThread.update({
+                where: { id: thread.id },
+                data: {
+                    lastMessageAt: createdMessage.createdAt,
+                },
+            });
+        });
+
+        if (createdMessage) {
+            await this.notificationService.sendNotificationToUser(
+                receiverId,
+                'Cancellation Request Declined',
+                content,
+                {
+                    type: 'closet_chat_message',
+                    threadId,
+                    messageId: createdMessage.id,
+                    senderId,
+                },
+            );
+        }
+
+        return {
+            threadId,
+            message: createdMessage,
+        };
+    }
 }
 
