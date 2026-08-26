@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, UnauthorizedException, forwardRef } from '@nestjs/common';
-import { CancellationStatus, CartItemShippingChoice, DisputeStatus, OrderStatus, PaymentStatus, Prisma, TransferStatus } from '@prisma/client';
+import { CancellationStatus, CartItemShippingChoice, DisputeStatus, OrderStatus, PaymentStatus, Prisma, ShippingStatus, TransferStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { MailService } from '../../common/mail/mail.service';
@@ -1112,6 +1112,18 @@ export class OrderService {
 
         if (!order) throw new NotFoundException('Order not found');
         if (order.buyerId !== userId) throw new UnauthorizedException('Unauthorized');
+
+        if (
+            order.orderStatus === OrderStatus.SHIPPED ||
+            order.orderStatus === OrderStatus.DELIVERED ||
+            order.shippingStatus === ShippingStatus.IN_TRANSIT ||
+            order.shippingStatus === ShippingStatus.OUT_FOR_DELIVERY ||
+            order.shippingStatus === ShippingStatus.DELIVERED
+        ) {
+            throw new BadRequestException(
+                'This order has already been shipped/delivered and cannot be cancelled by the buyer.',
+            );
+        }
 
         const cancellableStatuses = new Set<OrderStatus>([
             OrderStatus.PENDING,
