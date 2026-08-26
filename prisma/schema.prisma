@@ -863,6 +863,15 @@ model Order {
   payoutReleasedAt      DateTime?
   disputeStatus         DisputeStatus        @default(NONE)
   disputeReason         String?
+  // Cancellation and Refund tracking
+  cancellationReason    String?
+  cancelledBy           String?              // BUYER | SELLER | ADMIN
+  cancellationRequestedAt DateTime?
+  cancellationAgreedAt  DateTime?
+  refundId              String?
+  refundAmount          Float?
+  refundedAt            DateTime?
+  refundStatus          String?              // NONE | PENDING | REFUNDED | FAILED
   isViewedBySeller      Boolean              @default(false)
   sellerViewedAt        DateTime?
   createdAt             DateTime             @default(now())
@@ -2252,6 +2261,7 @@ enum ClosetChatMessageType {
 
 enum ClosetChatMessageEventType {
   ORDER_PLACED
+  ORDER_CANCELLED
 }
 
 model SearchHistory {

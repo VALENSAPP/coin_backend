@@ -16,7 +16,9 @@ import { ClosetChatService } from '../closet-chat/closet-chat.service';
 import { ShippingService } from '../shipping/shipping.service';
 import { SellerOrderListQueryDto, SellerOrderShippingType } from './dto/seller-order-list-query.dto';
 import { ShipOrderDto } from './dto/ship-order.dto';
+import { SellerCancelOrderDto } from './dto/seller-cancel-order.dto';
 import { OrderPayoutService } from './order-payout.service';
+import { OrderService } from './order.service';
 
 @Injectable()
 export class SellerOrderService {
@@ -26,6 +28,8 @@ export class SellerOrderService {
         private readonly orderPayoutService: OrderPayoutService,
         private readonly mailService: MailService,
         private readonly closetChatService: ClosetChatService,
+        @Inject(forwardRef(() => OrderService))
+        private readonly orderService: OrderService,
         @Inject(forwardRef(() => ShippingService))
         private readonly shippingService: ShippingService,
     ) { }
@@ -672,5 +676,17 @@ export class SellerOrderService {
             protectionEndsAt: payoutSchedule.protectionEndsAt,
             deliverySource: 'MANUAL',
         };
+    }
+
+    async cancelOrderBySeller(userId: string | undefined, orderId: string, dto: SellerCancelOrderDto) {
+        const sellerId = this.assertSellerUserId(userId);
+        const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
+
+        return this.orderService.executeRefundAndCancel({
+            orderId: order.id,
+            cancelledBy: 'SELLER',
+            reason: dto.reason,
+            restock: dto.restock !== false,
+        });
     }
 }
