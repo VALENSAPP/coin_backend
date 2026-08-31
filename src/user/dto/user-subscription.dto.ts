@@ -6,6 +6,11 @@ export enum UserSubscriptionStatus {
   CLOSED = 'CLOSED',
 }
 
+export enum PricingPolicy {
+  REQUIRE_NEW_CONSENT = 'REQUIRE_NEW_CONSENT',
+  GRANDFATHER_EXISTING = 'GRANDFATHER_EXISTING',
+}
+
 export class CreateUserSubscriptionDto {
   @ApiProperty({ description: 'Subscription amount', example: 99.99 })
   @IsNumber()
@@ -15,11 +20,21 @@ export class CreateUserSubscriptionDto {
     description: 'Subscription status',
     enum: UserSubscriptionStatus,
     default: UserSubscriptionStatus.ACTIVE,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(UserSubscriptionStatus)
   status?: UserSubscriptionStatus;
+
+  @ApiProperty({
+    description: 'Pricing policy when updating price (REQUIRE_NEW_CONSENT: stops auto-renew & notifies existing subscribers, GRANDFATHER_EXISTING: old subscribers keep old price)',
+    enum: PricingPolicy,
+    default: PricingPolicy.REQUIRE_NEW_CONSENT,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(PricingPolicy)
+  pricingPolicy?: PricingPolicy;
 
   @ApiProperty({ description: 'Comment for the subscription', example: 'Monthly subscription', required: false })
   @IsOptional()
@@ -36,11 +51,21 @@ export class UpdateUserSubscriptionDto {
   @ApiProperty({
     description: 'Subscription status',
     enum: UserSubscriptionStatus,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(UserSubscriptionStatus)
   status?: UserSubscriptionStatus;
+
+  @ApiProperty({
+    description: 'Pricing policy when updating price: REQUIRE_NEW_CONSENT (stop auto-renew for existing subscribers and email them to renew at new price) or GRANDFATHER_EXISTING (keep old price for current subscribers)',
+    enum: PricingPolicy,
+    default: PricingPolicy.REQUIRE_NEW_CONSENT,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(PricingPolicy)
+  pricingPolicy?: PricingPolicy;
 
   @ApiProperty({ description: 'Comment for the subscription', example: 'Updated monthly subscription', required: false })
   @IsOptional()

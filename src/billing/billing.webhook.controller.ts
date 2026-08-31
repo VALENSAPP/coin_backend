@@ -86,6 +86,8 @@ export class BillingWebhookController {
             const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId);
             await this.marketPlacePaymentService.finalizeMarketplacePayment(paymentIntent);
           }
+        } else if (session.metadata?.type === 'following') {
+          await this.billingService.handleFollowingCheckoutSessionCompleted(session);
         } else if (session.metadata?.type === 'marketplace_battle_boost') {
           const paymentIntentId =
             typeof session.payment_intent === 'string' ? session.payment_intent : null;

@@ -10,6 +10,7 @@ import { MarketplaceBattlesModule } from '../marketPlace/marketplace-battles/mar
 import { PaymentModule } from '../marketPlace/payment/payment.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { PagBankModule } from '../pagbank/pagbank.module';
+import { MailModule } from '../common/mail/mail.module';
 
 @Module({
   imports: [
@@ -20,9 +21,11 @@ import { PagBankModule } from '../pagbank/pagbank.module';
     MarketplaceBattlesModule,
     WalletModule,
     PagBankModule,
+    MailModule,
   ],
   controllers: [BillingController, BillingWebhookController, WithdrawalPagesController],
   providers: [BillingService],
+  exports: [BillingService],
 })
 export class BillingModule { }
 

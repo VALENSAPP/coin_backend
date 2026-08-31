@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, forwardRef, Inject } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { Gender } from './user.controller';
@@ -21,6 +21,8 @@ import { TOTPUtil } from '../common/totp.util';
 import axios from 'axios';
 import { KycService } from '../kyc/kyc.service';
 import { NotificationService } from '../notification/notification.service';
+import { MailService } from '../common/mail/mail.service';
+import Stripe from 'stripe';
 
 // ✅ Use environment variables for Firebase config (more secure)
 // Prevent re-initializing Firebase if already initialized
@@ -68,11 +70,16 @@ export type RegistrationType = 'NORMAL' | 'GOOGLE' | 'TWITTER' | 'WALLET' | 'APP
 
 @Injectable()
 export class UserService {
+  private stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+    apiVersion: '2025-01-27.acacia' as any,
+  });
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly kycService: KycService,
     private readonly notificationService: NotificationService,
+    private readonly mailService: MailService,
   ) { }
 
   async updateFirstLogAfterKyc(userId: string) {
@@ -2710,6 +2717,7 @@ export class UserService {
         userId,
         subscriptionAmount: dto.subscriptionAmount,
         status: dto.status || 'ACTIVE',
+        pricingPolicy: dto.pricingPolicy || 'REQUIRE_NEW_CONSENT',
         comment: dto.comment,
         isDelete: dto.isDelete || 0,
       },
@@ -2759,20 +2767,165 @@ export class UserService {
   async updateUserSubscription(id: string, dto: any) {
     const subscription = await this.prisma.userSubscription.findUnique({
       where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            email: true,
+          },
+        },
+      },
     });
 
     if (!subscription) throw new BadRequestException('User subscription not found');
 
-    return this.prisma.userSubscription.update({
+    const oldAmount = subscription.subscriptionAmount;
+    const newAmount = dto.subscriptionAmount !== undefined ? Number(dto.subscriptionAmount) : oldAmount;
+    const pricingPolicy = dto.pricingPolicy || (subscription as any).pricingPolicy || 'REQUIRE_NEW_CONSENT';
+    const isPriceChanged = dto.subscriptionAmount !== undefined && newAmount !== oldAmount;
+
+    const updated = await this.prisma.userSubscription.update({
       where: { id },
       data: {
-        subscriptionAmount: dto.subscriptionAmount,
-        status: dto.status,
-        comment: dto.comment,
-        isDelete: dto.isDelete,
+        subscriptionAmount: newAmount,
+        status: dto.status !== undefined ? dto.status : subscription.status,
+        pricingPolicy: pricingPolicy,
+        comment: dto.comment !== undefined ? dto.comment : subscription.comment,
+        isDelete: dto.isDelete !== undefined ? dto.isDelete : subscription.isDelete,
         updatedAt: new Date(),
       },
     });
+
+    // If the creator changed the price and chose REQUIRE_NEW_CONSENT (Option 1):
+    if (isPriceChanged && pricingPolicy === 'REQUIRE_NEW_CONSENT') {
+      await this.handleSubscriptionPriceIncreaseNotificationAndCancellation({
+        creatorId: subscription.userId,
+        creatorName: subscription.user?.displayName || subscription.user?.userName || 'Creator',
+        oldPrice: oldAmount,
+        newPrice: newAmount,
+      });
+    }
+
+    return updated;
+  }
+
+  private async handleSubscriptionPriceIncreaseNotificationAndCancellation(params: {
+    creatorId: string;
+    creatorName: string;
+    oldPrice: number;
+    newPrice: number;
+  }) {
+    const { creatorId, creatorName, oldPrice, newPrice } = params;
+
+    // 1. Cancel Stripe recurring auto-renewals at period end so users are not auto-charged the new price
+    try {
+      const activeStripeSubs = await this.prisma.fansSubscriptionBuyData.findMany({
+        where: {
+          buyUserId: creatorId,
+          status: 'ACTIVE',
+          stripeSubscriptionId: { not: null },
+          cancelAtPeriodEnd: false,
+        },
+      });
+
+      for (const sub of activeStripeSubs) {
+        if (sub.stripeSubscriptionId) {
+          try {
+            await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
+              cancel_at_period_end: true,
+            });
+            await this.prisma.fansSubscriptionBuyData.update({
+              where: { id: sub.id },
+              data: {
+                cancelAtPeriodEnd: true,
+                autoRenew: false,
+              },
+            });
+          } catch (err: any) {
+            console.error(`[UserService] Failed to cancel auto-renew for subscription ${sub.id}:`, err?.message || err);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(`[UserService] Error querying active subscriptions to cancel auto-renewals for creator ${creatorId}:`, err?.message || err);
+    }
+
+    // 2. Fetch active subscribers for creator to notify them via push & email
+    const activeSubscriptions = await this.prisma.fansSubscriptionBuyData.findMany({
+      where: {
+        buyUserId: creatorId,
+        status: 'ACTIVE',
+        endDate: { gt: new Date() },
+      },
+      include: {
+        fanUser: {
+          select: {
+            id: true,
+            email: true,
+            displayName: true,
+            userName: true,
+          },
+        },
+      },
+    });
+
+    const logoUrl = process.env.APP_LOGO_URL || 'https://valens.com/logo.png';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://valens.com';
+    const renewUrl = `${frontendUrl}/user/${creatorId}?renew=true`;
+
+    for (const sub of activeSubscriptions) {
+      const fan = sub.fanUser;
+      if (!fan) continue;
+
+      const formattedPeriodEnd = sub.endDate
+        ? new Date(sub.endDate).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          })
+        : 'the end of your billing cycle';
+
+      // Send in-app notification
+      try {
+        await this.notificationService.sendNotificationToUser(
+          fan.id,
+          'Subscription Price Updated',
+          `${creatorName} updated their monthly subscription price to $${newPrice}. Your auto-renewal has been paused.`,
+          {
+            type: 'subscription_price_changed',
+            creatorId,
+            oldPrice: oldPrice.toString(),
+            newPrice: newPrice.toString(),
+          },
+        );
+      } catch (err: any) {
+        console.error(`[UserService] Failed to send in-app notification to fan ${fan.id}:`, err?.message || err);
+      }
+
+      // Send email notification via SendGrid template if email is present
+      if (fan.email) {
+        try {
+          await this.mailService.sendTemplateEmail({
+            to: fan.email,
+            subject: `Important update regarding your subscription to ${creatorName}`,
+            templateFile: 'subscription-price-changed.html',
+            replacements: {
+              subscriberName: fan.displayName || fan.userName || 'Subscriber',
+              creatorName,
+              oldPrice: oldPrice.toFixed(2),
+              newPrice: newPrice.toFixed(2),
+              periodEndDate: formattedPeriodEnd,
+              logoUrl,
+              renewUrl,
+            },
+          });
+        } catch (err: any) {
+          console.error(`[UserService] Failed to send price change email to ${fan.email}:`, err?.message || err);
+        }
+      }
+    }
   }
 
   async deleteUserSubscription(id: string) {

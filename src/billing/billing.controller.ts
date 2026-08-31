@@ -69,7 +69,7 @@ export class BillingController {
   @Post('pay-following')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create Stripe Checkout Session for one-time following payment' })
+  @ApiOperation({ summary: 'Create Stripe Checkout Session for recurring or one-time creator following subscription' })
   @ApiBody({ type: PayFollowingDto })
   async createOneTimePayment(@Req() req: Request, @Body() dto: PayFollowingDto) {
     const payerUserId = (req.user as any).userId;
@@ -80,6 +80,7 @@ export class BillingController {
       payerUserId,
       dto.contentUserId,
       dto.amount,
+      dto.isAutoRenew !== false,
     );
     return { url: session.url };
   }

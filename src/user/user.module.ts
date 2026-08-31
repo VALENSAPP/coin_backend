@@ -5,6 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { KycModule } from '../kyc/kyc.module';
 import { NotificationModule } from '../notification/notification.module';
+import { MailModule } from '../common/mail/mail.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { NotificationModule } from '../notification/notification.module';
     }),
     KycModule,
     NotificationModule,
+    MailModule,
   ],
   controllers: [UserController],
   providers: [UserService],

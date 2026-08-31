@@ -1262,6 +1262,7 @@ model UserSubscription {
   userId             String
   subscriptionAmount Float
   status             UserSubscriptionStatus @default(ACTIVE)
+  pricingPolicy      String                 @default("REQUIRE_NEW_CONSENT") // REQUIRE_NEW_CONSENT | GRANDFATHER_EXISTING
   comment            String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
@@ -1273,20 +1274,26 @@ model UserSubscription {
 }
 
 model FansSubscriptionBuyData {
-  id        String                 @id @default(uuid())
-  fanUserId String
-  buyUserId String
-  startDate DateTime
-  endDate   DateTime
-  createdAt DateTime               @default(now())
-  updatedAt DateTime               @updatedAt
-  status    FansSubscriptionStatus @default(ACTIVE)
-  fanUser   User                   @relation("Fan", fields: [fanUserId], references: [id])
-  buyUser   User                   @relation("Buy", fields: [buyUserId], references: [id])
+  id                   String                 @id @default(uuid())
+  fanUserId            String
+  buyUserId            String
+  startDate            DateTime
+  endDate              DateTime
+  priceAtSubscription  Float?
+  stripeSubscriptionId String?
+  autoRenew            Boolean                @default(true)
+  cancelAtPeriodEnd    Boolean                @default(false)
+  paymentProvider      String                 @default("STRIPE") // STRIPE | PAGBANK
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  status               FansSubscriptionStatus @default(ACTIVE)
+  fanUser              User                   @relation("Fan", fields: [fanUserId], references: [id])
+  buyUser              User                   @relation("Buy", fields: [buyUserId], references: [id])
 
   @@index([fanUserId])
   @@index([buyUserId])
   @@index([status])
+  @@index([stripeSubscriptionId])
 }
 
 model LoginHistory {

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsPositive, IsString, IsUUID, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min } from 'class-validator';
 
 export class PayFollowingDto {
   @ApiProperty({
@@ -18,4 +18,14 @@ export class PayFollowingDto {
   @IsString()
   @IsUUID()
   contentUserId: string;
+
+  @ApiProperty({
+    description: 'Whether to set up automatic monthly recurring auto-pay (defaults to true for Stripe subscriptions)',
+    example: true,
+    required: false,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isAutoRenew?: boolean;
 }

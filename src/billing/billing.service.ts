@@ -430,6 +430,7 @@ export class BillingService {
     payerUserId: string,
     contentUserId: string,
     amount: number,
+    isAutoRenew: boolean = true,
   ) {
     await this.ensureUserExists(contentUserId);
 
@@ -452,6 +453,64 @@ export class BillingService {
       receiverAmount,
       totalAmount,
     } = this.getPayFollowingAmountSplit(amountCents);
+
+    const contentUser = await this.prisma.user.findUnique({
+      where: { id: contentUserId },
+      select: { displayName: true, userName: true },
+    });
+    const creatorName = contentUser?.displayName || contentUser?.userName || 'Creator';
+
+    if (isAutoRenew) {
+      const session = await this.stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: customerId,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `Monthly Subscription to ${creatorName}`,
+              },
+              unit_amount: amountCents,
+              recurring: {
+                interval: 'month',
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        subscription_data: {
+          metadata: {
+            payerUserId,
+            contentUserId,
+            type: 'following',
+            isAutoRenew: 'true',
+            amount: amount.toString(),
+            totalAmount: totalAmount.toString(),
+            platformFee: platformFee.toString(),
+            platformFeeCents: applicationFeeCents.toString(),
+            receiverAmount: receiverAmount.toString(),
+            receiverAmountCents: receiverAmountCents.toString(),
+          },
+        },
+        metadata: {
+          payerUserId,
+          contentUserId,
+          type: 'following',
+          isAutoRenew: 'true',
+          amount: amount.toString(),
+          totalAmount: totalAmount.toString(),
+          platformFee: platformFee.toString(),
+          platformFeeCents: applicationFeeCents.toString(),
+          receiverAmount: receiverAmount.toString(),
+          receiverAmountCents: receiverAmountCents.toString(),
+        },
+      });
+      return session;
+    }
+
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
@@ -462,7 +521,7 @@ export class BillingService {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: 'Following Payment',
+              name: `Following Payment to ${creatorName}`,
             },
             unit_amount: amountCents,
           },
@@ -474,6 +533,7 @@ export class BillingService {
           payerUserId,
           contentUserId,
           type: 'following',
+          isAutoRenew: 'false',
           amount: amount.toString(),
           totalAmount: totalAmount.toString(),
           platformFee: platformFee.toString(),
@@ -486,6 +546,7 @@ export class BillingService {
         payerUserId,
         contentUserId,
         type: 'following',
+        isAutoRenew: 'false',
         amount: amount.toString(),
         totalAmount: totalAmount.toString(),
         platformFee: platformFee.toString(),
@@ -495,6 +556,39 @@ export class BillingService {
       },
     });
     return session;
+  }
+
+  async cancelSubscriberAutoRenewals(creatorUserId: string): Promise<number> {
+    const activeSubscriptions = await this.prisma.fansSubscriptionBuyData.findMany({
+      where: {
+        buyUserId: creatorUserId,
+        status: 'ACTIVE',
+        stripeSubscriptionId: { not: null },
+        cancelAtPeriodEnd: false,
+      },
+    });
+
+    let cancelledCount = 0;
+    for (const sub of activeSubscriptions) {
+      if (sub.stripeSubscriptionId) {
+        try {
+          await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
+            cancel_at_period_end: true,
+          });
+          await this.prisma.fansSubscriptionBuyData.update({
+            where: { id: sub.id },
+            data: {
+              cancelAtPeriodEnd: true,
+              autoRenew: false,
+            },
+          });
+          cancelledCount++;
+        } catch (err: any) {
+          console.error(`[BillingService] Failed to cancel auto-renew for subscription ${sub.id}:`, err?.message || err);
+        }
+      }
+    }
+    return cancelledCount;
   }
 
   async createTipCheckoutSession(
@@ -1070,18 +1164,171 @@ export class BillingService {
   }
 
   // Webhook handlers
+  async handleFollowingCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+    const payerUserId = session.metadata?.payerUserId;
+    const contentUserId = session.metadata?.contentUserId;
+    const subscriptionId = typeof session.subscription === 'string' ? session.subscription : (session.subscription as any)?.id;
+    const isAutoRenew = session.metadata?.isAutoRenew !== 'false';
+    const amount = Number(session.metadata?.amount) || (session.amount_total ? session.amount_total / 100 : 0);
+
+    if (payerUserId && contentUserId) {
+      const startDate = new Date();
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+
+      const existing = await this.prisma.fansSubscriptionBuyData.findFirst({
+        where: {
+          fanUserId: payerUserId,
+          buyUserId: contentUserId,
+        },
+      });
+
+      if (existing) {
+        await this.prisma.fansSubscriptionBuyData.update({
+          where: { id: existing.id },
+          data: {
+            startDate,
+            endDate,
+            status: 'ACTIVE',
+            priceAtSubscription: amount,
+            stripeSubscriptionId: subscriptionId || existing.stripeSubscriptionId,
+            autoRenew: isAutoRenew,
+            cancelAtPeriodEnd: false,
+          },
+        });
+      } else {
+        await this.prisma.fansSubscriptionBuyData.create({
+          data: {
+            fanUserId: payerUserId,
+            buyUserId: contentUserId,
+            startDate,
+            endDate,
+            status: 'ACTIVE',
+            priceAtSubscription: amount,
+            stripeSubscriptionId: subscriptionId || null,
+            autoRenew: isAutoRenew,
+            cancelAtPeriodEnd: false,
+            paymentProvider: 'STRIPE',
+          },
+        });
+      }
+    }
+  }
+
   async handleInvoicePaid(invoice: Stripe.Invoice) {
     const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
     if (!customerId) return;
     const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
     if (!user) return;
-    const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+    const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : (invoice.subscription as any)?.id;
     const amount = invoice.amount_paid ?? 0;
     const currency = invoice.currency?.toUpperCase() ?? 'USD';
     const periodStart = invoice.lines.data[0]?.period?.start
       ? new Date(invoice.lines.data[0].period.start * 1000)
       : undefined;
     const periodEnd = invoice.lines.data[0]?.period?.end ? new Date(invoice.lines.data[0].period.end * 1000) : undefined;
+
+    // Check if this invoice is for a creator following subscription
+    let type = invoice.lines.data[0]?.metadata?.type || (invoice as any).subscription_details?.metadata?.type;
+    let contentUserId = invoice.lines.data[0]?.metadata?.contentUserId || (invoice as any).subscription_details?.metadata?.contentUserId;
+
+    if (!type && subscriptionId) {
+      const existingFanSub = await this.prisma.fansSubscriptionBuyData.findFirst({
+        where: { stripeSubscriptionId: subscriptionId },
+      });
+      if (existingFanSub) {
+        type = 'following';
+        contentUserId = existingFanSub.buyUserId;
+      } else {
+        try {
+          const stripeSub = await this.stripe.subscriptions.retrieve(subscriptionId);
+          type = stripeSub.metadata?.type;
+          contentUserId = stripeSub.metadata?.contentUserId;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    if (type === 'following' && contentUserId) {
+      const {
+        totalAmount,
+        platformFee,
+        receiverAmount,
+        receiverAmountCents,
+      } = this.getPayFollowingAmountSplit(amount);
+
+      const periodStartDate = periodStart || new Date();
+      const periodEndDate = periodEnd || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      const payment = await this.prisma.payment.create({
+        data: {
+          user: { connect: { id: user.id } },
+          receiver: { connect: { id: contentUserId } },
+          amount: receiverAmount,
+          platformFee,
+          totalAmount,
+          currency,
+          status: 'succeeded',
+          forPayment: 'following',
+          stripeInvoiceId: invoice.id,
+          stripePaymentIntentId: typeof invoice.payment_intent === 'string' ? invoice.payment_intent : (invoice.payment_intent as any)?.id,
+          periodStart: periodStartDate,
+          periodEnd: periodEndDate,
+        },
+      });
+
+      const existingFanSub = await this.prisma.fansSubscriptionBuyData.findFirst({
+        where: {
+          OR: [
+            { stripeSubscriptionId: subscriptionId },
+            { fanUserId: user.id, buyUserId: contentUserId },
+          ],
+        },
+      });
+
+      if (existingFanSub) {
+        await this.prisma.fansSubscriptionBuyData.update({
+          where: { id: existingFanSub.id },
+          data: {
+            stripeSubscriptionId: subscriptionId || existingFanSub.stripeSubscriptionId,
+            startDate: periodStartDate,
+            endDate: periodEndDate,
+            status: 'ACTIVE',
+            priceAtSubscription: totalAmount,
+            autoRenew: true,
+            cancelAtPeriodEnd: false,
+          },
+        });
+      } else {
+        await this.prisma.fansSubscriptionBuyData.create({
+          data: {
+            fanUserId: user.id,
+            buyUserId: contentUserId,
+            stripeSubscriptionId: subscriptionId || null,
+            startDate: periodStartDate,
+            endDate: periodEndDate,
+            status: 'ACTIVE',
+            priceAtSubscription: totalAmount,
+            autoRenew: true,
+            cancelAtPeriodEnd: false,
+            paymentProvider: 'STRIPE',
+          },
+        });
+      }
+
+      await this.creditSellerAvailableWallet({
+        sellerUserId: contentUserId,
+        amountMinor: receiverAmountCents,
+        source: 'FOLLOWING',
+        refId: invoice.id,
+        currency: invoice.currency || 'usd',
+        note: `Pay-following subscription payment ${payment.id}`,
+      });
+      return;
+    }
+
+    // Default: Platform subscription
     await this.prisma.payment.create({
       data: {
         userId: user.id,
@@ -1090,7 +1337,7 @@ export class BillingService {
         status: 'succeeded',
         forPayment: 'subscription',
         stripeInvoiceId: invoice.id,
-        stripePaymentIntentId: typeof invoice.payment_intent === 'string' ? invoice.payment_intent : invoice.payment_intent?.id,
+        stripePaymentIntentId: typeof invoice.payment_intent === 'string' ? invoice.payment_intent : (invoice.payment_intent as any)?.id,
         periodStart,
         periodEnd,
       },
@@ -1150,6 +1397,22 @@ export class BillingService {
 
   async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+    
+    // Check if this was a following subscription
+    const fanSub = await this.prisma.fansSubscriptionBuyData.findFirst({
+      where: { stripeSubscriptionId: subscription.id },
+    });
+    if (fanSub) {
+      await this.prisma.fansSubscriptionBuyData.update({
+        where: { id: fanSub.id },
+        data: {
+          status: 'STOP',
+          autoRenew: false,
+        },
+      });
+      return;
+    }
+
     if (!customerId) return;
     const user = await this.prisma.user.findFirst({ where: { stripeCustomerId: customerId } });
     if (!user) return;
@@ -1218,6 +1481,39 @@ export class BillingService {
     });
 
     if (contentUserId) {
+      const existing = await this.prisma.fansSubscriptionBuyData.findFirst({
+        where: {
+          fanUserId: user.id,
+          buyUserId: contentUserId,
+        },
+      });
+
+      if (existing) {
+        await this.prisma.fansSubscriptionBuyData.update({
+          where: { id: existing.id },
+          data: {
+            startDate: periodStart,
+            endDate: periodEnd,
+            status: 'ACTIVE',
+            priceAtSubscription: totalAmount,
+            autoRenew: false,
+          },
+        });
+      } else {
+        await this.prisma.fansSubscriptionBuyData.create({
+          data: {
+            fanUserId: user.id,
+            buyUserId: contentUserId,
+            startDate: periodStart,
+            endDate: periodEnd,
+            status: 'ACTIVE',
+            priceAtSubscription: totalAmount,
+            autoRenew: false,
+            paymentProvider: 'STRIPE',
+          },
+        });
+      }
+
       const receiverAmountCents =
         Number(paymentIntent.metadata?.receiverAmountCents) ||
         Math.round(receiverAmount * 100);
