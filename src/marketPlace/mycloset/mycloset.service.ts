@@ -269,35 +269,30 @@ export class MyclosetService {
 
     // Do not count owner visiting own closet.
     if (closet.userId === viewerId) {
-      const uniqueViewers = await this.prisma.closetView.count({ where: { closetId } });
+      const views = await this.prisma.closetView.count({ where: { closetId } });
       return {
         tracked: false,
         reason: 'SELF_VIEW_IGNORED',
         closetId,
-        uniqueViewers,
+        views,
+        uniqueViewers: views,
       };
     }
 
-    await this.prisma.closetView.upsert({
-      where: {
-        closetId_viewerId: {
-          closetId,
-          viewerId,
-        },
-      },
-      update: {},
-      create: {
+    await this.prisma.closetView.create({
+      data: {
         closetId,
         viewerId,
       },
     });
 
-    const uniqueViewers = await this.prisma.closetView.count({ where: { closetId } });
+    const views = await this.prisma.closetView.count({ where: { closetId } });
 
     return {
       tracked: true,
       closetId,
-      uniqueViewers,
+      views,
+      uniqueViewers: views,
     };
   }
 
@@ -310,10 +305,11 @@ export class MyclosetService {
     });
     if (!closet) throw new NotFoundException('Mycloset not found');
 
-    const uniqueViewers = await this.prisma.closetView.count({ where: { closetId } });
+    const views = await this.prisma.closetView.count({ where: { closetId } });
     return {
       closetId,
-      uniqueViewers,
+      views,
+      uniqueViewers: views,
     };
   }
 
@@ -326,10 +322,11 @@ export class MyclosetService {
     });
     if (!closet) throw new NotFoundException('Mycloset not found');
 
-    const uniqueViewers = await this.prisma.closetView.count({ where: { closetId: closet.id } });
+    const views = await this.prisma.closetView.count({ where: { closetId: closet.id } });
     return {
       closetId: closet.id,
-      uniqueViewers,
+      views,
+      uniqueViewers: views,
     };
   }
 

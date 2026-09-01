@@ -150,7 +150,7 @@ export class MyclosetController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiParam({ name: 'closetId', type: 'string' })
-  @ApiOperation({ summary: 'Track unique view for a closet by authenticated viewer' })
+  @ApiOperation({ summary: 'Track view for a closet by authenticated viewer' })
   async trackClosetView(@Req() req: Request, @Param('closetId') closetId: string) {
     const viewerId = (req.user as any)?.userId;
     return this.myclosetService.trackClosetView(viewerId, closetId);
@@ -159,7 +159,7 @@ export class MyclosetController {
   @Get('me/views/unique')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get unique viewer count for authenticated seller closet' })
+  @ApiOperation({ summary: 'Get view count for authenticated seller closet' })
   async getMyUniqueViews(@Req() req: Request) {
     const userId = (req.user as any)?.userId;
     return this.myclosetService.getMyClosetUniqueViewCount(userId);
@@ -169,7 +169,7 @@ export class MyclosetController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiParam({ name: 'closetId', type: 'string' })
-  @ApiOperation({ summary: 'Get unique viewer count for a closet' })
+  @ApiOperation({ summary: 'Get view count for a closet' })
   async getUniqueViewsByClosetId(@Param('closetId') closetId: string) {
     return this.myclosetService.getClosetUniqueViewCount(closetId);
   }

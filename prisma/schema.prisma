@@ -212,7 +212,6 @@ model ClosetView {
   closet    Mycloset @relation(fields: [closetId], references: [id], onDelete: Cascade)
   viewer    User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
 
-  @@unique([closetId, viewerId])
   @@index([closetId])
   @@index([viewerId])
 }
