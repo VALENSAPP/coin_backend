@@ -85,7 +85,14 @@ export class OrderService {
 
         let createdOrderIds: string[] = [];
         let createdNewOrders = false;
-        const orderNotifications: Array<{ sellerId: string; orderId: string; orderNumber: string }> = [];
+        const orderNotifications: Array<{
+            sellerId: string;
+            orderId: string;
+            orderNumber: string;
+            image?: string;
+            productName?: string;
+            price?: string;
+        }> = [];
 
         await this.prisma.$transaction(async (tx) => {
             const existingOrders = await tx.order.findMany({
@@ -248,6 +255,9 @@ export class OrderService {
                     sellerId: item.sellerId,
                     orderId: order.id,
                     orderNumber: order.orderNumber,
+                    image: item.productImage || '',
+                    productName: item.productName || '',
+                    price: String(this.toMajor(totalMinor)),
                 });
 
                 if (sellerAmountMinor > 0) {
@@ -323,6 +333,13 @@ export class OrderService {
         }
 
         if (createdNewOrders) {
+            const buyer = await this.prisma.user.findUnique({
+                where: { id: buyerId },
+                select: { id: true, userName: true, displayName: true, image: true },
+            });
+            const buyerName = buyer?.displayName || buyer?.userName || 'Buyer';
+            const buyerAvatar = buyer?.image || '';
+
             for (const orderNotification of orderNotifications) {
                 // Send notification to seller
                 await this.notificationService.sendNotificationToUser(
@@ -338,6 +355,17 @@ export class OrderService {
                             (typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : ''),
                         orderId: orderNotification.orderId,
                         orderNumber: orderNotification.orderNumber,
+                        image: orderNotification.image || '',
+                        productImage: orderNotification.image || '',
+                        name: orderNotification.productName || '',
+                        productName: orderNotification.productName || '',
+                        itemName: orderNotification.productName || '',
+                        price: orderNotification.price || '',
+                        total: orderNotification.price || '',
+                        avatar: buyerAvatar,
+                        buyerAvatar,
+                        buyerImage: buyerAvatar,
+                        buyerName,
                     },
                 );
 
@@ -355,6 +383,13 @@ export class OrderService {
                             (typeof paymentIntent.latest_charge === 'string' ? paymentIntent.latest_charge : ''),
                         orderId: orderNotification.orderId,
                         orderNumber: orderNotification.orderNumber,
+                        image: orderNotification.image || '',
+                        productImage: orderNotification.image || '',
+                        name: orderNotification.productName || '',
+                        productName: orderNotification.productName || '',
+                        itemName: orderNotification.productName || '',
+                        price: orderNotification.price || '',
+                        total: orderNotification.price || '',
                     },
                 );
 
@@ -904,10 +939,11 @@ export class OrderService {
                         email: true,
                         displayName: true,
                         userName: true,
+                        image: true,
                         companyProfile: { select: { email: true } },
                     },
                 },
-                buyer: { select: { id: true, email: true, displayName: true, userName: true } },
+                buyer: { select: { id: true, email: true, displayName: true, userName: true, image: true } },
             },
         });
 
@@ -1072,6 +1108,16 @@ export class OrderService {
         // 7. Push / in-app notifications
         const notificationTarget = cancelledBy === 'BUYER' ? order.sellerId : order.buyerId;
         const whoStr = cancelledBy === 'BUYER' ? 'A buyer' : 'The seller';
+        const firstItem = order.items?.[0];
+        const itemImage = firstItem?.productImage || '';
+        const itemName = firstItem?.productName || '';
+        const totalPrice = String(order.total ?? 0);
+        const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
+        const actorAvatar = cancelledBy === 'BUYER' ? (order.buyer?.image || '') : (order.seller?.image || '');
+        const actorName = cancelledBy === 'BUYER'
+            ? (order.buyer?.displayName || order.buyer?.userName || 'Buyer')
+            : (order.seller?.displayName || order.seller?.userName || 'Seller');
+
         await this.notificationService.sendNotificationToUser(
             notificationTarget,
             'Order Cancelled',
@@ -1081,6 +1127,18 @@ export class OrderService {
                 orderId: order.id,
                 orderNumber: order.orderNumber,
                 cancelledBy,
+                reason: reason || `Cancelled by ${cancelledBy.toLowerCase()}`,
+                image: itemImage,
+                productImage: itemImage,
+                name: itemName || actorName,
+                productName: itemName,
+                itemName: itemName,
+                price: totalPrice,
+                total: totalPrice,
+                itemPrice: itemPrice,
+                avatar: actorAvatar,
+                buyerName: order.buyer?.displayName || order.buyer?.userName || '',
+                sellerName: order.seller?.displayName || order.seller?.userName || '',
             },
         );
 
@@ -1106,7 +1164,18 @@ export class OrderService {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
-                seller: { select: { id: true, userName: true, displayName: true } },
+                seller: { select: { id: true, userName: true, displayName: true, image: true } },
+                buyer: { select: { id: true, userName: true, displayName: true, image: true } },
+                items: {
+                    select: {
+                        id: true,
+                        productName: true,
+                        productImage: true,
+                        price: true,
+                        quantity: true,
+                        subtotal: true,
+                    },
+                },
             },
         });
 
@@ -1179,6 +1248,14 @@ export class OrderService {
             console.error('Failed to post cancellation request message to closet chat:', chatErr);
         }
 
+        const firstItem = order.items?.[0];
+        const buyerName = order.buyer?.displayName || order.buyer?.userName || 'Buyer';
+        const buyerAvatar = order.buyer?.image || '';
+        const itemImage = firstItem?.productImage || '';
+        const itemName = firstItem?.productName || '';
+        const totalPrice = String(order.total ?? 0);
+        const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
+
         // Send in-app notification to seller
         await this.notificationService.sendNotificationToUser(
             order.sellerId,
@@ -1190,6 +1267,20 @@ export class OrderService {
                 orderNumber: order.orderNumber,
                 cancelledBy: 'BUYER',
                 reason: reason || 'Cancelled by buyer',
+                image: itemImage,
+                productImage: itemImage,
+                name: itemName || buyerName,
+                productName: itemName,
+                itemName: itemName,
+                price: totalPrice,
+                total: totalPrice,
+                itemPrice: itemPrice,
+                avatar: buyerAvatar,
+                buyerAvatar: buyerAvatar,
+                buyerImage: buyerAvatar,
+                buyerName: buyerName,
+                buyerUserName: order.buyer?.userName || '',
+                buyerDisplayName: order.buyer?.displayName || '',
             },
         );
 

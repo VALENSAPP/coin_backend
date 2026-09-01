@@ -44,7 +44,7 @@ export class SellerOrderService {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
-                seller: { select: { id: true, userName: true, displayName: true, email: true } },
+                seller: { select: { id: true, userName: true, displayName: true, email: true, image: true } },
                 buyer: { select: { id: true, userName: true, displayName: true, email: true, image: true } },
                 address: true,
                 payment: true,
@@ -493,6 +493,13 @@ export class SellerOrderService {
 
         const sellerUsername = (order as any).seller?.userName || (order as any).seller?.displayName || 'Seller';
 
+        const firstItem = order.items?.[0];
+        const itemImage = firstItem?.productImage || firstItem?.product?.images?.[0] || '';
+        const itemName = firstItem?.productName || firstItem?.product?.name || '';
+        const totalPrice = String(order.total ?? 0);
+        const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
+        const sellerAvatar = order.seller?.image || '';
+
         if (isLocalPickupOrder) {
             // 1. Send closet chat message from seller side to buyer
             try {
@@ -514,6 +521,17 @@ export class SellerOrderService {
                     orderId: updatedOrder.id,
                     orderNumber: updatedOrder.orderNumber,
                     shippingType: 'local_pickup',
+                    image: itemImage,
+                    productImage: itemImage,
+                    name: itemName,
+                    productName: itemName,
+                    itemName: itemName,
+                    price: totalPrice,
+                    total: totalPrice,
+                    itemPrice: itemPrice,
+                    avatar: sellerAvatar,
+                    sellerAvatar: sellerAvatar,
+                    sellerName: sellerUsername,
                 },
             );
         } else {
@@ -537,6 +555,17 @@ export class SellerOrderService {
                     orderId: updatedOrder.id,
                     orderNumber: updatedOrder.orderNumber,
                     shippingType: 'ship_items',
+                    image: itemImage,
+                    productImage: itemImage,
+                    name: itemName,
+                    productName: itemName,
+                    itemName: itemName,
+                    price: totalPrice,
+                    total: totalPrice,
+                    itemPrice: itemPrice,
+                    avatar: sellerAvatar,
+                    sellerAvatar: sellerAvatar,
+                    sellerName: sellerUsername,
                 },
             );
         }
@@ -606,6 +635,14 @@ export class SellerOrderService {
             },
         });
 
+        const firstItem = order.items?.[0];
+        const itemImage = firstItem?.productImage || firstItem?.product?.images?.[0] || '';
+        const itemName = firstItem?.productName || firstItem?.product?.name || '';
+        const totalPrice = String(order.total ?? 0);
+        const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
+        const sellerAvatar = order.seller?.image || '';
+        const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
+
         await this.notificationService.sendNotificationToUser(
             updatedOrder.buyerId,
             'Order Shipped',
@@ -619,6 +656,17 @@ export class SellerOrderService {
                 carrier: updatedOrder.shippingCarrier || carrier,
                 trackingNumber: updatedOrder.trackingNumber || trackingNumber,
                 shippingProvider: updatedOrder.shippingProvider || shippingProvider,
+                image: itemImage,
+                productImage: itemImage,
+                name: itemName,
+                productName: itemName,
+                itemName: itemName,
+                price: totalPrice,
+                total: totalPrice,
+                itemPrice: itemPrice,
+                avatar: sellerAvatar,
+                sellerAvatar: sellerAvatar,
+                sellerName: sellerName,
             },
         );
         console.log('Notification sent to buyer for order shipped:', updatedOrder.trackingNumber || trackingNumber);
@@ -679,6 +727,14 @@ export class SellerOrderService {
                 ? payoutSchedule.protectionEndsAt.toISOString()
                 : payoutSchedule.protectionEndsAt || undefined;
 
+        const firstItem = order.items?.[0];
+        const itemImage = firstItem?.productImage || firstItem?.product?.images?.[0] || '';
+        const itemName = firstItem?.productName || firstItem?.product?.name || '';
+        const totalPrice = String(order.total ?? 0);
+        const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
+        const sellerAvatar = order.seller?.image || '';
+        const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
+
         await this.notificationService.sendNotificationToUser(
             updatedOrder.buyerId,
             'Order Delivered',
@@ -690,6 +746,17 @@ export class SellerOrderService {
                 orderId: updatedOrder.id,
                 orderNumber: updatedOrder.orderNumber,
                 ...(protectionEndsAtIso ? { protectionEndsAt: protectionEndsAtIso } : {}),
+                image: itemImage,
+                productImage: itemImage,
+                name: itemName,
+                productName: itemName,
+                itemName: itemName,
+                price: totalPrice,
+                total: totalPrice,
+                itemPrice: itemPrice,
+                avatar: sellerAvatar,
+                sellerAvatar: sellerAvatar,
+                sellerName: sellerName,
             },
         );
 
@@ -765,6 +832,14 @@ export class SellerOrderService {
             console.error('Failed to post cancellation declined message to closet chat:', chatErr);
         }
 
+        const firstItem = order.items?.[0];
+        const itemImage = firstItem?.productImage || firstItem?.product?.images?.[0] || '';
+        const itemName = firstItem?.productName || firstItem?.product?.name || '';
+        const totalPrice = String(order.total ?? 0);
+        const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
+        const sellerAvatar = order.seller?.image || '';
+        const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
+
         // Send push notification to buyer
         await this.notificationService.sendNotificationToUser(
             order.buyerId,
@@ -775,6 +850,17 @@ export class SellerOrderService {
                 orderId: order.id,
                 orderNumber: order.orderNumber,
                 declineReason: dto.declineReason,
+                image: itemImage,
+                productImage: itemImage,
+                name: itemName || sellerName,
+                productName: itemName,
+                itemName: itemName,
+                price: totalPrice,
+                total: totalPrice,
+                itemPrice: itemPrice,
+                avatar: sellerAvatar,
+                sellerAvatar: sellerAvatar,
+                sellerName: sellerName,
             },
         );
 
