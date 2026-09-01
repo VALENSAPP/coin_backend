@@ -22,7 +22,7 @@ export class DashboardController {
     }
 
     @Get('marketPlaceOverview')
-    @ApiOperation({ summary: 'Get marketplace overview (views, likes, orders, revenue) by range' })
+    @ApiOperation({ summary: 'Get marketplace overview (views, likes, orders, cancelled orders, revenue) by range' })
     @ApiQuery({
         name: 'range',
         required: false,

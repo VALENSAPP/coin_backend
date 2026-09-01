@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import { PaymentStatus, Prisma } from '@prisma/client';
+import { OrderStatus, PaymentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardItemsQueryDto } from './dto/dashboard-items-query.dto';
 import { MarketPlaceOverviewFilterDto, MarketPlaceOverviewRange } from './dto/marketplace-overview-filter.dto';
@@ -210,10 +210,12 @@ export class DashboardService {
             viewsCount,
             likesCount,
             ordersCount,
+            cancelledOrdersCount,
             revenueAgg,
             previousViewsCount,
             previousLikesCount,
             previousOrdersCount,
+            previousCancelledOrdersCount,
             previousRevenueAgg,
         ] = await Promise.all([
             this.prisma.closetView.count({
@@ -233,6 +235,13 @@ export class DashboardService {
             this.prisma.order.count({
                 where: {
                     sellerId,
+                    createdAt: dateWhere,
+                },
+            }),
+            this.prisma.order.count({
+                where: {
+                    sellerId,
+                    orderStatus: OrderStatus.CANCELLED,
                     createdAt: dateWhere,
                 },
             }),
@@ -263,6 +272,13 @@ export class DashboardService {
             this.prisma.order.count({
                 where: {
                     sellerId,
+                    createdAt: previousDateWhere,
+                },
+            }),
+            this.prisma.order.count({
+                where: {
+                    sellerId,
+                    orderStatus: OrderStatus.CANCELLED,
                     createdAt: previousDateWhere,
                 },
             }),
@@ -288,6 +304,7 @@ export class DashboardService {
             viewsCount,
             likesCount,
             ordersCount,
+            cancelledOrdersCount,
             revenue,
             previousPeriod: {
                 fromDate: previousFromDate,
@@ -295,12 +312,14 @@ export class DashboardService {
                 viewsCount: previousViewsCount,
                 likesCount: previousLikesCount,
                 ordersCount: previousOrdersCount,
+                cancelledOrdersCount: previousCancelledOrdersCount,
                 revenue: previousRevenue,
             },
             changes: {
                 viewsPercent: this.calculatePercentageChange(viewsCount, previousViewsCount),
                 likesPercent: this.calculatePercentageChange(likesCount, previousLikesCount),
                 ordersPercent: this.calculatePercentageChange(ordersCount, previousOrdersCount),
+                cancelledOrdersPercent: this.calculatePercentageChange(cancelledOrdersCount, previousCancelledOrdersCount),
                 revenuePercent: this.calculatePercentageChange(revenue, previousRevenue),
             },
         };
@@ -326,12 +345,14 @@ export class DashboardService {
                 totalViews: overview.viewsCount,
                 totalLikes: overview.likesCount,
                 totalOrders: overview.ordersCount,
+                totalCancelledOrders: overview.cancelledOrdersCount,
                 totalRevenue: overview.revenue,
             },
             changes: {
                 viewsPercent: overview.changes.viewsPercent,
                 likesPercent: overview.changes.likesPercent,
                 ordersPercent: overview.changes.ordersPercent,
+                cancelledOrdersPercent: overview.changes.cancelledOrdersPercent,
                 revenuePercent: overview.changes.revenuePercent,
             },
             topPerformingItem,
