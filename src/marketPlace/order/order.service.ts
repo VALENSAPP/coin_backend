@@ -1107,7 +1107,12 @@ export class OrderService {
 
         // 7. Push / in-app notifications
         const notificationTarget = cancelledBy === 'BUYER' ? order.sellerId : order.buyerId;
-        const whoStr = cancelledBy === 'BUYER' ? 'A buyer' : 'The seller';
+        const whoStr = cancelledBy === 'BUYER' ? 'Buyer' : 'Seller';
+        const refundAmount = order.paymentStatus === PaymentStatus.PAID ? order.total : null;
+        const refundStr = refundAmount != null ? ` A full refund of $${refundAmount.toFixed(2)} has been issued.` : '';
+        const reasonStr = reason ? `\nReason: ${reason}` : '';
+        const cancelNotificationBody = `❌ Order #${order.orderNumber} was cancelled by ${whoStr}.${refundStr}${reasonStr}`;
+
         const firstItem = order.items?.[0];
         const itemImage = firstItem?.productImage || '';
         const itemName = firstItem?.productName || '';
@@ -1121,7 +1126,7 @@ export class OrderService {
         await this.notificationService.sendNotificationToUser(
             notificationTarget,
             'Order Cancelled',
-            `${whoStr} cancelled order #${order.orderNumber}.${reason ? ` Reason: ${reason}` : ''}`,
+            cancelNotificationBody,
             {
                 type: 'marketplace_order_cancelled',
                 orderId: order.id,
@@ -1256,11 +1261,14 @@ export class OrderService {
         const totalPrice = String(order.total ?? 0);
         const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
 
+        const reasonStr = reason ? `\nReason: ${reason}` : '';
+        const reqNotificationBody = `⚠️ Buyer requested to cancel Order #${order.orderNumber}.${reasonStr}\nPlease review and approve or decline in your seller dashboard.`;
+
         // Send in-app notification to seller
         await this.notificationService.sendNotificationToUser(
             order.sellerId,
             'Cancellation Requested',
-            `Buyer requested to cancel order #${order.orderNumber}.${reason ? ` Reason: ${reason}` : ''}`,
+            reqNotificationBody,
             {
                 type: 'marketplace_cancellation_requested',
                 orderId: order.id,

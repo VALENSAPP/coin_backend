@@ -840,11 +840,14 @@ export class SellerOrderService {
         const sellerAvatar = order.seller?.image || '';
         const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
 
+        const reasonStr = dto.declineReason ? `\nReason: ${dto.declineReason}` : '';
+        const declineNotificationBody = `ℹ️ Cancellation request for Order #${order.orderNumber} was declined by Seller.${reasonStr}\nOrder fulfillment will continue.`;
+
         // Send push notification to buyer
         await this.notificationService.sendNotificationToUser(
             order.buyerId,
             'Cancellation Request Declined',
-            `Seller declined your cancellation request for order #${order.orderNumber}. Reason: ${dto.declineReason}`,
+            declineNotificationBody,
             {
                 type: 'marketplace_cancellation_declined',
                 orderId: order.id,

@@ -386,20 +386,6 @@ export class ClosetChatService {
             });
         });
 
-        if (createdMessage) {
-            await this.notificationService.sendNotificationToUser(
-                order.buyerId,
-                'New chat message',
-                'You have a new message in your marketplace chat.',
-                {
-                    type: 'closet_chat_message',
-                    threadId,
-                    messageId: createdMessage.id,
-                    senderId: order.sellerId,
-                },
-            );
-        }
-
         return {
             threadId,
             message: createdMessage,
@@ -461,20 +447,6 @@ export class ClosetChatService {
                 },
             });
         });
-
-        if (createdMessage) {
-            await this.notificationService.sendNotificationToUser(
-                order.buyerId,
-                'New chat message',
-                'You have a new message in your marketplace chat.',
-                {
-                    type: 'closet_chat_message',
-                    threadId,
-                    messageId: createdMessage.id,
-                    senderId: order.sellerId,
-                },
-            );
-        }
 
         return {
             threadId,
@@ -548,20 +520,6 @@ export class ClosetChatService {
                 },
             });
         });
-
-        if (createdMessage) {
-            await this.notificationService.sendNotificationToUser(
-                receiverId,
-                'Order Cancelled',
-                content,
-                {
-                    type: 'closet_chat_message',
-                    threadId,
-                    messageId: createdMessage.id,
-                    senderId,
-                },
-            );
-        }
 
         return {
             threadId,
@@ -645,20 +603,6 @@ export class ClosetChatService {
             });
         });
 
-        if (createdMessage) {
-            await this.notificationService.sendNotificationToUser(
-                receiverId,
-                'Cancellation Requested',
-                content,
-                {
-                    type: 'closet_chat_message',
-                    threadId,
-                    messageId: createdMessage.id,
-                    senderId,
-                },
-            );
-        }
-
         return {
             threadId,
             message: createdMessage,
@@ -740,20 +684,6 @@ export class ClosetChatService {
                 },
             });
         });
-
-        if (createdMessage) {
-            await this.notificationService.sendNotificationToUser(
-                receiverId,
-                'Cancellation Request Declined',
-                content,
-                {
-                    type: 'closet_chat_message',
-                    threadId,
-                    messageId: createdMessage.id,
-                    senderId,
-                },
-            );
-        }
 
         return {
             threadId,
