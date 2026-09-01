@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { GetSubscribersQueryDto, SubscriberSortBy, SubscriberStatusFilter } from './dto/get-subscribers-query.dto';
+import { GetMySubscriptionsQueryDto, SubscriptionSortBy, SubscriptionStatusFilter } from './dto/get-my-subscriptions-query.dto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -2398,6 +2399,194 @@ export class BillingService {
         totalPages: Math.ceil(totalSubscribers / limit),
       },
       subscribers,
+    };
+  }
+
+  async getMyPayFollowingSubscriptions(fanUserId: string, query: GetMySubscriptionsQueryDto) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 10));
+    const skip = (page - 1) * limit;
+    const now = new Date();
+
+    const andConditions: Prisma.FansSubscriptionBuyDataWhereInput[] = [
+      { fanUserId },
+    ];
+
+    const statusFilter = query.status || SubscriptionStatusFilter.ALL;
+    if (statusFilter === SubscriptionStatusFilter.ACTIVE) {
+      andConditions.push({
+        status: 'ACTIVE',
+        endDate: { gt: now },
+      });
+    } else if (statusFilter === SubscriptionStatusFilter.EXPIRED) {
+      andConditions.push({
+        OR: [
+          { status: 'STOP' },
+          { endDate: { lte: now } },
+        ],
+      });
+    } else if (statusFilter === SubscriptionStatusFilter.STOP) {
+      andConditions.push({
+        status: 'STOP',
+      });
+    }
+
+    if (query.search && query.search.trim()) {
+      const term = query.search.trim();
+      andConditions.push({
+        buyUser: {
+          OR: [
+            { userName: { contains: term, mode: 'insensitive' } },
+            { displayName: { contains: term, mode: 'insensitive' } },
+            { email: { contains: term, mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    const whereClause: Prisma.FansSubscriptionBuyDataWhereInput = {
+      AND: andConditions,
+    };
+
+    let orderBy: Prisma.FansSubscriptionBuyDataOrderByWithRelationInput = { createdAt: 'desc' };
+    if (query.sortBy === SubscriptionSortBy.OLDEST) {
+      orderBy = { createdAt: 'asc' };
+    } else if (query.sortBy === SubscriptionSortBy.PRICE_HIGH) {
+      orderBy = { priceAtSubscription: 'desc' };
+    } else if (query.sortBy === SubscriptionSortBy.PRICE_LOW) {
+      orderBy = { priceAtSubscription: 'asc' };
+    } else if (query.sortBy === SubscriptionSortBy.EXPIRY_SOON) {
+      orderBy = { endDate: 'asc' };
+    }
+
+    const [totalSubscriptions, activeCount, expiredCount, records] = await Promise.all([
+      this.prisma.fansSubscriptionBuyData.count({
+        where: whereClause,
+      }),
+      this.prisma.fansSubscriptionBuyData.count({
+        where: {
+          fanUserId,
+          status: 'ACTIVE',
+          endDate: { gt: now },
+        },
+      }),
+      this.prisma.fansSubscriptionBuyData.count({
+        where: {
+          fanUserId,
+          OR: [
+            { status: 'STOP' },
+            { endDate: { lte: now } },
+          ],
+        },
+      }),
+      this.prisma.fansSubscriptionBuyData.findMany({
+        where: whereClause,
+        include: {
+          buyUser: {
+            select: {
+              id: true,
+              userName: true,
+              displayName: true,
+              email: true,
+              image: true,
+              bio: true,
+              country: true,
+              kyc: true,
+              createdAt: true,
+              userSubscriptions: {
+                where: { isDelete: 0, status: 'ACTIVE' },
+                select: {
+                  id: true,
+                  subscriptionAmount: true,
+                  status: true,
+                  pricingPolicy: true,
+                  comment: true,
+                },
+                take: 1,
+              },
+            },
+          },
+        },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    const creatorIds = records.map((r) => r.buyUserId);
+    const paymentsAggregates = creatorIds.length > 0
+      ? await this.prisma.payment.groupBy({
+          by: ['receiverId'],
+          where: {
+            userId: fanUserId,
+            receiverId: { in: creatorIds },
+            forPayment: 'following',
+            status: 'succeeded',
+          },
+          _sum: { totalAmount: true },
+          _count: { id: true },
+        })
+      : [];
+
+    const paymentMap = new Map<string, { totalPaidAmount: number; paymentsCount: number }>();
+    for (const agg of paymentsAggregates) {
+      if (agg.receiverId) {
+        paymentMap.set(agg.receiverId, {
+          totalPaidAmount: agg._sum?.totalAmount || 0,
+          paymentsCount: agg._count?.id || 0,
+        });
+      }
+    }
+
+    const subscriptions = records.map((item) => {
+      const isCurrentlyActive = item.status === 'ACTIVE' && item.endDate > now;
+      const paymentStats = paymentMap.get(item.buyUserId) || {
+        totalPaidAmount: 0,
+        paymentsCount: 0,
+      };
+      const creatorUser = item.buyUser;
+      const currentTier = creatorUser?.userSubscriptions?.[0] || null;
+
+      return {
+        subscriptionId: item.id,
+        creator: {
+          id: creatorUser?.id,
+          userName: creatorUser?.userName,
+          displayName: creatorUser?.displayName,
+          email: creatorUser?.email,
+          image: creatorUser?.image,
+          bio: creatorUser?.bio,
+          country: creatorUser?.country,
+          kyc: creatorUser?.kyc,
+          currentMonthlyPrice: currentTier?.subscriptionAmount ?? item.priceAtSubscription,
+          pricingPolicy: currentTier?.pricingPolicy ?? 'REQUIRE_NEW_CONSENT',
+        },
+        priceAtSubscription: item.priceAtSubscription,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        status: item.status,
+        isActive: isCurrentlyActive,
+        autoRenew: item.autoRenew,
+        cancelAtPeriodEnd: item.cancelAtPeriodEnd,
+        paymentProvider: item.paymentProvider,
+        stripeSubscriptionId: item.stripeSubscriptionId,
+        totalPaidToCreator: paymentStats.totalPaidAmount,
+        paymentsCount: paymentStats.paymentsCount,
+        subscribedAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      };
+    });
+
+    return {
+      meta: {
+        totalSubscriptions,
+        activeSubscriptions: activeCount,
+        expiredSubscriptions: expiredCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalSubscriptions / limit),
+      },
+      subscriptions,
     };
   }
 

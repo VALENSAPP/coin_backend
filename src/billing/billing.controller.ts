@@ -9,6 +9,7 @@ import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
 import { GetSubscribersQueryDto } from './dto/get-subscribers-query.dto';
+import { GetMySubscriptionsQueryDto } from './dto/get-my-subscriptions-query.dto';
 import { SendTipDto } from './dto/send-tip.dto';
 import { CreateEbookPaymentDto } from './dto/create-ebook-payment.dto';
 import { CreateShopEbookPaymentDto } from './dto/create-shop-ebook-payment.dto';
@@ -186,6 +187,30 @@ export class BillingController {
   ) {
     const creatorId = (req.user as any).userId;
     return this.billingService.getPayFollowingSubscribers(creatorId, query);
+  }
+
+  @Get('pay-following/subscriptions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of users/creators to whom I bought subscriptions through pay-following' })
+  async getMyPayFollowingSubscriptions(
+    @Req() req: Request,
+    @Query() query: GetMySubscriptionsQueryDto,
+  ) {
+    const fanUserId = (req.user as any).userId;
+    return this.billingService.getMyPayFollowingSubscriptions(fanUserId, query);
+  }
+
+  @Get('pay-following/my-subscriptions')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Alias for GET /billing/pay-following/subscriptions' })
+  async getMyPayFollowingSubscriptionsAlias(
+    @Req() req: Request,
+    @Query() query: GetMySubscriptionsQueryDto,
+  ) {
+    const fanUserId = (req.user as any).userId;
+    return this.billingService.getMyPayFollowingSubscriptions(fanUserId, query);
   }
 
   @Get('subscription-earning/graph')
