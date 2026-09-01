@@ -8,6 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
+import { GetSubscribersQueryDto } from './dto/get-subscribers-query.dto';
 import { SendTipDto } from './dto/send-tip.dto';
 import { CreateEbookPaymentDto } from './dto/create-ebook-payment.dto';
 import { CreateShopEbookPaymentDto } from './dto/create-shop-ebook-payment.dto';
@@ -173,6 +174,18 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.billingService.getPayFollowingReceivedSummary(userId, pageNum, 10);
+  }
+
+  @Get('pay-following/subscribers')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of users who bought my subscription through pay-following' })
+  async getPayFollowingSubscribers(
+    @Req() req: Request,
+    @Query() query: GetSubscribersQueryDto,
+  ) {
+    const creatorId = (req.user as any).userId;
+    return this.billingService.getPayFollowingSubscribers(creatorId, query);
   }
 
   @Get('subscription-earning/graph')
