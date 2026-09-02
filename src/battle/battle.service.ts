@@ -474,7 +474,8 @@ export class BattleService {
     if (provider) {
       const client = this.getPredictionProvider(provider);
       const markets = await client.listMarkets(category, subCategory, league);
-      return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
+      const sortedMarkets = this.sortPredictionMarkets(markets);
+      return this.paginatePredictionMarkets(sortedMarkets, pagination.page, pagination.limit);
     }
 
     const providerOrder = category === PredictionCategory.SPORTS
@@ -489,7 +490,8 @@ export class BattleService {
         const markets = await this.getPredictionProvider(currentProvider).listMarkets(category, subCategory, league);
         hadReachableProvider = true;
         if (markets.length > 0) {
-          return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
+          const sortedMarkets = this.sortPredictionMarkets(markets);
+          return this.paginatePredictionMarkets(sortedMarkets, pagination.page, pagination.limit);
         }
         errors.push(`${currentProvider}: no open future markets`);
       } catch (error: any) {
@@ -505,6 +507,113 @@ export class BattleService {
       message: 'Prediction providers are unavailable or returned no open future markets',
       providersTried: providerOrder,
       errors,
+    });
+  }
+
+  private isBrazilPredictionMarket(market: PredictionMarket): boolean {
+    const raw = market.raw as any;
+    const country = String(raw?.league?.country || '').trim().toLowerCase();
+    if (country === 'brazil' || country === 'brasil') {
+      return true;
+    }
+
+    const leagueKey = String(market.league || '').toUpperCase();
+    const brazilLeagueKeys = new Set([
+      'BRASILEIRAO_SERIE_A',
+      'BRASILEIRAO_SERIE_B',
+      'BRASILEIRAO_SERIE_C',
+      'BRASILEIRAO_SERIE_D',
+      'COPA_DO_BRASIL',
+      'PAULISTA_A1',
+      'PAULISTA_A2',
+      'CARIOCA_A1',
+      'CARIOCA_A2',
+      'MINEIRO_1',
+      'GAUCHO_1',
+      'BAIANO_1',
+      'CEARENSE_1',
+      'PARANAENSE_1',
+      'CATARINENSE_1',
+      'PERNAMBUCANO_1',
+      'GOIANO_1',
+      'COPA_DO_NORDESTE',
+      'SUPERCOPA_DO_BRASIL',
+      'BRAZIL_FOOTBALL',
+    ]);
+    if (brazilLeagueKeys.has(leagueKey)) {
+      return true;
+    }
+
+    const leagueName = String(raw?.league?.name || '').toLowerCase();
+    if (
+      leagueName.includes('brasil') ||
+      leagueName.includes('brazil') ||
+      leagueName.includes('brasileir') ||
+      leagueName.includes('paulista') ||
+      leagueName.includes('carioca') ||
+      leagueName.includes('mineiro') ||
+      leagueName.includes('gaúcho') ||
+      leagueName.includes('gaucho') ||
+      leagueName.includes('baiano') ||
+      leagueName.includes('cearense') ||
+      leagueName.includes('paranaense') ||
+      leagueName.includes('catarinense') ||
+      leagueName.includes('pernambucano') ||
+      leagueName.includes('goiano') ||
+      leagueName.includes('copa do brasil') ||
+      leagueName.includes('copa do nordeste') ||
+      leagueName.includes('supercopa do brasil')
+    ) {
+      return true;
+    }
+
+    const textToSearch = `${market.question} ${(market.options || []).join(' ')} ${leagueKey}`.toLowerCase();
+    const brazilKeywords = [
+      'brazil',
+      'brasil',
+      'brasileirao',
+      'brasileirão',
+      'copa do brasil',
+      'flamengo',
+      'palmeiras',
+      'corinthians',
+      'sao paulo',
+      'santos fc',
+      'fluminense',
+      'botafogo',
+      'vasco da gama',
+      'gremio',
+      'grêmio',
+      'internacional',
+      'cruzeiro',
+      'atletico mineiro',
+      'atlético mineiro',
+      'athletico paranaense',
+      'paulistao',
+      'cariocao',
+    ];
+
+    return brazilKeywords.some((kw) => textToSearch.includes(kw));
+  }
+
+  private sortPredictionMarkets(markets: PredictionMarket[]): PredictionMarket[] {
+    return [...markets].sort((a, b) => {
+      const aIsBrazil = this.isBrazilPredictionMarket(a) ? 1 : 0;
+      const bIsBrazil = this.isBrazilPredictionMarket(b) ? 1 : 0;
+
+      // 1. Brazil local sports questions first
+      if (aIsBrazil !== bIsBrazil) {
+        return bIsBrazil - aIsBrazil;
+      }
+
+      // 2. Earliest close/start time first
+      const aTime = a.closeTime ? new Date(a.closeTime).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.closeTime ? new Date(b.closeTime).getTime() : Number.MAX_SAFE_INTEGER;
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
+
+      return 0;
     });
   }
 

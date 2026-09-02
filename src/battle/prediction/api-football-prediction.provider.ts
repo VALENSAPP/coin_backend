@@ -89,9 +89,15 @@ export class ApiFootballPredictionProvider implements PredictionProviderClient {
     }
 
     const normalizedLeague = this.normalizeLeagueKey(league);
-    const dateStrings = this.getUpcomingDateStrings(2);
     const fixtures: any[] = [];
 
+    if (normalizedLeague && GLOBAL_LEAGUE_MAP[normalizedLeague]) {
+      const leagueFixtures = await this.fetchLeagueFixtures(GLOBAL_LEAGUE_MAP[normalizedLeague].id);
+      fixtures.push(...leagueFixtures);
+    }
+
+    // Also fetch date-based upcoming fixtures across next 3 days
+    const dateStrings = this.getUpcomingDateStrings(3);
     for (const dateStr of dateStrings) {
       const dayFixtures = await this.fetchFixturesByDate(dateStr);
       fixtures.push(...dayFixtures);
@@ -105,11 +111,68 @@ export class ApiFootballPredictionProvider implements PredictionProviderClient {
       return true;
     });
 
-    return uniqueFixtures
+    const markets = uniqueFixtures
       .map((fixture) => this.toPredictionMarket(fixture))
       .filter((m): m is PredictionMarket => !!m)
       .filter((m) => this.isOpenFutureMarket(m))
       .filter((m) => this.matchesLeagueFilter(m, normalizedLeague));
+
+    return this.sortMarkets(markets);
+  }
+
+  isBrazilMarket(market: PredictionMarket): boolean {
+    if (market.league && BRAZIL_LEAGUE_MAP[market.league]) {
+      return true;
+    }
+    const raw = market.raw as any;
+    const country = String(raw?.league?.country || '').trim().toLowerCase();
+    if (country === 'brazil' || country === 'brasil') {
+      return true;
+    }
+    const leagueName = String(raw?.league?.name || '').toLowerCase();
+    if (
+      leagueName.includes('brasil') ||
+      leagueName.includes('brazil') ||
+      leagueName.includes('brasileir') ||
+      leagueName.includes('paulista') ||
+      leagueName.includes('carioca') ||
+      leagueName.includes('mineiro') ||
+      leagueName.includes('gaúcho') ||
+      leagueName.includes('gaucho') ||
+      leagueName.includes('baiano') ||
+      leagueName.includes('cearense') ||
+      leagueName.includes('paranaense') ||
+      leagueName.includes('catarinense') ||
+      leagueName.includes('pernambucano') ||
+      leagueName.includes('goiano') ||
+      leagueName.includes('copa do brasil') ||
+      leagueName.includes('copa do nordeste') ||
+      leagueName.includes('supercopa do brasil')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private sortMarkets(markets: PredictionMarket[]): PredictionMarket[] {
+    return [...markets].sort((a, b) => {
+      const aIsBrazil = this.isBrazilMarket(a) ? 1 : 0;
+      const bIsBrazil = this.isBrazilMarket(b) ? 1 : 0;
+
+      // 1. Brazil local fixtures first
+      if (aIsBrazil !== bIsBrazil) {
+        return bIsBrazil - aIsBrazil;
+      }
+
+      // 2. Earliest match kickoff first
+      const aTime = a.closeTime ? new Date(a.closeTime).getTime() : Number.MAX_SAFE_INTEGER;
+      const bTime = b.closeTime ? new Date(b.closeTime).getTime() : Number.MAX_SAFE_INTEGER;
+      if (aTime !== bTime) {
+        return aTime - bTime;
+      }
+
+      return 0;
+    });
   }
 
   async getMarket(externalMarketId: string, _category?: PredictionCategory): Promise<PredictionMarket | null> {
