@@ -18,6 +18,7 @@ import { CreatePredictionBattleDto } from './dto/prediction-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
 import { PolymarketPredictionProvider } from './prediction/polymarket-prediction.provider';
 import { ManifoldPredictionProvider } from './prediction/manifold-prediction.provider';
+import { ApiFootballPredictionProvider } from './prediction/api-football-prediction.provider';
 import { PredictionMarket, PredictionProviderClient } from './prediction/prediction-provider.types';
 
 const BASE_JOIN_POINTS = 5;
@@ -46,11 +47,13 @@ export class BattleService {
     private readonly notificationService: NotificationService,
     private readonly polymarketPredictionProvider: PolymarketPredictionProvider,
     private readonly manifoldPredictionProvider: ManifoldPredictionProvider,
+    private readonly apiFootballPredictionProvider: ApiFootballPredictionProvider,
   ) { }
 
   private getPredictionProvider(provider: PredictionProvider = PredictionProvider.POLYMARKET): PredictionProviderClient {
     if (provider === PredictionProvider.POLYMARKET) return this.polymarketPredictionProvider;
     if (provider === PredictionProvider.MANIFOLD) return this.manifoldPredictionProvider;
+    if (provider === PredictionProvider.API_FOOTBALL) return this.apiFootballPredictionProvider;
     throw new BadRequestException('Unsupported prediction provider');
   }
 
@@ -410,7 +413,34 @@ export class BattleService {
   getPredictionSportsLeagues(subCategory?: string) {
     const leaguesBySubCategory: Record<string, string[]> = {
       CRICKET: ['IPL', 'T20_WORLD_CUP', 'BBL', 'PSL', 'THE_HUNDRED', 'WPL'],
-      FOOTBALL: ['PREMIER_LEAGUE', 'CHAMPIONS_LEAGUE', 'LA_LIGA', 'SERIE_A', 'BUNDESLIGA', 'MLS', 'EUROPA_LEAGUE', 'FIFA_WORLD_CUP'],
+      FOOTBALL: [
+        'BRASILEIRAO_SERIE_A',
+        'BRASILEIRAO_SERIE_B',
+        'BRASILEIRAO_SERIE_C',
+        'BRASILEIRAO_SERIE_D',
+        'COPA_DO_BRASIL',
+        'PAULISTA_A1',
+        'CARIOCA_A1',
+        'MINEIRO_1',
+        'GAUCHO_1',
+        'BAIANO_1',
+        'CEARENSE_1',
+        'PARANAENSE_1',
+        'CATARINENSE_1',
+        'PERNAMBUCANO_1',
+        'GOIANO_1',
+        'COPA_DO_NORDESTE',
+        'PREMIER_LEAGUE',
+        'CHAMPIONS_LEAGUE',
+        'LA_LIGA',
+        'SERIE_A',
+        'BUNDESLIGA',
+        'MLS',
+        'EUROPA_LEAGUE',
+        'FIFA_WORLD_CUP',
+        'COPA_LIBERTADORES',
+        'COPA_SUDAMERICANA',
+      ],
       BASKETBALL: ['NBA', 'WNBA', 'EUROLEAGUE'],
       AMERICAN_FOOTBALL: ['NFL', 'NCAA_FOOTBALL'],
       BASEBALL: ['MLB'],
@@ -447,7 +477,10 @@ export class BattleService {
       return this.paginatePredictionMarkets(markets, pagination.page, pagination.limit);
     }
 
-    const providerOrder = [PredictionProvider.POLYMARKET, PredictionProvider.MANIFOLD];
+    const providerOrder = category === PredictionCategory.SPORTS
+      ? [PredictionProvider.API_FOOTBALL, PredictionProvider.POLYMARKET, PredictionProvider.MANIFOLD]
+      : [PredictionProvider.POLYMARKET, PredictionProvider.MANIFOLD];
+
     const errors: string[] = [];
     let hadReachableProvider = false;
 

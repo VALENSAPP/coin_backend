@@ -6,10 +6,17 @@ import { BattleService } from './battle.service';
 import { BattleCleanupService } from './battle.cleanup';
 import { PolymarketPredictionProvider } from './prediction/polymarket-prediction.provider';
 import { ManifoldPredictionProvider } from './prediction/manifold-prediction.provider';
+import { ApiFootballPredictionProvider } from './prediction/api-football-prediction.provider';
 
 @Module({
   imports: [PrismaModule, NotificationModule],
   controllers: [BattleController],
-  providers: [BattleService, BattleCleanupService, PolymarketPredictionProvider, ManifoldPredictionProvider],
+  providers: [
+    BattleService,
+    BattleCleanupService,
+    PolymarketPredictionProvider,
+    ManifoldPredictionProvider,
+    ApiFootballPredictionProvider,
+  ],
 })
 export class BattleModule {}

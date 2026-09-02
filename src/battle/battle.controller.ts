@@ -37,7 +37,7 @@ export class BattleController {
         invitedUserId: { type: 'string' },
         resolutionMethod: { type: 'string' },
         predictionCategory: { type: 'string', enum: ['SPORTS', 'FINANCE', 'ELECTIONS', 'CRYPTO'] },
-        predictionProvider: { type: 'string', enum: ['POLYMARKET', 'MANIFOLD'] },
+        predictionProvider: { type: 'string', enum: ['POLYMARKET', 'MANIFOLD', 'API_FOOTBALL'] },
         externalMarketId: { type: 'string' },
         externalEventId: { type: 'string' },
         image: { type: 'string', format: 'binary' },
