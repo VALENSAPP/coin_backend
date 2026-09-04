@@ -675,6 +675,40 @@ export class BillingService {
     });
 
     const creatorName = updated.buyUser?.displayName || updated.buyUser?.userName || 'creator';
+    const formattedEndDate = updated.endDate
+      ? new Date(updated.endDate).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : 'the end of your billing cycle';
+
+    // Send in-app and push notification to the fan
+    try {
+      await this.notificationService.sendNotificationToUser(
+        updated.fanUserId,
+        'Subscription Autopay Cancelled',
+        `Your auto-renewal for @${creatorName} has been cancelled. Your access will remain active until ${formattedEndDate}.`,
+        {
+          type: 'subscription_cancelled',
+          action: 'subscription_cancelled',
+          subscriptionId: updated.id,
+          creatorId: updated.buyUserId,
+          creatorName,
+          endDate: updated.endDate.toISOString(),
+          isEnded: 'false',
+          isCancelled: 'true',
+          autoRenew: 'false',
+          cancelAtPeriodEnd: 'true',
+          status: 'ACTIVE',
+        },
+      );
+    } catch (err: any) {
+      console.error(
+        `[BillingService] Failed to send subscription cancellation notification to fan ${updated.fanUserId}:`,
+        err?.message || err,
+      );
+    }
 
     return {
       success: true,
@@ -688,6 +722,9 @@ export class BillingService {
         startDate: updated.startDate,
         endDate: updated.endDate,
         status: updated.status,
+        isActive: true,
+        isEnded: false,
+        isCancelled: true,
         autoRenew: updated.autoRenew,
         cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
         stripeSubscriptionId: updated.stripeSubscriptionId,
@@ -1506,6 +1543,11 @@ export class BillingService {
     // Check if this was a following subscription
     const fanSub = await this.prisma.fansSubscriptionBuyData.findFirst({
       where: { stripeSubscriptionId: subscription.id },
+      include: {
+        buyUser: {
+          select: { id: true, userName: true, displayName: true },
+        },
+      },
     });
     if (fanSub) {
       await this.prisma.fansSubscriptionBuyData.update({
@@ -1515,6 +1557,33 @@ export class BillingService {
           autoRenew: false,
         },
       });
+
+      const creatorName = fanSub.buyUser?.displayName || fanSub.buyUser?.userName || 'creator';
+      try {
+        await this.notificationService.sendNotificationToUser(
+          fanSub.fanUserId,
+          'Subscription Ended',
+          `Your subscription to @${creatorName} has ended.`,
+          {
+            type: 'subscription_ended',
+            action: 'subscription_ended',
+            subscriptionId: fanSub.id,
+            creatorId: fanSub.buyUserId,
+            creatorName,
+            isEnded: 'true',
+            isCancelled: 'true',
+            status: 'STOP',
+            autoRenew: 'false',
+            cancelAtPeriodEnd: 'true',
+            endDate: fanSub.endDate ? fanSub.endDate.toISOString() : new Date().toISOString(),
+          },
+        );
+      } catch (err: any) {
+        console.error(
+          `[BillingService] Failed to send subscription ended notification to fan ${fanSub.fanUserId}:`,
+          err?.message || err,
+        );
+      }
       return;
     }
 
@@ -2480,6 +2549,8 @@ export class BillingService {
         endDate: item.endDate,
         status: item.status,
         isActive: isCurrentlyActive,
+        isEnded: !isCurrentlyActive,
+        isCancelled: item.cancelAtPeriodEnd || !item.autoRenew,
         autoRenew: item.autoRenew,
         cancelAtPeriodEnd: item.cancelAtPeriodEnd,
         paymentProvider: item.paymentProvider,
@@ -2669,6 +2740,8 @@ export class BillingService {
         endDate: item.endDate,
         status: item.status,
         isActive: isCurrentlyActive,
+        isEnded: !isCurrentlyActive,
+        isCancelled: item.cancelAtPeriodEnd || !item.autoRenew,
         autoRenew: item.autoRenew,
         cancelAtPeriodEnd: item.cancelAtPeriodEnd,
         paymentProvider: item.paymentProvider,
