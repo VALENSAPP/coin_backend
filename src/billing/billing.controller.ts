@@ -8,6 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
+import { CancelPayFollowingSubscriptionDto } from './dto/cancel-pay-following-subscription.dto';
 import { GetSubscribersQueryDto } from './dto/get-subscribers-query.dto';
 import { GetMySubscriptionsQueryDto } from './dto/get-my-subscriptions-query.dto';
 import { SendTipDto } from './dto/send-tip.dto';
@@ -85,6 +86,19 @@ export class BillingController {
       dto.isAutoRenew !== false,
     );
     return { url: session.url };
+  }
+
+  @Post('pay-following/cancel-subscription')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel recurring auto-pay for a creator following subscription at period end' })
+  @ApiBody({ type: CancelPayFollowingSubscriptionDto })
+  async cancelPayFollowingSubscription(
+    @Req() req: Request,
+    @Body() dto: CancelPayFollowingSubscriptionDto,
+  ) {
+    const fanUserId = (req.user as any).userId;
+    return this.billingService.cancelPayFollowingSubscription(fanUserId, dto);
   }
 
   @Post('send-tip')

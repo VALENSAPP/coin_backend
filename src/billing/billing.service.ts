@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { GetSubscribersQueryDto, SubscriberSortBy, SubscriberStatusFilter } from './dto/get-subscribers-query.dto';
 import { GetMySubscriptionsQueryDto, SubscriptionSortBy, SubscriptionStatusFilter } from './dto/get-my-subscriptions-query.dto';
+import { CancelPayFollowingSubscriptionDto } from './dto/cancel-pay-following-subscription.dto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -591,6 +592,108 @@ export class BillingService {
       }
     }
     return cancelledCount;
+  }
+
+  async cancelPayFollowingSubscription(fanUserId: string, dto: CancelPayFollowingSubscriptionDto) {
+    if (!fanUserId) {
+      throw new BadRequestException('User ID is required');
+    }
+    if (!dto.subscriptionId && !dto.creatorId) {
+      throw new BadRequestException('Either subscriptionId or creatorId must be provided');
+    }
+
+    const where: Prisma.FansSubscriptionBuyDataWhereInput = {
+      fanUserId,
+      ...(dto.subscriptionId ? { id: dto.subscriptionId } : {}),
+      ...(dto.creatorId ? { buyUserId: dto.creatorId } : {}),
+    };
+
+    const sub = await this.prisma.fansSubscriptionBuyData.findFirst({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        buyUser: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    if (!sub) {
+      throw new NotFoundException('Pay-following subscription record not found');
+    }
+
+    const now = new Date();
+    // Check if subscription has already expired or ended
+    if (sub.status !== 'ACTIVE' && sub.endDate <= now) {
+      throw new BadRequestException('This subscription is already inactive or expired');
+    }
+
+    // Check if autopay is already cancelled
+    if (sub.cancelAtPeriodEnd && !sub.autoRenew) {
+      throw new BadRequestException('Autopay has already been cancelled for this subscription');
+    }
+
+    // If there is a Stripe subscription associated, update Stripe to cancel at period end
+    if (sub.stripeSubscriptionId) {
+      try {
+        await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
+          cancel_at_period_end: true,
+        });
+      } catch (err: any) {
+        // If Stripe returns resource_missing (e.g. deleted already), log and proceed to update DB
+        if (err?.code !== 'resource_missing') {
+          console.error(
+            `[BillingService] Failed to cancel auto-renew on Stripe for subscription ${sub.stripeSubscriptionId}:`,
+            err?.message || err,
+          );
+          throw new BadRequestException(`Failed to cancel Stripe recurring subscription: ${err?.message || 'Stripe error'}`);
+        }
+      }
+    }
+
+    const updated = await this.prisma.fansSubscriptionBuyData.update({
+      where: { id: sub.id },
+      data: {
+        cancelAtPeriodEnd: true,
+        autoRenew: false,
+      },
+      include: {
+        buyUser: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            image: true,
+          },
+        },
+      },
+    });
+
+    const creatorName = updated.buyUser?.displayName || updated.buyUser?.userName || 'creator';
+
+    return {
+      success: true,
+      message: `Autopay cancelled successfully. You will have access to @${creatorName} until ${updated.endDate.toISOString()}.`,
+      subscription: {
+        id: updated.id,
+        fanUserId: updated.fanUserId,
+        creatorId: updated.buyUserId,
+        creatorName,
+        creatorImage: updated.buyUser?.image || null,
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        status: updated.status,
+        autoRenew: updated.autoRenew,
+        cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
+        stripeSubscriptionId: updated.stripeSubscriptionId,
+        paymentProvider: updated.paymentProvider,
+      },
+    };
   }
 
   async createTipCheckoutSession(
