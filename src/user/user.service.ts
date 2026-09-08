@@ -2712,10 +2712,21 @@ export class UserService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
+    // Check if the user already has an active subscription record
+    const existing = await this.prisma.userSubscription.findFirst({
+      where: { userId, isDelete: 0 },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing) {
+      console.log(`[UserService] Existing subscription found (${existing.id}) for user ${userId}. Routing to updateUserSubscription.`);
+      return this.updateUserSubscription(existing.id, dto);
+    }
+
     return this.prisma.userSubscription.create({
       data: {
         userId,
-        subscriptionAmount: dto.subscriptionAmount,
+        subscriptionAmount: Number(dto.subscriptionAmount),
         status: dto.status || 'ACTIVE',
         pricingPolicy: dto.pricingPolicy || 'REQUIRE_NEW_CONSENT',
         comment: dto.comment,
@@ -2765,6 +2776,7 @@ export class UserService {
   }
 
   async updateUserSubscription(id: string, dto: any) {
+    console.log(`[UserService] updateUserSubscription called for subscription ID: ${id}, payload:`, dto);
     const subscription = await this.prisma.userSubscription.findUnique({
       where: { id },
       include: {
@@ -2781,10 +2793,13 @@ export class UserService {
 
     if (!subscription) throw new BadRequestException('User subscription not found');
 
-    const oldAmount = subscription.subscriptionAmount;
+    const oldAmount = Number(subscription.subscriptionAmount);
     const newAmount = dto.subscriptionAmount !== undefined ? Number(dto.subscriptionAmount) : oldAmount;
-    const pricingPolicy = dto.pricingPolicy || (subscription as any).pricingPolicy || 'REQUIRE_NEW_CONSENT';
-    const isPriceChanged = dto.subscriptionAmount !== undefined && newAmount !== oldAmount;
+    const rawPolicy = dto.pricingPolicy || (subscription as any).pricingPolicy || 'REQUIRE_NEW_CONSENT';
+    const pricingPolicy = String(rawPolicy).toUpperCase();
+    const isPriceChanged = dto.subscriptionAmount !== undefined && Number(newAmount) !== Number(oldAmount);
+
+    console.log(`[UserService] Subscription price update check: oldAmount=${oldAmount}, newAmount=${newAmount}, isPriceChanged=${isPriceChanged}, pricingPolicy=${pricingPolicy}`);
 
     const updated = await this.prisma.userSubscription.update({
       where: { id },
@@ -2798,8 +2813,9 @@ export class UserService {
       },
     });
 
-    // If the creator changed the price and chose REQUIRE_NEW_CONSENT (Option 1):
-    if (isPriceChanged && pricingPolicy === 'REQUIRE_NEW_CONSENT') {
+    // If the creator changed the price and policy is REQUIRE_NEW_CONSENT (i.e. not GRANDFATHER_EXISTING):
+    if (isPriceChanged && pricingPolicy !== 'GRANDFATHER_EXISTING') {
+      console.log(`[UserService] Triggering subscriber notifications for creator ${subscription.userId}`);
       await this.handleSubscriptionPriceIncreaseNotificationAndCancellation({
         creatorId: subscription.userId,
         creatorName: subscription.user?.displayName || subscription.user?.userName || 'Creator',
@@ -2818,6 +2834,13 @@ export class UserService {
     newPrice: number;
   }) {
     const { creatorId, creatorName, oldPrice, newPrice } = params;
+    console.log(`[UserService] Starting price update notifications for creator: ${creatorId} (${creatorName}), oldPrice: ${oldPrice}, newPrice: ${newPrice}`);
+
+    const creatorUser = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { displayName: true, userName: true, email: true },
+    });
+    const effectiveCreatorName = creatorUser?.displayName || creatorUser?.userName || creatorName || 'Creator';
 
     // 1. Cancel Stripe recurring auto-renewals at period end so users are not auto-charged the new price
     try {
@@ -2830,8 +2853,9 @@ export class UserService {
         },
       });
 
+      console.log(`[UserService] Found ${activeStripeSubs.length} active Stripe recurring subscription(s) to pause auto-renew`);
       for (const sub of activeStripeSubs) {
-        if (sub.stripeSubscriptionId) {
+        if (sub.stripeSubscriptionId && this.stripe) {
           try {
             await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
               cancel_at_period_end: true,
@@ -2843,6 +2867,7 @@ export class UserService {
                 autoRenew: false,
               },
             });
+            console.log(`[UserService] Paused auto-renew for Stripe subscription: ${sub.stripeSubscriptionId}`);
           } catch (err: any) {
             console.error(`[UserService] Failed to cancel auto-renew for subscription ${sub.id}:`, err?.message || err);
           }
@@ -2852,32 +2877,46 @@ export class UserService {
       console.error(`[UserService] Error querying active subscriptions to cancel auto-renewals for creator ${creatorId}:`, err?.message || err);
     }
 
-    // 2. Fetch active subscribers for creator to notify them via push & email
-    const activeSubscriptions = await this.prisma.fansSubscriptionBuyData.findMany({
-      where: {
-        buyUserId: creatorId,
-        status: 'ACTIVE',
-        endDate: { gt: new Date() },
-      },
-      include: {
-        fanUser: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            userName: true,
+    // 2. Fetch active subscribers for creator to notify them via push, direct chat & email
+    let activeSubscriptions: any[] = [];
+    try {
+      activeSubscriptions = await this.prisma.fansSubscriptionBuyData.findMany({
+        where: {
+          buyUserId: creatorId,
+          OR: [
+            { status: 'ACTIVE' },
+            { endDate: { gt: new Date() } },
+          ],
+        },
+        include: {
+          fanUser: {
+            select: {
+              id: true,
+              email: true,
+              displayName: true,
+              userName: true,
+            },
           },
         },
-      },
-    });
+      });
+      console.log(`[UserService] Found ${activeSubscriptions.length} active subscription record(s) for creator ${creatorId}`);
+    } catch (err: any) {
+      console.error(`[UserService] Failed to query active subscriptions for creator ${creatorId}:`, err?.message || err);
+    }
 
     const logoUrl = process.env.APP_LOGO_URL || 'https://valens.com/logo.png';
     const frontendUrl = process.env.FRONTEND_URL || 'https://valens.com';
     const renewUrl = `${frontendUrl}/user/${creatorId}?renew=true`;
 
+    const processedFanIds = new Set<string>();
+
     for (const sub of activeSubscriptions) {
       const fan = sub.fanUser;
-      if (!fan) continue;
+      if (!fan || !fan.id) continue;
+      if (processedFanIds.has(fan.id)) continue;
+      processedFanIds.add(fan.id);
+
+      console.log(`[UserService] Processing subscriber ${fan.id} (${fan.displayName || fan.userName || fan.email || 'Subscriber'})...`);
 
       const formattedPeriodEnd = sub.endDate
         ? new Date(sub.endDate).toLocaleDateString('en-US', {
@@ -2892,7 +2931,7 @@ export class UserService {
         await this.notificationService.sendNotificationToUser(
           fan.id,
           'Subscription Price Updated',
-          `${creatorName} updated their monthly subscription price to $${newPrice}. Your auto-renewal has been paused.`,
+          `${effectiveCreatorName} updated their monthly subscription price to $${newPrice}. Your auto-renewal has been paused.`,
           {
             type: 'subscription_price_changed',
             creatorId,
@@ -2900,6 +2939,7 @@ export class UserService {
             newPrice: newPrice.toString(),
           },
         );
+        console.log(`[UserService] [1/3] Notification sent to subscriber ${fan.id}`);
       } catch (err: any) {
         console.error(`[UserService] Failed to send in-app notification to fan ${fan.id}:`, err?.message || err);
       }
@@ -2935,6 +2975,7 @@ export class UserService {
             chatId: chatBox.id,
           },
         });
+        console.log(`[UserService] [2/3] Direct chat message created for subscriber ${fan.id}`);
       } catch (err: any) {
         console.error(`[UserService] Failed to send direct chat message to fan ${fan.id}:`, err?.message || err);
       }
@@ -2944,11 +2985,11 @@ export class UserService {
         try {
           await this.mailService.sendTemplateEmail({
             to: fan.email,
-            subject: `Important update regarding your subscription to ${creatorName}`,
+            subject: `Important update regarding your subscription to ${effectiveCreatorName}`,
             templateFile: 'subscription-price-changed.html',
             replacements: {
               subscriberName: fan.displayName || fan.userName || 'Subscriber',
-              creatorName,
+              creatorName: effectiveCreatorName,
               oldPrice: oldPrice.toFixed(2),
               newPrice: newPrice.toFixed(2),
               periodEndDate: formattedPeriodEnd,
@@ -2956,11 +2997,15 @@ export class UserService {
               renewUrl,
             },
           });
+          console.log(`[UserService] [3/3] Email sent to ${fan.email}`);
         } catch (err: any) {
           console.error(`[UserService] Failed to send price change email to ${fan.email}:`, err?.message || err);
         }
+      } else {
+        console.log(`[UserService] Skipping email for subscriber ${fan.id} (no email address found)`);
       }
     }
+    console.log(`[UserService] Completed price update notification pipeline for creator ${creatorId}. Total subscribers processed: ${processedFanIds.size}`);
   }
 
   async deleteUserSubscription(id: string) {
