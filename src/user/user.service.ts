@@ -2887,7 +2887,7 @@ export class UserService {
           })
         : 'the end of your billing cycle';
 
-      // Send in-app notification
+      // 1. Send in-app & push notification
       try {
         await this.notificationService.sendNotificationToUser(
           fan.id,
@@ -2904,7 +2904,42 @@ export class UserService {
         console.error(`[UserService] Failed to send in-app notification to fan ${fan.id}:`, err?.message || err);
       }
 
-      // Send email notification via SendGrid template if email is present
+      // 2. Send direct chat message from the creator to the subscriber
+      try {
+        let chatBox = await this.prisma.chatBox.findFirst({
+          where: {
+            OR: [
+              { senderId: creatorId, receiverId: fan.id },
+              { senderId: fan.id, receiverId: creatorId },
+            ],
+          },
+        });
+
+        if (!chatBox) {
+          chatBox = await this.prisma.chatBox.create({
+            data: {
+              senderId: creatorId,
+              receiverId: fan.id,
+            },
+          });
+        }
+
+        const chatMessageContent = `Hi! I wanted to let you know that I've updated my monthly subscription price from $${oldPrice.toFixed(2)} to $${newPrice.toFixed(2)}. Your current access remains active until ${formattedPeriodEnd}. If you would like to continue your subscription at the new rate, please renew here: ${renewUrl}`;
+
+        await this.prisma.conversation.create({
+          data: {
+            type: 'CHAT',
+            senderId: creatorId,
+            receiverId: fan.id,
+            content: chatMessageContent,
+            chatId: chatBox.id,
+          },
+        });
+      } catch (err: any) {
+        console.error(`[UserService] Failed to send direct chat message to fan ${fan.id}:`, err?.message || err);
+      }
+
+      // 3. Send email notification via SendGrid template if email is present
       if (fan.email) {
         try {
           await this.mailService.sendTemplateEmail({
