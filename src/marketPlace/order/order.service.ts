@@ -337,6 +337,7 @@ export class OrderService {
                 where: { id: buyerId },
                 select: { id: true, userName: true, displayName: true, image: true },
             });
+            const buyerUsername = buyer?.userName || buyer?.displayName || 'A buyer';
             const buyerName = buyer?.displayName || buyer?.userName || 'Buyer';
             const buyerAvatar = buyer?.image || '';
 
@@ -345,7 +346,7 @@ export class OrderService {
                 await this.notificationService.sendNotificationToUser(
                     orderNotification.sellerId,
                     'You have a new order',
-                    'A buyer has placed a new order in your closet.',
+                    `${buyerUsername} has placed a new order in your closet.`,
                     {
                         type: 'marketplace_order_paid',
                         paymentId: paymentRecord.id,
@@ -366,6 +367,7 @@ export class OrderService {
                         buyerAvatar,
                         buyerImage: buyerAvatar,
                         buyerName,
+                        buyerUsername: buyer?.userName || '',
                     },
                 );
 
@@ -431,7 +433,7 @@ export class OrderService {
                 templateFile: 'new-order-seller.html',
                 replacements: {
                     seller_name: order.seller?.displayName || order.seller?.userName || 'Seller',
-                    buyer_name: order.buyer?.displayName || order.buyer?.userName || 'A buyer',
+                    buyer_name: order.buyer?.userName || order.buyer?.displayName || 'A buyer',
                     order_number: order.orderNumber,
                     product_name: order.items[0]?.productName || 'your item',
                     order_total: `$${order.total.toFixed(2)}`,
