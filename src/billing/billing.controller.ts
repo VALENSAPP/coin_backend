@@ -593,12 +593,11 @@ export class BillingController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('paymentType') paymentType?: string,
-    @Query('paymenttype') paymenttypeAlt?: string,
   ) {
     const userId = (req.user as any).userId;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNum = Math.min(Math.max(1, parseInt(limit || '10', 10) || 10), 50);
-    const filterPaymentType = paymentType || paymenttypeAlt;
+    const filterPaymentType = paymentType || (req.query as any)?.paymenttype || (req.query as any)?.payment_type;
     return this.billingService.getReceivedTransactions(userId, pageNum, limitNum, filterPaymentType);
   }
 }
