@@ -532,6 +532,9 @@ export class SellerOrderService {
                     avatar: sellerAvatar,
                     sellerAvatar: sellerAvatar,
                     sellerName: sellerUsername,
+                    iscancel: false,
+                    isCancel: false,
+                    isCancelled: false,
                 },
             );
         } else {
@@ -566,6 +569,9 @@ export class SellerOrderService {
                     avatar: sellerAvatar,
                     sellerAvatar: sellerAvatar,
                     sellerName: sellerUsername,
+                    iscancel: false,
+                    isCancel: false,
+                    isCancelled: false,
                 },
             );
         }
@@ -667,6 +673,9 @@ export class SellerOrderService {
                 avatar: sellerAvatar,
                 sellerAvatar: sellerAvatar,
                 sellerName: sellerName,
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
         console.log('Notification sent to buyer for order shipped:', updatedOrder.trackingNumber || trackingNumber);
@@ -757,6 +766,9 @@ export class SellerOrderService {
                 avatar: sellerAvatar,
                 sellerAvatar: sellerAvatar,
                 sellerName: sellerName,
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
 
@@ -864,6 +876,9 @@ export class SellerOrderService {
                 avatar: sellerAvatar,
                 sellerAvatar: sellerAvatar,
                 sellerName: sellerName,
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
 

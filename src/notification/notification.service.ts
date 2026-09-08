@@ -50,8 +50,22 @@ export class NotificationService {
     return value || undefined;
   }
 
-  private getNotificationCategory(data?: Record<string, string>): string | undefined {
+  private getNotificationCategory(data?: Record<string, any>): string | undefined {
     return data?.notificationCategory || data?.category;
+  }
+
+  private sanitizeDataForFcm(data?: Record<string, any>, title?: string, body?: string): Record<string, string> {
+    const sanitized: Record<string, string> = {};
+    if (data && typeof data === 'object') {
+      for (const [key, value] of Object.entries(data)) {
+        if (value !== undefined && value !== null) {
+          sanitized[key] = typeof value === 'string' ? value : String(value);
+        }
+      }
+    }
+    if (title !== undefined && title !== null) sanitized.title = String(title);
+    if (body !== undefined && body !== null) sanitized.body = String(body);
+    return sanitized;
   }
 
   private toHandle(name?: string | null, fallback = 'username'): string {
@@ -165,9 +179,9 @@ export class NotificationService {
     userId: string,
     title: string,
     body: string,
-    data?: Record<string, string>,
+    data?: Record<string, any>,
   ): Promise<void> {
-    // Save notification to database
+    // Save notification to database with original typed data
     await this.prisma.notification.create({
       data: {
         userId,
@@ -188,11 +202,7 @@ export class NotificationService {
     }
 
     const notificationCategory = this.getNotificationCategory(data);
-    const payloadData = {
-      ...(data || {}),
-      title,
-      body,
-    };
+    const payloadData = this.sanitizeDataForFcm(data, title, body);
     const message = {
       token: (user as any).fcmToken,
       data: payloadData,
@@ -236,7 +246,7 @@ export class NotificationService {
     userId: string,
     title: string,
     body: string,
-    data?: Record<string, string>,
+    data?: Record<string, any>,
   ): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -249,11 +259,7 @@ export class NotificationService {
     }
 
     const notificationCategory = this.getNotificationCategory(data);
-    const payloadData = {
-      ...(data || {}),
-      title,
-      body,
-    };
+    const payloadData = this.sanitizeDataForFcm(data, title, body);
 
     const message = {
       token: (user as any).fcmToken,
@@ -298,7 +304,7 @@ export class NotificationService {
     userIds: string[],
     title: string,
     body: string,
-    data?: Record<string, string>,
+    data?: Record<string, any>,
   ): Promise<void> {
     // Save notifications to database (even if some users don't have FCM tokens)
     if (userIds?.length) {
@@ -327,11 +333,7 @@ export class NotificationService {
     }
 
     const notificationCategory = this.getNotificationCategory(data);
-    const payloadData = {
-      ...(data || {}),
-      title,
-      body,
-    };
+    const payloadData = this.sanitizeDataForFcm(data, title, body);
     const message = {
       tokens,
       data: payloadData,
@@ -371,6 +373,38 @@ export class NotificationService {
     }
   }
 
+  async updateOrderNotificationsCancelStatus(orderId: string, isCancelled: boolean = true): Promise<void> {
+    try {
+      if (!orderId) return;
+
+      const notifications = await this.prisma.notification.findMany({
+        where: {
+          OR: [
+            { data: { path: ['orderId'], equals: orderId } },
+          ],
+        },
+      });
+
+      for (const notif of notifications) {
+        const notifData = (typeof notif.data === 'object' && notif.data !== null ? { ...(notif.data as any) } : {}) as Record<string, any>;
+        await this.prisma.notification.update({
+          where: { id: notif.id },
+          data: {
+            data: {
+              ...notifData,
+              iscancel: isCancelled,
+              isCancel: isCancelled,
+              isCancelled: isCancelled,
+              orderStatus: isCancelled ? 'CANCELLED' : notifData.orderStatus,
+            },
+          },
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to update order notifications cancel status for order ${orderId}:`, err);
+    }
+  }
+
   async getNotifications(
     userId: string,
     options?: {
@@ -384,7 +418,7 @@ export class NotificationService {
     const take = Math.min(limit, 200);
     const skip = (page - 1) * take;
 
-    return this.prisma.notification.findMany({
+    const notifications = await this.prisma.notification.findMany({
       where: {
         userId,
         ...(options?.isRead === undefined ? {} : { isRead: options.isRead }),
@@ -393,6 +427,48 @@ export class NotificationService {
       skip,
       take,
     });
+
+    const orderIds = Array.from(
+      new Set(
+        notifications
+          .map((n) => (n.data as any)?.orderId)
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    );
+
+    if (orderIds.length > 0) {
+      const orders = await this.prisma.order.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, orderStatus: true, cancellationStatus: true },
+      });
+      const orderMap = new Map(orders.map((o) => [o.id, o]));
+
+      for (const n of notifications) {
+        const notifData = (typeof n.data === 'object' && n.data !== null ? { ...(n.data as any) } : {}) as Record<string, any>;
+        if (notifData.orderId && orderMap.has(notifData.orderId)) {
+          const order = orderMap.get(notifData.orderId);
+          const isCancelled = order?.orderStatus === 'CANCELLED' || order?.cancellationStatus === 'APPROVED';
+          notifData.iscancel = isCancelled;
+          notifData.isCancel = isCancelled;
+          notifData.isCancelled = isCancelled;
+          (n as any).iscancel = isCancelled;
+          (n as any).isCancel = isCancelled;
+          (n as any).isCancelled = isCancelled;
+          n.data = notifData;
+        } else if (notifData.orderId) {
+          const isCancelled = notifData.type === 'marketplace_order_cancelled';
+          if (notifData.iscancel === undefined) notifData.iscancel = isCancelled;
+          if (notifData.isCancel === undefined) notifData.isCancel = isCancelled;
+          if (notifData.isCancelled === undefined) notifData.isCancelled = isCancelled;
+          (n as any).iscancel = notifData.iscancel;
+          (n as any).isCancel = notifData.isCancel;
+          (n as any).isCancelled = notifData.isCancelled;
+          n.data = notifData;
+        }
+      }
+    }
+
+    return notifications;
   }
 
   async getBattleNotifications(userId: string, limit: number = 100): Promise<any[]> {

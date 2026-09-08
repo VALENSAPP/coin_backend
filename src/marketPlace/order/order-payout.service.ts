@@ -90,6 +90,9 @@ export class OrderPayoutService {
                 orderId: updated.id,
                 orderNumber: updated.orderNumber,
                 protectionEndsAt: updated.protectionEndsAt?.toISOString() || '',
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
 
@@ -102,6 +105,9 @@ export class OrderPayoutService {
                 orderId: updated.id,
                 orderNumber: updated.orderNumber,
                 protectionEndsAt: updated.protectionEndsAt?.toISOString() || '',
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
 
@@ -218,6 +224,9 @@ export class OrderPayoutService {
                     orderNumber: updated.orderNumber,
                     amountMinor: String(updated.sellerAmountMinor ?? 0),
                     walletEntryId: walletResult.entryId,
+                    iscancel: false,
+                    isCancel: false,
+                    isCancelled: false,
                 },
             );
 
@@ -274,6 +283,9 @@ export class OrderPayoutService {
                 type: 'marketplace_payout_frozen',
                 orderId: order.id,
                 orderNumber: order.orderNumber,
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
 

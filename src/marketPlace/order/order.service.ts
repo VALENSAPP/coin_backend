@@ -368,6 +368,9 @@ export class OrderService {
                         buyerImage: buyerAvatar,
                         buyerName,
                         buyerUsername: buyer?.userName || '',
+                        iscancel: false,
+                        isCancel: false,
+                        isCancelled: false,
                     },
                 );
 
@@ -392,6 +395,9 @@ export class OrderService {
                         itemName: orderNotification.productName || '',
                         price: orderNotification.price || '',
                         total: orderNotification.price || '',
+                        iscancel: false,
+                        isCancel: false,
+                        isCancelled: false,
                     },
                 );
 
@@ -1107,6 +1113,9 @@ export class OrderService {
             reason,
         });
 
+        // Update existing notification records for this order to cancelled status
+        await this.notificationService.updateOrderNotificationsCancelStatus(order.id, true);
+
         // 7. Push / in-app notifications
         const notificationTarget = cancelledBy === 'BUYER' ? order.sellerId : order.buyerId;
         const whoStr = cancelledBy === 'BUYER' ? 'Buyer' : 'Seller';
@@ -1146,6 +1155,9 @@ export class OrderService {
                 avatar: actorAvatar,
                 buyerName: order.buyer?.displayName || order.buyer?.userName || '',
                 sellerName: order.seller?.displayName || order.seller?.userName || '',
+                iscancel: true,
+                isCancel: true,
+                isCancelled: true,
             },
         );
 
@@ -1291,6 +1303,9 @@ export class OrderService {
                 buyerName: buyerName,
                 buyerUserName: order.buyer?.userName || '',
                 buyerDisplayName: order.buyer?.displayName || '',
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
             },
         );
 
