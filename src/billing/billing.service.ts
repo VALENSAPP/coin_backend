@@ -4817,11 +4817,196 @@ export class BillingService {
     };
   }
 
-  async getReceivedTransactions(userId: string, page: number = 1, limit: number = 10) {
+  async getReceivedTransactions(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+    paymentType?: string,
+  ) {
     const safePage = Math.max(1, page || 1);
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
     const takePerSource = safePage * safeLimit;
+    const normalizedType = (paymentType || '').trim().toLowerCase();
 
+    const isSubscriptions = ['subscriptions', 'subscription', 'payfollowing', 'following', 'fansubscriptionbuy'].includes(normalizedType);
+    const isTip = ['tip', 'tips'].includes(normalizedType);
+    const isDonation = ['donation', 'donations', 'missiondonation'].includes(normalizedType);
+    const isUsdt = ['usdt', 'crypto', 'digital_transaction'].includes(normalizedType);
+    const isFiltered = isSubscriptions || isTip || isDonation || isUsdt;
+
+    if (isFiltered) {
+      let combined: any[] = [];
+      let totalItems = 0;
+
+      if (isSubscriptions) {
+        const [creditPayments, debitPayments, totalCredit, totalDebit] = await Promise.all([
+          this.prisma.payment.findMany({
+            where: {
+              receiverId: userId,
+              forPayment: { in: ['following', 'fanSubscriptionBuy'] },
+              status: 'succeeded',
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.payment.findMany({
+            where: {
+              userId,
+              forPayment: { in: ['following', 'fanSubscriptionBuy'] },
+              status: 'succeeded',
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.payment.count({
+            where: {
+              receiverId: userId,
+              forPayment: { in: ['following', 'fanSubscriptionBuy'] },
+              status: 'succeeded',
+            },
+          }),
+          this.prisma.payment.count({
+            where: {
+              userId,
+              forPayment: { in: ['following', 'fanSubscriptionBuy'] },
+              status: 'succeeded',
+            },
+          }),
+        ]);
+
+        combined = [
+          ...creditPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing', type: 'credit' })),
+          ...debitPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing', type: 'debit' })),
+        ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        totalItems = totalCredit + totalDebit;
+      } else if (isTip) {
+        const [creditPayments, debitPayments, totalCredit, totalDebit] = await Promise.all([
+          this.prisma.payment.findMany({
+            where: {
+              receiverId: userId,
+              forPayment: 'TIP',
+              status: 'succeeded',
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.payment.findMany({
+            where: {
+              userId,
+              forPayment: 'TIP',
+              status: 'succeeded',
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.payment.count({
+            where: {
+              receiverId: userId,
+              forPayment: 'TIP',
+              status: 'succeeded',
+            },
+          }),
+          this.prisma.payment.count({
+            where: {
+              userId,
+              forPayment: 'TIP',
+              status: 'succeeded',
+            },
+          }),
+        ]);
+
+        combined = [
+          ...creditPayments.map((p) => ({ ...p, typeTransaction: 'tip', type: 'credit' })),
+          ...debitPayments.map((p) => ({ ...p, typeTransaction: 'tip', type: 'debit' })),
+        ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        totalItems = totalCredit + totalDebit;
+      } else if (isDonation) {
+        const [creditDonations, debitDonations, totalCredit, totalDebit] = await Promise.all([
+          this.prisma.donationData.findMany({
+            where: {
+              vendorId: userId,
+              status: 'completed',
+              action: { in: ['missionDonation', 'donate'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.donationData.findMany({
+            where: {
+              userId,
+              status: 'completed',
+              action: { in: ['missionDonation', 'donate'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.donationData.count({
+            where: {
+              vendorId: userId,
+              status: 'completed',
+              action: { in: ['missionDonation', 'donate'] },
+            },
+          }),
+          this.prisma.donationData.count({
+            where: {
+              userId,
+              status: 'completed',
+              action: { in: ['missionDonation', 'donate'] },
+            },
+          }),
+        ]);
+
+        combined = [
+          ...creditDonations.map((d) => ({ ...d, typeTransaction: 'donation', type: 'credit' })),
+          ...debitDonations.map((d) => ({ ...d, typeTransaction: 'donation', type: 'debit' })),
+        ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        totalItems = totalCredit + totalDebit;
+      } else if (isUsdt) {
+        const [creditUsdt, debitUsdt, totalCredit, totalDebit] = await Promise.all([
+          this.prisma.digital_transaction.findMany({
+            where: { receiverId: userId },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.digital_transaction.findMany({
+            where: { senderId: userId },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.digital_transaction.count({
+            where: { receiverId: userId },
+          }),
+          this.prisma.digital_transaction.count({
+            where: { senderId: userId },
+          }),
+        ]);
+
+        combined = [
+          ...creditUsdt.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'credit' })),
+          ...debitUsdt.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'debit' })),
+        ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        totalItems = totalCredit + totalDebit;
+      }
+
+      const start = (safePage - 1) * safeLimit;
+      const end = start + safeLimit;
+      const transactions = combined.slice(start, end);
+      const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+
+      return {
+        page: safePage,
+        limit: safeLimit,
+        totalItems,
+        totalPages,
+        transactions,
+      };
+    }
+
+    // Default: fetch and combine all transaction types
     const [
       followingPaymentsCredit,
       followingPaymentsDebit,
@@ -4843,7 +5028,7 @@ export class BillingService {
       this.prisma.payment.findMany({
         where: {
           receiverId: userId,
-          forPayment: 'following',
+          forPayment: { in: ['following', 'fanSubscriptionBuy'] },
           status: 'succeeded',
         },
         orderBy: { createdAt: 'desc' },
@@ -4852,7 +5037,7 @@ export class BillingService {
       this.prisma.payment.findMany({
         where: {
           userId,
-          forPayment: 'following',
+          forPayment: { in: ['following', 'fanSubscriptionBuy'] },
           status: 'succeeded',
         },
         orderBy: { createdAt: 'desc' },
@@ -4907,14 +5092,14 @@ export class BillingService {
       this.prisma.payment.count({
         where: {
           receiverId: userId,
-          forPayment: 'following',
+          forPayment: { in: ['following', 'fanSubscriptionBuy'] },
           status: 'succeeded',
         },
       }),
       this.prisma.payment.count({
         where: {
           userId,
-          forPayment: 'following',
+          forPayment: { in: ['following', 'fanSubscriptionBuy'] },
           status: 'succeeded',
         },
       }),

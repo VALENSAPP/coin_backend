@@ -579,17 +579,26 @@ export class BillingController {
   @Get('received-transactions')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get credit and debit transactions (combined) sorted by createdAt desc with pagination' })
+  @ApiOperation({ summary: 'Get credit and debit transactions (combined or filtered) sorted by createdAt desc with pagination' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({
+    name: 'paymentType',
+    required: false,
+    example: 'subscriptions',
+    description: 'Filter transactions by type: subscriptions (or subscription, payFollowing), tip, donation, usdt. Leave empty or pass all to return all transactions.',
+  })
   async getReceivedTransactions(
     @Req() req: Request,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('paymentType') paymentType?: string,
+    @Query('paymenttype') paymenttypeAlt?: string,
   ) {
     const userId = (req.user as any).userId;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNum = Math.min(Math.max(1, parseInt(limit || '10', 10) || 10), 50);
-    return this.billingService.getReceivedTransactions(userId, pageNum, limitNum);
+    const filterPaymentType = paymentType || paymenttypeAlt;
+    return this.billingService.getReceivedTransactions(userId, pageNum, limitNum, filterPaymentType);
   }
 }
