@@ -258,11 +258,9 @@ export class DeepLinkController {
 
     const encodedId = encodeURIComponent(id);
 
-    // Closet item share: /closet/{id}?itemId=... — closet share has no itemId.
-
+    const rawQuery = req.url && req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
     const itemId = typeof req.query.itemId === 'string' ? req.query.itemId.trim() : '';
-
-    const querySuffix = itemId ? `?itemId=${encodeURIComponent(itemId)}` : '';
+    const querySuffix = rawQuery || (itemId ? `?itemId=${encodeURIComponent(itemId)}` : '');
 
     const shareUrl = `${baseUrl}/${route}/${encodedId}${querySuffix}`;
 

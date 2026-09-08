@@ -2904,9 +2904,9 @@ export class UserService {
       console.error(`[UserService] Failed to query active subscriptions for creator ${creatorId}:`, err?.message || err);
     }
 
-    const logoUrl = process.env.APP_LOGO_URL || 'https://valens.com/logo.png';
-    const frontendUrl = process.env.FRONTEND_URL || 'https://valens.com';
-    const renewUrl = `${frontendUrl}/user/${creatorId}?renew=true`;
+    const logoUrl = process.env.APP_LOGO_URL || process.env.OG_IMAGE_URL || 'https://api.valens.app/share-assets/valens-share.png';
+    const baseUrl = process.env.BASE_URL || process.env.FRONTEND_URL || 'https://api.valens.app';
+    const renewUrl = `${baseUrl.replace(/\/$/, '')}/profile/${creatorId}?renew=true`;
 
     const processedFanIds = new Set<string>();
 
