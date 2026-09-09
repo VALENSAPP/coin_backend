@@ -73,6 +73,7 @@ model User {
   referPoints           Float                     @default(1000)
   totalPlatformPoints   Float                     @default(1000)
   marketplaceBattlePoints Float                   @default(0)
+  shopPlatformPoints    Float                     @default(0)
   blockedBy             BlockedUser[]             @relation("Blocked")
   blockedUsers          BlockedUser[]             @relation("Blocker")
   followings            FollowerAndFollowing[]    @relation("Follower")
@@ -174,6 +175,7 @@ model User {
   walletLedgerEntries         WalletLedgerEntry[]
   sentPlatformPointTransfers     PlatformPointTransfer[] @relation("SentPlatformPointTransfers")
   receivedPlatformPointTransfers PlatformPointTransfer[] @relation("ReceivedPlatformPointTransfers")
+  shopRewardPointsAwards         ShopRewardPointsAward[] @relation("UserShopRewardPointsAwards")
 }
 
 model Mycloset {
@@ -887,6 +889,7 @@ model Order {
   payment               MarketPlacePayments? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   items                 OrderItem[]
   closetChatThreads     ClosetChatThread[]
+  shopRewardPointsAward ShopRewardPointsAward?
 
   @@index([buyerId, createdAt])
   @@index([sellerId, orderStatus])
@@ -1892,6 +1895,24 @@ model MarketplaceBattlePointsAward {
   @@unique([battleId, userId])
   @@index([battleId])
   @@index([userId])
+  @@index([awardedAt])
+}
+
+model ShopRewardPointsAward {
+  id        String   @id @default(uuid())
+  orderId   String   @unique
+  userId    String
+  points    Float    @default(0)
+  subtotal  Float    @default(0)
+  awardedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user  User  @relation("UserShopRewardPointsAwards", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([orderId])
   @@index([awardedAt])
 }
 

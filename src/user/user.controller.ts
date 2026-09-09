@@ -803,6 +803,15 @@ export class UserController {
     return this.userService.getReferPoints(userId);
   }
 
+  @Get('shop-platform-points')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get shop platform points earned by authenticated user' })
+  async getShopPlatformPoints(@Req() req: Request) {
+    const userId = (req.user as any).userId;
+    return this.userService.getShopPlatformPoints(userId);
+  }
+
   @Get('totalplatfrompoints')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

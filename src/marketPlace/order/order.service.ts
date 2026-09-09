@@ -92,6 +92,7 @@ export class OrderService {
             image?: string;
             productName?: string;
             price?: string;
+            pointsEarned?: number;
         }> = [];
 
         await this.prisma.$transaction(async (tx) => {
@@ -219,12 +220,16 @@ export class OrderService {
                 }
             }
 
+            let totalPointsAwardedToBuyer = 0;
+
             for (const item of orderLines) {
                 const subtotalMinor = item.subtotalMinor;
                 const shippingMinor = item.shippingMinor;
                 const totalMinor = subtotalMinor + shippingMinor;
                 const platformFeeMinor = Math.round(totalMinor * platformFeePercent);
                 const sellerAmountMinor = Math.max(0, totalMinor - platformFeeMinor);
+                const subtotalMajor = this.toMajor(subtotalMinor);
+                const earnedPoints = Math.round(subtotalMajor);
 
                 const order = await tx.order.create({
                     data: {
@@ -234,7 +239,7 @@ export class OrderService {
                         closetId: item.closetId,
                         addressId,
                         paymentId: paymentRecord.id,
-                        subtotal: this.toMajor(subtotalMinor),
+                        subtotal: subtotalMajor,
                         shippingCost: this.toMajor(shippingMinor),
                         serviceFee: this.toMajor(platformFeeMinor),
                         total: this.toMajor(totalMinor),
@@ -250,6 +255,19 @@ export class OrderService {
                     },
                 });
 
+                if (earnedPoints > 0) {
+                    await tx.shopRewardPointsAward.create({
+                        data: {
+                            orderId: order.id,
+                            userId: buyerId,
+                            points: earnedPoints,
+                            subtotal: subtotalMajor,
+                            awardedAt: new Date(),
+                        },
+                    });
+                    totalPointsAwardedToBuyer += earnedPoints;
+                }
+
                 createdOrderIds.push(order.id);
                 orderNotifications.push({
                     sellerId: item.sellerId,
@@ -258,6 +276,7 @@ export class OrderService {
                     image: item.productImage || '',
                     productName: item.productName || '',
                     price: String(this.toMajor(totalMinor)),
+                    pointsEarned: earnedPoints,
                 });
 
                 if (sellerAmountMinor > 0) {
@@ -309,6 +328,16 @@ export class OrderService {
                     data: {
                         quantity: { decrement: item.quantity },
                         soldCount: { increment: item.quantity },
+                    },
+                });
+            }
+
+            if (totalPointsAwardedToBuyer > 0) {
+                await tx.user.update({
+                    where: { id: buyerId },
+                    data: {
+                        shopPlatformPoints: { increment: totalPointsAwardedToBuyer },
+                        totalPlatformPoints: { increment: totalPointsAwardedToBuyer },
                     },
                 });
             }
@@ -375,10 +404,14 @@ export class OrderService {
                 );
 
                 // Send notification to buyer
+                const buyerBody = (orderNotification.pointsEarned && orderNotification.pointsEarned > 0)
+                    ? `Your order #${orderNotification.orderNumber} has been placed successfully. You earned ${orderNotification.pointsEarned} Platform Points!`
+                    : `Your order #${orderNotification.orderNumber} has been placed successfully.`;
+
                 await this.notificationService.sendNotificationToUser(
                     buyerId,
                     'Order Placed Successfully',
-                    `Your order #${orderNotification.orderNumber} has been placed successfully.`,
+                    buyerBody,
                     {
                         type: 'marketplace_order_placed',
                         paymentId: paymentRecord.id,
@@ -395,6 +428,7 @@ export class OrderService {
                         itemName: orderNotification.productName || '',
                         price: orderNotification.price || '',
                         total: orderNotification.price || '',
+                        pointsEarned: orderNotification.pointsEarned || 0,
                         iscancel: false,
                         isCancel: false,
                         isCancelled: false,
@@ -535,6 +569,11 @@ export class OrderService {
                         },
                     },
                 },
+                shopRewardPointsAward: {
+                    select: {
+                        points: true,
+                    },
+                },
             },
         });
 
@@ -549,6 +588,7 @@ export class OrderService {
                     isLocalPickupOrder && order.orderStatus === OrderStatus.PENDING
                         ? 'localpickup'
                         : order.orderStatus,
+                pointsEarned: order.shopRewardPointsAward?.points || 0,
                 totalItemCount: order.items.length,
                 items: order.items.map((item) => ({
                     id: item.id,
@@ -642,6 +682,11 @@ export class OrderService {
                 },
                 address: true,
                 payment: true,
+                shopRewardPointsAward: {
+                    select: {
+                        points: true,
+                    },
+                },
             },
         });
 
@@ -650,6 +695,7 @@ export class OrderService {
 
         return {
             ...order,
+            pointsEarned: order.shopRewardPointsAward?.points || 0,
             totalItemCount: order.items.length,
             items: order.items.map((item) => ({
                 id: item.id,
@@ -1063,6 +1109,31 @@ export class OrderService {
                         },
                     });
                 }
+            }
+
+            // 3b. Reverse shop platform points awarded to buyer if any
+            const pointAward = await tx.shopRewardPointsAward.findUnique({
+                where: { orderId: order.id },
+            });
+            if (pointAward && pointAward.points > 0) {
+                const buyer = await tx.user.findUnique({
+                    where: { id: order.buyerId },
+                    select: { shopPlatformPoints: true, totalPlatformPoints: true },
+                });
+                if (buyer) {
+                    const newShopPoints = Math.max(0, (buyer.shopPlatformPoints ?? 0) - pointAward.points);
+                    const newTotalPoints = Math.max(0, (buyer.totalPlatformPoints ?? 0) - pointAward.points);
+                    await tx.user.update({
+                        where: { id: order.buyerId },
+                        data: {
+                            shopPlatformPoints: newShopPoints,
+                            totalPlatformPoints: newTotalPoints,
+                        },
+                    });
+                }
+                await tx.shopRewardPointsAward.delete({
+                    where: { id: pointAward.id },
+                });
             }
 
             // 4. Update MarketplacePayments status if applicable

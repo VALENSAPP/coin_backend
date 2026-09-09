@@ -3585,11 +3585,14 @@ export class BattleService {
       const userIds = Array.from(byUser.keys());
       const users = await tx.user.findMany({
         where: { id: { in: userIds } },
-        select: { id: true, referPoints: true, marketplaceBattlePoints: true },
+        select: { id: true, referPoints: true, marketplaceBattlePoints: true, shopPlatformPoints: true },
       });
       const referPointsByUser = new Map(users.map((u) => [u.id, u.referPoints ?? 0]));
       const marketplacePointsByUser = new Map(
         users.map((u) => [u.id, u.marketplaceBattlePoints ?? 0]),
+      );
+      const shopPointsByUser = new Map(
+        users.map((u) => [u.id, u.shopPlatformPoints ?? 0]),
       );
 
       for (const [uid, stats] of byUser.entries()) {
@@ -3617,10 +3620,11 @@ export class BattleService {
         });
         const referPoints = referPointsByUser.get(uid) ?? 0;
         const marketplaceBattlePoints = marketplacePointsByUser.get(uid) ?? 0;
+        const shopPlatformPoints = shopPointsByUser.get(uid) ?? 0;
         await tx.user.update({
           where: { id: uid },
           data: {
-            totalPlatformPoints: referPoints + stats.totalBattlePoints + marketplaceBattlePoints,
+            totalPlatformPoints: referPoints + stats.totalBattlePoints + marketplaceBattlePoints + shopPlatformPoints,
           },
         });
       }

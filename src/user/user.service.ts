@@ -1096,6 +1096,7 @@ export class UserService {
         referPoints: true,
         totalPlatformPoints: true,
         marketplaceBattlePoints: true,
+        shopPlatformPoints: true,
         walletAddress: true,
         mycloset: {
           select: {
@@ -1184,6 +1185,7 @@ export class UserService {
       referPoints: true,
       totalPlatformPoints: true,
       marketplaceBattlePoints: true,
+      shopPlatformPoints: true,
       walletAddress: true,
     };
     const where: any = { deletedAt: null };
@@ -1308,6 +1310,7 @@ export class UserService {
             referPoints: true,
             totalPlatformPoints: true,
             marketplaceBattlePoints: true,
+            shopPlatformPoints: true,
             walletAddress: true,
           },
         },
@@ -3172,6 +3175,16 @@ export class UserService {
     return { referPoints: user.referPoints ?? 0 };
   }
 
+  async getShopPlatformPoints(userId: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { shopPlatformPoints: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+    return { shopPlatformPoints: user.shopPlatformPoints ?? 0 };
+  }
+
   async getTotalPlatformPointsSummary(userId: string) {
     if (!userId) throw new BadRequestException('User ID required');
 
@@ -3182,6 +3195,7 @@ export class UserService {
           totalPlatformPoints: true,
           referPoints: true,
           marketplaceBattlePoints: true,
+          shopPlatformPoints: true,
         },
       }),
       this.prisma.userBattleStats.findUnique({
@@ -3196,13 +3210,15 @@ export class UserService {
     const referPoints = user.referPoints ?? 0;
     const totalBattlePoints = stats?.totalBattlePoints ?? 0;
     const marketplaceBattlePoints = user.marketplaceBattlePoints ?? 0;
+    const shopPlatformPoints = user.shopPlatformPoints ?? 0;
 
     return {
       totalPlatformPoints,
       totalBattlePoints,
       marketplaceBattlePoints,
       referPoints,
-      used: totalBattlePoints + marketplaceBattlePoints + referPoints - totalPlatformPoints,
+      shopPlatformPoints,
+      used: totalBattlePoints + marketplaceBattlePoints + referPoints + shopPlatformPoints - totalPlatformPoints,
     };
   }
 
