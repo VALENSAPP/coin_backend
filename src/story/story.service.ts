@@ -4,6 +4,7 @@ import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.
 import { generateThumbnailForMedia } from '../common/media-thumbnail.util';
 import { NotificationService } from '../notification/notification.service';
 import { Prisma } from '@prisma/client';
+import { ReactStoryDto } from './dto/react-story.dto';
 
 const STORY_TYPES = ['normal', 'subscription-content', 'private-circle'] as const;
 type StoryType = (typeof STORY_TYPES)[number];
@@ -277,8 +278,30 @@ export class StoryService {
     const story = await this.getAccessibleStory(storyId, userId);
     if (!story) throw new BadRequestException('Story not found');
 
+    if (story.userId === userId) {
+      throw new BadRequestException('Cannot send story comment to yourself');
+    }
+
+    // Find or create ChatBox between user and story owner
+    let chatBox = await this.prisma.chatBox.findFirst({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: story.userId },
+          { senderId: story.userId, receiverId: userId },
+        ],
+      },
+    });
+
+    if (!chatBox) {
+      chatBox = await this.prisma.chatBox.create({
+        data: {
+          senderId: userId,
+          receiverId: story.userId,
+        },
+      });
+    }
+
     // Create conversation record for story comment
-    // Note: For story comments, we might want to send to the story owner
     const conversation = await this.prisma.conversation.create({
       data: {
         type: 'MEDIA',
@@ -286,9 +309,26 @@ export class StoryService {
         receiverId: story.userId, // Send to story owner
         mediaId: storyId,
         mediaType: 'STORY',
-        content: comment,
+        content: comment.trim(),
+        chatId: chatBox.id,
+      },
+      include: {
+        sender: { select: { id: true, displayName: true, image: true } },
+        receiver: { select: { id: true, displayName: true, image: true } },
       },
     });
+
+    try {
+      await this.prisma.storyComment.create({
+        data: {
+          storyId,
+          userId,
+          comment: comment.trim(),
+        },
+      });
+    } catch (e) {
+      console.warn('Failed to record StoryComment table entry:', e);
+    }
 
     try {
       await this.notificationService.sendDropTrendingIfNeeded(storyId, userId);
@@ -297,6 +337,122 @@ export class StoryService {
     }
 
     return conversation;
+  }
+
+  async reactToStory(userId: string, dto: ReactStoryDto) {
+    const { storyId, reaction, highlightId } = dto;
+    if (!storyId) throw new BadRequestException('Story ID required');
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!reaction || reaction.trim() === '') throw new BadRequestException('Reaction required');
+
+    // Check if story exists and is visible to this user
+    const story = await this.getAccessibleStory(storyId, userId);
+    if (!story) throw new BadRequestException('Story not found');
+
+    // Optional highlight verification if reacted from inside a highlight
+    if (highlightId) {
+      const highlight = await this.prisma.storyHighlight.findUnique({
+        where: { id: highlightId },
+        include: { items: true },
+      });
+      if (!highlight) {
+        throw new NotFoundException('Highlight not found');
+      }
+      const itemExists = highlight.items.some((item) => item.storyId === storyId);
+      if (!itemExists) {
+        throw new BadRequestException('Story does not belong to the specified highlight');
+      }
+    }
+
+    if (story.userId === userId) {
+      throw new BadRequestException('Cannot send reaction to yourself');
+    }
+
+    // Find or create ChatBox between user and story owner
+    let chatBox = await this.prisma.chatBox.findFirst({
+      where: {
+        OR: [
+          { senderId: userId, receiverId: story.userId },
+          { senderId: story.userId, receiverId: userId },
+        ],
+      },
+    });
+
+    if (!chatBox) {
+      chatBox = await this.prisma.chatBox.create({
+        data: {
+          senderId: userId,
+          receiverId: story.userId,
+        },
+      });
+    }
+
+    // Create conversation record for story reaction
+    const conversation = await this.prisma.conversation.create({
+      data: {
+        type: 'MEDIA',
+        senderId: userId,
+        receiverId: story.userId,
+        mediaId: storyId,
+        mediaType: 'STORY',
+        content: reaction.trim(),
+        chatId: chatBox.id,
+      },
+      include: {
+        sender: { select: { id: true, displayName: true, image: true } },
+        receiver: { select: { id: true, displayName: true, image: true } },
+      },
+    });
+
+    // If reaction is like / heart, record in StoryLike
+    const trimmedReaction = reaction.trim();
+    const isHeartLike = trimmedReaction === '❤️' || trimmedReaction === 'like' || trimmedReaction === '❤';
+    if (isHeartLike) {
+      const existingLike = await this.prisma.storyLike.findUnique({
+        where: {
+          storyId_userId: {
+            storyId,
+            userId,
+          },
+        },
+      });
+      if (!existingLike) {
+        await this.prisma.storyLike.create({
+          data: {
+            storyId,
+            userId,
+          },
+        });
+      }
+    }
+
+    try {
+      await this.notificationService.sendDropTrendingIfNeeded(storyId, userId);
+    } catch (error) {
+      console.error('Failed to send drop trending notification:', error);
+    }
+
+    return {
+      message: 'Reaction sent successfully',
+      conversation: {
+        id: conversation.id,
+        type: conversation.type,
+        content: conversation.content,
+        chatId: conversation.chatId,
+        createdAt: conversation.createdAt,
+        sender: conversation.sender,
+        receiver: conversation.receiver,
+        story: {
+          id: story.id,
+          caption: story.caption,
+          media: story.media,
+          thumbnails: story.thumbnails,
+          storyMeta: story.storyMeta,
+          createdAt: story.createdAt,
+          userId: story.userId,
+        },
+      },
+    };
   }
 
   async storyLikeByUser(storyId: string, userId: string) {

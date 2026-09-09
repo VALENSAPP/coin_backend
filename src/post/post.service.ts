@@ -4008,6 +4008,11 @@ export class PostService {
     if (!sharedUserId) throw new BadRequestException('Sender user ID required');
     if (!receiverUserId) throw new BadRequestException('Receiver user ID required');
 
+    const normalizedMediaType = mediaType.trim().toUpperCase();
+    if (!['POST', 'STORY', 'REEL', 'HIGHLIGHT'].includes(normalizedMediaType)) {
+      throw new BadRequestException('mediaType must be one of: POST, STORY, REEL, HIGHLIGHT');
+    }
+
     let isTrustPost: boolean | null = null;
 
     // Prevent sharing to self
@@ -4036,8 +4041,7 @@ export class PostService {
     }
 
     // If mediaType is POST, create a PostShare record to track the share count
-    // This should be done regardless of conversation existence, as they serve different purposes
-    if (mediaType === 'POST' || mediaType === 'post') {
+    if (normalizedMediaType === 'POST') {
       const post = await this.prisma.post.findUnique({
         where: { id: mediaId, deletedAt: null },
       });
@@ -4066,6 +4070,16 @@ export class PostService {
           },
         });
       }
+    } else if (normalizedMediaType === 'STORY') {
+      const story = await this.prisma.story.findUnique({
+        where: { id: mediaId, deletedAt: null },
+      });
+      if (!story || story.isDeleted === 'yes') throw new BadRequestException('Story not found');
+    } else if (normalizedMediaType === 'HIGHLIGHT') {
+      const highlight = await this.prisma.storyHighlight.findUnique({
+        where: { id: mediaId },
+      });
+      if (!highlight) throw new BadRequestException('Highlight not found');
     }
 
     // Always create a new conversation record for media share
@@ -4075,7 +4089,7 @@ export class PostService {
         senderId: sharedUserId,
         receiverId: receiverUserId,
         mediaId,
-        mediaType: mediaType as any,
+        mediaType: normalizedMediaType as any,
         chatId: chatBox.id,
       },
     });
@@ -4094,40 +4108,37 @@ export class PostService {
       throw new BadRequestException('Receiver user IDs required');
     }
 
-    const uniqueReceiverIds = Array.from(new Set(receiverUserId.filter(Boolean)));
-    if (uniqueReceiverIds.length === 0) {
-      throw new BadRequestException('Receiver user IDs required');
-    }
+    const results = [];
+    let isTrustPost: boolean | null = null;
 
-    const results: Array<{
-      receiverUserId: string;
-      message?: string;
-      conversationId?: string;
-      isTrustPost?: boolean | null;
-      error?: string;
-    }> = [];
-
-    for (const receiverUserId of uniqueReceiverIds) {
+    for (const receiverId of receiverUserId) {
       try {
         const res = await this.sharePostToUser(
           mediaId,
           mediaType,
           conversationType,
           sharedUserId,
-          receiverUserId,
+          receiverId,
         );
-        results.push({ receiverUserId, ...res });
-      } catch (error) {
+        isTrustPost = res.isTrustPost ?? isTrustPost;
         results.push({
-          receiverUserId,
-          error: (error as Error)?.message || 'Failed to share media',
+          receiverUserId: receiverId,
+          status: 'success',
+          conversationId: res.conversationId,
+        });
+      } catch (err: any) {
+        results.push({
+          receiverUserId: receiverId,
+          status: 'failed',
+          error: err?.message || 'Failed to share post',
         });
       }
     }
 
     return {
-      message: 'Share operation completed',
+      message: 'Media share process completed',
       results,
+      isTrustPost,
     };
   }
 
@@ -4155,6 +4166,10 @@ export class PostService {
       .filter(c => c.mediaType === 'STORY')
       .map(c => c.mediaId)
       .filter((id): id is string => id !== null);
+    const highlightIds = mediaConversations
+      .filter(c => c.mediaType === 'HIGHLIGHT')
+      .map(c => c.mediaId)
+      .filter((id): id is string => id !== null);
 
     const posts = postIds.length > 0 ? await this.prisma.post.findMany({
       where: {
@@ -4178,16 +4193,40 @@ export class PostService {
       },
     }) : [];
 
+    const highlights = highlightIds.length > 0 ? await this.prisma.storyHighlight.findMany({
+      where: { id: { in: highlightIds } },
+      include: {
+        user: { select: { displayName: true, image: true, profileStatus: true, profile: true } },
+        items: {
+          include: {
+            story: {
+              select: {
+                id: true,
+                media: true,
+                thumbnails: true,
+                caption: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    }) : [];
+
     const postMap = new Map(posts.map(p => [p.id, p]));
     const storyMap = new Map(stories.map(s => [s.id, s]));
+    const highlightMap = new Map(highlights.map(h => [h.id, h]));
 
     return conversations.map(conv => {
       const post = conv.mediaId ? postMap.get(conv.mediaId) : null;
       const story = conv.mediaId ? storyMap.get(conv.mediaId) : null;
+      const highlight = conv.mediaId ? highlightMap.get(conv.mediaId) : null;
       return {
         id: conv.id,
         sharedAt: conv.createdAt,
         mediaType: conv.mediaType,
+        content: conv.content,
         post: post && {
           id: post.id,
           text: post.text,
@@ -4228,6 +4267,24 @@ export class PostService {
           userImage: story.user?.image || null,
           profileStatus: story.user?.profileStatus || null,
           profile: story.user?.profile || null,
+        },
+        highlight: highlight && {
+          id: highlight.id,
+          title: highlight.title,
+          coverImage: highlight.coverImage,
+          createdAt: highlight.createdAt,
+          userId: highlight.userId,
+          userName: highlight.user?.displayName || null,
+          userImage: highlight.user?.image || null,
+          profileStatus: highlight.user?.profileStatus || null,
+          profile: highlight.user?.profile || null,
+          itemCount: highlight.items.length,
+          items: highlight.items.map(item => ({
+            id: item.id,
+            storyId: item.storyId,
+            position: item.position,
+            story: item.story,
+          })),
         },
         sharedBy: {
           id: conv.senderId,
@@ -4452,6 +4509,7 @@ export class PostService {
       receiver: conv.receiver,
       post: null,
       story: null,
+      highlight: null,
     }));
   }
 
@@ -4588,11 +4646,15 @@ export class PostService {
     const postIds = mediaConversations
       .filter(c => c.mediaType === 'POST' || c.mediaType === 'REEL')
       .map(c => c.mediaId)
-      .filter(id => id !== null) as string[];
+      .filter((id): id is string => id !== null);
     const storyIds = mediaConversations
       .filter(c => c.mediaType === 'STORY')
       .map(c => c.mediaId)
-      .filter(id => id !== null) as string[];
+      .filter((id): id is string => id !== null);
+    const highlightIds = mediaConversations
+      .filter(c => c.mediaType === 'HIGHLIGHT')
+      .map(c => c.mediaId)
+      .filter((id): id is string => id !== null);
 
     // Fetch posts with user details
     const posts = postIds.length > 0 ? await this.prisma.post.findMany({
@@ -4614,13 +4676,37 @@ export class PostService {
       },
     }) : [];
 
+    // Fetch highlights with user details and stories
+    const highlights = highlightIds.length > 0 ? await this.prisma.storyHighlight.findMany({
+      where: { id: { in: highlightIds } },
+      include: {
+        user: { select: { id: true, displayName: true, image: true, profile: true } },
+        items: {
+          include: {
+            story: {
+              select: {
+                id: true,
+                media: true,
+                thumbnails: true,
+                caption: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        },
+      },
+    }) : [];
+
     // Create maps for quick lookup
     const postMap = new Map(posts.map(p => [p.id, p]));
     const storyMap = new Map(stories.map(s => [s.id, s]));
+    const highlightMap = new Map(highlights.map(h => [h.id, h]));
 
     return conversations.map(conv => {
       let post = null;
       let story = null;
+      let highlight = null;
 
       if (conv.type === 'MEDIA' && conv.mediaId) {
         if (conv.mediaType === 'POST' || conv.mediaType === 'REEL') {
@@ -4671,12 +4757,34 @@ export class PostService {
               profile: s.user.profile,
             };
           }
+        } else if (conv.mediaType === 'HIGHLIGHT') {
+          const h = highlightMap.get(conv.mediaId);
+          if (h) {
+            highlight = {
+              id: h.id,
+              title: h.title,
+              coverImage: h.coverImage,
+              createdAt: h.createdAt,
+              userId: h.userId,
+              userName: h.user?.displayName || null,
+              userImage: h.user?.image || null,
+              profile: h.user?.profile || null,
+              itemCount: h.items.length,
+              items: h.items.map(item => ({
+                id: item.id,
+                storyId: item.storyId,
+                position: item.position,
+                story: item.story,
+              })),
+            };
+          }
         }
       }
       return {
         id: conv.id,
         type: conv.type,
         content: conv.content,
+        mediaType: conv.mediaType,
         music: post?.music ?? null,
         createdAt: conv.createdAt,
         isSeen: conv.isSeen,
@@ -4684,9 +4792,9 @@ export class PostService {
         receiver: conv.receiver,
         post,
         story,
+        highlight,
       };
     });
-
   }
 
   async chatStatusUpdate(chatId: string) {

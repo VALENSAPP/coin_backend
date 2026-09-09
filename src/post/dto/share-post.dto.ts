@@ -2,11 +2,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsArray, IsString, ArrayNotEmpty } from 'class-validator';
 
 export class SharePostDto {
-  @ApiProperty({ description: 'ID of the media to share (post, reel, story)' })
+  @ApiProperty({ description: 'ID of the media to share (post, reel, story, highlight)' })
   @IsString()
   mediaId: string;
 
-  @ApiProperty({ description: 'Type of the media (POST, STORY, REEL)' })
+  @ApiProperty({ description: 'Type of the media (POST, STORY, REEL, HIGHLIGHT)' })
   @IsString()
   mediaType: string;
 

@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles, ValidationPipe } from '@nestjs/common';
 import { StoryService } from './story.service';
 import { AnyFilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
+import { ReactStoryDto } from './dto/react-story.dto';
 
 @ApiTags('story')
 @Controller('story')
@@ -115,6 +116,26 @@ export class StoryController {
     async commentOnStory(@Req() req: Request,  @Body('comment') comment: string, @Body('storyId') storyId: string) {
       const userId = (req.user as any).userId;
       return this.storyService.commentOnStory(userId, comment, storyId);
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @Post('react')
+    @ApiOperation({ summary: 'React to a story or highlight drop (Instagram-style reaction sent to chat)' })
+    @ApiBody({ type: ReactStoryDto })
+    async reactToStory(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: ReactStoryDto) {
+      const userId = (req.user as any).userId;
+      return this.storyService.reactToStory(userId, dto);
+    }
+
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @Post('reactStory')
+    @ApiOperation({ summary: 'React to a story or highlight drop (alias)' })
+    @ApiBody({ type: ReactStoryDto })
+    async reactStoryAlias(@Req() req: Request, @Body(new ValidationPipe({ whitelist: true })) dto: ReactStoryDto) {
+      const userId = (req.user as any).userId;
+      return this.storyService.reactToStory(userId, dto);
     }
 
     @UseGuards(AuthGuard('jwt'))
