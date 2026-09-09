@@ -23,6 +23,7 @@ import { KycService } from '../kyc/kyc.service';
 import { NotificationService } from '../notification/notification.service';
 import { MailService } from '../common/mail/mail.service';
 import Stripe from 'stripe';
+import { SendPlatformPointsDto, GetPointTransfersDto, PointTransferFilterType } from './dto/send-points.dto';
 
 // ✅ Use environment variables for Firebase config (more secure)
 // Prevent re-initializing Firebase if already initialized
@@ -3204,4 +3205,266 @@ export class UserService {
       used: totalBattlePoints + marketplaceBattlePoints + referPoints - totalPlatformPoints,
     };
   }
+
+  async sendPlatformPoints(senderId: string, dto: SendPlatformPointsDto) {
+    if (!senderId) throw new BadRequestException('Sender user ID is required');
+
+    const transferAmount = Number(dto.amount);
+    if (!Number.isFinite(transferAmount) || transferAmount <= 0) {
+      throw new BadRequestException('Transfer amount must be a valid positive number');
+    }
+
+    const cleanRecipientId = dto.recipientId?.trim();
+    const cleanRecipientUserName = dto.recipientUserName?.replace(/^@/, '').trim();
+
+    if (!cleanRecipientId && !cleanRecipientUserName) {
+      throw new BadRequestException('Recipient user ID or username is required');
+    }
+
+    // 1. Resolve recipient user
+    let recipient: {
+      id: string;
+      displayName: string | null;
+      userName: string | null;
+      image: string | null;
+      isDeleted: number;
+      bannedUntil: Date | null;
+    } | null = null;
+
+    if (cleanRecipientId) {
+      recipient = await this.prisma.user.findUnique({
+        where: { id: cleanRecipientId },
+        select: {
+          id: true,
+          displayName: true,
+          userName: true,
+          image: true,
+          isDeleted: true,
+          bannedUntil: true,
+        },
+      });
+    } else if (cleanRecipientUserName) {
+      recipient = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { userName: { equals: cleanRecipientUserName, mode: 'insensitive' } },
+            { displayName: { equals: cleanRecipientUserName, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          displayName: true,
+          userName: true,
+          image: true,
+          isDeleted: true,
+          bannedUntil: true,
+        },
+      });
+    }
+
+    if (!recipient || recipient.isDeleted === 1) {
+      throw new NotFoundException('Recipient user not found or is inactive');
+    }
+
+    if (recipient.bannedUntil && new Date(recipient.bannedUntil) > new Date()) {
+      throw new BadRequestException('Recipient user is currently suspended');
+    }
+
+    // 2. Prevent self-transfer
+    if (recipient.id === senderId) {
+      throw new BadRequestException('You cannot send points to yourself');
+    }
+
+    // 3. Check blocked relations
+    const isBlocked = await this.prisma.blockedUser.findFirst({
+      where: {
+        OR: [
+          { blockerId: senderId, blockedId: recipient.id },
+          { blockerId: recipient.id, blockedId: senderId },
+        ],
+      },
+    });
+    if (isBlocked) {
+      throw new ForbiddenException('Cannot transfer points due to user block restrictions');
+    }
+
+    // 4. Perform atomic transfer in interactive transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const sender = await tx.user.findUnique({
+        where: { id: senderId },
+        select: {
+          id: true,
+          displayName: true,
+          userName: true,
+          totalPlatformPoints: true,
+          isDeleted: true,
+          bannedUntil: true,
+        },
+      });
+
+      if (!sender || sender.isDeleted === 1) {
+        throw new NotFoundException('Sender user not found or is inactive');
+      }
+
+      if (sender.bannedUntil && new Date(sender.bannedUntil) > new Date()) {
+        throw new ForbiddenException('Your account is currently suspended');
+      }
+
+      const senderBalance = sender.totalPlatformPoints ?? 0;
+      if (senderBalance < transferAmount) {
+        throw new BadRequestException(
+          `Insufficient platform points. Your current balance is ${senderBalance}, but attempted to send ${transferAmount}`,
+        );
+      }
+
+      const updatedSender = await tx.user.update({
+        where: { id: senderId },
+        data: {
+          totalPlatformPoints: { decrement: transferAmount },
+        },
+        select: { id: true, totalPlatformPoints: true },
+      });
+
+      const updatedRecipient = await tx.user.update({
+        where: { id: recipient!.id },
+        data: {
+          totalPlatformPoints: { increment: transferAmount },
+        },
+        select: { id: true, totalPlatformPoints: true },
+      });
+
+      const transferRecord = await tx.platformPointTransfer.create({
+        data: {
+          senderId,
+          recipientId: recipient!.id,
+          amount: transferAmount,
+          note: dto.note?.trim() || null,
+          status: 'COMPLETED',
+        },
+      });
+
+      return {
+        sender,
+        updatedSender,
+        updatedRecipient,
+        transferRecord,
+      };
+    });
+
+    // 5. Send Notification to recipient (asynchronous / non-blocking)
+    const senderDisplayName =
+      result.sender.displayName || result.sender.userName || 'Someone';
+    const noteSuffix = dto.note?.trim() ? ` with note: "${dto.note.trim()}"` : '';
+    const notifTitle = 'Platform Points Received';
+    const notifBody = `${senderDisplayName} sent you ${transferAmount} platform points${noteSuffix}!`;
+
+    try {
+      await this.notificationService.sendNotificationToUser(
+        recipient.id,
+        notifTitle,
+        notifBody,
+        {
+          type: 'PLATFORM_POINTS_RECEIVED',
+          transferId: result.transferRecord.id,
+          senderId,
+          senderName: senderDisplayName,
+          amount: transferAmount,
+          note: dto.note?.trim() || '',
+        },
+      );
+    } catch (err: any) {
+      // Don't fail the transfer response if notification fails
+    }
+
+    return {
+      success: true,
+      message: `Successfully sent ${transferAmount} platform points to ${recipient.displayName || recipient.userName || 'user'}`,
+      transfer: {
+        id: result.transferRecord.id,
+        amount: transferAmount,
+        note: result.transferRecord.note,
+        status: result.transferRecord.status,
+        createdAt: result.transferRecord.createdAt,
+      },
+      sender: {
+        id: senderId,
+        remainingPlatformPoints: result.updatedSender.totalPlatformPoints,
+      },
+      recipient: {
+        id: recipient.id,
+        displayName: recipient.displayName,
+        userName: recipient.userName,
+        image: recipient.image,
+      },
+    };
+  }
+
+  async getPlatformPointTransfers(userId: string, query: GetPointTransfersDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    let whereClause: any = {};
+    if (query.type === PointTransferFilterType.SENT) {
+      whereClause = { senderId: userId };
+    } else if (query.type === PointTransferFilterType.RECEIVED) {
+      whereClause = { recipientId: userId };
+    } else {
+      whereClause = {
+        OR: [{ senderId: userId }, { recipientId: userId }],
+      };
+    }
+
+    const [total, transfers] = await Promise.all([
+      this.prisma.platformPointTransfer.count({ where: whereClause }),
+      this.prisma.platformPointTransfer.findMany({
+        where: whereClause,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              displayName: true,
+              userName: true,
+              image: true,
+            },
+          },
+          recipient: {
+            select: {
+              id: true,
+              displayName: true,
+              userName: true,
+              image: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const formattedTransfers = transfers.map((t) => ({
+      id: t.id,
+      amount: t.amount,
+      note: t.note,
+      status: t.status,
+      createdAt: t.createdAt,
+      direction: t.senderId === userId ? 'SENT' : 'RECEIVED',
+      sender: t.sender,
+      recipient: t.recipient,
+    }));
+
+    return {
+      transfers: formattedTransfers,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
 }
+

@@ -11,6 +11,7 @@ import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dt
 import { RecentActivitiesDto } from './dto/recent-activities.dto';
 import { AddSearchHistoryDto, GetSearchHistoryDto } from './dto/search-history.dto';
 import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto, UserSubscriptionStatus } from './dto/user-subscription.dto';
+import { SendPlatformPointsDto, GetPointTransfersDto } from './dto/send-points.dto';
 
 export enum RegistrationType {
   NORMAL = 'NORMAL',
@@ -809,6 +810,25 @@ export class UserController {
   async getTotalPlatformPoints(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.userService.getTotalPlatformPointsSummary(userId);
+  }
+
+  @Post('platform-points/send')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Send platform points to another user' })
+  @ApiBody({ type: SendPlatformPointsDto })
+  async sendPlatformPoints(@Req() req: Request, @Body() dto: SendPlatformPointsDto) {
+    const userId = (req.user as any).userId;
+    return this.userService.sendPlatformPoints(userId, dto);
+  }
+
+  @Get('platform-points/transfers')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get history of platform point transfers (sent and received)' })
+  async getPlatformPointTransfers(@Req() req: Request, @Query() query: GetPointTransfersDto) {
+    const userId = (req.user as any).userId;
+    return this.userService.getPlatformPointTransfers(userId, query);
   }
 
   @Post('profileStatusSet')

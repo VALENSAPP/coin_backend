@@ -172,6 +172,8 @@ model User {
   userAddrees                 UserAddrees[]
   sellerWallets               SellerWallet[]
   walletLedgerEntries         WalletLedgerEntry[]
+  sentPlatformPointTransfers     PlatformPointTransfer[] @relation("SentPlatformPointTransfers")
+  receivedPlatformPointTransfers PlatformPointTransfer[] @relation("ReceivedPlatformPointTransfers")
 }
 
 model Mycloset {
@@ -1174,6 +1176,24 @@ model PlatformPointsHitPurchase {
   @@unique([userId, yearMonth])
   @@index([userId])
   @@index([createdAt])
+}
+
+model PlatformPointTransfer {
+  id          String   @id @default(uuid())
+  senderId    String
+  recipientId String
+  amount      Float
+  note        String?  @db.VarChar(255)
+  status      String   @default("COMPLETED")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sender    User @relation("SentPlatformPointTransfers", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("ReceivedPlatformPointTransfers", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([recipientId, createdAt])
+  @@map("platform_point_transfers")
 }
 
 model WithdrawalRecord {
