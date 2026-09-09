@@ -93,6 +93,13 @@ export class CreateClosetItemDto {
   @Transform(({ value }: { value: any }) => (value ? String(value).trim() : undefined))
   pickUpCity?: string;
 
+  @ApiProperty({ required: false, example: 'Apt 4B' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  @Transform(({ value }: { value: any }) => (value ? String(value).trim() : undefined))
+  residentNumber?: string;
+
   @ApiProperty({ required: false, example: true })
   @IsOptional()
   @Transform(({ value }: { value: any }) => (typeof value === 'string' ? value.toLowerCase() === 'true' : value))
