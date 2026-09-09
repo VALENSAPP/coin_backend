@@ -436,36 +436,67 @@ export class NotificationService {
       ),
     );
 
-    if (orderIds.length > 0) {
-      const orders = await this.prisma.order.findMany({
-        where: { id: { in: orderIds } },
-        select: { id: true, orderStatus: true, cancellationStatus: true },
-      });
-      const orderMap = new Map(orders.map((o) => [o.id, o]));
+    const postIds = Array.from(
+      new Set(
+        notifications
+          .map((n) => (n.data as any)?.postId)
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    );
 
-      for (const n of notifications) {
-        const notifData = (typeof n.data === 'object' && n.data !== null ? { ...(n.data as any) } : {}) as Record<string, any>;
-        if (notifData.orderId && orderMap.has(notifData.orderId)) {
-          const order = orderMap.get(notifData.orderId);
-          const isCancelled = order?.orderStatus === 'CANCELLED' || order?.cancellationStatus === 'APPROVED';
-          notifData.iscancel = isCancelled;
-          notifData.isCancel = isCancelled;
-          notifData.isCancelled = isCancelled;
-          (n as any).iscancel = isCancelled;
-          (n as any).isCancel = isCancelled;
-          (n as any).isCancelled = isCancelled;
-          n.data = notifData;
-        } else if (notifData.orderId) {
-          const isCancelled = notifData.type === 'marketplace_order_cancelled';
-          if (notifData.iscancel === undefined) notifData.iscancel = isCancelled;
-          if (notifData.isCancel === undefined) notifData.isCancel = isCancelled;
-          if (notifData.isCancelled === undefined) notifData.isCancelled = isCancelled;
-          (n as any).iscancel = notifData.iscancel;
-          (n as any).isCancel = notifData.isCancel;
-          (n as any).isCancelled = notifData.isCancelled;
-          n.data = notifData;
-        }
+    const [orders, posts] = await Promise.all([
+      orderIds.length > 0
+        ? this.prisma.order.findMany({
+          where: { id: { in: orderIds } },
+          select: { id: true, orderStatus: true, cancellationStatus: true },
+        })
+        : Promise.resolve([]),
+      postIds.length > 0
+        ? this.prisma.post.findMany({
+          where: { id: { in: postIds } },
+          select: { id: true, isTrustPost: true, type: true },
+        })
+        : Promise.resolve([]),
+    ]);
+
+    const orderMap = new Map(orders.map((o) => [o.id, o]));
+    const postMap = new Map(posts.map((p) => [p.id, p]));
+
+    for (const n of notifications) {
+      const notifData = (typeof n.data === 'object' && n.data !== null ? { ...(n.data as any) } : {}) as Record<string, any>;
+      if (notifData.orderId && orderMap.has(notifData.orderId)) {
+        const order = orderMap.get(notifData.orderId);
+        const isCancelled = order?.orderStatus === 'CANCELLED' || order?.cancellationStatus === 'APPROVED';
+        notifData.iscancel = isCancelled;
+        notifData.isCancel = isCancelled;
+        notifData.isCancelled = isCancelled;
+        (n as any).iscancel = isCancelled;
+        (n as any).isCancel = isCancelled;
+        (n as any).isCancelled = isCancelled;
+      } else if (notifData.orderId) {
+        const isCancelled = notifData.type === 'marketplace_order_cancelled';
+        if (notifData.iscancel === undefined) notifData.iscancel = isCancelled;
+        if (notifData.isCancel === undefined) notifData.isCancel = isCancelled;
+        if (notifData.isCancelled === undefined) notifData.isCancelled = isCancelled;
+        (n as any).iscancel = notifData.iscancel;
+        (n as any).isCancel = notifData.isCancel;
+        (n as any).isCancelled = notifData.isCancelled;
       }
+
+      const post = notifData.postId ? postMap.get(notifData.postId) : undefined;
+      const isMissionOrTrust =
+        (typeof notifData.type === 'string' && notifData.type.startsWith('mission_')) ||
+        (typeof notifData.notificationCategory === 'string' && notifData.notificationCategory.startsWith('MISSION_')) ||
+        notifData.isTrustPost === true ||
+        notifData.isTrustPost === 'true' ||
+        Boolean(post?.isTrustPost || ['mission-post', 'crowdfunding', 'support'].includes(post?.type || ''));
+
+      if (isMissionOrTrust) {
+        notifData.isTrustPost = true;
+        (n as any).isTrustPost = true;
+      }
+
+      n.data = notifData;
     }
 
     return notifications;
@@ -548,6 +579,7 @@ export class NotificationService {
             createdAt: true,
             type: true,
             visibleTo: true,
+            isTrustPost: true,
           },
         },
       },
@@ -559,16 +591,22 @@ export class NotificationService {
       const isPrivateCirclePost =
         (like.post?.type || '').toLowerCase() === 'private' &&
         like.post?.visibleTo === 'PRIVATE_CIRCLE';
+      const isTrustPost = Boolean(
+        like.post?.isTrustPost ||
+        ['mission-post', 'crowdfunding', 'support'].includes(like.post?.type || ''),
+      );
 
       return {
         id: like.id,
         userId,
         title: 'Post Liked',
         body: `${like.user?.displayName || like.user?.userName || 'Someone'} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
+        isTrustPost,
         data: {
           type: 'like',
           likerId: like.user?.id,
           postId: like.post?.id,
+          isTrustPost,
         },
         isRead: !!(like as any).isReadByOwner,
         createdAt: like.createdAt,
@@ -607,7 +645,7 @@ export class NotificationService {
       postIds.length > 0
         ? this.prisma.post.findMany({
           where: { id: { in: postIds }, deletedAt: null },
-          select: { id: true, text: true, images: true, createdAt: true, type: true },
+          select: { id: true, text: true, images: true, createdAt: true, type: true, isTrustPost: true },
         })
         : Promise.resolve([]),
       donorIds.length > 0
@@ -629,11 +667,13 @@ export class NotificationService {
         userId,
         title: 'Mission Donation',
         body: `${donor?.displayName || donor?.userName || 'Someone'} donated $${donation.amount} to your post.`,
+        isTrustPost: true,
         data: {
           type: 'mission_donation',
           donorId: donation.userId,
           postId: donation.postId,
           donationId: donation.id,
+          isTrustPost: true,
         },
         isRead: !!(donation as any).isReadByOwner,
         createdAt: donation.createdAt,
@@ -1320,6 +1360,7 @@ export class NotificationService {
         expandedBody: `${creatorHandle} just launched a Mission`,
         primaryAction: 'BACK_THIS_MISSION',
         secondaryAction: 'VIEW_FULL_POST',
+        isTrustPost: true,
       },
     );
   }
@@ -1531,6 +1572,7 @@ export class NotificationService {
         expandedSubtitle: `${milestone}% Funded!`,
         primaryAction: 'BACK_THIS_MISSION',
         secondaryAction: 'SHARE',
+        isTrustPost: true,
       },
     );
   }
@@ -1636,6 +1678,7 @@ export class NotificationService {
         expandedBody: `${backerHandle} backed your Mission!`,
         primaryAction: 'VIEW_YOUR_MISSION',
         secondaryAction: 'SEND_THANKS',
+        isTrustPost: true,
       },
     );
   }
@@ -1725,6 +1768,7 @@ export class NotificationService {
       expandedTitle: 'MISSION COMPLETE!',
       expandedSubtitle: 'Goal Fully Reached!',
       primaryAction: 'VIEW_MISSION_SUMMARY',
+      isTrustPost: true,
     };
 
     await this.sendNotificationToUser(
@@ -1880,6 +1924,7 @@ export class NotificationService {
           expandedSubtitle: 'Mission ends in 24 hours',
           primaryAction: 'BACK_THIS_MISSION_NOW',
           secondaryAction: 'SHARE',
+          isTrustPost: true,
         },
       );
     } finally {
@@ -1960,6 +2005,7 @@ export class NotificationService {
         expandedBody: 'Your backing was successful!',
         primaryAction: 'VIEW_MISSION_PROGRESS',
         secondaryAction: 'SHARE',
+        isTrustPost: true,
       },
     );
   }
@@ -1975,6 +2021,7 @@ export class NotificationService {
           caption: true,
           type: true,
           visibleTo: true,
+          isTrustPost: true,
         },
       }),
       this.prisma.user.findUnique({
@@ -1989,6 +2036,10 @@ export class NotificationService {
     const isPrivateCirclePost =
       (post.type || '').toLowerCase() === 'private' &&
       post.visibleTo === 'PRIVATE_CIRCLE';
+    const isTrustPost = Boolean(
+      post.isTrustPost ||
+      ['mission-post', 'crowdfunding', 'support'].includes(post.type || ''),
+    );
     const postTitle = this.truncateText(post.caption || post.text || 'your post', 80);
 
     return this.sendPushOnlyToUser(
@@ -2002,6 +2053,7 @@ export class NotificationService {
         likerUserName: this.toHandle(liker?.userName || liker?.displayName),
         likerDisplayName: liker?.displayName || '',
         likerImage: liker?.image || '',
+        isTrustPost,
         notificationCategory: 'POST_LIKED',
         deepLink: `valens://post/${postId}`,
         // expandedTitle: 'POST LIKED',
@@ -2016,7 +2068,7 @@ export class NotificationService {
     const [post, comment, commenter] = await Promise.all([
       this.prisma.post.findUnique({
         where: { id: postId, deletedAt: null },
-        select: { id: true, userId: true, text: true, caption: true },
+        select: { id: true, userId: true, text: true, caption: true, type: true, isTrustPost: true },
       }),
       this.prisma.postComment.findUnique({
         where: { id: commentId },
@@ -2033,6 +2085,10 @@ export class NotificationService {
     const commenterHandle = this.toHandle(commenter?.userName || commenter?.displayName);
     const commentPreview = this.truncateText(comment.comment, 90);
     const postTitle = this.truncateText(post.caption || post.text || 'Your post', 80);
+    const isTrustPost = Boolean(
+      post.isTrustPost ||
+      ['mission-post', 'crowdfunding', 'support'].includes(post.type || ''),
+    );
 
     return this.sendNotificationToUser(
       post.userId,
@@ -2046,6 +2102,7 @@ export class NotificationService {
         commenterUserName: commenterHandle,
         commenterDisplayName: commenter?.displayName || '',
         commenterImage: commenter?.image || '',
+        isTrustPost,
         notificationCategory: 'NEW_COMMENT',
         deepLink: `valens://post/${postId}`,
         expandedTitle: 'NEW COMMENT',
@@ -2062,7 +2119,7 @@ export class NotificationService {
     const [post, comment, mentioner] = await Promise.all([
       this.prisma.post.findUnique({
         where: { id: postId, deletedAt: null },
-        select: { id: true, text: true, caption: true },
+        select: { id: true, text: true, caption: true, type: true, isTrustPost: true },
       }),
       this.prisma.postComment.findUnique({
         where: { id: commentId },
@@ -2094,6 +2151,10 @@ export class NotificationService {
 
     const mentionerHandle = this.toHandle(mentioner?.userName || mentioner?.displayName);
     const postTitle = this.truncateText(post.caption || post.text || 'this post', 80);
+    const isTrustPost = Boolean(
+      post.isTrustPost ||
+      ['mission-post', 'crowdfunding', 'support'].includes(post.type || ''),
+    );
 
     await Promise.all(
       recipientIds.map((recipientId) =>
@@ -2110,6 +2171,7 @@ export class NotificationService {
             mentionerUserName: mentionerHandle,
             mentionerDisplayName: mentioner?.displayName || '',
             mentionerImage: mentioner?.image || '',
+            isTrustPost,
             notificationCategory: 'MENTION',
             deepLink: `valens://post/${postId}`,
             expandedTitle: 'YOU WERE MENTIONED',

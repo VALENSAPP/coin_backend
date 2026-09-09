@@ -812,6 +812,10 @@ export class PostService {
                 taggerId: userId,
                 post_type: createdPost.type || '',
                 visibleTo: createdPost.visibleTo || '',
+                isTrustPost: Boolean(
+                  createdPost.isTrustPost ||
+                  ['mission-post', 'crowdfunding', 'support'].includes(createdPost.type || ''),
+                ),
               },
             ),
           ),
@@ -1249,6 +1253,7 @@ export class PostService {
       start_time: post.start_time,
       end_time: post.end_time,
       raiseAmount: post.raiseAmount,
+      isTrustPost: (post as any).isTrustPost ?? true,
       earning: (() => {
         const earning = earningByPostId.get(post.id);
         const total = earning?.total ?? 0;
@@ -3096,6 +3101,10 @@ export class PostService {
                 taggerId: userId,
                 post_type: updatedPost.type || '',
                 visibleTo: updatedPost.visibleTo || '',
+                isTrustPost: Boolean(
+                  updatedPost.isTrustPost ||
+                  ['mission-post', 'crowdfunding', 'support'].includes(updatedPost.type || ''),
+                ),
               },
             ),
           ),
