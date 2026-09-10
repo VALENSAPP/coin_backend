@@ -853,7 +853,7 @@ export class UserController {
   @Post('accountDelete')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete user account (set isDeleted = 1)' })
+  @ApiOperation({ summary: 'Hard delete user account and store snapshot in deleted_users table' })
   async accountDelete(@Req() req: Request) {
     const userId = (req.user as any).userId;
     return this.userService.accountDelete(userId);

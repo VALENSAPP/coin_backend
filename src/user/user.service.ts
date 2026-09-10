@@ -2387,7 +2387,7 @@ export class UserService {
     }
 
     await this.prisma.$transaction(async (tx) => {
-      // Store deleted user record
+      // 1. Store deleted user record snapshot in deleted_users table
       await tx.deletedUser.create({
         data: {
           userId: user.id,
@@ -2396,7 +2396,178 @@ export class UserService {
         },
       });
 
-      // Delete user from users table
+      // 2. Clean up relations that do not cascade automatically
+      // Follows, Blocks, Search history, Referrals
+      await tx.followerAndFollowing.deleteMany({
+        where: { OR: [{ followerId: userId }, { followingId: userId }] },
+      });
+      await tx.blockedUser.deleteMany({
+        where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+      });
+      await tx.searchHistory.deleteMany({
+        where: { OR: [{ userId }, { searchedUserId: userId }] },
+      });
+      await tx.userReferral.deleteMany({
+        where: { OR: [{ referrerId: userId }, { referredId: userId }] },
+      });
+
+      // Auth, sessions, device accounts, login histories, notifications
+      await tx.userSession.deleteMany({ where: { userId } });
+      await tx.deviceAccount.deleteMany({ where: { userId } });
+      await tx.loginHistory.deleteMany({ where: { userId } });
+      await tx.notification.deleteMany({ where: { userId } });
+
+      // Subscriptions & KYC
+      await tx.fansSubscriptionBuyData.deleteMany({
+        where: { OR: [{ fanUserId: userId }, { buyUserId: userId }] },
+      });
+      await tx.userSubscription.deleteMany({ where: { userId } });
+      await tx.kyc.deleteMany({ where: { userId } });
+
+      // Posts and social interactions
+      await tx.postReport.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.postCommentReaction.deleteMany({
+        where: { OR: [{ userId }, { comment: { userId } }] },
+      });
+      await tx.postComment.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.postLike.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.postShare.deleteMany({
+        where: { OR: [{ receiverUserId: userId }, { sharedUserId: userId }] },
+      });
+      await tx.savePost.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.pinnedPost.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.postTrustVote.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.postHit.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.hidePost.deleteMany({
+        where: { OR: [{ userId }, { post: { userId } }] },
+      });
+      await tx.postHashtag.deleteMany({
+        where: { post: { userId } },
+      });
+      await tx.post.deleteMany({ where: { userId } });
+
+      // Stories & Story Highlights
+      await tx.storyComment.deleteMany({
+        where: { OR: [{ userId }, { story: { userId } }] },
+      });
+      await tx.storyLike.deleteMany({
+        where: { OR: [{ userId }, { story: { userId } }] },
+      });
+      await tx.storyView.deleteMany({
+        where: { OR: [{ viewerId: userId }, { ownerId: userId }] },
+      });
+      await tx.storyHighlightItem.deleteMany({
+        where: { highlight: { userId } },
+      });
+      await tx.storyHighlight.deleteMany({ where: { userId } });
+      await tx.story.deleteMany({ where: { userId } });
+
+      // Chats & Conversations
+      await tx.chatBox.deleteMany({
+        where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      });
+      await tx.conversation.deleteMany({
+        where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      });
+      await tx.closetChatMessage.deleteMany({
+        where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      });
+      await tx.closetChatThread.deleteMany({
+        where: { OR: [{ buyerId: userId }, { sellerId: userId }] },
+      });
+
+      // Battles & Marketplace Battles
+      await tx.battle.updateMany({
+        where: { winnerUserId: userId },
+        data: { winnerUserId: null },
+      });
+      await tx.battleInvite.deleteMany({
+        where: { OR: [{ inviterId: userId }, { invitedId: userId }] },
+      });
+      await tx.battleParticipant.deleteMany({ where: { userId } });
+      await tx.battlePrediction.deleteMany({ where: { userId } });
+      await tx.battleVote.deleteMany({ where: { userId } });
+      await tx.battleCommentLike.deleteMany({ where: { userId } });
+      await tx.battleComment.deleteMany({ where: { userId } });
+      await tx.battleReward.deleteMany({ where: { userId } });
+      await tx.battleActivity.deleteMany({ where: { userId } });
+      await tx.battleAchievement.deleteMany({ where: { userId } });
+      await tx.userBattleStats.deleteMany({ where: { userId } });
+      await tx.battleExternalPredictionVote.deleteMany({ where: { userId } });
+      await tx.battle.deleteMany({ where: { userId } });
+
+      await tx.marketplaceBattleChallengeInvite.deleteMany({
+        where: { OR: [{ inviterId: userId }, { invitedId: userId }] },
+      });
+      await tx.marketplaceBattleVote.deleteMany({ where: { userId } });
+      await tx.marketplaceBattleCommentReaction.deleteMany({ where: { userId } });
+      await tx.marketplaceBattleComment.deleteMany({ where: { userId } });
+      await tx.marketplaceBattleView.deleteMany({ where: { userId } });
+      await tx.marketplaceWinnerPromotion.deleteMany({ where: { userId } });
+      await tx.marketplaceBattleBoost.deleteMany({ where: { userId } });
+      await tx.marketplaceBattlePointsAward.deleteMany({ where: { userId } });
+      await tx.marketplaceBattle.deleteMany({
+        where: { OR: [{ sellerId: userId }, { opponentSellerId: userId }] },
+      });
+
+      // Closet, Cart, Wishlist, Orders & Payments
+      await tx.closetItemLike.deleteMany({ where: { userId } });
+      await tx.closetView.deleteMany({ where: { userId } });
+      await tx.cartItems.deleteMany({ where: { cart: { userId } } });
+      await tx.cart.deleteMany({ where: { userId } });
+      await tx.wishlistItems.deleteMany({ where: { wishlist: { userId } } });
+      await tx.wishlist.deleteMany({ where: { userId } });
+      await tx.shopEbookPayments.deleteMany({
+        where: { OR: [{ buyerId: userId }, { sellerId: userId }] },
+      });
+      await tx.ebookPayments.deleteMany({
+        where: { OR: [{ buyerId: userId }, { sellerId: userId }] },
+      });
+      await tx.orderItem.deleteMany({
+        where: { order: { OR: [{ buyerId: userId }, { sellerId: userId }] } },
+      });
+      await tx.order.deleteMany({
+        where: { OR: [{ buyerId: userId }, { sellerId: userId }] },
+      });
+      await tx.marketPlaceOrderItem.deleteMany({
+        where: { order: { userId } },
+      });
+      await tx.marketPlaceOrder.deleteMany({ where: { userId } });
+      await tx.mycloset.deleteMany({ where: { userId } });
+
+      // Transactions & Balances
+      await tx.digital_transaction.deleteMany({
+        where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+      });
+      await tx.platformPointsHitPurchase.deleteMany({ where: { userId } });
+      await tx.withdrawalRecord.deleteMany({ where: { userId } });
+      await tx.userToken.deleteMany({ where: { userId } });
+      await tx.tokenSale.deleteMany({ where: { userId } });
+      await tx.tokenPurchase.deleteMany({ where: { userId } });
+      await tx.donationData.deleteMany({ where: { userId } });
+      await tx.payment.deleteMany({
+        where: { OR: [{ userId }, { receiverId: userId }] },
+      });
+      await tx.companyProfile.deleteMany({ where: { userId } });
+      await tx.postMessage.deleteMany({ where: { userId } });
+      await tx.privateCircleMember.deleteMany({ where: { userId } });
+      await tx.privateCircle.deleteMany({ where: { ownerId: userId } });
+
+      // 3. Finally hard delete the user from User table
       await tx.user.delete({
         where: { id: userId },
       });
@@ -2406,28 +2577,6 @@ export class UserService {
       message: 'Account deleted successfully',
     };
   }
-
-  // async accountDelete(userId: string) {
-  //   if (!userId) {
-  //     throw new BadRequestException('User ID required');
-  //   }
-
-  //   const user = await this.prisma.user.findUnique({
-  //     where: { id: userId },
-  //   });
-
-  //   if (!user) {
-  //     throw new BadRequestException('User not found');
-  //   }
-
-  //   await this.prisma.user.delete({
-  //     where: { id: userId },
-  //   });
-
-  //   return {
-  //     message: 'Account deleted successfully',
-  //   };
-  // }
 
 
   async reactivateAccount(data: {
