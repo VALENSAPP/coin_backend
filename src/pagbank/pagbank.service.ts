@@ -527,17 +527,59 @@ export class PagBankService {
         );
     }
 
-    private async grantHits(userId: string, hitCount: number) {
+    private async grantSubscriptionHits(userId: string, hitCount: number, periodEnd: Date) {
         if (!userId || hitCount <= 0) return;
         const existingPostHit = await this.prisma.postHit.findFirst({ where: { userId } });
         if (existingPostHit) {
+            const purchasedHits = existingPostHit.purchasedHitsLeft || 0;
             await this.prisma.postHit.update({
                 where: { id: existingPostHit.id },
-                data: { hitLeft: { increment: hitCount } },
+                data: {
+                    subscriptionHitsLeft: hitCount,
+                    subscriptionHitsExpiresAt: periodEnd,
+                    hitLeft: hitCount + purchasedHits,
+                },
             });
         } else {
             await this.prisma.postHit.create({
-                data: { userId, hitLeft: hitCount },
+                data: {
+                    userId,
+                    subscriptionHitsLeft: hitCount,
+                    subscriptionHitsExpiresAt: periodEnd,
+                    purchasedHitsLeft: 0,
+                    hitLeft: hitCount,
+                },
+            });
+        }
+    }
+
+    private async grantPurchasedHits(userId: string, hitCount: number) {
+        if (!userId || hitCount <= 0) return;
+        const existingPostHit = await this.prisma.postHit.findFirst({ where: { userId } });
+        const now = new Date();
+        if (existingPostHit) {
+            const isSubActive =
+                existingPostHit.subscriptionHitsExpiresAt &&
+                existingPostHit.subscriptionHitsExpiresAt > now;
+            const activeSubHits = isSubActive ? (existingPostHit.subscriptionHitsLeft || 0) : 0;
+            const newPurchasedHits = (existingPostHit.purchasedHitsLeft || 0) + hitCount;
+            const newTotalHitLeft = activeSubHits + newPurchasedHits;
+            await this.prisma.postHit.update({
+                where: { id: existingPostHit.id },
+                data: {
+                    purchasedHitsLeft: { increment: hitCount },
+                    hitLeft: newTotalHitLeft,
+                },
+            });
+        } else {
+            await this.prisma.postHit.create({
+                data: {
+                    userId,
+                    purchasedHitsLeft: hitCount,
+                    subscriptionHitsLeft: 0,
+                    subscriptionHitsExpiresAt: null,
+                    hitLeft: hitCount,
+                },
             });
         }
     }
@@ -647,7 +689,7 @@ export class PagBankService {
 
             if (payment.forPayment === 'buyHit') {
                 const hitCount = parseInt(payment.stripeInvoiceId || '0', 10);
-                await this.grantHits(payment.userId, hitCount);
+                await this.grantPurchasedHits(payment.userId, hitCount);
             }
 
             if (payment.forPayment === 'fanSubscription') {
@@ -676,7 +718,7 @@ export class PagBankService {
                         currentPeriodEnd: periodEnd,
                     },
                 });
-                await this.grantHits(payment.userId, 5);
+                await this.grantSubscriptionHits(payment.userId, 5, periodEnd);
             }
 
             if (payment.forPayment === 'donation' || payment.forPayment === 'missionDonation') {

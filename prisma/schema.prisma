@@ -1157,12 +1157,16 @@ model UserToken {
 }
 
 model PostHit {
-  id          String    @id @default(uuid())
-  userId      String
-  hitLeft     Int // User's hit left to add the post 
-  createdAt   DateTime  @default(now())
-  completedAt DateTime?
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                        String    @id @default(uuid())
+  userId                    String
+  hitLeft                   Int       @default(0) // Total usable hits (for backward compatibility)
+  subscriptionHitsLeft      Int       @default(0) // 5 monthly subscription hits
+  subscriptionHitsExpiresAt DateTime?             // Expiration timestamp for subscription hits (30 days / cycle end)
+  purchasedHitsLeft         Int       @default(0) // Hits bought via buy-hit or points (never expire)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @default(now()) @updatedAt
+  completedAt               DateTime?
+  user                      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

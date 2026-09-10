@@ -1672,14 +1672,34 @@ export class UserService {
       },
     });
 
-    // Get hitLeft
+    // Get postHit
     const postHit = await this.prisma.postHit.findFirst({
       where: { userId },
       orderBy: {
         createdAt: 'desc',
       },
     });
-    const hitLeft = postHit ? postHit.hitLeft : 0;
+
+    let subscriptionHitsLeft = 0;
+    let subscriptionHitsExpiresAt: Date | null = null;
+    let purchasedHitsLeft = 0;
+    let hitLeft = 0;
+
+    if (postHit) {
+      const isSubActive =
+        postHit.subscriptionHitsExpiresAt &&
+        postHit.subscriptionHitsExpiresAt > now;
+      subscriptionHitsLeft = isSubActive ? (postHit.subscriptionHitsLeft || 0) : 0;
+      subscriptionHitsExpiresAt = postHit.subscriptionHitsExpiresAt || null;
+      purchasedHitsLeft = postHit.purchasedHitsLeft || 0;
+
+      // Backward compatibility fallback for old rows
+      if (!postHit.subscriptionHitsLeft && !postHit.purchasedHitsLeft && postHit.hitLeft > 0) {
+        purchasedHitsLeft = postHit.hitLeft;
+      }
+
+      hitLeft = subscriptionHitsLeft + purchasedHitsLeft;
+    }
 
     // Get user profile
     const user = await this.prisma.user.findUnique({
@@ -1687,7 +1707,14 @@ export class UserService {
       select: { profile: true },
     });
 
-    return { hitLeft, postCount, profile: user?.profile || null };
+    return {
+      hitLeft,
+      subscriptionHitsLeft,
+      subscriptionHitsExpiresAt,
+      purchasedHitsLeft,
+      postCount,
+      profile: user?.profile || null,
+    };
   }
 
   async searchUser(query: string) {

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "PostHit" ADD COLUMN     "purchasedHitsLeft" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "subscriptionHitsExpiresAt" TIMESTAMP(3),
+ADD COLUMN     "subscriptionHitsLeft" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ALTER COLUMN "hitLeft" SET DEFAULT 0;

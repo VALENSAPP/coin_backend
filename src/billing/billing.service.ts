@@ -1495,20 +1495,34 @@ export class BillingService {
       },
     });
 
-    // Increment user hits by 5 for subscription
+    // Grant 5 subscription hits valid for 30 days (until periodEnd)
+    const subExpiresAt = periodEnd || (() => {
+      const d = new Date(periodStart || new Date());
+      d.setMonth(d.getMonth() + 1);
+      return d;
+    })();
+
     const postHit = await this.prisma.postHit.findFirst({
       where: { userId: user.id },
     });
 
     if (postHit) {
+      const purchasedHits = postHit.purchasedHitsLeft || 0;
       await this.prisma.postHit.update({
         where: { id: postHit.id },
-        data: { hitLeft: { increment: 5 } },
+        data: {
+          subscriptionHitsLeft: 5,
+          subscriptionHitsExpiresAt: subExpiresAt,
+          hitLeft: 5 + purchasedHits,
+        },
       });
     } else {
       await this.prisma.postHit.create({
         data: {
           userId: user.id,
+          subscriptionHitsLeft: 5,
+          subscriptionHitsExpiresAt: subExpiresAt,
+          purchasedHitsLeft: 0,
           hitLeft: 5,
         },
       });
@@ -3711,14 +3725,24 @@ export class BillingService {
 
           const existingPostHit = await tx.postHit.findFirst({
             where: { userId },
-            select: { id: true, hitLeft: true },
+            select: { id: true, hitLeft: true, purchasedHitsLeft: true, subscriptionHitsLeft: true, subscriptionHitsExpiresAt: true },
           });
 
           let hitLeft: number;
+          const now = new Date();
           if (existingPostHit) {
+            const isSubActive =
+              existingPostHit.subscriptionHitsExpiresAt &&
+              existingPostHit.subscriptionHitsExpiresAt > now;
+            const activeSubHits = isSubActive ? (existingPostHit.subscriptionHitsLeft || 0) : 0;
+            const newPurchasedHits = (existingPostHit.purchasedHitsLeft || 0) + PLATFORM_POINTS_HIT_COUNT;
+            const newTotalHitLeft = activeSubHits + newPurchasedHits;
             const updatedPostHit = await tx.postHit.update({
               where: { id: existingPostHit.id },
-              data: { hitLeft: { increment: PLATFORM_POINTS_HIT_COUNT } },
+              data: {
+                purchasedHitsLeft: { increment: PLATFORM_POINTS_HIT_COUNT },
+                hitLeft: newTotalHitLeft,
+              },
               select: { hitLeft: true },
             });
             hitLeft = updatedPostHit.hitLeft;
@@ -3726,6 +3750,9 @@ export class BillingService {
             const createdPostHit = await tx.postHit.create({
               data: {
                 userId,
+                purchasedHitsLeft: PLATFORM_POINTS_HIT_COUNT,
+                subscriptionHitsLeft: 0,
+                subscriptionHitsExpiresAt: null,
                 hitLeft: PLATFORM_POINTS_HIT_COUNT,
               },
               select: { hitLeft: true },
@@ -3804,26 +3831,35 @@ export class BillingService {
       },
     });
 
-    // Update or create postHit record with purchased hits
+    // Update or create postHit record with purchased hits (which never expire)
     const existingPostHit = await this.prisma.postHit.findFirst({
       where: { userId: userId },
     });
 
+    const now = new Date();
     if (existingPostHit) {
-      // Add purchased hits to existing hits
+      const isSubActive =
+        existingPostHit.subscriptionHitsExpiresAt &&
+        existingPostHit.subscriptionHitsExpiresAt > now;
+      const activeSubHits = isSubActive ? (existingPostHit.subscriptionHitsLeft || 0) : 0;
+      const newPurchasedHits = (existingPostHit.purchasedHitsLeft || 0) + hitCount;
+      const newTotalHitLeft = activeSubHits + newPurchasedHits;
       await this.prisma.postHit.update({
         where: { id: existingPostHit.id },
         data: {
-          hitLeft: {
-            increment: hitCount
-          }
+          purchasedHitsLeft: {
+            increment: hitCount,
+          },
+          hitLeft: newTotalHitLeft,
         },
       });
     } else {
-      // Create new postHit record
       await this.prisma.postHit.create({
         data: {
           userId: userId,
+          purchasedHitsLeft: hitCount,
+          subscriptionHitsLeft: 0,
+          subscriptionHitsExpiresAt: null,
           hitLeft: hitCount,
         },
       });

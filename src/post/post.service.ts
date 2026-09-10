@@ -451,8 +451,23 @@ export class PostService {
           where: { userId },
         });
 
-        if (!postHit || postHit.hitLeft <= 0) {
-          throw new BadRequestException('No hits left to create a post');
+        const now = new Date();
+        const hasValidSubHits = !!(
+          postHit &&
+          postHit.subscriptionHitsLeft > 0 &&
+          postHit.subscriptionHitsExpiresAt &&
+          postHit.subscriptionHitsExpiresAt > now
+        );
+        const hasPurchasedHits = !!(postHit && postHit.purchasedHitsLeft > 0);
+        const hasLegacyHits = !!(
+          postHit &&
+          postHit.hitLeft > 0 &&
+          !postHit.subscriptionHitsLeft &&
+          !postHit.purchasedHitsLeft
+        );
+
+        if (!postHit || (!hasValidSubHits && !hasPurchasedHits && !hasLegacyHits)) {
+          throw new BadRequestException('No hits left to create a post. Please subscribe or purchase hits.');
         }
       }
 
@@ -717,15 +732,51 @@ export class PostService {
 
       let remainingHitsAfterCreate: number | null = null;
       const createdPost = await this.prisma.$transaction(async (tx) => {
-        // For crowdfunding, decrement hit
+        // For crowdfunding, decrement hit with priority: subscription hits first, then purchased hits
         if (type === 'crowdfunding' || type === 'support') {
           const postHit = await tx.postHit.findFirst({ where: { userId } });
           if (!postHit) throw new BadRequestException('PostHit record not found');
 
-          const updatedPostHit = await tx.postHit.update({
-            where: { id: postHit.id },
-            data: { hitLeft: { decrement: 1 } },
-          });
+          const now = new Date();
+          const hasValidSubHits =
+            postHit.subscriptionHitsLeft > 0 &&
+            postHit.subscriptionHitsExpiresAt &&
+            postHit.subscriptionHitsExpiresAt > now;
+
+          let updatedPostHit;
+          if (hasValidSubHits) {
+            const newSubHits = postHit.subscriptionHitsLeft - 1;
+            const newPurchasedHits = postHit.purchasedHitsLeft || 0;
+            updatedPostHit = await tx.postHit.update({
+              where: { id: postHit.id },
+              data: {
+                subscriptionHitsLeft: { decrement: 1 },
+                hitLeft: newSubHits + newPurchasedHits,
+              },
+            });
+          } else if (postHit.purchasedHitsLeft > 0) {
+            const isSubActive =
+              postHit.subscriptionHitsExpiresAt &&
+              postHit.subscriptionHitsExpiresAt > now;
+            const activeSubHits = isSubActive ? postHit.subscriptionHitsLeft : 0;
+            const newPurchasedHits = postHit.purchasedHitsLeft - 1;
+            updatedPostHit = await tx.postHit.update({
+              where: { id: postHit.id },
+              data: {
+                purchasedHitsLeft: { decrement: 1 },
+                hitLeft: activeSubHits + newPurchasedHits,
+              },
+            });
+          } else if (postHit.hitLeft > 0) {
+            // Legacy fallback
+            updatedPostHit = await tx.postHit.update({
+              where: { id: postHit.id },
+              data: { hitLeft: { decrement: 1 } },
+            });
+          } else {
+            throw new BadRequestException('No hits left to create a post. Please subscribe or purchase hits.');
+          }
+
           remainingHitsAfterCreate = updatedPostHit.hitLeft;
         }
 
