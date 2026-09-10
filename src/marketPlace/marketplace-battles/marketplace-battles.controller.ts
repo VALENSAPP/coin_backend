@@ -313,6 +313,35 @@ export class MarketplaceBattlesController {
         return this.marketplaceBattlesService.editShopBattleQuestion(userId, battleId, dto);
     }
 
+    @Delete(':battleId')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Delete a shop battle',
+        description:
+            'Allows the creator/seller to delete their marketplace battle. Any locked stake is refunded and associated battle records are removed.',
+    })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
+    @ApiOkResponse({
+        description: 'Shop battle deleted successfully',
+        schema: {
+            example: {
+                message: 'Shop battle deleted successfully',
+                battleId: '718451bf-0775-4d17-ac3a-7d6960ecb68d',
+            },
+        },
+    })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiForbiddenResponse({ description: 'Forbidden: you do not own this marketplace battle' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
+    async deleteMarketplaceBattle(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.deleteMarketplaceBattle(userId, battleId);
+    }
+
     @Post(':battleId/cancel')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()

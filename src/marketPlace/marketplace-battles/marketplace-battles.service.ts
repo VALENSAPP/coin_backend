@@ -4820,4 +4820,58 @@ export class MarketplaceBattlesService {
             battle: updatedBattle,
         };
     }
+
+    async deleteMarketplaceBattle(userId: string, battleId: string) {
+        const sellerId = this.assertSellerUserId(userId);
+        if (!battleId) {
+            throw new BadRequestException('Battle ID required');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            await tx.$queryRaw`
+                SELECT id
+                FROM "MarketplaceBattle"
+                WHERE id = ${battleId}
+                FOR UPDATE
+            `;
+
+            const battle = await tx.marketplaceBattle.findUnique({
+                where: { id: battleId },
+                select: {
+                    id: true,
+                    sellerId: true,
+                    opponentSellerId: true,
+                    stakeAmount: true,
+                    stakeSettled: true,
+                    mode: true,
+                    status: true,
+                },
+            });
+
+            if (!battle) {
+                throw new NotFoundException('Marketplace battle not found');
+            }
+
+            if (battle.sellerId !== sellerId) {
+                throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
+            }
+
+            // Refund stake points to seller if locked and not yet settled
+            if (!battle.stakeSettled && battle.stakeAmount && battle.stakeAmount > 0) {
+                await this.refundStakePoints(tx, sellerId, battle.stakeAmount);
+            }
+
+            // Remove relations that might restrict deletion
+            await tx.marketplaceWinnerPromotion.deleteMany({ where: { battleId } });
+            await tx.marketplaceBattleBoost.deleteMany({ where: { battleId } });
+
+            // Delete the battle (participants, votes, comments, views, awards cascade)
+            await tx.marketplaceBattle.delete({ where: { id: battleId } });
+
+            return {
+                message: 'Shop battle deleted successfully',
+                battleId,
+            };
+        });
+    }
 }
