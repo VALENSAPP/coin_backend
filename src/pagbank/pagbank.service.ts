@@ -41,8 +41,8 @@ export class PagBankService {
         return (
             process.env.PAGBANK_CONNECT_AUTHORIZE_URL ||
             (env === 'production'
-                ? 'https://connect.pagseguro.uol.com.br/oauth2/authorize'
-                : 'https://connect.sandbox.pagseguro.uol.com.br/oauth2/authorize')
+                ? 'https://connect.pagbank.com.br/oauth2/authorize'
+                : 'https://connect.sandbox.pagbank.com.br/oauth2/authorize')
         );
     }
 
@@ -129,14 +129,13 @@ export class PagBankService {
 
         const redirectUri = this.getRedirectUri();
         const state = Buffer.from(JSON.stringify({ userId })).toString('base64url');
+        const scope = process.env.PAGBANK_CONNECT_SCOPE || 'payments.read payments.create accounts.read';
         const params = new URLSearchParams({
             client_id: clientId,
             response_type: 'code',
             redirect_uri: redirectUri,
             state,
-            ...(process.env.PAGBANK_CONNECT_SCOPE
-                ? { scope: process.env.PAGBANK_CONNECT_SCOPE }
-                : {}),
+            scope,
         });
 
         return {

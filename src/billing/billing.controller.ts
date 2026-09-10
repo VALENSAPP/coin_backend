@@ -331,9 +331,21 @@ export class BillingController {
 
   @Get('pagbank/callback')
   @ApiOperation({ summary: 'PagBank Connect OAuth callback' })
-  @ApiQuery({ name: 'code', required: true })
-  @ApiQuery({ name: 'state', required: true })
-  async pagbankCallback(@Query('code') code: string, @Query('state') state: string) {
+  @ApiQuery({ name: 'code', required: false })
+  @ApiQuery({ name: 'state', required: false })
+  @ApiQuery({ name: 'error', required: false })
+  @ApiQuery({ name: 'error_description', required: false })
+  async pagbankCallback(
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+    @Query('error') error?: string,
+    @Query('error_description') errorDescription?: string,
+  ) {
+    if (error) {
+      throw new BadRequestException(
+        `PagBank Connect error: ${error}${errorDescription ? ` - ${errorDescription}` : ''}`,
+      );
+    }
     if (!code || !state) {
       throw new BadRequestException('Missing code or state from PagBank Connect');
     }
