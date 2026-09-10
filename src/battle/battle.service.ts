@@ -163,6 +163,87 @@ export class BattleService {
     };
   }
 
+  buildMatchResult(battle: any) {
+    if (!battle) return null;
+
+    const external = battle.externalPrediction;
+    const raw: any = external?.resultRaw || external?.raw || null;
+
+    const teams = raw?.teams;
+    const goals = raw?.goals;
+    const score = raw?.score;
+    const fixtureStatus = raw?.fixture?.status;
+
+    let homeTeam: string | null = null;
+    let awayTeam: string | null = null;
+    let homeLogo: string | null = null;
+    let awayLogo: string | null = null;
+    let homeScore: number | null = null;
+    let awayScore: number | null = null;
+    let matchStatus: string | null = null;
+    const winnerSide = (battle.winningSide || battle.correctSide || external?.resultSide || '').trim() || null;
+
+    if (teams?.home?.name && teams?.away?.name) {
+      homeTeam = String(teams.home.name).trim();
+      awayTeam = String(teams.away.name).trim();
+      homeLogo = teams.home.logo ? String(teams.home.logo) : null;
+      awayLogo = teams.away.logo ? String(teams.away.logo) : null;
+
+      if (goals?.home !== undefined && goals?.home !== null && !Number.isNaN(Number(goals.home))) {
+        homeScore = Number(goals.home);
+      } else if (score?.fulltime?.home !== undefined && score?.fulltime?.home !== null && !Number.isNaN(Number(score.fulltime.home))) {
+        homeScore = Number(score.fulltime.home);
+      }
+
+      if (goals?.away !== undefined && goals?.away !== null && !Number.isNaN(Number(goals.away))) {
+        awayScore = Number(goals.away);
+      } else if (score?.fulltime?.away !== undefined && score?.fulltime?.away !== null && !Number.isNaN(Number(score.fulltime.away))) {
+        awayScore = Number(score.fulltime.away);
+      }
+
+      matchStatus = fixtureStatus?.long || fixtureStatus?.short || (battle.status === 'RESOLVED' ? 'Full-time' : null);
+    } else if (Array.isArray(battle.options) && battle.options.length >= 2 && String(battle.question || '').includes(' vs ')) {
+      homeTeam = String(battle.options[0]).trim();
+      awayTeam = String(battle.options[1]).trim();
+      matchStatus = battle.status === 'RESOLVED' ? 'Full-time' : null;
+    }
+
+    if (!homeTeam && !awayTeam) {
+      return {
+        isMatch: false,
+        homeTeam: null,
+        awayTeam: null,
+        homeLogo: null,
+        awayLogo: null,
+        homeScore: null,
+        awayScore: null,
+        scoreSummary: null,
+        matchStatus: null,
+        winnerSide,
+      };
+    }
+
+    let scoreSummary: string | null = null;
+    if (homeScore !== null && awayScore !== null) {
+      scoreSummary = `${homeTeam} ${homeScore} x ${awayScore} ${awayTeam}`;
+    } else if (winnerSide) {
+      scoreSummary = `Winner: ${winnerSide}`;
+    }
+
+    return {
+      isMatch: true,
+      homeTeam,
+      awayTeam,
+      homeLogo,
+      awayLogo,
+      homeScore,
+      awayScore,
+      scoreSummary,
+      matchStatus,
+      winnerSide,
+    };
+  }
+
   private async getBattleEngagedUserIds(battleId: string, creatorId?: string | null): Promise<string[]> {
     const [participants, votes, comments, predictions] = await Promise.all([
       this.prisma.battleParticipant.findMany({ where: { battleId }, select: { userId: true } }),
@@ -1820,9 +1901,11 @@ export class BattleService {
           ? (headToHeadVoteCountsByBattle.get(battle.id) || {})
           : (pollCountsByBattle.get(battle.id) || {});
 
+      const matchResult = this.buildMatchResult(battle);
+
       if (battle.format !== 'HEAD_TO_HEAD') {
         const { participants, invites, ...rest } = battle;
-        return { ...rest, opponent: null, voteCounts };
+        return { ...rest, opponent: null, voteCounts, matchResult };
       }
 
       const headToHeadSides = this.buildHeadToHeadSides(battle);
@@ -1836,7 +1919,7 @@ export class BattleService {
 
       const opponent = participantOpponent || invitedOpponent || null;
       const { participants, invites, ...rest } = battle;
-      return { ...rest, opponent, headToHeadSides, voteCounts };
+      return { ...rest, opponent, headToHeadSides, voteCounts, matchResult };
     });
   }
 
@@ -2351,7 +2434,7 @@ export class BattleService {
   async getBattlesByUser(targetUserId: string, status?: string) {
     if (!targetUserId) throw new BadRequestException('User ID required');
     const parsedStatus = this.parseBattleStatus(status);
-    return this.prisma.battle.findMany({
+    const battles = await this.prisma.battle.findMany({
       where: {
         ...(parsedStatus ? { status: parsedStatus } : {}),
         OR: [
@@ -2361,11 +2444,17 @@ export class BattleService {
       },
       include: {
         creator: true,
+        externalPrediction: true,
         _count: { select: { participants: true, comments: true, votes: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+
+    return battles.map((battle) => ({
+      ...battle,
+      matchResult: this.buildMatchResult(battle),
+    }));
   }
 
   async getBattlePointsByUser(userId: string, status?: string) {
@@ -2380,7 +2469,11 @@ export class BattleService {
           ...(parsedStatus ? { battle: { status: parsedStatus } } : {}),
         },
         include: {
-          battle: true,
+          battle: {
+            include: {
+              externalPrediction: true,
+            },
+          },
         },
         orderBy: { joinedAt: 'desc' },
       }),
@@ -2408,6 +2501,7 @@ export class BattleService {
       resolvedAt: p.battle.resolvedAt,
       winningSide: p.battle.winningSide,
       correctSide: p.battle.correctSide,
+      matchResult: this.buildMatchResult(p.battle),
     }));
 
     const totals = stats || {
@@ -2453,9 +2547,11 @@ export class BattleService {
 
     const battle = await this.prisma.battle.findUnique({
       where: { id: battleId },
-      select: { id: true, winnerUserId: true, status: true, resolvedAt: true },
+      include: { externalPrediction: true },
     });
     if (!battle) throw new NotFoundException('Battle not found');
+
+    const matchResult = this.buildMatchResult(battle);
 
     if (!battle.winnerUserId) {
       return {
@@ -2464,6 +2560,8 @@ export class BattleService {
         points: null,
         status: battle.status,
         resolvedAt: battle.resolvedAt,
+        winningSide: battle.winningSide || battle.correctSide || null,
+        matchResult,
       };
     }
 
@@ -2478,6 +2576,8 @@ export class BattleService {
       points: participant?.score ?? null,
       status: battle.status,
       resolvedAt: battle.resolvedAt,
+      winningSide: battle.winningSide || battle.correctSide || null,
+      matchResult,
     };
   }
 
@@ -2644,6 +2744,7 @@ export class BattleService {
       predictionCounts: effectivePredictionCounts,
       voteCounts,
       comments: orderedComments,
+      matchResult: this.buildMatchResult(battle),
     };
 
   }
