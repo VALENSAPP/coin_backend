@@ -1339,6 +1339,7 @@ export class OrderService {
         }
 
         const firstItem = order.items?.[0];
+        const buyerUsername = order.buyer?.userName || order.buyer?.displayName || 'Buyer';
         const buyerName = order.buyer?.displayName || order.buyer?.userName || 'Buyer';
         const buyerAvatar = order.buyer?.image || '';
         const itemImage = firstItem?.productImage || '';
@@ -1347,7 +1348,7 @@ export class OrderService {
         const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
 
         const reasonStr = reason ? `\nReason: ${reason}` : '';
-        const reqNotificationBody = `⚠️ Buyer requested to cancel Order #${order.orderNumber}.${reasonStr}\nPlease review and approve or decline in your seller dashboard.`;
+        const reqNotificationBody = `⚠️ ${buyerUsername} requested to cancel Order #${order.orderNumber}.${reasonStr}\nPlease review and approve or decline in your seller dashboard.`;
 
         // Send in-app notification to seller
         await this.notificationService.sendNotificationToUser(

@@ -853,7 +853,7 @@ export class SellerOrderService {
         const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
 
         const reasonStr = dto.declineReason ? `\nReason: ${dto.declineReason}` : '';
-        const declineNotificationBody = `ℹ️ Cancellation request for Order #${order.orderNumber} was declined by Seller.${reasonStr}\nOrder fulfillment will continue.`;
+        const declineNotificationBody = `ℹ️ Cancellation request for Order #${order.orderNumber} was declined by ${sellerName}.${reasonStr}\nOrder fulfillment will continue.`;
 
         // Send push notification to buyer
         await this.notificationService.sendNotificationToUser(

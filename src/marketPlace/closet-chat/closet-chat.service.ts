@@ -540,15 +540,22 @@ export class ClosetChatService {
                 buyerId: true,
                 sellerId: true,
                 closetId: true,
+                buyer: {
+                    select: {
+                        userName: true,
+                        displayName: true,
+                    },
+                },
             },
         });
 
         if (!order) return null;
 
+        const buyerUsername = order.buyer?.userName || order.buyer?.displayName || 'Buyer';
         const senderId = order.buyerId;
         const receiverId = order.sellerId;
         const reasonStr = reason ? `\nReason: ${reason}` : '';
-        const content = `⚠️ Buyer requested to cancel Order #${order.orderNumber}.${reasonStr}\nPlease review and approve or decline in your seller dashboard.`;
+        const content = `⚠️ ${buyerUsername} requested to cancel Order #${order.orderNumber}.${reasonStr}\nPlease review and approve or decline in your seller dashboard.`;
 
         let threadId = '';
         let createdMessage: any = null;
