@@ -2408,7 +2408,7 @@ export class UserService {
         where: { OR: [{ userId }, { searchedUserId: userId }] },
       });
       await tx.userReferral.deleteMany({
-        where: { OR: [{ referrerId: userId }, { referredId: userId }] },
+        where: { OR: [{ referrerId: userId }, { referredUserId: userId }] },
       });
 
       // Auth, sessions, device accounts, login histories, notifications
@@ -2450,7 +2450,7 @@ export class UserService {
         where: { OR: [{ userId }, { post: { userId } }] },
       });
       await tx.postHit.deleteMany({
-        where: { OR: [{ userId }, { post: { userId } }] },
+        where: { userId },
       });
       await tx.hidePost.deleteMany({
         where: { OR: [{ userId }, { post: { userId } }] },
@@ -2462,7 +2462,7 @@ export class UserService {
 
       // Stories & Story Highlights
       await tx.storyComment.deleteMany({
-        where: { OR: [{ userId }, { story: { userId } }] },
+        where: { OR: [{ userId }, { Story: { userId } }] },
       });
       await tx.storyLike.deleteMany({
         where: { OR: [{ userId }, { story: { userId } }] },
@@ -2496,7 +2496,7 @@ export class UserService {
         data: { winnerUserId: null },
       });
       await tx.battleInvite.deleteMany({
-        where: { OR: [{ inviterId: userId }, { invitedId: userId }] },
+        where: { OR: [{ inviterId: userId }, { invitedUserId: userId }] },
       });
       await tx.battleParticipant.deleteMany({ where: { userId } });
       await tx.battlePrediction.deleteMany({ where: { userId } });
@@ -2508,17 +2508,17 @@ export class UserService {
       await tx.battleAchievement.deleteMany({ where: { userId } });
       await tx.userBattleStats.deleteMany({ where: { userId } });
       await tx.battleExternalPredictionVote.deleteMany({ where: { userId } });
-      await tx.battle.deleteMany({ where: { userId } });
+      await tx.battle.deleteMany({ where: { creatorId: userId } });
 
       await tx.marketplaceBattleChallengeInvite.deleteMany({
-        where: { OR: [{ inviterId: userId }, { invitedId: userId }] },
+        where: { OR: [{ inviterId: userId }, { invitedUserId: userId }] },
       });
       await tx.marketplaceBattleVote.deleteMany({ where: { userId } });
       await tx.marketplaceBattleCommentReaction.deleteMany({ where: { userId } });
       await tx.marketplaceBattleComment.deleteMany({ where: { userId } });
-      await tx.marketplaceBattleView.deleteMany({ where: { userId } });
-      await tx.marketplaceWinnerPromotion.deleteMany({ where: { userId } });
-      await tx.marketplaceBattleBoost.deleteMany({ where: { userId } });
+      await tx.marketplaceBattleView.deleteMany({ where: { viewerId: userId } });
+      await tx.marketplaceWinnerPromotion.deleteMany({ where: { sellerId: userId } });
+      await tx.marketplaceBattleBoost.deleteMany({ where: { sellerId: userId } });
       await tx.marketplaceBattlePointsAward.deleteMany({ where: { userId } });
       await tx.marketplaceBattle.deleteMany({
         where: { OR: [{ sellerId: userId }, { opponentSellerId: userId }] },
@@ -2526,7 +2526,7 @@ export class UserService {
 
       // Closet, Cart, Wishlist, Orders & Payments
       await tx.closetItemLike.deleteMany({ where: { userId } });
-      await tx.closetView.deleteMany({ where: { userId } });
+      await tx.closetView.deleteMany({ where: { viewerId: userId } });
       await tx.cartItems.deleteMany({ where: { cart: { userId } } });
       await tx.cart.deleteMany({ where: { userId } });
       await tx.wishlistItems.deleteMany({ where: { wishlist: { userId } } });
