@@ -3729,12 +3729,15 @@ export class BillingService {
           });
 
           let hitLeft: number;
+          let purchasedHitsLeft: number;
+          let subscriptionHitsLeft: number = 0;
           const now = new Date();
           if (existingPostHit) {
             const isSubActive =
               existingPostHit.subscriptionHitsExpiresAt &&
               existingPostHit.subscriptionHitsExpiresAt > now;
             const activeSubHits = isSubActive ? (existingPostHit.subscriptionHitsLeft || 0) : 0;
+            subscriptionHitsLeft = activeSubHits;
             const newPurchasedHits = (existingPostHit.purchasedHitsLeft || 0) + PLATFORM_POINTS_HIT_COUNT;
             const newTotalHitLeft = activeSubHits + newPurchasedHits;
             const updatedPostHit = await tx.postHit.update({
@@ -3743,9 +3746,10 @@ export class BillingService {
                 purchasedHitsLeft: { increment: PLATFORM_POINTS_HIT_COUNT },
                 hitLeft: newTotalHitLeft,
               },
-              select: { hitLeft: true },
+              select: { hitLeft: true, purchasedHitsLeft: true },
             });
             hitLeft = updatedPostHit.hitLeft;
+            purchasedHitsLeft = updatedPostHit.purchasedHitsLeft;
           } else {
             const createdPostHit = await tx.postHit.create({
               data: {
@@ -3755,9 +3759,10 @@ export class BillingService {
                 subscriptionHitsExpiresAt: null,
                 hitLeft: PLATFORM_POINTS_HIT_COUNT,
               },
-              select: { hitLeft: true },
+              select: { hitLeft: true, purchasedHitsLeft: true },
             });
             hitLeft = createdPostHit.hitLeft;
+            purchasedHitsLeft = createdPostHit.purchasedHitsLeft;
           }
 
           await tx.platformPointsHitPurchase.create({
@@ -3774,6 +3779,8 @@ export class BillingService {
             hitAdded: PLATFORM_POINTS_HIT_COUNT,
             pointsSpent: PLATFORM_POINTS_HIT_COST,
             hitLeft,
+            purchasedHitsLeft,
+            subscriptionHitsLeft,
             totalPlatformPoints: updatedUser.totalPlatformPoints,
             yearMonth,
             nextEligibleAt,
