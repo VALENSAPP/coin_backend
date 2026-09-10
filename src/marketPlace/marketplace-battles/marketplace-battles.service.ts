@@ -4645,9 +4645,32 @@ export class MarketplaceBattlesService {
             throw new BadRequestException('Battle ID required');
         }
 
-        const question = dto?.question?.trim();
-        if (!question) {
-            throw new BadRequestException('Question required');
+        const normalizedQuestion =
+            dto?.question !== undefined ? dto.question.trim() : undefined;
+        const rawProductIds = dto?.options ?? dto?.productIds;
+
+        const hasQuestionUpdate =
+            typeof dto?.question === 'string' && normalizedQuestion !== undefined && normalizedQuestion !== '';
+        const hasOptionsUpdate =
+            rawProductIds !== undefined && Array.isArray(rawProductIds) && rawProductIds.length > 0;
+
+        if (!hasQuestionUpdate && !hasOptionsUpdate) {
+            throw new BadRequestException('At least question or options (product IDs) required');
+        }
+
+        if (dto?.question !== undefined && normalizedQuestion === '') {
+            throw new BadRequestException('Question cannot be empty');
+        }
+
+        let validatedProductIds: string[] | undefined;
+        if (hasOptionsUpdate) {
+            if (!Array.isArray(rawProductIds) || rawProductIds.length !== 2) {
+                throw new BadRequestException('Options must contain exactly two product IDs');
+            }
+            if (rawProductIds[0] === rawProductIds[1]) {
+                throw new BadRequestException('Options cannot contain duplicate product IDs');
+            }
+            validatedProductIds = rawProductIds;
         }
 
         const battle = await this.prisma.marketplaceBattle.findUnique({
@@ -4655,11 +4678,14 @@ export class MarketplaceBattlesService {
             select: {
                 id: true,
                 sellerId: true,
+                closetId: true,
                 status: true,
                 mode: true,
                 createdAt: true,
                 description: true,
                 question: true,
+                opponentSellerId: true,
+                opponentClosetId: true,
             },
         });
 
@@ -4680,20 +4706,117 @@ export class MarketplaceBattlesService {
 
         const minutesSinceCreation = (Date.now() - battle.createdAt.getTime()) / (60 * 1000);
         if (minutesSinceCreation > 5 || minutesSinceCreation < 0) {
-            throw new BadRequestException('Shop battle question can only be edited within 5 minutes of creation');
+            throw new BadRequestException('Shop battle can only be edited within 5 minutes of creation');
         }
 
-        const updatedBattle = await this.prisma.marketplaceBattle.update({
-            where: { id: battleId },
-            data: {
-                question,
-                ...(battle.mode === MarketplaceBattleMode.CROSS_SHOP ? { description: question } : {}),
-            },
-            select: MARKETPLACE_BATTLE_BASE_SELECT,
+        if (validatedProductIds) {
+            if (battle.mode === MarketplaceBattleMode.SAME_CLOSET) {
+                await this.validateMarketplaceBattleProducts(
+                    this.prisma,
+                    sellerId,
+                    battle.closetId,
+                    validatedProductIds,
+                );
+            } else if (battle.mode === MarketplaceBattleMode.CROSS_SHOP) {
+                if (!battle.opponentSellerId || !battle.opponentClosetId) {
+                    throw new BadRequestException('Opponent details missing for cross-shop battle');
+                }
+                await this.validateCrossShopBattleProducts(
+                    this.prisma,
+                    sellerId,
+                    battle.closetId,
+                    battle.opponentSellerId,
+                    battle.opponentClosetId,
+                    validatedProductIds[0],
+                    validatedProductIds[1],
+                );
+            }
+        }
+
+        await this.prisma.$transaction(async (tx) => {
+            if (hasQuestionUpdate && normalizedQuestion !== undefined) {
+                await tx.marketplaceBattle.update({
+                    where: { id: battleId },
+                    data: {
+                        question: normalizedQuestion,
+                        ...(battle.mode === MarketplaceBattleMode.CROSS_SHOP ? { description: normalizedQuestion } : {}),
+                    },
+                });
+            }
+
+            if (validatedProductIds) {
+                const existingParticipants = await tx.marketplaceBattleParticipant.findMany({
+                    where: { battleId },
+                    orderBy: { position: 'asc' },
+                });
+
+                if (existingParticipants.length === 2) {
+                    const [p1, p2] = existingParticipants;
+                    const [newId1, newId2] = validatedProductIds;
+
+                    // If exact swap of products between position 1 and 2
+                    if (p1.productId === newId2 && p2.productId === newId1) {
+                        // Swap position values using temporary negative position to avoid unique constraint conflict
+                        await tx.marketplaceBattleParticipant.update({
+                            where: { id: p1.id },
+                            data: { position: -1 },
+                        });
+                        await tx.marketplaceBattleParticipant.update({
+                            where: { id: p2.id },
+                            data: { position: 1 },
+                        });
+                        await tx.marketplaceBattleParticipant.update({
+                            where: { id: p1.id },
+                            data: { position: 2 },
+                        });
+                    } else {
+                        // If newId1 matches p2's existing product, update p2 first to avoid unique constraint on (battleId, productId)
+                        if (newId1 === p2.productId) {
+                            if (p2.productId !== newId2) {
+                                await tx.marketplaceBattleParticipant.update({
+                                    where: { id: p2.id },
+                                    data: { productId: newId2 },
+                                });
+                            }
+                            if (p1.productId !== newId1) {
+                                await tx.marketplaceBattleParticipant.update({
+                                    where: { id: p1.id },
+                                    data: { productId: newId1 },
+                                });
+                            }
+                        } else {
+                            if (p1.productId !== newId1) {
+                                await tx.marketplaceBattleParticipant.update({
+                                    where: { id: p1.id },
+                                    data: { productId: newId1 },
+                                });
+                            }
+                            if (p2.productId !== newId2) {
+                                await tx.marketplaceBattleParticipant.update({
+                                    where: { id: p2.id },
+                                    data: { productId: newId2 },
+                                });
+                            }
+                        }
+                    }
+                }
+
+                if (battle.mode === MarketplaceBattleMode.CROSS_SHOP) {
+                    await tx.marketplaceBattleChallengeInvite.updateMany({
+                        where: { battleId },
+                        data: {
+                            challengerProductId: validatedProductIds[0],
+                            opponentProductId: validatedProductIds[1],
+                        },
+                    });
+                }
+            }
         });
 
+        const updatedBattle = await this.getSellerBattleDetailsOrThrow(sellerId, battleId);
+
         return {
-            message: 'Shop battle question updated successfully',
+            message: 'Shop battle updated successfully',
             battle: updatedBattle,
         };
     }

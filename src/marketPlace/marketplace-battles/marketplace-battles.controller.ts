@@ -255,16 +255,16 @@ export class MarketplaceBattlesController {
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({
-        summary: 'Edit shop battle question',
+        summary: 'Edit shop battle question and options',
         description:
-            'Allows the shop battle creator to edit the question within 5 minutes of battle creation.',
+            'Allows the shop battle creator to edit the question and/or product options within 5 minutes of battle creation.',
     })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
     @ApiOkResponse({
-        description: 'Shop battle question updated successfully',
+        description: 'Shop battle updated successfully',
         schema: {
             example: {
-                message: 'Shop battle question updated successfully',
+                message: 'Shop battle updated successfully',
                 battle: {
                     id: 'battle-123',
                     title: 'Summer Style Battle',
@@ -272,6 +272,20 @@ export class MarketplaceBattlesController {
                     description: 'Which product is more stylish?',
                     status: 'LIVE',
                     createdAt: '2026-09-10T10:00:00.000Z',
+                    participants: [
+                        {
+                            id: 'participant-1',
+                            position: 1,
+                            productId: 'product-1',
+                            voteCount: 0,
+                        },
+                        {
+                            id: 'participant-2',
+                            position: 2,
+                            productId: 'product-2',
+                            voteCount: 0,
+                        },
+                    ],
                 },
             },
         },
@@ -281,7 +295,7 @@ export class MarketplaceBattlesController {
     @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
     @ApiBadRequestResponse({
         description:
-            'Question required, completed/cancelled battle cannot be edited, or editing time limit exceeded (> 5 minutes)',
+            'Question or options required, completed/cancelled battle cannot be edited, or editing time limit exceeded (> 5 minutes)',
     })
     async editShopBattleQuestion(
         @Req() req: Request,
