@@ -2552,6 +2552,8 @@ export class BattleService {
     if (!battle) throw new NotFoundException('Battle not found');
 
     const matchResult = this.buildMatchResult(battle);
+    const isPrediction = battle.battleType === BattleType.PREDICTION || Boolean(battle.externalPrediction);
+    const category = battle.externalPrediction?.category || (matchResult?.isMatch ? 'SPORTS' : null);
 
     if (!battle.winnerUserId) {
       return {
@@ -2559,6 +2561,9 @@ export class BattleService {
         winnerUserId: null,
         points: null,
         status: battle.status,
+        battleType: battle.battleType,
+        isPrediction,
+        category,
         resolvedAt: battle.resolvedAt,
         winningSide: battle.winningSide || battle.correctSide || null,
         matchResult,
@@ -2575,6 +2580,9 @@ export class BattleService {
       winnerUserId: battle.winnerUserId,
       points: participant?.score ?? null,
       status: battle.status,
+      battleType: battle.battleType,
+      isPrediction,
+      category,
       resolvedAt: battle.resolvedAt,
       winningSide: battle.winningSide || battle.correctSide || null,
       matchResult,
