@@ -3053,7 +3053,8 @@ export class BattleService {
 
     scored.sort((a, b) => b.score - a.score || b.engagementPoints - a.engagementPoints || b.likes - a.likes);
 
-    const winner = scored[0];
+    const winningEntries = scored.filter((entry) => entry.userWon);
+    const winner = winningEntries[0] || null;
     let didResolve = false;
     const stakeAmount = battle.stakeAmount ?? 0;
     const leaderboardClimbedUserIds = new Set<string>();
@@ -3091,7 +3092,7 @@ export class BattleService {
             argumentSubmitted: entry.argumentSubmitted,
             likesCount: entry.likes,
             votePoints: 0,
-            isWinner: winner?.userId === entry.userId,
+            isWinner: Boolean(winner?.userId && winner.userId === entry.userId),
             awardedAt: new Date(),
           },
           create: {
@@ -3108,7 +3109,7 @@ export class BattleService {
             argumentSubmitted: entry.argumentSubmitted,
             likesCount: entry.likes,
             votePoints: 0,
-            isWinner: winner?.userId === entry.userId,
+            isWinner: Boolean(winner?.userId && winner.userId === entry.userId),
             awardedAt: new Date(),
           },
         });
@@ -3162,12 +3163,12 @@ export class BattleService {
       }
 
       await tx.battleReward.deleteMany({ where: { battleId } });
-      const topThree = scored.slice(0, 3);
-      for (let i = 0; i < topThree.length; i += 1) {
+      const topWinners = winningEntries.slice(0, 3);
+      for (let i = 0; i < topWinners.length; i += 1) {
         await tx.battleReward.create({
           data: {
             battleId,
-            userId: topThree[i].userId,
+            userId: topWinners[i].userId,
             rank: i + 1,
             rewardPoints: null,
             rewardType: 'CRED',
@@ -3187,15 +3188,16 @@ export class BattleService {
       await this.notificationService.sendBattleResult(participantIds, battleId);
     }
 
-    const victoryUserIds = Array.from(new Set(scored.filter((s) => s.userWon).map((s) => s.userId)));
-    if (victoryUserIds.length === 0 && winner?.userId) {
-      victoryUserIds.push(winner.userId);
+    const victoryUserIds = Array.from(new Set(winningEntries.map((s) => s.userId)));
+    if (victoryUserIds.length > 0) {
+      await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
     }
-    await this.notificationService.sendBattleVictory(victoryUserIds, battleId);
 
     const victoryUserIdSet = new Set(victoryUserIds);
     const forecastMissedUserIds = Array.from(new Set(scored.filter((s) => !victoryUserIdSet.has(s.userId)).map((s) => s.userId)));
-    await this.notificationService.sendBattleForecastMissed(forecastMissedUserIds, battleId);
+    if (forecastMissedUserIds.length > 0) {
+      await this.notificationService.sendBattleForecastMissed(forecastMissedUserIds, battleId);
+    }
 
     const followerIds = await this.getFollowerIds(battle.creatorId);
     await this.notificationService.sendBattleClosedToFollowers(followerIds, battleId);
