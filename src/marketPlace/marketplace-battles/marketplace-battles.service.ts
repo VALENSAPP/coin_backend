@@ -48,6 +48,7 @@ import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters
 import { ReactMarketplaceBattleCommentDto } from './dto/react-marketplace-battle-comment.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
 import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
+import { EditMarketplaceBattleQuestionDto } from './dto/edit-marketplace-battle-question.dto';
 
 type PrismaTx = PrismaService | Prisma.TransactionClient;
 
@@ -2090,6 +2091,7 @@ export class MarketplaceBattlesService {
                     whoCanVote: dto.whoCanVote ?? WhoCanBuy.Everyone,
                     shareToFeed: dto.shareToFeed ?? false,
                     mode: MarketplaceBattleMode.SAME_CLOSET,
+                    question: dto.question?.trim() || undefined,
                     status: targetStatus,
                     outcome: MarketplaceBattleOutcome.PENDING,
                     startAt: effectiveStartAt,
@@ -2113,6 +2115,7 @@ export class MarketplaceBattlesService {
                     completedAt: true,
                     totalVotes: true,
                     totalComments: true,
+                    question: true,
                     createdAt: true,
                     updatedAt: true,
                 },
@@ -4632,4 +4635,66 @@ export class MarketplaceBattlesService {
         }
     }
 
+    async editShopBattleQuestion(
+        userId: string,
+        battleId: string,
+        dto: EditMarketplaceBattleQuestionDto,
+    ) {
+        const sellerId = this.assertSellerUserId(userId);
+        if (!battleId) {
+            throw new BadRequestException('Battle ID required');
+        }
+
+        const question = dto?.question?.trim();
+        if (!question) {
+            throw new BadRequestException('Question required');
+        }
+
+        const battle = await this.prisma.marketplaceBattle.findUnique({
+            where: { id: battleId },
+            select: {
+                id: true,
+                sellerId: true,
+                status: true,
+                mode: true,
+                createdAt: true,
+                description: true,
+                question: true,
+            },
+        });
+
+        if (!battle) {
+            throw new NotFoundException('Marketplace battle not found');
+        }
+
+        if (battle.sellerId !== sellerId) {
+            throw new ForbiddenException('Forbidden: you do not own this marketplace battle');
+        }
+
+        if (
+            battle.status === MarketplaceBattleStatus.COMPLETED ||
+            battle.status === MarketplaceBattleStatus.CANCELLED
+        ) {
+            throw new BadRequestException('Completed or cancelled marketplace battles cannot be edited');
+        }
+
+        const minutesSinceCreation = (Date.now() - battle.createdAt.getTime()) / (60 * 1000);
+        if (minutesSinceCreation > 5 || minutesSinceCreation < 0) {
+            throw new BadRequestException('Shop battle question can only be edited within 5 minutes of creation');
+        }
+
+        const updatedBattle = await this.prisma.marketplaceBattle.update({
+            where: { id: battleId },
+            data: {
+                question,
+                ...(battle.mode === MarketplaceBattleMode.CROSS_SHOP ? { description: question } : {}),
+            },
+            select: MARKETPLACE_BATTLE_BASE_SELECT,
+        });
+
+        return {
+            message: 'Shop battle question updated successfully',
+            battle: updatedBattle,
+        };
+    }
 }

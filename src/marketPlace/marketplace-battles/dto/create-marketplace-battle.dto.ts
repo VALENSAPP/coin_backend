@@ -24,6 +24,17 @@ export class CreateMarketplaceBattleDto {
     @MaxLength(150)
     title!: string;
 
+    @ApiPropertyOptional({ example: 'Which outfit is better for summer?' })
+    @IsOptional()
+    @IsString()
+    @Transform(({ value }: { value: any }) => {
+        if (value === null || value === undefined) return undefined;
+        const normalized = String(value).trim();
+        return normalized.length ? normalized : undefined;
+    })
+    @MaxLength(500)
+    question?: string;
+
     @ApiPropertyOptional({ example: 'Choose your favorite product' })
     @IsOptional()
     @IsString()

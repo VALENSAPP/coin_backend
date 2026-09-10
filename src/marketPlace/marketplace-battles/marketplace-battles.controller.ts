@@ -3,6 +3,7 @@ import {
     Get,
     ParseUUIDPipe,
     Param,
+    Patch,
     Query,
     Body,
     Controller,
@@ -37,6 +38,7 @@ import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comm
 import { MarketplaceBattleListQueryDto } from './dto/marketplace-battle-list-query.dto';
 import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
+import { EditMarketplaceBattleQuestionDto } from './dto/edit-marketplace-battle-question.dto';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
 
 @ApiTags('marketplace-battles')
@@ -247,6 +249,54 @@ export class MarketplaceBattlesController {
     ) {
         const userId = (req.user as any)?.userId;
         return this.marketplaceBattlesService.trackMarketplaceBattleView(userId, battleId);
+    }
+
+    @Patch(':battleId/question')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Edit shop battle question',
+        description:
+            'Allows the shop battle creator to edit the question within 5 minutes of battle creation.',
+    })
+    @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
+    @ApiOkResponse({
+        description: 'Shop battle question updated successfully',
+        schema: {
+            example: {
+                message: 'Shop battle question updated successfully',
+                battle: {
+                    id: 'battle-123',
+                    title: 'Summer Style Battle',
+                    question: 'Which product is more stylish?',
+                    description: 'Which product is more stylish?',
+                    status: 'LIVE',
+                    createdAt: '2026-09-10T10:00:00.000Z',
+                },
+            },
+        },
+    })
+    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+    @ApiForbiddenResponse({ description: 'Forbidden: you do not own this marketplace battle' })
+    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
+    @ApiBadRequestResponse({
+        description:
+            'Question required, completed/cancelled battle cannot be edited, or editing time limit exceeded (> 5 minutes)',
+    })
+    async editShopBattleQuestion(
+        @Req() req: Request,
+        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
+        @Body(
+            new ValidationPipe({
+                whitelist: true,
+                forbidNonWhitelisted: true,
+                transform: true,
+            }),
+        )
+        dto: EditMarketplaceBattleQuestionDto,
+    ) {
+        const userId = (req.user as any)?.userId;
+        return this.marketplaceBattlesService.editShopBattleQuestion(userId, battleId, dto);
     }
 
     @Post(':battleId/cancel')
