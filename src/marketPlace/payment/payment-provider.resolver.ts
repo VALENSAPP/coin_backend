@@ -24,12 +24,17 @@ export class PaymentProviderResolver {
 
         if (!user) return 'STRIPE';
 
-        const stored = (user.paymentProvider || '').toUpperCase();
-        if (stored === 'PAGBANK' || stored === 'STRIPE') {
-            return stored;
+        const fromCountry = resolvePaymentProviderFromCountry(user.country);
+        if (fromCountry === 'PAGBANK') {
+            return 'PAGBANK';
         }
 
-        return resolvePaymentProviderFromCountry(user.country);
+        const stored = (user.paymentProvider || '').toUpperCase();
+        if (stored === 'PAGBANK' || stored === 'STRIPE') {
+            return stored as PaymentProvider;
+        }
+
+        return fromCountry;
     }
 
     async resolveProviderForMarketplaceBoost(userId: string): Promise<MarketplacePaymentProvider> {
@@ -46,12 +51,23 @@ export class PaymentProviderResolver {
         });
         if (!user) return 'STRIPE';
 
+        const providerFromCountry = resolvePaymentProviderFromCountry(user.country);
+        if (providerFromCountry === 'PAGBANK') {
+            if (user.paymentProvider !== 'PAGBANK') {
+                await this.prisma.user.update({
+                    where: { id: userId },
+                    data: { paymentProvider: 'PAGBANK' },
+                });
+            }
+            return 'PAGBANK';
+        }
+
         const stored = (user.paymentProvider || '').toUpperCase();
         if (stored === 'PAGBANK' || stored === 'STRIPE') {
             return stored as PaymentProvider;
         }
 
-        const provider = resolvePaymentProviderFromCountry(user.country);
+        const provider = providerFromCountry;
         await this.prisma.user.update({
             where: { id: userId },
             data: { paymentProvider: provider },

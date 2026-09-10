@@ -397,6 +397,10 @@ export class UserService {
         }
 
         const passwordHash = await bcrypt.hash(data.password, 10);
+        const { country: existingUserCountry, paymentProvider: existingUserProvider } = resolvePaymentProviderFromOrigin({
+          country: data.country,
+          location: data.location,
+        });
         const updatedUser = await this.prisma.user.update({
           where: { id: existingUserByEmail.id },
           data: {
@@ -404,6 +408,8 @@ export class UserService {
             userName: normalizedUserName,
             ...(data.profile ? { profile: data.profile } : {}),
             ...(data.fcmToken ? { fcmToken: data.fcmToken } : {}),
+            ...(existingUserCountry ? { country: existingUserCountry } : {}),
+            paymentProvider: existingUserProvider,
             registrationType: 'NORMAL',
           },
         });
@@ -442,6 +448,10 @@ export class UserService {
 
         const referCode = await this.generateUniqueReferCode();
         const initialReferPoints = 1000 + (referrer ? 500 : 0);
+        const { country: resolvedCountry, paymentProvider: resolvedProvider } = resolvePaymentProviderFromOrigin({
+          country: data.country,
+          location: data.location,
+        });
 
         const userData: any = {
           email: normalizedEmail,
@@ -451,6 +461,8 @@ export class UserService {
           referPoints: initialReferPoints,
           totalPlatformPoints: initialReferPoints,
           userName: normalizedUserName,
+          country: resolvedCountry || undefined,
+          paymentProvider: resolvedProvider,
         };
 
         if (data.profile) {
@@ -829,6 +841,24 @@ export class UserService {
     }
     if (dto.age !== undefined && dto.age !== '' && dto.age !== null) {
       data.age = Number(dto.age);
+    }
+    if (dto.country !== undefined && dto.country !== '' && dto.country !== null) {
+      const { country: resolvedCountry, paymentProvider } = resolvePaymentProviderFromOrigin({
+        country: dto.country,
+        location: dto.location,
+      });
+      if (resolvedCountry) {
+        data.country = resolvedCountry;
+        data.paymentProvider = paymentProvider;
+      }
+    } else if (dto.location !== undefined && dto.location !== '' && dto.location !== null) {
+      const { country: resolvedCountry, paymentProvider } = resolvePaymentProviderFromOrigin({
+        location: dto.location,
+      });
+      if (resolvedCountry) {
+        data.country = resolvedCountry;
+        data.paymentProvider = paymentProvider;
+      }
     }
     if (imageUrl) data.image = imageUrl;
 
