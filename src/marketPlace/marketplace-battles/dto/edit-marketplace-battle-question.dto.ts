@@ -30,25 +30,7 @@ export class EditMarketplaceBattleQuestionDto {
         type: [String],
         minItems: 2,
         maxItems: 2,
-        description: 'Updated shop battle options (array of exactly 2 product UUIDs)',
-        example: [
-            '11111111-1111-4111-8111-111111111111',
-            '22222222-2222-4222-8222-222222222222',
-        ],
-    })
-    @IsOptional()
-    @IsArray()
-    @ArrayMinSize(2)
-    @ArrayMaxSize(2)
-    @ArrayUnique()
-    @IsUUID('4', { each: true })
-    options?: string[];
-
-    @ApiPropertyOptional({
-        type: [String],
-        minItems: 2,
-        maxItems: 2,
-        description: 'Alias for options: updated shop battle product IDs (array of exactly 2 product UUIDs)',
+        description: 'Updated shop battle product IDs (array of exactly 2 product UUIDs)',
         example: [
             '11111111-1111-4111-8111-111111111111',
             '22222222-2222-4222-8222-222222222222',

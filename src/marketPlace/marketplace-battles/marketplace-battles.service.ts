@@ -4647,15 +4647,15 @@ export class MarketplaceBattlesService {
 
         const normalizedQuestion =
             dto?.question !== undefined ? dto.question.trim() : undefined;
-        const rawProductIds = dto?.options ?? dto?.productIds;
+        const rawProductIds = dto?.productIds;
 
         const hasQuestionUpdate =
             typeof dto?.question === 'string' && normalizedQuestion !== undefined && normalizedQuestion !== '';
-        const hasOptionsUpdate =
+        const hasProductsUpdate =
             rawProductIds !== undefined && Array.isArray(rawProductIds) && rawProductIds.length > 0;
 
-        if (!hasQuestionUpdate && !hasOptionsUpdate) {
-            throw new BadRequestException('At least question or options (product IDs) required');
+        if (!hasQuestionUpdate && !hasProductsUpdate) {
+            throw new BadRequestException('At least question or productIds required');
         }
 
         if (dto?.question !== undefined && normalizedQuestion === '') {
@@ -4663,12 +4663,12 @@ export class MarketplaceBattlesService {
         }
 
         let validatedProductIds: string[] | undefined;
-        if (hasOptionsUpdate) {
+        if (hasProductsUpdate) {
             if (!Array.isArray(rawProductIds) || rawProductIds.length !== 2) {
-                throw new BadRequestException('Options must contain exactly two product IDs');
+                throw new BadRequestException('productIds must contain exactly two product IDs');
             }
             if (rawProductIds[0] === rawProductIds[1]) {
-                throw new BadRequestException('Options cannot contain duplicate product IDs');
+                throw new BadRequestException('productIds cannot contain duplicate product IDs');
             }
             validatedProductIds = rawProductIds;
         }
