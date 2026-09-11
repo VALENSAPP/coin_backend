@@ -901,6 +901,16 @@ export class UserController {
   }
 
   // ✅ STATIC ROUTE FIRST (no :id parameter)
+  @Get('subscription/price-update-summary')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get creator subscription price update summary and subscriber responses' })
+  @ApiResponse({ status: 200, description: 'Price update summary retrieved successfully' })
+  async getSubscriptionPriceUpdateSummary(@Req() req: Request) {
+    const creatorId = (req.user as any).userId;
+    return this.userService.getSubscriptionPriceUpdateSummary(creatorId);
+  }
+
   @Get('getSubscriptionByUserID/:userId')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

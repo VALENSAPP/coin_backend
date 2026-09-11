@@ -2590,6 +2590,135 @@ export class BillingService {
     };
   }
 
+  async getPayFollowingPriceUpdateSummary(creatorId: string) {
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: { userId: creatorId, isDelete: 0 },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!subscription) {
+      return {
+        hasSubscription: false,
+        message: 'No active pay-following subscription plan found for this creator',
+      };
+    }
+
+    const currentAmount = Number(subscription.subscriptionAmount);
+    const previousAmount =
+      subscription.previousAmount !== null && subscription.previousAmount !== undefined
+        ? Number(subscription.previousAmount)
+        : currentAmount;
+
+    const priceCreatedAt = subscription.priceUpdatedAt || subscription.createdAt || new Date();
+    const renewalDate =
+      subscription.nextPriceUpdateAvailableAt ||
+      new Date(priceCreatedAt.getTime() + 180 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const diffMs = renewalDate.getTime() - now.getTime();
+    const daysUntilNextUpdate = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    const canUpdatePrice = daysUntilNextUpdate === 0;
+
+    const formatCurrency = (val: number) => `$${Number(val).toFixed(2)} / month`;
+    const formatDate = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Mode 2: If creator chose old users pay same price (GRANDFATHER_EXISTING)
+    if (subscription.pricingPolicy === 'GRANDFATHER_EXISTING') {
+      return {
+        pricingPolicy: 'GRANDFATHER_EXISTING',
+        title: 'Existing subscribers keep current price',
+        oldPrice: previousAmount,
+        currentPrice: currentAmount,
+        oldPriceFormatted: formatCurrency(previousAmount),
+        currentPriceFormatted: formatCurrency(currentAmount),
+        priceCreatedAt: priceCreatedAt.toISOString(),
+        priceCreatedAtFormatted: formatDate(priceCreatedAt),
+        renewalDate: renewalDate.toISOString(),
+        renewalDateFormatted: formatDate(renewalDate),
+        daysUntilNextUpdate,
+        canUpdatePrice,
+      };
+    }
+
+    // Mode 1: New price for all users (REQUIRE_NEW_CONSENT)
+    const subscriberRecords = await this.prisma.fansSubscriptionBuyData.findMany({
+      where: {
+        buyUserId: creatorId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        fanUserId: true,
+        status: true,
+        priceAtSubscription: true,
+        endDate: true,
+        cancelAtPeriodEnd: true,
+        autoRenew: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    });
+
+    // Deduplicate by fanUserId to get current status per subscriber
+    const uniqueFansMap = new Map<string, (typeof subscriberRecords)[0]>();
+    for (const sub of subscriberRecords) {
+      if (!uniqueFansMap.has(sub.fanUserId)) {
+        uniqueFansMap.set(sub.fanUserId, sub);
+      }
+    }
+
+    let acceptedCount = 0;
+    let canceledCount = 0;
+    let pendingCount = 0;
+
+    for (const sub of uniqueFansMap.values()) {
+      const isExpired = new Date(sub.endDate) <= now;
+      const isPriceUpdatedSubscriber =
+        sub.priceAtSubscription !== null &&
+        sub.priceAtSubscription !== undefined &&
+        Number(sub.priceAtSubscription) >= currentAmount;
+      const isUpdatedAfterPriceChange = new Date(sub.updatedAt) >= priceCreatedAt;
+
+      if (sub.status === 'STOP' || (sub.cancelAtPeriodEnd && isExpired)) {
+        canceledCount++;
+      } else if (sub.status === 'ACTIVE' && (isPriceUpdatedSubscriber || isUpdatedAfterPriceChange)) {
+        acceptedCount++;
+      } else if (sub.status === 'ACTIVE' && !isExpired) {
+        pendingCount++;
+      } else {
+        canceledCount++;
+      }
+    }
+
+    const totalSubscribers = acceptedCount + canceledCount + pendingCount;
+    const statusBadge = pendingCount === 0 ? 'Completed' : 'In Progress';
+
+    return {
+      pricingPolicy: 'REQUIRE_NEW_CONSENT',
+      title: 'Price update to all subscribers',
+      status: statusBadge,
+      from: formatCurrency(previousAmount),
+      to: formatCurrency(currentAmount),
+      fromPrice: previousAmount,
+      toPrice: currentAmount,
+      effective: 'On next renewal',
+      date: formatDate(priceCreatedAt),
+      dateIso: priceCreatedAt.toISOString(),
+      responses: {
+        accepted: acceptedCount,
+        canceled: canceledCount,
+        pending: pendingCount,
+        total: totalSubscribers,
+      },
+      renewalDate: renewalDate.toISOString(),
+      renewalDateFormatted: formatDate(renewalDate),
+      daysUntilNextUpdate,
+      canUpdatePrice,
+    };
+  }
+
   async getMyPayFollowingSubscriptions(fanUserId: string, query: GetMySubscriptionsQueryDto) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.min(100, Math.max(1, query.limit || 10));

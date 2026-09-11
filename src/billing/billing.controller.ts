@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException, Query, Param } from '@nestjs/common';
 import { BillingService } from './billing.service';
-import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody, ApiQuery, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { IsString, IsNotEmpty, IsNumber, Min, IsObject } from 'class-validator';
@@ -189,6 +189,16 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     return this.billingService.getPayFollowingReceivedSummary(userId, pageNum, 10);
+  }
+
+  @Get('pay-following/price-update-summary')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get creator pay-following subscription price update summary and subscriber responses' })
+  @ApiResponse({ status: 200, description: 'Price update summary retrieved successfully' })
+  async getPayFollowingPriceUpdateSummary(@Req() req: Request) {
+    const creatorId = (req.user as any).userId;
+    return this.billingService.getPayFollowingPriceUpdateSummary(creatorId);
   }
 
   @Get('pay-following/subscribers')

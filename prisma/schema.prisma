@@ -1287,16 +1287,19 @@ model Kyc {
 }
 
 model UserSubscription {
-  id                 String                 @id @default(uuid())
-  userId             String
-  subscriptionAmount Float
-  status             UserSubscriptionStatus @default(ACTIVE)
-  pricingPolicy      String                 @default("REQUIRE_NEW_CONSENT") // REQUIRE_NEW_CONSENT | GRANDFATHER_EXISTING
-  comment            String?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-  isDelete           Int                    @default(0)
-  user               User                   @relation(fields: [userId], references: [id])
+  id                         String                 @id @default(uuid())
+  userId                     String
+  subscriptionAmount         Float
+  previousAmount             Float?
+  priceUpdatedAt             DateTime?
+  nextPriceUpdateAvailableAt DateTime?
+  status                     UserSubscriptionStatus @default(ACTIVE)
+  pricingPolicy              String                 @default("REQUIRE_NEW_CONSENT") // REQUIRE_NEW_CONSENT | GRANDFATHER_EXISTING
+  comment                    String?
+  createdAt                  DateTime               @default(now())
+  updatedAt                  DateTime               @updatedAt
+  isDelete                   Int                    @default(0)
+  user                       User                   @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([status])
