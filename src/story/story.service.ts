@@ -307,6 +307,7 @@ export class StoryService {
         type: 'MEDIA',
         senderId: userId,
         receiverId: story.userId, // Send to story owner
+        ownerId: story.userId,
         mediaId: storyId,
         mediaType: 'STORY',
         content: comment.trim(),
@@ -393,6 +394,7 @@ export class StoryService {
         type: 'MEDIA',
         senderId: userId,
         receiverId: story.userId,
+        ownerId: story.userId,
         mediaId: storyId,
         mediaType: 'STORY',
         content: reaction.trim(),

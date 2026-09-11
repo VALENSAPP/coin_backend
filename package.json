@@ -14,7 +14,8 @@
     "start:prod": "node --max-old-space-size=4096 dist/main",
     "lint": "eslint \"{src,apps,libs}/**/*.ts\" --fix",
     "seed:posts": "ts-node prisma/seed-posts.ts",
-    "seed:boost-packages": "ts-node prisma/seed-marketplace-boost-packages.ts"
+    "seed:boost-packages": "ts-node prisma/seed-marketplace-boost-packages.ts",
+    "backfill:conversation-ownerid": "ts-node prisma/backfill-conversation-ownerid.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

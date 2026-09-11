@@ -4074,6 +4074,7 @@ export class PostService {
     }
 
     let isTrustPost: boolean | null = null;
+    let ownerId: string | null = null;
 
     // Prevent sharing to self
     if (sharedUserId === receiverUserId) {
@@ -4100,14 +4101,15 @@ export class PostService {
       });
     }
 
-    // If mediaType is POST, create a PostShare record to track the share count
-    if (normalizedMediaType === 'POST') {
+    // If mediaType is POST or REEL, create a PostShare record to track the share count
+    if (normalizedMediaType === 'POST' || normalizedMediaType === 'REEL') {
       const post = await this.prisma.post.findUnique({
         where: { id: mediaId, deletedAt: null },
       });
       if (!post) throw new BadRequestException('Post not found');
       await this.ensureCanViewPost(post, sharedUserId);
       isTrustPost = post.isTrustPost;
+      ownerId = post.userId;
 
       // Check if PostShare already exists (using unique constraint: postId, sharedUserId, receiverUserId)
       const existingPostShare = await this.prisma.postShare.findUnique({
@@ -4135,11 +4137,13 @@ export class PostService {
         where: { id: mediaId, deletedAt: null },
       });
       if (!story || story.isDeleted === 'yes') throw new BadRequestException('Story not found');
+      ownerId = story.userId;
     } else if (normalizedMediaType === 'HIGHLIGHT') {
       const highlight = await this.prisma.storyHighlight.findUnique({
         where: { id: mediaId },
       });
       if (!highlight) throw new BadRequestException('Highlight not found');
+      ownerId = highlight.userId;
     }
 
     // Always create a new conversation record for media share
@@ -4148,13 +4152,14 @@ export class PostService {
         type: 'MEDIA',
         senderId: sharedUserId,
         receiverId: receiverUserId,
+        ownerId,
         mediaId,
         mediaType: normalizedMediaType as any,
         chatId: chatBox.id,
       },
     });
 
-    return { message: 'Media shared successfully', conversationId: conversation.id, isTrustPost };
+    return { message: 'Media shared successfully', conversationId: conversation.id, isTrustPost, ownerId };
   }
 
   async sharePostToUsers(
@@ -4170,6 +4175,7 @@ export class PostService {
 
     const results = [];
     let isTrustPost: boolean | null = null;
+    let postOwnerId: string | null = null;
 
     for (const receiverId of receiverUserId) {
       try {
@@ -4181,10 +4187,14 @@ export class PostService {
           receiverId,
         );
         isTrustPost = res.isTrustPost ?? isTrustPost;
+        if (res.ownerId) {
+          postOwnerId = res.ownerId;
+        }
         results.push({
           receiverUserId: receiverId,
           status: 'success',
           conversationId: res.conversationId,
+          ownerId: res.ownerId,
         });
       } catch (err: any) {
         results.push({
@@ -4199,6 +4209,7 @@ export class PostService {
       message: 'Media share process completed',
       results,
       isTrustPost,
+      ownerId: postOwnerId,
     };
   }
 
@@ -4287,8 +4298,10 @@ export class PostService {
         sharedAt: conv.createdAt,
         mediaType: conv.mediaType,
         content: conv.content,
+        ownerId: conv.ownerId || (post?.userId ?? story?.userId ?? highlight?.userId ?? null),
         post: post && {
           id: post.id,
+          ownerId: post.userId,
           text: post.text,
           images: post.images,
           thumbnails: post.thumbnails,
@@ -4316,6 +4329,7 @@ export class PostService {
         },
         story: story && {
           id: story.id,
+          ownerId: story.userId,
           caption: story.caption,
           media: story.media,
           thumbnails: story.thumbnails,
@@ -4330,6 +4344,7 @@ export class PostService {
         },
         highlight: highlight && {
           id: highlight.id,
+          ownerId: highlight.userId,
           title: highlight.title,
           coverImage: highlight.coverImage,
           createdAt: highlight.createdAt,
@@ -4774,6 +4789,7 @@ export class PostService {
           if (p) {
             post = {
               id: p.id,
+              ownerId: p.userId,
               text: p.text,
               images: p.images,
               thumbnails: p.thumbnails,
@@ -4805,6 +4821,7 @@ export class PostService {
           if (s) {
             story = {
               id: s.id,
+              ownerId: s.userId,
               caption: s.caption,
               media: s.media,
               thumbnails: s.thumbnails,
@@ -4822,6 +4839,7 @@ export class PostService {
           if (h) {
             highlight = {
               id: h.id,
+              ownerId: h.userId,
               title: h.title,
               coverImage: h.coverImage,
               createdAt: h.createdAt,
@@ -4845,6 +4863,7 @@ export class PostService {
         type: conv.type,
         content: conv.content,
         mediaType: conv.mediaType,
+        ownerId: conv.ownerId || (post?.ownerId ?? story?.ownerId ?? highlight?.ownerId ?? null),
         music: post?.music ?? null,
         createdAt: conv.createdAt,
         isSeen: conv.isSeen,
