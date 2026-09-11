@@ -155,6 +155,32 @@ export class BattleCommentRemoveHighlightDto {
   commentId!: string;
 }
 
+export class BattleCommentEditDto {
+  @ApiProperty({ description: 'ID of the battle comment to edit' })
+  @IsString()
+  commentId!: string;
+
+  @ApiProperty({ description: 'Updated comment text' })
+  @IsString()
+  comment!: string;
+
+  @ApiPropertyOptional({ description: 'Optional battle ID for context/validation' })
+  @IsOptional()
+  @IsString()
+  battleId?: string;
+}
+
+export class BattleCommentDeleteDto {
+  @ApiProperty({ description: 'ID of the battle comment to delete' })
+  @IsString()
+  commentId!: string;
+
+  @ApiPropertyOptional({ description: 'Optional battle ID for context/validation' })
+  @IsOptional()
+  @IsString()
+  battleId?: string;
+}
+
 export class BattleVoteDto {
   @ApiProperty()
   @IsString()

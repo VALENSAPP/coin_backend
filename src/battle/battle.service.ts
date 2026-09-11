@@ -12,7 +12,7 @@ import {
   PredictionProvider,
   WhoCanBuy,
 } from '@prisma/client';
-import { BattleChallengerPositionDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCommentDeleteDto, BattleCommentDto, BattleCommentEditDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleCloseDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { CreatePredictionBattleDto } from './dto/prediction-battle.dto';
 import { uploadImageToS3 } from '../common/s3.util';
@@ -1790,6 +1790,137 @@ export class BattleService {
     return {
       message: 'Comment highlights removed successfully',
       comment: updatedComment,
+    };
+  }
+
+  async editComment(userId: string, dto: BattleCommentEditDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.commentId) throw new BadRequestException('Comment ID required');
+    const newCommentText = (dto?.comment || '').trim();
+    if (!newCommentText) throw new BadRequestException('Comment text required');
+
+    const comment = await this.prisma.battleComment.findUnique({
+      where: { id: dto.commentId },
+      include: {
+        battle: {
+          select: {
+            id: true,
+            creatorId: true,
+            format: true,
+          },
+        },
+      },
+    });
+
+    if (!comment) throw new NotFoundException('Comment not found');
+    if (dto.battleId && comment.battleId !== dto.battleId) {
+      throw new BadRequestException('Comment does not belong to the specified battle');
+    }
+    if (comment.userId !== userId) {
+      throw new ForbiddenException('Not allowed to edit this comment');
+    }
+
+    const minutesSinceCreation = (Date.now() - comment.createdAt.getTime()) / (60 * 1000);
+    if (minutesSinceCreation > 3 || minutesSinceCreation < 0) {
+      throw new BadRequestException('Comment can only be edited within 3 minutes of creation');
+    }
+
+    const updatedComment = await this.prisma.battleComment.update({
+      where: { id: dto.commentId },
+      data: {
+        comment: newCommentText,
+        highlight: Prisma.DbNull,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+          },
+        },
+        likes: true,
+      },
+    });
+
+    try {
+      await this.notificationService.sendBattleMentionNotifications(comment.battleId, comment.id, userId);
+    } catch (error) {
+      console.error('Failed to send battle mention notification on edit:', error);
+    }
+
+    return {
+      message: 'Comment updated successfully',
+      comment: updatedComment,
+    };
+  }
+
+  async deleteComment(userId: string, dto: BattleCommentDeleteDto) {
+    if (!userId) throw new BadRequestException('User ID required');
+    if (!dto?.commentId) throw new BadRequestException('Comment ID required');
+
+    const comment = await this.prisma.battleComment.findUnique({
+      where: { id: dto.commentId },
+      include: {
+        battle: {
+          select: {
+            id: true,
+            creatorId: true,
+          },
+        },
+      },
+    });
+
+    if (!comment) throw new NotFoundException('Comment not found');
+    if (dto.battleId && comment.battleId !== dto.battleId) {
+      throw new BadRequestException('Comment does not belong to the specified battle');
+    }
+
+    const isCommentOwner = comment.userId === userId;
+    const isBattleCreator = comment.battle?.creatorId === userId;
+
+    if (!isCommentOwner && !isBattleCreator) {
+      throw new ForbiddenException('You are not allowed to delete this comment');
+    }
+
+    if (!isBattleCreator) {
+      const minutesSinceCreation = (Date.now() - comment.createdAt.getTime()) / (60 * 1000);
+      if (minutesSinceCreation > 3 || minutesSinceCreation < 0) {
+        throw new BadRequestException('Comment can only be deleted within 3 minutes of creation');
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Find all nested child replies
+      const replies = await tx.battleComment.findMany({
+        where: { parentId: dto.commentId },
+        select: { id: true },
+      });
+
+      if (replies.length > 0) {
+        const replyIds = replies.map((r) => r.id);
+        await tx.battleCommentLike.deleteMany({
+          where: { commentId: { in: replyIds } },
+        });
+        await tx.battleComment.deleteMany({
+          where: { id: { in: replyIds } },
+        });
+      }
+
+      await tx.battleCommentLike.deleteMany({
+        where: { commentId: dto.commentId },
+      });
+
+      await tx.battleComment.delete({
+        where: { id: dto.commentId },
+      });
+    });
+
+    return {
+      message: 'Comment deleted successfully',
+      commentId: dto.commentId,
+      battleId: comment.battleId,
     };
   }
 

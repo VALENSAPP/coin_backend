@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, Req, UseGuards, UseInterceptors, UploadedFile, UploadedFiles } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { BattleService } from './battle.service';
-import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
+import { BattleChallengerPositionDto, BattleCloseDto, BattleCommentDeleteDto, BattleCommentDto, BattleCommentEditDto, BattleCommentHighlightDto, BattleCommentLikeDto, BattleCommentPinDto, BattleCommentRemoveHighlightDto, BattleCommentUnpinDto, BattleEditQuestionDto, BattleInviteDto, BattleJoinDto, BattleOpponentPositionDto, BattlePredictionDto, BattleRebuildStatsDto, BattleResponseDto, BattleVoteDto } from './dto/battle-actions.dto';
 import { CreateBattleDto } from './dto/create-battle.dto';
 import { CreatePredictionBattleDto } from './dto/prediction-battle.dto';
 import { PredictionCategory, PredictionProvider } from '@prisma/client';
@@ -322,6 +322,39 @@ export class BattleController {
   async removeCommentHighlight(@Req() req: Request, @Body() dto: BattleCommentRemoveHighlightDto) {
     const userId = (req.user as any)?.userId;
     return this.battleService.removeCommentHighlight(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('comment/edit')
+  @ApiOperation({ summary: 'Edit a battle comment (author only, within 3 minutes of creation)' })
+  async editComment(@Req() req: Request, @Body() dto: BattleCommentEditDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.editComment(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Post('comment/delete')
+  @ApiOperation({ summary: 'Delete a battle comment (author within 3 minutes of creation, or battle creator anytime)' })
+  async deleteComment(@Req() req: Request, @Body() dto: BattleCommentDeleteDto) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.deleteComment(userId, dto);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @Delete('comment')
+  @ApiQuery({ name: 'commentId', required: true, type: String })
+  @ApiQuery({ name: 'battleId', required: false, type: String })
+  @ApiOperation({ summary: 'Delete a battle comment via DELETE HTTP method (author within 3 minutes, or battle creator anytime)' })
+  async deleteCommentViaDelete(
+    @Req() req: Request,
+    @Query('commentId') commentId: string,
+    @Query('battleId') battleId?: string,
+  ) {
+    const userId = (req.user as any)?.userId;
+    return this.battleService.deleteComment(userId, { commentId, battleId });
   }
 
   @UseGuards(AuthGuard('jwt'))
