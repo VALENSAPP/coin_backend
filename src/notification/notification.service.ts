@@ -374,7 +374,23 @@ export class NotificationService {
   }
 
   async updateOrderNotificationsCancelStatus(orderId: string, isCancelled: boolean = true): Promise<void> {
+    return this.updateOrderNotificationsCancellationStatus({
+      orderId,
+      cancellationStatus: isCancelled ? 'APPROVED' : 'NONE',
+      isCancelled,
+      orderStatus: isCancelled ? 'CANCELLED' : undefined,
+    });
+  }
+
+  async updateOrderNotificationsCancellationStatus(params: {
+    orderId: string;
+    cancellationStatus: 'REQUESTED' | 'APPROVED' | 'DECLINED' | 'NONE';
+    declineReason?: string | null;
+    isCancelled?: boolean;
+    orderStatus?: string;
+  }): Promise<void> {
     try {
+      const { orderId, cancellationStatus, declineReason, isCancelled, orderStatus } = params;
       if (!orderId) return;
 
       const notifications = await this.prisma.notification.findMany({
@@ -385,6 +401,15 @@ export class NotificationService {
         },
       });
 
+      const effectiveIsCancelled =
+        isCancelled !== undefined
+          ? isCancelled
+          : cancellationStatus === 'APPROVED';
+
+      const isPending = cancellationStatus === 'REQUESTED';
+      const isApproved = cancellationStatus === 'APPROVED' || effectiveIsCancelled;
+      const isDeclined = cancellationStatus === 'DECLINED';
+
       for (const notif of notifications) {
         const notifData = (typeof notif.data === 'object' && notif.data !== null ? { ...(notif.data as any) } : {}) as Record<string, any>;
         await this.prisma.notification.update({
@@ -392,16 +417,21 @@ export class NotificationService {
           data: {
             data: {
               ...notifData,
-              iscancel: isCancelled,
-              isCancel: isCancelled,
-              isCancelled: isCancelled,
-              orderStatus: isCancelled ? 'CANCELLED' : notifData.orderStatus,
+              iscancel: effectiveIsCancelled,
+              isCancel: effectiveIsCancelled,
+              isCancelled: effectiveIsCancelled,
+              cancellationStatus,
+              isCancellationPending: isPending,
+              isCancellationApproved: isApproved,
+              isCancellationDeclined: isDeclined,
+              ...(declineReason !== undefined ? { cancellationDeclineReason: declineReason } : {}),
+              ...(orderStatus ? { orderStatus } : (effectiveIsCancelled ? { orderStatus: 'CANCELLED' } : {})),
             },
           },
         });
       }
     } catch (err) {
-      console.error(`Failed to update order notifications cancel status for order ${orderId}:`, err);
+      console.error(`Failed to update order notifications cancellation status for order ${params.orderId}:`, err);
     }
   }
 
@@ -448,7 +478,13 @@ export class NotificationService {
       orderIds.length > 0
         ? this.prisma.order.findMany({
           where: { id: { in: orderIds } },
-          select: { id: true, orderStatus: true, cancellationStatus: true },
+          select: {
+            id: true,
+            orderStatus: true,
+            cancellationStatus: true,
+            cancellationReason: true,
+            cancellationDeclineReason: true,
+          },
         })
         : Promise.resolve([]),
       postIds.length > 0
@@ -467,20 +503,56 @@ export class NotificationService {
       if (notifData.orderId && orderMap.has(notifData.orderId)) {
         const order = orderMap.get(notifData.orderId);
         const isCancelled = order?.orderStatus === 'CANCELLED' || order?.cancellationStatus === 'APPROVED';
+        const cancellationStatus = (order?.cancellationStatus || 'NONE') as string;
+        const isPending = cancellationStatus === 'REQUESTED';
+        const isApproved = cancellationStatus === 'APPROVED' || isCancelled;
+        const isDeclined = cancellationStatus === 'DECLINED';
+
         notifData.iscancel = isCancelled;
         notifData.isCancel = isCancelled;
         notifData.isCancelled = isCancelled;
+        notifData.cancellationStatus = cancellationStatus;
+        notifData.isCancellationPending = isPending;
+        notifData.isCancellationApproved = isApproved;
+        notifData.isCancellationDeclined = isDeclined;
+        if (order?.cancellationReason) {
+          notifData.cancellationReason = order.cancellationReason;
+        }
+        if (order?.cancellationDeclineReason) {
+          notifData.cancellationDeclineReason = order.cancellationDeclineReason;
+        }
+
         (n as any).iscancel = isCancelled;
         (n as any).isCancel = isCancelled;
         (n as any).isCancelled = isCancelled;
+        (n as any).cancellationStatus = cancellationStatus;
+        (n as any).isCancellationPending = isPending;
+        (n as any).isCancellationApproved = isApproved;
+        (n as any).isCancellationDeclined = isDeclined;
+        if (order?.cancellationReason) {
+          (n as any).cancellationReason = order.cancellationReason;
+        }
+        if (order?.cancellationDeclineReason) {
+          (n as any).cancellationDeclineReason = order.cancellationDeclineReason;
+        }
       } else if (notifData.orderId) {
-        const isCancelled = notifData.type === 'marketplace_order_cancelled';
+        const isCancelled = notifData.type === 'marketplace_order_cancelled' || notifData.isCancel === true;
+        const cancellationStatus = notifData.cancellationStatus || (isCancelled ? 'APPROVED' : 'NONE');
         if (notifData.iscancel === undefined) notifData.iscancel = isCancelled;
         if (notifData.isCancel === undefined) notifData.isCancel = isCancelled;
         if (notifData.isCancelled === undefined) notifData.isCancelled = isCancelled;
+        if (notifData.cancellationStatus === undefined) notifData.cancellationStatus = cancellationStatus;
+        if (notifData.isCancellationPending === undefined) notifData.isCancellationPending = cancellationStatus === 'REQUESTED';
+        if (notifData.isCancellationApproved === undefined) notifData.isCancellationApproved = cancellationStatus === 'APPROVED' || isCancelled;
+        if (notifData.isCancellationDeclined === undefined) notifData.isCancellationDeclined = cancellationStatus === 'DECLINED';
+
         (n as any).iscancel = notifData.iscancel;
         (n as any).isCancel = notifData.isCancel;
         (n as any).isCancelled = notifData.isCancelled;
+        (n as any).cancellationStatus = notifData.cancellationStatus;
+        (n as any).isCancellationPending = notifData.isCancellationPending;
+        (n as any).isCancellationApproved = notifData.isCancellationApproved;
+        (n as any).isCancellationDeclined = notifData.isCancellationDeclined;
       }
 
       const post = notifData.postId ? postMap.get(notifData.postId) : undefined;

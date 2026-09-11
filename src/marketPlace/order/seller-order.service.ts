@@ -855,6 +855,15 @@ export class SellerOrderService {
         const reasonStr = dto.declineReason ? `\nReason: ${dto.declineReason}` : '';
         const declineNotificationBody = `ℹ️ Cancellation request for Order #${order.orderNumber} was declined by ${sellerName}.${reasonStr}\nOrder fulfillment will continue.`;
 
+        // Update existing notification records for this order to declined status
+        await this.notificationService.updateOrderNotificationsCancellationStatus({
+            orderId: order.id,
+            cancellationStatus: 'DECLINED',
+            declineReason: dto.declineReason,
+            isCancelled: false,
+            orderStatus: updatedOrder.orderStatus,
+        });
+
         // Send push notification to buyer
         await this.notificationService.sendNotificationToUser(
             order.buyerId,
@@ -864,7 +873,12 @@ export class SellerOrderService {
                 type: 'marketplace_cancellation_declined',
                 orderId: order.id,
                 orderNumber: order.orderNumber,
+                cancellationStatus: 'DECLINED',
+                cancellationDeclineReason: dto.declineReason,
                 declineReason: dto.declineReason,
+                isCancellationPending: false,
+                isCancellationApproved: false,
+                isCancellationDeclined: true,
                 image: itemImage,
                 productImage: itemImage,
                 name: itemName || sellerName,
