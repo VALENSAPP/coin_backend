@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Valens pickup was completed successfully</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f7;
+            margin: 0;
+            padding: 0;
+            color: #2d3748;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .email-wrapper {
+            width: 100%;
+            background-color: #f4f4f7;
+            padding: 30px 10px;
+        }
+
+        .email-container {
+            max-width: 580px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            overflow: hidden;
+            border: 1px solid #edf2f7;
+        }
+
+        .header {
+            text-align: center;
+            padding: 24px 24px 10px 24px;
+            background-color: #ffffff;
+        }
+
+        .header img {
+            width: 100%;
+            max-width: 480px;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .divider {
+            border-top: 3px dotted #c4b5fd;
+            margin: 18px 32px 24px 32px;
+        }
+
+        .content {
+            padding: 0 32px 32px 32px;
+            font-size: 15px;
+            line-height: 1.65;
+            color: #374151;
+        }
+
+        .headline {
+            font-size: 22px;
+            font-weight: 700;
+            color: #1f2937;
+            margin: 0 0 16px 0;
+            line-height: 1.3;
+        }
+
+        .message-p {
+            margin: 0 0 14px 0;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #4b5563;
+        }
+
+        .order-box {
+            border-radius: 12px;
+            padding: 20px;
+            margin: 24px 0;
+            background: linear-gradient(135deg, #f5f3ff 0%, #fbf9ff 100%);
+            border: 1px solid #e9d5ff;
+        }
+
+        .order-box-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #7c3aed;
+            margin: 0 0 12px 0;
+        }
+
+        .footer {
+            border-top: 1px solid #f3f4f6;
+            padding: 20px 32px;
+            font-size: 12px;
+            color: #9ca3af;
+            background-color: #fafafa;
+            text-align: center;
+        }
+
+        .footer p {
+            margin: 4px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="email-wrapper">
+        <div class="email-container">
+            <div class="header">
+                <img src="https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png"
+                    alt="Valens">
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="content">
+                <h1 class="headline">Sale completed! 🎉</h1>
+
+                <p class="message-p">
+                    Hi <strong>{{seller_name}}</strong>,
+                </p>
+
+                <p class="message-p">
+                    Congratulations on your sale! Your buyer successfully picked up the item at the scheduled location.
+                </p>
+
+                <p class="message-p">
+                    The transaction is now complete.
+                </p>
+
+                <div class="order-box">
+                    <div class="order-box-title">Order Summary</div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Order Number:</td>
+                            <td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{order_number}}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Item:</td>
+                            <td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{product_name}}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Buyer:</td>
+                            <td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{buyer_name}}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Earnings Released:</td>
+                            <td style="padding: 5px 0; color: #7c3aed; font-size: 14px; font-weight: 700; text-align: right;">{{order_total}}</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <p class="message-p" style="margin-top: 18px;">
+                    Thank you for selling on Valens.
+                </p>
+            </div>
+
+            <div class="footer">
+                <p><strong>Valens Technologies Inc.</strong></p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

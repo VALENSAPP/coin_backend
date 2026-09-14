@@ -7,7 +7,7 @@ import {
     UnauthorizedException,
     forwardRef,
 } from '@nestjs/common';
-import { CancellationStatus, CartItemShippingChoice, OrderStatus, PaymentStatus, Prisma, ShippingStatus } from '@prisma/client';
+import { CancellationStatus, CartItemShippingChoice, OrderStatus, PaymentStatus, Prisma, ShippingStatus, TransferStatus } from '@prisma/client';
 import * as sgMail from '@sendgrid/mail';
 import { MailService } from '../../common/mail/mail.service';
 import { NotificationService } from '../../notification/notification.service';
@@ -475,6 +475,40 @@ export class SellerOrderService {
         }
     }
 
+    private async sendLocalPickupCompletedSellerEmail(order: any) {
+        try {
+            if (!order.seller?.email) return;
+
+            const firstItem = order.items?.[0];
+            const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
+            const buyerName = order.buyer?.displayName || order.buyer?.userName || 'Buyer';
+            const productName = firstItem?.productName || firstItem?.product?.name || 'your item';
+            const orderTotal = `$${Number(order.total || 0).toFixed(2)}`;
+
+            const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
+            const orderDetailsLink = `${appBaseUrl}/orders/${order.id}`;
+
+            const plainText = `Your Valens pickup was completed successfully\n\nCongratulations on your sale! Your buyer successfully picked up the item at the scheduled location.\nThe transaction is now complete.\nThank you for selling on Valens.`;
+
+            await this.mailService.sendTemplateEmail({
+                to: order.seller.email,
+                subject: 'Your Valens pickup was completed successfully',
+                templateFile: 'local-pickup-completed-seller.html',
+                replacements: {
+                    seller_name: sellerName,
+                    buyer_name: buyerName,
+                    order_number: order.orderNumber,
+                    product_name: productName,
+                    order_total: orderTotal,
+                    order_details_link: orderDetailsLink,
+                },
+                text: plainText,
+            });
+        } catch (error) {
+            console.error('Failed to send local pickup completed email to seller:', error);
+        }
+    }
+
     async markOrderProcessing(userId: string | undefined, orderId: string) {
         const sellerId = this.assertSellerUserId(userId);
         const order = await this.getOwnedOrderOrThrow(sellerId, orderId);
@@ -714,7 +748,7 @@ export class SellerOrderService {
             throw new BadRequestException('Invalid delivery OTP');
         }
 
-        // Manual deliver kept as fallback even when EasyPost is enabled.
+        // Manual deliver / Pickup delivery with OTP
         const updatedOrder = await this.prisma.order.update({
             where: { id: order.id },
             data: {
@@ -726,15 +760,14 @@ export class SellerOrderService {
                 deliveryOtpExpiresAt: null,
                 deliveryOtpSentAt: null,
             },
-            select: { id: true, orderStatus: true, buyerId: true, orderNumber: true, shippingStatus: true },
+            select: { id: true, orderStatus: true, buyerId: true, sellerId: true, orderNumber: true, shippingStatus: true },
         });
 
-        const payoutSchedule = await this.orderPayoutService.scheduleProtectionWindow(updatedOrder.id);
-
-        const protectionEndsAtIso =
-            payoutSchedule.protectionEndsAt instanceof Date
-                ? payoutSchedule.protectionEndsAt.toISOString()
-                : payoutSchedule.protectionEndsAt || undefined;
+        // Release funds immediately to seller available wallet balance (no 48h hold for local pickup)
+        const payoutResult = await this.orderPayoutService.releaseIfEligible(updatedOrder.id, {
+            skipProtectionCheck: true,
+            suppressNotification: true,
+        });
 
         const firstItem = order.items?.[0];
         const itemImage = firstItem?.productImage || firstItem?.product?.images?.[0] || '';
@@ -743,18 +776,47 @@ export class SellerOrderService {
         const itemPrice = firstItem?.price !== undefined ? String(firstItem.price) : '0';
         const sellerAvatar = order.seller?.image || '';
         const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
+        const buyerAvatar = order.buyer?.image || '';
+        const buyerName = order.buyer?.displayName || order.buyer?.userName || 'Buyer';
 
+        // 1. Send dedicated pickup completion Push Notification to Seller
         await this.notificationService.sendNotificationToUser(
-            updatedOrder.buyerId,
-            'Order Delivered',
-            protectionEndsAtIso
-                ? 'Order delivered successfully. Confirm receipt or report a problem within 48 hours.'
-                : 'Order delivered successfully.',
+            updatedOrder.sellerId,
+            '🎉 Sale completed!',
+            'Your pickup was completed successfully. Thanks for selling on Valens!',
             {
-                type: 'seller_order_delivered',
+                type: 'seller_pickup_completed',
                 orderId: updatedOrder.id,
                 orderNumber: updatedOrder.orderNumber,
-                ...(protectionEndsAtIso ? { protectionEndsAt: protectionEndsAtIso } : {}),
+                image: itemImage,
+                productImage: itemImage,
+                name: itemName,
+                productName: itemName,
+                itemName: itemName,
+                price: totalPrice,
+                total: totalPrice,
+                itemPrice: itemPrice,
+                avatar: buyerAvatar,
+                buyerAvatar: buyerAvatar,
+                buyerName: buyerName,
+                iscancel: false,
+                isCancel: false,
+                isCancelled: false,
+            },
+        );
+
+        // 2. Send dedicated pickup completion Email to Seller
+        await this.sendLocalPickupCompletedSellerEmail(order);
+
+        // 3. Send Pickup Handover Confirmation to Buyer
+        await this.notificationService.sendNotificationToUser(
+            updatedOrder.buyerId,
+            '🎉 Pickup Completed!',
+            'Your pickup was completed successfully. Thanks for shopping on Valens!',
+            {
+                type: 'buyer_pickup_completed',
+                orderId: updatedOrder.id,
+                orderNumber: updatedOrder.orderNumber,
                 image: itemImage,
                 productImage: itemImage,
                 name: itemName,
@@ -773,14 +835,12 @@ export class SellerOrderService {
         );
 
         return {
-            message: payoutSchedule.skipped
-                ? 'Order marked as delivered successfully (manual)'
-                : 'Order marked as delivered successfully (manual). Seller payout scheduled after buyer protection window.',
+            message: 'Order marked as delivered successfully. Funds released to available balance.',
             orderId: updatedOrder.id,
             orderStatus: updatedOrder.orderStatus,
             shippingStatus: updatedOrder.shippingStatus,
-            transferStatus: payoutSchedule.transferStatus,
-            protectionEndsAt: payoutSchedule.protectionEndsAt,
+            transferStatus: payoutResult.transferStatus || TransferStatus.RELEASED,
+            payoutReleasedAt: payoutResult.payoutReleasedAt || new Date(),
             deliverySource: 'MANUAL',
         };
     }

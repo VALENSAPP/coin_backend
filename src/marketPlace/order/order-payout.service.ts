@@ -125,7 +125,7 @@ export class OrderPayoutService {
      * Moves marketplace seller earnings from pending → available wallet balance.
      * Does NOT transfer to Stripe/PagBank Connect (withdrawal is a separate step).
      */
-    async releaseIfEligible(orderId: string, options?: { skipProtectionCheck?: boolean }) {
+    async releaseIfEligible(orderId: string, options?: { skipProtectionCheck?: boolean; suppressNotification?: boolean }) {
         const order = await this.prisma.order.findUnique({
             where: { id: orderId },
             include: {
@@ -214,21 +214,23 @@ export class OrderPayoutService {
                 },
             });
 
-            await this.notificationService.sendNotificationToUser(
-                updated.sellerId,
-                'Earnings Available',
-                'Your marketplace earnings are now available to withdraw.',
-                {
-                    type: 'marketplace_earnings_available',
-                    orderId: updated.id,
-                    orderNumber: updated.orderNumber,
-                    amountMinor: String(updated.sellerAmountMinor ?? 0),
-                    walletEntryId: walletResult.entryId,
-                    iscancel: false,
-                    isCancel: false,
-                    isCancelled: false,
-                },
-            );
+            if (!options?.suppressNotification) {
+                await this.notificationService.sendNotificationToUser(
+                    updated.sellerId,
+                    'Earnings Available',
+                    'Your marketplace earnings are now available to withdraw.',
+                    {
+                        type: 'marketplace_earnings_available',
+                        orderId: updated.id,
+                        orderNumber: updated.orderNumber,
+                        amountMinor: String(updated.sellerAmountMinor ?? 0),
+                        walletEntryId: walletResult.entryId,
+                        iscancel: false,
+                        isCancel: false,
+                        isCancelled: false,
+                    },
+                );
+            }
 
             return {
                 released: true,
