@@ -777,13 +777,14 @@ export class SellerOrderService {
         const sellerAvatar = order.seller?.image || '';
         const sellerName = order.seller?.displayName || order.seller?.userName || 'Seller';
         const buyerAvatar = order.buyer?.image || '';
+        const buyerUsername = order.buyer?.userName || order.buyer?.displayName || 'Buyer';
         const buyerName = order.buyer?.displayName || order.buyer?.userName || 'Buyer';
 
         // 1. Send dedicated pickup completion Push Notification to Seller
         await this.notificationService.sendNotificationToUser(
             updatedOrder.sellerId,
             '🎉 Sale completed!',
-            'Your pickup was completed successfully. Thanks for selling on Valens!',
+            `${buyerUsername} successfully picked up the order! Thank you for selling on Valens!`,
             {
                 type: 'seller_pickup_completed',
                 orderId: updatedOrder.id,
