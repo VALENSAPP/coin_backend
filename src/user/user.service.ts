@@ -3306,9 +3306,17 @@ export class UserService {
           `${effectiveCreatorName} updated their monthly subscription price to $${newPrice}. Your auto-renewal has been paused.`,
           {
             type: 'subscription_price_changed',
+            action: 'subscription_price_changed',
             creatorId,
+            creatorName: effectiveCreatorName,
             oldPrice: oldPrice.toString(),
             newPrice: newPrice.toString(),
+            subscriptionId: sub.id,
+            status: 'PENDING',
+            isCancelled: 'pending',
+            autoRenew: 'pending',
+            cancelAtPeriodEnd: 'true',
+            endDate: sub.endDate ? sub.endDate.toISOString() : undefined,
           },
         );
         console.log(`[UserService] [1/3] Notification sent to subscriber ${fan.id}`);

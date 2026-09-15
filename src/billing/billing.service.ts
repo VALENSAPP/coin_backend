@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { GetSubscribersQueryDto, SubscriberSortBy, SubscriberStatusFilter } from './dto/get-subscribers-query.dto';
 import { GetMySubscriptionsQueryDto, SubscriptionSortBy, SubscriptionStatusFilter } from './dto/get-my-subscriptions-query.dto';
 import { CancelPayFollowingSubscriptionDto } from './dto/cancel-pay-following-subscription.dto';
+import { RespondPriceChangeDto, PriceChangeResponseAction } from './dto/respond-price-change.dto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -710,6 +711,14 @@ export class BillingService {
       );
     }
 
+    // Sync existing subscription_price_changed notification data if any
+    await this.updatePriceChangeNotificationStatus(
+      updated.fanUserId,
+      updated.buyUserId,
+      'CANCELLED',
+      false,
+    );
+
     return {
       success: true,
       message: `Autopay cancelled successfully. You will have access to @${creatorName} until ${updated.endDate.toISOString()}.`,
@@ -731,6 +740,160 @@ export class BillingService {
         paymentProvider: updated.paymentProvider,
       },
     };
+  }
+
+  async respondToPriceChange(fanUserId: string, dto: RespondPriceChangeDto) {
+    if (!fanUserId) {
+      throw new BadRequestException('User ID is required');
+    }
+    if (!dto.creatorId && !dto.subscriptionId && !dto.notificationId) {
+      throw new BadRequestException('At least one of creatorId, subscriptionId, or notificationId is required');
+    }
+
+    let creatorId = dto.creatorId;
+    let subscriptionId = dto.subscriptionId;
+
+    if (dto.notificationId && (!creatorId || !subscriptionId)) {
+      const notif = await this.prisma.notification.findUnique({
+        where: { id: dto.notificationId },
+      });
+      if (notif && notif.userId === fanUserId) {
+        const notifData = notif.data as any;
+        if (notifData?.creatorId && !creatorId) creatorId = notifData.creatorId;
+        if (notifData?.subscriptionId && !subscriptionId) subscriptionId = notifData.subscriptionId;
+      }
+    }
+
+    if (dto.action === PriceChangeResponseAction.CANCEL) {
+      const cancelResult = await this.cancelPayFollowingSubscription(fanUserId, {
+        creatorId,
+        subscriptionId,
+      });
+      await this.updatePriceChangeNotificationStatus(
+        fanUserId,
+        creatorId || cancelResult.subscription.creatorId,
+        'CANCELLED',
+        false,
+        dto.notificationId,
+      );
+      return {
+        success: true,
+        action: 'CANCELLED',
+        message: 'You have declined the new price. Auto-renew has been cancelled and access will expire at period end.',
+        subscription: cancelResult.subscription,
+      };
+    }
+
+    if (dto.action === PriceChangeResponseAction.ACCEPT) {
+      const sub = await this.prisma.fansSubscriptionBuyData.findFirst({
+        where: {
+          fanUserId,
+          ...(subscriptionId ? { id: subscriptionId } : {}),
+          ...(creatorId ? { buyUserId: creatorId } : {}),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!sub) {
+        throw new NotFoundException('Subscription record not found');
+      }
+
+      // If user has a stripe subscription with cancel_at_period_end = true, un-cancel on Stripe
+      if (sub.stripeSubscriptionId) {
+        try {
+          await this.stripe.subscriptions.update(sub.stripeSubscriptionId, {
+            cancel_at_period_end: false,
+          });
+        } catch (err: any) {
+          console.warn(`[BillingService] Could not un-cancel Stripe subscription directly:`, err?.message || err);
+        }
+      }
+
+      const updatedSub = await this.prisma.fansSubscriptionBuyData.update({
+        where: { id: sub.id },
+        data: {
+          autoRenew: true,
+          cancelAtPeriodEnd: false,
+        },
+        include: {
+          buyUser: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+        },
+      });
+
+      await this.updatePriceChangeNotificationStatus(
+        fanUserId,
+        sub.buyUserId,
+        'ACCEPTED',
+        true,
+        dto.notificationId,
+      );
+
+      const creatorName = updatedSub.buyUser?.displayName || updatedSub.buyUser?.userName || 'creator';
+
+      return {
+        success: true,
+        action: 'ACCEPTED',
+        message: `You have accepted the price change for @${creatorName}. Auto-renew is now active.`,
+        subscription: {
+          id: updatedSub.id,
+          fanUserId: updatedSub.fanUserId,
+          creatorId: updatedSub.buyUserId,
+          creatorName,
+          creatorImage: updatedSub.buyUser?.image || null,
+          startDate: updatedSub.startDate,
+          endDate: updatedSub.endDate,
+          status: updatedSub.status,
+          isActive: true,
+          isEnded: false,
+          isCancelled: false,
+          autoRenew: true,
+          cancelAtPeriodEnd: false,
+        },
+      };
+    }
+
+    throw new BadRequestException('Invalid action. Must be ACCEPT or CANCEL.');
+  }
+
+  private async updatePriceChangeNotificationStatus(
+    fanUserId: string,
+    creatorId: string,
+    status: 'ACCEPTED' | 'CANCELLED',
+    autoRenew: boolean,
+    notificationId?: string,
+  ) {
+    try {
+      const where: Prisma.NotificationWhereInput = {
+        userId: fanUserId,
+        ...(notificationId ? { id: notificationId } : {}),
+      };
+      const notifs = await this.prisma.notification.findMany({ where });
+      for (const notif of notifs) {
+        const data = notif.data as any;
+        if (
+          data &&
+          data.type === 'subscription_price_changed' &&
+          (notificationId || data.creatorId === creatorId)
+        ) {
+          await this.prisma.notification.update({
+            where: { id: notif.id },
+            data: {
+              data: {
+                ...data,
+                status,
+                isCancelled: status === 'CANCELLED' ? 'true' : 'false',
+                autoRenew: autoRenew ? 'true' : 'false',
+                cancelAtPeriodEnd: status === 'CANCELLED' ? 'true' : 'false',
+              },
+            },
+          });
+        }
+      }
+    } catch (err: any) {
+      console.error('[BillingService] Failed to update price change notification status:', err?.message || err);
+    }
   }
 
   async createTipCheckoutSession(
@@ -1354,6 +1517,13 @@ export class BillingService {
           },
         });
       }
+
+      await this.updatePriceChangeNotificationStatus(
+        payerUserId,
+        contentUserId,
+        'ACCEPTED',
+        isAutoRenew,
+      );
     }
   }
 
@@ -1458,6 +1628,13 @@ export class BillingService {
           },
         });
       }
+
+      await this.updatePriceChangeNotificationStatus(
+        user.id,
+        contentUserId,
+        'ACCEPTED',
+        true,
+      );
 
       await this.creditSellerAvailableWallet({
         sellerUserId: contentUserId,

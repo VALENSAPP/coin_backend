@@ -9,6 +9,7 @@ import { BuyHitDto } from './dto/buy-hit.dto';
 import { BuyFanSubscriptionDto } from './dto/buy-fan-subscription.dto';
 import { PayFollowingDto } from './dto/pay-following.dto';
 import { CancelPayFollowingSubscriptionDto } from './dto/cancel-pay-following-subscription.dto';
+import { RespondPriceChangeDto } from './dto/respond-price-change.dto';
 import { GetSubscribersQueryDto } from './dto/get-subscribers-query.dto';
 import { GetMySubscriptionsQueryDto } from './dto/get-my-subscriptions-query.dto';
 import { SendTipDto } from './dto/send-tip.dto';
@@ -99,6 +100,19 @@ export class BillingController {
   ) {
     const fanUserId = (req.user as any).userId;
     return this.billingService.cancelPayFollowingSubscription(fanUserId, dto);
+  }
+
+  @Post('pay-following/respond-price-change')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Respond to creator subscription price change: ACCEPT (keep auto-renew active) or CANCEL (decline and stop auto-renew)' })
+  @ApiBody({ type: RespondPriceChangeDto })
+  async respondToPriceChange(
+    @Req() req: Request,
+    @Body() dto: RespondPriceChangeDto,
+  ) {
+    const fanUserId = (req.user as any).userId;
+    return this.billingService.respondToPriceChange(fanUserId, dto);
   }
 
   @Post('send-tip')
