@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Opening Valens...</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at 50% 20%, #200b3b 0%, #0d0618 100%);
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 24px;
+      padding: 36px 28px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .logo-container {
+      margin-bottom: 24px;
+    }
+    .logo {
+      max-width: 220px;
+      width: 80%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+    }
+    .spinner {
+      width: 42px;
+      height: 42px;
+      border: 3px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #a855f7;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+    }
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(109, 40, 217, 0.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(109, 40, 217, 0.5);
+    }
+    .btn-store {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+    }
+    .btn-store:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .store-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .footer-text {
+      margin-top: 24px;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.45);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-container">
+      <img src="https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png" alt="Valens" class="logo" />
+    </div>
+
+    <div id="loading-state">
+      <div class="spinner"></div>
+      <h1 id="status-title">Opening the Valens App...</h1>
+      <p class="subtitle" id="status-desc">If you have the app installed, it should launch automatically in a moment.</p>
+    </div>
+
+    <div class="btn-group">
+      <a id="btn-open-app" href="#" class="btn btn-primary">
+        <span>🚀</span> Open in Valens App
+      </a>
+      <a id="btn-app-store" href="https://apps.apple.com/app/valens/id6740683058" class="btn btn-store" style="display:none;">
+        <span class="store-badge">🍎 Download on App Store</span>
+      </a>
+      <a id="btn-play-store" href="https://play.google.com/store/apps/details?id=com.valens.app" class="btn btn-store" style="display:none;">
+        <span class="store-badge">🤖 Get it on Google Play</span>
+      </a>
+      <a id="btn-web" href="https://valensapp.com" class="btn btn-store" style="display:none;">
+        <span>🌐</span> Continue to Web Platform
+      </a>
+    </div>
+
+    <div class="footer-text">
+      <strong>Valens Technologies INC.</strong><br />
+      &copy; 2026 Valens Technologies INC. All rights reserved.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const customPath = urlParams.get('path') || '';
+      const directUrl = urlParams.get('url') || '';
+
+      const APP_STORE_URL = 'https://apps.apple.com/app/valens/id6740683058';
+      const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.valens.app';
+      const WEB_URL = 'https://valensapp.com';
+
+      // Determine deep link URL
+      let deepLinkUrl = 'valens://home';
+      if (directUrl) {
+        deepLinkUrl = directUrl;
+      } else if (customPath) {
+        const cleanPath = customPath.replace(/^\//, '');
+        deepLinkUrl = 'valens://' + cleanPath;
+      }
+
+      const ua = navigator.userAgent || navigator.vendor || window.opera;
+      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      const isAndroid = /android/i.test(ua);
+
+      const btnOpenApp = document.getElementById('btn-open-app');
+      const btnAppStore = document.getElementById('btn-app-store');
+      const btnPlayStore = document.getElementById('btn-play-store');
+      const btnWeb = document.getElementById('btn-web');
+
+      btnOpenApp.href = deepLinkUrl;
+
+      if (isIOS) {
+        btnAppStore.style.display = 'flex';
+      } else if (isAndroid) {
+        btnPlayStore.style.display = 'flex';
+      } else {
+        btnWeb.style.display = 'flex';
+        btnAppStore.style.display = 'flex';
+        btnPlayStore.style.display = 'flex';
+      }
+
+      // Track if window lost focus or went hidden (meaning app opened)
+      let appOpened = false;
+
+      function onVisibilityChange() {
+        if (document.hidden || document.webkitHidden) {
+          appOpened = true;
+        }
+      }
+      document.addEventListener('visibilitychange', onVisibilityChange);
+      document.addEventListener('webkitvisibilitychange', onVisibilityChange);
+      window.addEventListener('pagehide', function () { appOpened = true; });
+      window.addEventListener('blur', function () { appOpened = true; });
+
+      // Attempt to launch the deep link
+      const startTime = Date.now();
+      window.location.href = deepLinkUrl;
+
+      // Fallback redirect if app is not installed
+      setTimeout(function () {
+        const elapsed = Date.now() - startTime;
+        // If the browser was backgrounded or delayed, the app likely opened
+        if (appOpened || elapsed > 3000) {
+          return;
+        }
+
+        if (isIOS) {
+          window.location.href = APP_STORE_URL;
+        } else if (isAndroid) {
+          window.location.href = PLAY_STORE_URL;
+        } else {
+          // On desktop, update status message
+          const statusTitle = document.getElementById('status-title');
+          const statusDesc = document.getElementById('status-desc');
+          if (statusTitle) statusTitle.textContent = 'Welcome to Valens';
+          if (statusDesc) statusDesc.textContent = 'Open Valens on your mobile device or continue below:';
+        }
+      }, 1600);
+    })();
+  </script>
+</body>
+</html>

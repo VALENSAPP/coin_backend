@@ -915,10 +915,18 @@ export class UserService {
           userName,
         );
 
-        htmlTemplate = htmlTemplate.replace(
-          /{{otp_code}}/g,
-          otp,
-        );
+        const appRedirectUrl =
+          process.env.APP_REDIRECT_URL ||
+          (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/open-app` : '') ||
+          'https://api.valens.app/open-app';
+        const logoUrl =
+          process.env.APP_LOGO_URL ||
+          'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+
+        htmlTemplate = htmlTemplate.replace(/{{appUrl}}/g, appRedirectUrl);
+        htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
+        htmlTemplate = htmlTemplate.replace(/{{logoUrl}}/g, logoUrl);
+        htmlTemplate = htmlTemplate.replace(/{{logo_url}}/g, logoUrl);
 
         await sgMail.send({
           to: email,
@@ -1012,7 +1020,18 @@ export class UserService {
       // Replace placeholders
       const userName = user.displayName || user.userName || 'User';
       htmlTemplate = htmlTemplate.replace(/{{user_name}}/g, userName);
-      htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
+      const appRedirectUrl =
+        process.env.APP_REDIRECT_URL ||
+        (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/open-app` : '') ||
+        'https://api.valens.app/open-app';
+      const logoUrl =
+        process.env.APP_LOGO_URL ||
+        'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+
+      htmlTemplate = htmlTemplate.replace(/{{appUrl}}/g, appRedirectUrl);
+      htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
+      htmlTemplate = htmlTemplate.replace(/{{logoUrl}}/g, logoUrl);
+      htmlTemplate = htmlTemplate.replace(/{{logo_url}}/g, logoUrl);
 
       await sgMail.send({
         to: email,
@@ -3276,7 +3295,7 @@ export class UserService {
       console.error(`[UserService] Failed to query active subscriptions for creator ${creatorId}:`, err?.message || err);
     }
 
-    const logoUrl = process.env.APP_LOGO_URL || process.env.OG_IMAGE_URL || 'https://api.valens.app/share-assets/valens-share.png';
+    const logoUrl = process.env.APP_LOGO_URL || process.env.OG_IMAGE_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
     const baseUrl = process.env.BASE_URL || process.env.FRONTEND_URL || 'https://api.valens.app';
     const renewUrl = `${baseUrl.replace(/\/$/, '')}/profile/${creatorId}?renew=true`;
 

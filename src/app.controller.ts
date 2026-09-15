@@ -45,4 +45,20 @@ export class AppController {
       });
     }
   }
+
+  @Get('open-app')
+  @Get('app')
+  @Get('open')
+  openApp(@Res() res: Response) {
+    const candidatePaths = [
+      path.join(process.cwd(), 'public', 'open-app.html'),
+      path.join(process.cwd(), 'coin_backend', 'public', 'open-app.html'),
+      path.join(__dirname, '..', 'public', 'open-app.html'),
+    ];
+    const filePath = candidatePaths.find(p => fs.existsSync(p));
+    if (filePath) {
+      return res.sendFile(filePath);
+    }
+    return res.redirect('https://valensapp.com');
+  }
 }

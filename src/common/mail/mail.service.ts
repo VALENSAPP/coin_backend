@@ -40,7 +40,24 @@ export class MailService {
 
         let htmlTemplate = fs.readFileSync(templatePath, 'utf8');
 
-        for (const [key, value] of Object.entries(replacements)) {
+        const appRedirectUrl =
+            process.env.APP_REDIRECT_URL ||
+            (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/open-app` : '') ||
+            (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL.replace(/\/$/, '')}/open-app` : '') ||
+            'https://api.valens.app/open-app';
+
+        const defaultReplacements: Record<string, string> = {
+            appUrl: appRedirectUrl,
+            app_url: appRedirectUrl,
+            logoUrl: process.env.APP_LOGO_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png',
+            logo_url: process.env.APP_LOGO_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png',
+            companyName: 'Valens Technologies INC.',
+            company_name: 'Valens Technologies INC.',
+        };
+
+        const mergedReplacements = { ...defaultReplacements, ...replacements };
+
+        for (const [key, value] of Object.entries(mergedReplacements)) {
             htmlTemplate = htmlTemplate.replace(new RegExp(`{{${key}}}`, 'g'), value);
         }
 

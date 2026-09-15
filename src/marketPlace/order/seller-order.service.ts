@@ -91,12 +91,43 @@ export class SellerOrderService {
         try {
             sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
 
+            const appRedirectUrl =
+                process.env.APP_REDIRECT_URL ||
+                (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/open-app` : '') ||
+                (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL.replace(/\/$/, '')}/open-app` : '') ||
+                'https://api.valens.app/open-app';
+            const logoUrl = process.env.APP_LOGO_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+
+            const htmlContent = `
+<div style="max-width:580px;margin:30px auto;background:#ffffff;border-radius:16px;padding:30px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border:1px solid #edf2f7;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+    <div style="text-align:center;margin-bottom:18px;">
+        <a href="${appRedirectUrl}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+            <img src="${logoUrl}" alt="Valens" style="max-width:220px;height:auto;display:block;margin:0 auto;border:0;" />
+        </a>
+    </div>
+    <div style="border-top:3px dotted #c4b5fd;margin:0 0 24px 0;"></div>
+    <div style="color:#374151;font-size:15px;line-height:1.65;">
+        <p style="margin:0 0 14px 0;font-size:16px;color:#1f2937;">Hi <strong>${buyerName}</strong>,</p>
+        <p style="margin:0 0 14px 0;">Your one-time code (OTP) to confirm handover for order <strong>#${orderNumber}</strong> is:</p>
+        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:20px;text-align:center;margin:20px 0;">
+            <div style="font-size:36px;font-weight:800;letter-spacing:6px;color:#7c3aed;line-height:1.2;">${otp}</div>
+            <div style="font-size:12px;font-weight:700;letter-spacing:1px;color:#6d28d9;margin-top:6px;">DELIVERY CONFIRMATION OTP</div>
+        </div>
+        <p style="margin:0 0 10px 0;font-size:14px;color:#4b5563;">This OTP will expire in <strong>${expiresInMinutes} minutes</strong> for security reasons.</p>
+        <p style="margin:0 0 14px 0;font-size:14px;color:#dc2626;font-weight:600;">⚠️ Please share this OTP with the seller ONLY after you have physically received and inspected your item.</p>
+    </div>
+    <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6;font-size:12px;color:#9ca3af;text-align:center;">
+        <p style="margin:4px 0;color:#6b7280;"><strong>Valens Technologies INC.</strong></p>
+        <p style="margin:4px 0;">&copy; 2026 Valens Technologies INC. All rights reserved.</p>
+    </div>
+</div>`;
+
             await sgMail.send({
                 to,
                 from: process.env.SENDGRID_FROM_EMAIL!,
                 subject: `Delivery OTP for order ${orderNumber}`,
-                text: `Hi ${buyerName}, your OTP to confirm handover for order ${orderNumber} is ${otp}. This OTP is valid for ${expiresInMinutes} minutes. Share this OTP with seller only after receiving your product.`,
-                html: `<p>Hi ${buyerName},</p><p>Your OTP to confirm handover for order <strong>${orderNumber}</strong> is:</p><h2 style="letter-spacing:4px;">${otp}</h2><p>This OTP is valid for <strong>${expiresInMinutes} minutes</strong>.</p><p>Share this OTP with seller only after receiving your product.</p>`,
+                text: `Hi ${buyerName}, your OTP to confirm handover for order ${orderNumber} is ${otp}. This OTP is valid for ${expiresInMinutes} minutes. Share this OTP with seller only after receiving your product.\n\nValens Technologies INC.`,
+                html: htmlContent,
             });
         } catch (error) {
             console.error('SendGrid error while sending delivery OTP:', error);
