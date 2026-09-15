@@ -96,7 +96,9 @@ export class SellerOrderService {
                 (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/open-app` : '') ||
                 (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL.replace(/\/$/, '')}/open-app` : '') ||
                 'https://api.valens.app/open-app';
-            const logoUrl = process.env.APP_LOGO_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+            const logoUrl =
+                process.env.APP_LOGO_URL ||
+                'https://valens-s3-2026.s3.us-west-1.amazonaws.com/assets/valens-logo.png';
 
             const htmlContent = `
 <div style="max-width:580px;margin:30px auto;background:#ffffff;border-radius:16px;padding:30px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;border:1px solid #edf2f7;box-shadow:0 4px 20px rgba(0,0,0,0.06);">

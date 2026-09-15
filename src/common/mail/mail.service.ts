@@ -46,11 +46,15 @@ export class MailService {
             (process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL.replace(/\/$/, '')}/open-app` : '') ||
             'https://api.valens.app/open-app';
 
+        const defaultLogoUrl =
+            process.env.APP_LOGO_URL ||
+            'https://valens-s3-2026.s3.us-west-1.amazonaws.com/assets/valens-logo.png';
+
         const defaultReplacements: Record<string, string> = {
             appUrl: appRedirectUrl,
             app_url: appRedirectUrl,
-            logoUrl: process.env.APP_LOGO_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png',
-            logo_url: process.env.APP_LOGO_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png',
+            logoUrl: defaultLogoUrl,
+            logo_url: defaultLogoUrl,
             companyName: 'Valens Technologies INC.',
             company_name: 'Valens Technologies INC.',
         };

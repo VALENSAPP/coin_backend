@@ -921,7 +921,8 @@ export class UserService {
           'https://api.valens.app/open-app';
         const logoUrl =
           process.env.APP_LOGO_URL ||
-          'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+          (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/logo.png` : '') ||
+          'https://api.valens.app/logo.png';
 
         htmlTemplate = htmlTemplate.replace(/{{appUrl}}/g, appRedirectUrl);
         htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
@@ -1026,7 +1027,8 @@ export class UserService {
         'https://api.valens.app/open-app';
       const logoUrl =
         process.env.APP_LOGO_URL ||
-        'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+        (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/logo.png` : '') ||
+        'https://api.valens.app/logo.png';
 
       htmlTemplate = htmlTemplate.replace(/{{appUrl}}/g, appRedirectUrl);
       htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
@@ -3295,7 +3297,11 @@ export class UserService {
       console.error(`[UserService] Failed to query active subscriptions for creator ${creatorId}:`, err?.message || err);
     }
 
-    const logoUrl = process.env.APP_LOGO_URL || process.env.OG_IMAGE_URL || 'https://valens520.s3.us-east-2.amazonaws.com/post-images/2d2627c2-bdaa-4523-a304-48a6459892f4.png';
+    const logoUrl =
+      process.env.APP_LOGO_URL ||
+      process.env.OG_IMAGE_URL ||
+      (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/logo.png` : '') ||
+      'https://api.valens.app/logo.png';
     const baseUrl = process.env.BASE_URL || process.env.FRONTEND_URL || 'https://api.valens.app';
     const renewUrl = `${baseUrl.replace(/\/$/, '')}/profile/${creatorId}?renew=true`;
 
