@@ -162,14 +162,11 @@
       const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.valens.app';
       const WEB_URL = 'https://valensapp.com';
 
-      // Determine deep link URL
-      let deepLinkUrl = 'valens://home';
-      if (directUrl) {
-        deepLinkUrl = directUrl;
-      } else if (customPath) {
-        const cleanPath = customPath.replace(/^\//, '');
-        deepLinkUrl = 'valens://' + cleanPath;
-      }
+      // Determine deep link path
+      const path = customPath ? customPath.replace(/^\//, '') : 'home';
+      const APP_STORE_URL = 'https://apps.apple.com/app/valens/id6740683058';
+      const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.valens.app';
+      const WEB_URL = 'https://valensapp.com';
 
       const ua = navigator.userAgent || navigator.vendor || window.opera;
       const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
@@ -180,55 +177,53 @@
       const btnPlayStore = document.getElementById('btn-play-store');
       const btnWeb = document.getElementById('btn-web');
 
-      btnOpenApp.href = deepLinkUrl;
+      const customSchemeUrl = directUrl || `valens://${path}`;
+      btnOpenApp.href = customSchemeUrl;
 
       if (isIOS) {
         btnAppStore.style.display = 'flex';
+        btnAppStore.href = APP_STORE_URL;
       } else if (isAndroid) {
         btnPlayStore.style.display = 'flex';
+        btnPlayStore.href = PLAY_STORE_URL;
       } else {
         btnWeb.style.display = 'flex';
         btnAppStore.style.display = 'flex';
         btnPlayStore.style.display = 'flex';
       }
 
-      // Track if window lost focus or went hidden (meaning app opened)
+      // Track if app opened
       let appOpened = false;
+      function markOpened() { appOpened = true; }
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden || document.webkitHidden) markOpened();
+      });
+      window.addEventListener('pagehide', markOpened);
+      window.addEventListener('blur', markOpened);
 
-      function onVisibilityChange() {
-        if (document.hidden || document.webkitHidden) {
-          appOpened = true;
-        }
-      }
-      document.addEventListener('visibilitychange', onVisibilityChange);
-      document.addEventListener('webkitvisibilitychange', onVisibilityChange);
-      window.addEventListener('pagehide', function () { appOpened = true; });
-      window.addEventListener('blur', function () { appOpened = true; });
-
-      // Attempt to launch the deep link
       const startTime = Date.now();
-      window.location.href = deepLinkUrl;
 
-      // Fallback redirect if app is not installed
-      setTimeout(function () {
-        const elapsed = Date.now() - startTime;
-        // If the browser was backgrounded or delayed, the app likely opened
-        if (appOpened || elapsed > 3000) {
-          return;
-        }
-
-        if (isIOS) {
-          window.location.href = APP_STORE_URL;
-        } else if (isAndroid) {
-          window.location.href = PLAY_STORE_URL;
-        } else {
-          // On desktop, update status message
-          const statusTitle = document.getElementById('status-title');
-          const statusDesc = document.getElementById('status-desc');
-          if (statusTitle) statusTitle.textContent = 'Welcome to Valens';
-          if (statusDesc) statusDesc.textContent = 'Open Valens on your mobile device or continue below:';
-        }
-      }, 1600);
+      if (isAndroid) {
+        // Android Intent automatically opens app if installed, or falls back to Play Store
+        const fallbackUrl = encodeURIComponent(PLAY_STORE_URL);
+        const androidIntent = `intent://${path}#Intent;scheme=valens;package=com.valens.app;S.browser_fallback_url=${fallbackUrl};end`;
+        window.location.href = androidIntent;
+      } else if (isIOS) {
+        // iOS: attempt custom scheme and fallback to App Store
+        window.location.href = customSchemeUrl;
+        setTimeout(function () {
+          const elapsed = Date.now() - startTime;
+          if (!appOpened && elapsed < 2500) {
+            window.location.href = APP_STORE_URL;
+          }
+        }, 1200);
+      } else {
+        // Desktop / Laptop
+        const statusTitle = document.getElementById('status-title');
+        const statusDesc = document.getElementById('status-desc');
+        if (statusTitle) statusTitle.textContent = 'Welcome to Valens';
+        if (statusDesc) statusDesc.textContent = 'Get the Valens mobile app on your phone:';
+      }
     })();
   </script>
 </body>
