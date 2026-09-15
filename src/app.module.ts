@@ -31,6 +31,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DeepLinkModule } from './deep-link/deep-link.module';
 import { PostMessageModule } from './post-message/post-message.module';
+import { RewardsModule } from './rewards/rewards.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
@@ -63,8 +65,10 @@ import { PostMessageModule } from './post-message/post-message.module';
     ClosetChatModule,
     DeepLinkModule,
     PostMessageModule,
+    RewardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule { }
+

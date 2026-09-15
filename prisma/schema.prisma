@@ -176,6 +176,8 @@ model User {
   sentPlatformPointTransfers     PlatformPointTransfer[] @relation("SentPlatformPointTransfers")
   receivedPlatformPointTransfers PlatformPointTransfer[] @relation("ReceivedPlatformPointTransfers")
   shopRewardPointsAwards         ShopRewardPointsAward[] @relation("UserShopRewardPointsAwards")
+  loyaltyAccounts                UserLoyaltyAccount[]
+  pointsRedemptions              PointsRedemption[]
 }
 
 model Mycloset {
@@ -2350,4 +2352,69 @@ model SearchHistory {
   @@index([userId])
   @@index([searchedUserId])
   @@index([userId, updatedAt])
+}
+
+enum RewardProvider {
+  MERIT
+  POINTS_COM
+  EXPEDIA
+  INTERNAL
+}
+
+enum RedemptionCategory {
+  AIRLINE_MILES
+  HOTEL_POINTS
+  TRAVEL_BOOKING
+  GIFT_CARD
+  SHOPPING
+  EXPERIENCES
+  MISSION_POSTS
+}
+
+enum RedemptionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model UserLoyaltyAccount {
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider      RewardProvider
+  programCode   String
+  programName   String
+  accountNumber String
+  accountName   String?
+  isVerified    Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([userId, provider, programCode, accountNumber])
+  @@index([userId])
+}
+
+model PointsRedemption {
+  id                   String             @id @default(uuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider             RewardProvider
+  category             RedemptionCategory
+  partnerProgramCode   String?
+  valensPointsSpent    Float
+  rewardAmountReceived Float
+  exchangeRate         Float
+  feePoints            Float              @default(0)
+  status               RedemptionStatus   @default(PENDING)
+  externalReferenceId  String?
+  idempotencyKey       String             @unique
+  metadata             Json?
+  failureReason        String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
