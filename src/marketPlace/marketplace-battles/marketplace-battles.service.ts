@@ -4679,8 +4679,11 @@ export class MarketplaceBattlesService {
                 id: true,
                 sellerId: true,
                 closetId: true,
+                title: true,
                 status: true,
                 mode: true,
+                startAt: true,
+                endAt: true,
                 createdAt: true,
                 description: true,
                 question: true,
@@ -4733,14 +4736,28 @@ export class MarketplaceBattlesService {
             }
         }
 
+        const now = new Date();
+        const shouldMakeLive = battle.status === MarketplaceBattleStatus.SCHEDULED;
+
         await this.prisma.$transaction(async (tx) => {
+            const battleUpdateData: any = {};
+
             if (hasQuestionUpdate && normalizedQuestion !== undefined) {
+                battleUpdateData.question = normalizedQuestion;
+                if (battle.mode === MarketplaceBattleMode.CROSS_SHOP) {
+                    battleUpdateData.description = normalizedQuestion;
+                }
+            }
+
+            if (shouldMakeLive) {
+                battleUpdateData.status = MarketplaceBattleStatus.LIVE;
+                battleUpdateData.startAt = now;
+            }
+
+            if (Object.keys(battleUpdateData).length > 0) {
                 await tx.marketplaceBattle.update({
                     where: { id: battleId },
-                    data: {
-                        question: normalizedQuestion,
-                        ...(battle.mode === MarketplaceBattleMode.CROSS_SHOP ? { description: normalizedQuestion } : {}),
-                    },
+                    data: battleUpdateData,
                 });
             }
 
@@ -4807,6 +4824,38 @@ export class MarketplaceBattlesService {
                         data: {
                             challengerProductId: validatedProductIds[0],
                             opponentProductId: validatedProductIds[1],
+                        },
+                    });
+                }
+            }
+
+            if (shouldMakeLive) {
+                await this.createMarketplaceBattleNotification(tx, {
+                    userId: sellerId,
+                    type: 'marketplace_battle_live',
+                    title: 'Marketplace Battle Is Live',
+                    body: `Your marketplace battle "${battle.title || battle.id}" is now live.`,
+                    dedupeKey: `marketplace_battle_live:${battle.id}`,
+                    metadata: {
+                        battleId: battle.id,
+                        status: MarketplaceBattleStatus.LIVE,
+                        startAt: now.toISOString(),
+                        endAt: battle.endAt?.toISOString(),
+                    },
+                });
+
+                if (battle.opponentSellerId && battle.opponentSellerId !== sellerId) {
+                    await this.createMarketplaceBattleNotification(tx, {
+                        userId: battle.opponentSellerId,
+                        type: 'marketplace_battle_live',
+                        title: 'Marketplace Battle Is Live',
+                        body: `Your marketplace battle "${battle.title || battle.id}" is now live.`,
+                        dedupeKey: `marketplace_battle_live_opponent:${battle.id}`,
+                        metadata: {
+                            battleId: battle.id,
+                            status: MarketplaceBattleStatus.LIVE,
+                            startAt: now.toISOString(),
+                            endAt: battle.endAt?.toISOString(),
                         },
                     });
                 }
