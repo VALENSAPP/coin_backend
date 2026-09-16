@@ -4621,21 +4621,57 @@ export class MarketplaceBattlesService {
             throw new BadRequestException('Battle ID required');
         }
 
-        const normalizedQuestion =
-            dto?.question !== undefined ? dto.question.trim() : undefined;
-        const rawProductIds = dto?.productIds;
+        const hasTitleUpdate = dto?.title !== undefined;
+        const normalizedTitle = typeof dto?.title === 'string' ? dto.title.trim() : undefined;
+        if (hasTitleUpdate && (!normalizedTitle || normalizedTitle.length === 0)) {
+            throw new BadRequestException('Title cannot be empty');
+        }
 
-        const hasQuestionUpdate =
-            typeof dto?.question === 'string' && normalizedQuestion !== undefined && normalizedQuestion !== '';
+        const hasQuestionUpdate = dto?.question !== undefined;
+        const normalizedQuestion =
+            typeof dto?.question === 'string' ? dto.question.trim() : undefined;
+        if (hasQuestionUpdate && normalizedQuestion === '') {
+            throw new BadRequestException('Question cannot be empty');
+        }
+
+        const hasDescriptionUpdate = dto?.description !== undefined;
+        const normalizedDescription =
+            typeof dto?.description === 'string' ? dto.description.trim() : undefined;
+
+        const hasCategoryUpdate = dto?.category !== undefined;
+        const normalizedCategory =
+            typeof dto?.category === 'string' ? dto.category.trim() : undefined;
+
+        const hasVisibilityUpdate = dto?.visibility !== undefined;
+        const hasWhoCanVoteUpdate = dto?.whoCanVote !== undefined;
+        const hasShareToFeedUpdate = dto?.shareToFeed !== undefined;
+
+        const rawProductIds = dto?.productIds;
         const hasProductsUpdate =
             rawProductIds !== undefined && Array.isArray(rawProductIds) && rawProductIds.length > 0;
 
-        if (!hasQuestionUpdate && !hasProductsUpdate) {
-            throw new BadRequestException('At least question or productIds required');
+        const hasEndAtUpdate = dto?.endAt !== undefined;
+        let parsedEndAt: Date | undefined;
+        if (hasEndAtUpdate) {
+            parsedEndAt = new Date(dto.endAt!);
+            if (Number.isNaN(parsedEndAt.getTime())) {
+                throw new BadRequestException('Invalid endAt');
+            }
         }
 
-        if (dto?.question !== undefined && normalizedQuestion === '') {
-            throw new BadRequestException('Question cannot be empty');
+        const hasAnyUpdate =
+            hasTitleUpdate ||
+            hasQuestionUpdate ||
+            hasDescriptionUpdate ||
+            hasCategoryUpdate ||
+            hasVisibilityUpdate ||
+            hasWhoCanVoteUpdate ||
+            hasShareToFeedUpdate ||
+            hasProductsUpdate ||
+            hasEndAtUpdate;
+
+        if (!hasAnyUpdate) {
+            throw new BadRequestException('At least one field to update required');
         }
 
         let validatedProductIds: string[] | undefined;
@@ -4663,6 +4699,10 @@ export class MarketplaceBattlesService {
                 createdAt: true,
                 description: true,
                 question: true,
+                category: true,
+                visibility: true,
+                whoCanVote: true,
+                shareToFeed: true,
                 opponentSellerId: true,
                 opponentClosetId: true,
             },
@@ -4686,6 +4726,18 @@ export class MarketplaceBattlesService {
         const minutesSinceCreation = (Date.now() - battle.createdAt.getTime()) / (60 * 1000);
         if (minutesSinceCreation > 5 || minutesSinceCreation < 0) {
             throw new BadRequestException('Shop battle can only be edited within 5 minutes of creation');
+        }
+
+        const now = new Date();
+
+        if (hasEndAtUpdate && parsedEndAt) {
+            if (parsedEndAt.getTime() <= now.getTime()) {
+                throw new BadRequestException('endAt must be in the future');
+            }
+            const effectiveStart = battle.startAt ?? now;
+            if (parsedEndAt.getTime() <= effectiveStart.getTime()) {
+                throw new BadRequestException('endAt must be greater than startAt');
+            }
         }
 
         if (validatedProductIds) {
@@ -4712,17 +4764,44 @@ export class MarketplaceBattlesService {
             }
         }
 
-        const now = new Date();
         const shouldMakeLive = battle.status === MarketplaceBattleStatus.SCHEDULED;
 
         await this.prisma.$transaction(async (tx) => {
             const battleUpdateData: any = {};
 
+            if (hasTitleUpdate && normalizedTitle !== undefined) {
+                battleUpdateData.title = normalizedTitle;
+            }
+
             if (hasQuestionUpdate && normalizedQuestion !== undefined) {
                 battleUpdateData.question = normalizedQuestion;
-                if (battle.mode === MarketplaceBattleMode.CROSS_SHOP) {
+                if (battle.mode === MarketplaceBattleMode.CROSS_SHOP && !hasDescriptionUpdate) {
                     battleUpdateData.description = normalizedQuestion;
                 }
+            }
+
+            if (hasDescriptionUpdate && normalizedDescription !== undefined) {
+                battleUpdateData.description = normalizedDescription;
+            }
+
+            if (hasCategoryUpdate && normalizedCategory !== undefined) {
+                battleUpdateData.category = normalizedCategory;
+            }
+
+            if (hasVisibilityUpdate && dto.visibility !== undefined) {
+                battleUpdateData.visibility = dto.visibility;
+            }
+
+            if (hasWhoCanVoteUpdate && dto.whoCanVote !== undefined) {
+                battleUpdateData.whoCanVote = dto.whoCanVote;
+            }
+
+            if (hasShareToFeedUpdate && dto.shareToFeed !== undefined) {
+                battleUpdateData.shareToFeed = dto.shareToFeed;
+            }
+
+            if (hasEndAtUpdate && parsedEndAt !== undefined) {
+                battleUpdateData.endAt = parsedEndAt;
             }
 
             if (shouldMakeLive) {

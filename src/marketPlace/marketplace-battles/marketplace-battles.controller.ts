@@ -255,9 +255,9 @@ export class MarketplaceBattlesController {
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({
-        summary: 'Edit shop battle question and product IDs',
+        summary: 'Edit shop battle details (title, question, description, category, visibility, whoCanVote, shareToFeed, products, endAt)',
         description:
-            'Allows the shop battle creator to edit the question and/or productIds within 5 minutes of battle creation.',
+            'Allows the shop battle creator to edit any battle creation fields within 5 minutes of battle creation.',
     })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
     @ApiOkResponse({
@@ -270,6 +270,10 @@ export class MarketplaceBattlesController {
                     title: 'Summer Style Battle',
                     question: 'Which product is more stylish?',
                     description: 'Which product is more stylish?',
+                    category: 'Fashion',
+                    visibility: 'Everyone',
+                    whoCanVote: 'Everyone',
+                    shareToFeed: false,
                     status: 'LIVE',
                     createdAt: '2026-09-10T10:00:00.000Z',
                     participants: [
@@ -295,7 +299,7 @@ export class MarketplaceBattlesController {
     @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
     @ApiBadRequestResponse({
         description:
-            'Question or productIds required, completed/cancelled battle cannot be edited, or editing time limit exceeded (> 5 minutes)',
+            'At least one field to update required, completed/cancelled battle cannot be edited, or editing time limit exceeded (> 5 minutes)',
     })
     async editShopBattleQuestion(
         @Req() req: Request,
