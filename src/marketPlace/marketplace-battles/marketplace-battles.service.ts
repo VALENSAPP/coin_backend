@@ -2047,25 +2047,14 @@ export class MarketplaceBattlesService {
             throw new BadRequestException('Invalid endAt');
         }
 
-        const explicitStartAt = dto.startAt ? new Date(dto.startAt) : undefined;
-        if (explicitStartAt && Number.isNaN(explicitStartAt.getTime())) {
-            throw new BadRequestException('Invalid startAt');
-        }
-
-        if (explicitStartAt && explicitStartAt.getTime() < now.getTime() - PAST_START_TOLERANCE_MS) {
-            throw new BadRequestException('startAt is too far in the past');
-        }
-
-        const effectiveStartAt = explicitStartAt ?? now;
+        // Always force startAt to current time and start battle as LIVE
+        const effectiveStartAt = now;
 
         if (endAt.getTime() <= effectiveStartAt.getTime()) {
-            throw new BadRequestException('endAt must be greater than startAt');
+            throw new BadRequestException('endAt must be greater than current time');
         }
 
-        const targetStatus =
-            effectiveStartAt.getTime() <= now.getTime()
-                ? MarketplaceBattleStatus.LIVE
-                : MarketplaceBattleStatus.SCHEDULED;
+        const targetStatus = MarketplaceBattleStatus.LIVE;
 
         const closet = await this.prisma.mycloset.findUnique({
             where: { userId: sellerId },
@@ -2238,18 +2227,10 @@ export class MarketplaceBattlesService {
             throw new BadRequestException('Invalid endAt');
         }
 
-        const explicitStartAt = dto.startAt ? new Date(dto.startAt) : undefined;
-        if (explicitStartAt && Number.isNaN(explicitStartAt.getTime())) {
-            throw new BadRequestException('Invalid startAt');
-        }
-
-        if (explicitStartAt && explicitStartAt.getTime() < now.getTime() - PAST_START_TOLERANCE_MS) {
-            throw new BadRequestException('startAt is too far in the past');
-        }
-
-        const plannedStartAt = explicitStartAt ?? now;
+        // Always force planned startAt to current time
+        const plannedStartAt = now;
         if (endAt.getTime() <= plannedStartAt.getTime()) {
-            throw new BadRequestException('endAt must be greater than startAt');
+            throw new BadRequestException('endAt must be greater than current time');
         }
 
         const stakeAmount = Number(dto.stake ?? 0);
@@ -2627,18 +2608,13 @@ export class MarketplaceBattlesService {
                 invite.opponentProductId,
             );
 
-            const plannedStartAt = invite.battle.startAt && invite.battle.startAt.getTime() > now.getTime()
-                ? invite.battle.startAt
-                : now;
+            const plannedStartAt = now;
             const endAt = invite.battle.endAt;
             if (!endAt || endAt.getTime() <= plannedStartAt.getTime()) {
                 throw new BadRequestException('Battle end time is no longer valid; ask challenger to recreate');
             }
 
-            const targetStatus =
-                plannedStartAt.getTime() <= now.getTime()
-                    ? MarketplaceBattleStatus.LIVE
-                    : MarketplaceBattleStatus.SCHEDULED;
+            const targetStatus = MarketplaceBattleStatus.LIVE;
 
             const updatedInvite = await tx.marketplaceBattleChallengeInvite.update({
                 where: { id: invite.id },

@@ -54,7 +54,7 @@ export class MarketplaceBattlesController {
     @ApiOperation({
         summary: 'Create and publish marketplace battle with exactly two products',
         description:
-            'Direct publish flow. If startAt is omitted or now/past, battle starts as LIVE; if startAt is in the future, battle is created as SCHEDULED.',
+            'Direct publish flow. Battle always starts immediately as LIVE with startAt set to current time on the server.',
     })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
     @ApiBadRequestResponse({ description: 'Validation or business-rule error' })
