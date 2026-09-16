@@ -119,7 +119,7 @@ export class SellerOrderService {
         <p style="margin:0 0 14px 0;font-size:14px;color:#dc2626;font-weight:600;">⚠️ Please share this OTP with the seller ONLY after you have physically received and inspected your item.</p>
     </div>
     <div style="margin-top:28px;padding-top:20px;border-top:1px solid #f3f4f6;font-size:12px;color:#9ca3af;text-align:center;">
-        <p style="margin:4px 0;color:#6b7280;"><strong>Valens Technologies INC.</strong></p>
+        <p style="margin:4px 0;color:#6b7280;"><a href="${appRedirectUrl}" target="_blank" rel="noopener noreferrer" style="color:#6b7280;text-decoration:none;"><strong>Valens Technologies INC.</strong></a></p>
         <p style="margin:4px 0;">&copy; 2026 Valens Technologies INC. All rights reserved.</p>
     </div>
 </div>`;
