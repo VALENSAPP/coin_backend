@@ -10,6 +10,7 @@ import {
   UseGuards,
   HttpStatus,
   HttpCode,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -42,7 +43,7 @@ export class RewardsController {
       'Fetches the available redemption catalog across Airline Miles (Points.com), Hotel Points (Points.com), Direct Travel Bookings (Expedia), and Gift Cards / Experiences (Merit).',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'Reward catalog retrieved' })
-  async getCatalog(@Query() query: GetCatalogQueryDto) {
+  async getCatalog(@Query(new ValidationPipe({ whitelist: true, transform: true })) query: GetCatalogQueryDto) {
     return this.rewardsService.getCatalog(query);
   }
 
@@ -130,7 +131,7 @@ export class RewardsController {
   @ApiResponse({ status: HttpStatus.OK, description: 'Redemption history retrieved' })
   async getRedemptionHistory(
     @Req() req: Request,
-    @Query() query: RedemptionHistoryQueryDto,
+    @Query(new ValidationPipe({ whitelist: true, transform: true })) query: RedemptionHistoryQueryDto,
   ) {
     const userId = (req.user as any).userId;
     return this.rewardsService.getRedemptionHistory(userId, query);
