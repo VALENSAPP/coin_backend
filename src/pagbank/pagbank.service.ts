@@ -51,22 +51,22 @@ export class PagBankService {
             process.env.PAGBANK_CONNECT_REDIRECT_URI ||
             process.env.PAGBANK_CONNECT_RETURN_BASE_URL ||
             process.env.BACKEND_URL ||
-            ''
+            process.env.BASE_URL ||
+            'https://api.valens.app'
         ).replace(/\/$/, '');
-        if (!base) {
-            throw new BadRequestException(
-                'Set PAGBANK_CONNECT_REDIRECT_URI or BACKEND_URL for PagBank Connect callback',
-            );
-        }
         if (base.includes('/billing/pagbank/callback')) return base;
         return `${base}/billing/pagbank/callback`;
     }
 
     private getNotificationUrl(): string {
-        const base = (process.env.BACKEND_URL || process.env.PAGBANK_CONNECT_RETURN_BASE_URL || '').replace(/\/$/, '');
-        if (!base) {
-            throw new BadRequestException('Set BACKEND_URL for PagBank notification_urls');
-        }
+        const base = (
+            process.env.BACKEND_URL ||
+            process.env.BASE_URL ||
+            process.env.PAGBANK_NOTIFICATION_URL ||
+            process.env.PAGBANK_CONNECT_RETURN_BASE_URL ||
+            'https://api.valens.app'
+        ).replace(/\/$/, '');
+        if (base.includes('/billing/pagbank/webhook')) return base;
         return `${base}/billing/pagbank/webhook`;
     }
 
