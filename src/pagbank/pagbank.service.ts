@@ -301,11 +301,12 @@ export class PagBankService {
             notification_urls: [this.getNotificationUrl()],
         };
 
-        if (params.customerEmail || params.customerName) {
+        const cleanTaxId = (params.customerTaxId || '').replace(/\D/g, '');
+        if (cleanTaxId.length === 11 || cleanTaxId.length === 14) {
             body.customer = {
-                name: params.customerName || 'Valens Customer',
-                email: params.customerEmail || 'customer@valens.invalid',
-                ...(params.customerTaxId ? { tax_id: params.customerTaxId } : {}),
+                name: (params.customerName || 'Valens Customer').slice(0, 30),
+                email: params.customerEmail || 'customer@valens.app',
+                tax_id: cleanTaxId,
             };
         }
 
