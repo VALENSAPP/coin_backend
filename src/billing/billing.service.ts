@@ -107,31 +107,44 @@ export class BillingService {
   }
 
   /**
+  /**
    * BR Valens plan: one-time PIX for ~1 month access (PagBank has no Stripe-style recurring Billing).
-   * Amount from VALENS_SUBSCRIPTION_AMOUNT_CENTS / PAGBANK_SUBSCRIPTION_AMOUNT_MINOR, else Stripe price lookup.
+   * Persona: R$ 14.90 (1490 centavos) default / PAGBANK_SUBSCRIPTION_AMOUNT_PERSONA_MINOR
+   * Business: R$ 29.90 (2990 centavos) default / PAGBANK_SUBSCRIPTION_AMOUNT_BUSINESS_MINOR
    */
   private async resolveValensSubscriptionAmountMinor(userId: string): Promise<number> {
-    const fromEnv = Number(
-      process.env.PAGBANK_SUBSCRIPTION_AMOUNT_MINOR ||
-      process.env.VALENS_SUBSCRIPTION_AMOUNT_CENTS ||
-      0,
-    );
-    if (fromEnv > 0) return Math.round(fromEnv);
-
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { profile: true } });
-    const isCompany = (user?.profile || '').toLowerCase() === 'company';
-    const priceId = (isCompany ? process.env.STRIPE_PRICE_ID_Business : process.env.STRIPE_PRICE_ID) as string;
-    if (!priceId) {
-      throw new BadRequestException(
-        'Set PAGBANK_SUBSCRIPTION_AMOUNT_MINOR (or VALENS_SUBSCRIPTION_AMOUNT_CENTS) for Brazil subscriptions',
+    const isCompany =
+      (user?.profile || '').toLowerCase() === 'company' ||
+      (user?.profile || '').toLowerCase() === 'business';
+
+    if (isCompany) {
+      const businessAmount = Number(
+        process.env.PAGBANK_SUBSCRIPTION_AMOUNT_BUSINESS_MINOR ||
+        process.env.PAGBANK_SUBSCRIPTION_AMOUNT_MINOR ||
+        2990,
       );
+      if (businessAmount > 0) return Math.round(businessAmount);
+    } else {
+      const personaAmount = Number(
+        process.env.PAGBANK_SUBSCRIPTION_AMOUNT_PERSONA_MINOR ||
+        process.env.PAGBANK_SUBSCRIPTION_AMOUNT_MINOR ||
+        1490,
+      );
+      if (personaAmount > 0) return Math.round(personaAmount);
     }
-    const price = await this.stripe.prices.retrieve(priceId);
-    const amount = price.unit_amount || 0;
-    if (amount <= 0) {
-      throw new BadRequestException('Valens subscription price amount is missing');
+
+    const priceId = (isCompany ? process.env.STRIPE_PRICE_ID_Business : process.env.STRIPE_PRICE_ID) as string;
+    if (priceId) {
+      try {
+        const price = await this.stripe.prices.retrieve(priceId);
+        const amount = price.unit_amount || 0;
+        if (amount > 0) return amount;
+      } catch {
+        // Fall back to default Brazilian minor units
+      }
     }
-    return amount;
+    return isCompany ? 2990 : 1490;
   }
 
   private async createPagBankValensSubscriptionCheckout(userId: string) {
@@ -149,8 +162,8 @@ export class BillingService {
     const payment = await this.prisma.payment.create({
       data: {
         userId,
-        amount: Math.round(amountMinor / 100),
-        totalAmount: Math.round(amountMinor / 100),
+        amount: Number((amountMinor / 100).toFixed(2)),
+        totalAmount: Number((amountMinor / 100).toFixed(2)),
         currency: 'BRL',
         status: 'pending',
         forPayment: 'subscription',
@@ -180,11 +193,17 @@ export class BillingService {
   }
 
   /** Default platform fee: Valens keeps 5%, rest goes to creator's Stripe Connect account (no holding). */
-  private readonly PLATFORM_FEE_PERCENT = 0.05;
-  /** Pay-following platform fee: Valens keeps 20%, rest credits creator available wallet. */
-  private readonly PAY_FOLLOWING_PLATFORM_FEE_PERCENT = 0.20;
+  private get PLATFORM_FEE_PERCENT(): number {
+    return Number(process.env.PLATFORM_FEE_MISSION_POST_PERCENT || 0.05);
+  }
+  /** Pay-following / Private Subscriber Content platform fee: Valens keeps 20%, rest credits creator available wallet. */
+  private get PAY_FOLLOWING_PLATFORM_FEE_PERCENT(): number {
+    return Number(process.env.PLATFORM_FEE_PRIVATE_CONTENT_PERCENT || 0.20);
+  }
   /** Ebook platform fee: Valens keeps 10%, rest goes to seller Stripe Connect account. */
-  private readonly EBOOK_PLATFORM_FEE_PERCENT = 0.10;
+  private get EBOOK_PLATFORM_FEE_PERCENT(): number {
+    return Number(process.env.PLATFORM_FEE_EBOOK_PERCENT || 0.10);
+  }
 
   private getPayFollowingAmountSplit(amountCents: number) {
     const totalAmount = Math.round(amountCents / 100);
@@ -3593,17 +3612,20 @@ export class BillingService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     if (!hitCount || hitCount <= 0) throw new BadRequestException('hitCount must be greater than 0');
-    if (!amount || amount <= 0) throw new BadRequestException('amount must be greater than 0');
 
     const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
-    const amountMinor = Math.round(amount * 100);
 
     if (provider === 'PAGBANK') {
+      const perHitMinor = Number(process.env.PAGBANK_HIT_PRICE_MINOR || 499);
+      const calculatedMinor = Math.round(hitCount * perHitMinor);
+      const amountMinor = amount > 0 && Math.round(amount * 100) === calculatedMinor ? calculatedMinor : calculatedMinor;
+      const amountMajor = Number((amountMinor / 100).toFixed(2));
+
       const payment = await this.prisma.payment.create({
         data: {
           userId,
-          amount: Math.round(amount),
-          totalAmount: Math.round(amount),
+          amount: amountMajor,
+          totalAmount: amountMajor,
           currency: 'BRL',
           status: 'pending',
           forPayment: 'buyHit',
@@ -3627,6 +3649,9 @@ export class BillingService {
 
       return { sessionId: checkout.orderId, url: checkout.checkoutUrl, ...checkout };
     }
+
+    if (!amount || amount <= 0) throw new BadRequestException('amount must be greater than 0');
+    const amountMinor = Math.round(amount * 100);
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -3868,7 +3893,7 @@ export class BillingService {
 
     const customPaymentIntentId = uuidv4();
     const amountCents = Math.round(amount * 100);
-    const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
+    const applicationFeeCents = Math.round(amountCents * this.PAY_FOLLOWING_PLATFORM_FEE_PERCENT);
     const receiverAmountCents = Math.max(0, amountCents - applicationFeeCents);
     const receiverAmount = receiverAmountCents / 100;
     const platformFee = applicationFeeCents / 100;

@@ -17,8 +17,12 @@ import { PaymentProviderResolver } from './payment-provider.resolver';
 export class PaymentService {
     private readonly stripe: Stripe;
     private readonly marketplaceType = 'marketplace_mycloset';
-    private readonly COMPANY_PLATFORM_FEE_PERCENT = 0.20;
-    private readonly USER_PLATFORM_FEE_PERCENT = 0.15;
+    private get COMPANY_PLATFORM_FEE_PERCENT(): number {
+        return Number(process.env.PLATFORM_FEE_MY_SHOP_PERCENT || 0.20);
+    }
+    private get USER_PLATFORM_FEE_PERCENT(): number {
+        return Number(process.env.PLATFORM_FEE_MY_CLOSET_PERCENT || 0.15);
+    }
 
     constructor(
         private readonly prisma: PrismaService,

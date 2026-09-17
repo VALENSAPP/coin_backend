@@ -19,7 +19,9 @@ export class TokenPurchaseService {
 
   private readonly TOKEN_RATE = 100; // 1 USD = 100 tokens
   /** Platform fee for mission donation: 5% to platform, 95% to vendor available wallet. */
-  private readonly PLATFORM_FEE_PERCENT = 0.05;
+  private get PLATFORM_FEE_PERCENT(): number {
+    return Number(process.env.PLATFORM_FEE_MISSION_POST_PERCENT || 0.05);
+  }
 
   private roundCurrency(value: number): number {
     return Math.round(value * 100) / 100;
