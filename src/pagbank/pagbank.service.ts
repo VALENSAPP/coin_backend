@@ -302,13 +302,16 @@ export class PagBankService {
         };
 
         const cleanTaxId = (params.customerTaxId || '').replace(/\D/g, '');
-        if (cleanTaxId.length === 11 || cleanTaxId.length === 14) {
-            body.customer = {
-                name: (params.customerName || 'Valens Customer').slice(0, 30),
-                email: params.customerEmail || 'customer@valens.app',
-                tax_id: cleanTaxId,
-            };
-        }
+        const taxId =
+            cleanTaxId.length === 11 || cleanTaxId.length === 14
+                ? cleanTaxId
+                : (process.env.PAGBANK_DEFAULT_TAX_ID || '12345678909').replace(/\D/g, '');
+
+        body.customer = {
+            name: (params.customerName || 'Valens Customer').trim().slice(0, 30) || 'Valens Customer',
+            email: params.customerEmail && params.customerEmail.includes('@') ? params.customerEmail.trim() : 'customer@valens.app',
+            tax_id: taxId,
+        };
 
         const order = await this.client.post<any>('/orders', body);
         const qr = order?.qr_codes?.[0];
