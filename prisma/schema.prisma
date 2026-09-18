@@ -1120,6 +1120,7 @@ model StoryView {
 model Conversation {
   id         String           @id @default(uuid())
   type       ConversationType
+  chatType   String?
   senderId   String
   receiverId String
   ownerId    String?

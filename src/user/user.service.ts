@@ -3317,10 +3317,10 @@ export class UserService {
 
       const formattedPeriodEnd = sub.endDate
         ? new Date(sub.endDate).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          })
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
         : 'the end of your billing cycle';
 
       // 1. Send in-app & push notification
@@ -3369,11 +3369,12 @@ export class UserService {
           });
         }
 
-        const chatMessageContent = `Hi! I wanted to let you know that I've updated my monthly subscription price from $${oldPrice.toFixed(2)} to $${newPrice.toFixed(2)}. Your current access remains active until ${formattedPeriodEnd}. If you would like to continue your subscription at the new rate, please renew here: ${renewUrl}`;
+        const chatMessageContent = `Hi! I wanted to let you know that I've updated my monthly subscription price from $${oldPrice.toFixed(2)} to $${newPrice.toFixed(2)}. Your current access remains active until ${formattedPeriodEnd}. If you would like to continue your subscription at the new rate, please renew below`;
 
         await this.prisma.conversation.create({
           data: {
             type: 'CHAT',
+            chatType: 'subscription_price_changed',
             senderId: creatorId,
             receiverId: fan.id,
             content: chatMessageContent,
