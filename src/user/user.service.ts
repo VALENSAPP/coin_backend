@@ -860,6 +860,13 @@ export class UserService {
         data.paymentProvider = paymentProvider;
       }
     }
+    if (dto.language !== undefined && dto.language !== '' && dto.language !== null) {
+      const validLanguages = ['en', 'pt', 'it', 'es', 'fr'];
+      const normalizedLang = (dto.language || '').toLowerCase().trim();
+      if (validLanguages.includes(normalizedLang)) {
+        data.language = normalizedLang;
+      }
+    }
     if (imageUrl) data.image = imageUrl;
 
     const user = await this.prisma.user.update({

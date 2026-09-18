@@ -3,6 +3,7 @@ import * as admin from 'firebase-admin';
 import { PrismaService } from '../prisma/prisma.service';
 import { Notification, Prisma } from '@prisma/client';
 import { I18nService } from 'nestjs-i18n';
+import { translateNotification } from './notification.translator';
 
 type NotificationPrismaClient = PrismaService | Prisma.TransactionClient;
 
@@ -56,13 +57,18 @@ export class NotificationService {
     },
   ): Promise<{ created: boolean; notificationId: string }> {
     try {
+      const lang = await this.getUserLanguage(payload.userId);
+      const translated = translateNotification(payload.title, payload.body, lang, payload.metadata);
+      const title = translated.title;
+      const body = translated.body;
+
       const notification = await prismaClient.notification.create({
         data: {
           // Reuse existing Notification.id uniqueness for atomic idempotency without extra schema changes.
           id: payload.dedupeKey,
           userId: payload.userId,
-          title: payload.title,
-          body: payload.body,
+          title,
+          body,
           data: {
             type: payload.type,
             ...(payload.metadata || {}),
@@ -221,12 +227,18 @@ export class NotificationService {
     },
   ): Promise<void> {
     const lang = await this.getUserLanguage(userId);
-    const title = (titleKeyOrText.startsWith('notifications.') || titleKeyOrText.startsWith('common.') || titleKeyOrText.startsWith('errors.'))
+    let title = (titleKeyOrText.startsWith('notifications.') || titleKeyOrText.startsWith('common.') || titleKeyOrText.startsWith('errors.'))
       ? this.translate(titleKeyOrText, { lang, args: options?.titleArgs })
       : titleKeyOrText;
-    const body = (bodyKeyOrText.startsWith('notifications.') || bodyKeyOrText.startsWith('common.') || bodyKeyOrText.startsWith('errors.'))
+    let body = (bodyKeyOrText.startsWith('notifications.') || bodyKeyOrText.startsWith('common.') || bodyKeyOrText.startsWith('errors.'))
       ? this.translate(bodyKeyOrText, { lang, args: options?.bodyArgs })
       : bodyKeyOrText;
+
+    if (!titleKeyOrText.startsWith('notifications.') && !titleKeyOrText.startsWith('common.') && !titleKeyOrText.startsWith('errors.')) {
+      const translated = translateNotification(title, body, lang, options?.data);
+      title = translated.title;
+      body = translated.body;
+    }
 
     return this.sendNotificationToUser(userId, title, body, options?.data);
   }
@@ -237,12 +249,17 @@ export class NotificationService {
     body: string,
     data?: Record<string, any>,
   ): Promise<void> {
-    // Save notification to database with original typed data
+    const lang = await this.getUserLanguage(userId);
+    const translated = translateNotification(title, body, lang, data);
+    const finalTitle = translated.title;
+    const finalBody = translated.body;
+
+    // Save notification to database with translated title and body
     await this.prisma.notification.create({
       data: {
         userId,
-        title,
-        body,
+        title: finalTitle,
+        body: finalBody,
         data: data || {},
       },
     });
@@ -258,7 +275,7 @@ export class NotificationService {
     }
 
     const notificationCategory = this.getNotificationCategory(data);
-    const payloadData = this.sanitizeDataForFcm(data, title, body);
+    const payloadData = this.sanitizeDataForFcm(data, finalTitle, finalBody);
     const message = {
       token: (user as any).fcmToken,
       data: payloadData,
@@ -286,13 +303,7 @@ export class NotificationService {
     };
 
     try {
-      // console.log('FCM APNS debug (single):', {
-      //   userId,
-      //   hasToken: Boolean((user as any).fcmToken),
-      //   aps: message.apns.payload.aps,
-      // });
       const response = await admin.messaging().send(message);
-      // console.log('Successfully sent message:', response);
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -306,16 +317,21 @@ export class NotificationService {
   ): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { fcmToken: true },
+      select: { fcmToken: true, language: true } as any,
     });
 
     if (!(user as any)?.fcmToken) {
-      // console.log(`No FCM token found for user ${userId}`);
       return;
     }
 
+    const rawLang = (user as any)?.language;
+    const lang = rawLang && ['en', 'pt', 'it', 'es', 'fr'].includes(rawLang) ? rawLang : 'en';
+    const translated = translateNotification(title, body, lang, data);
+    const finalTitle = translated.title;
+    const finalBody = translated.body;
+
     const notificationCategory = this.getNotificationCategory(data);
-    const payloadData = this.sanitizeDataForFcm(data, title, body);
+    const payloadData = this.sanitizeDataForFcm(data, finalTitle, finalBody);
 
     const message = {
       token: (user as any).fcmToken,
@@ -344,13 +360,7 @@ export class NotificationService {
     };
 
     try {
-      // console.log('FCM APNS debug (push-only):', {
-      //   userId,
-      //   hasToken: Boolean((user as any).fcmToken),
-      //   aps: message.apns.payload.aps,
-      // });
       const response = await admin.messaging().send(message);
-      // console.log('Successfully sent push-only message:', response);
     } catch (error) {
       console.error('Error sending push-only message:', error);
     }
@@ -362,70 +372,111 @@ export class NotificationService {
     body: string,
     data?: Record<string, any>,
   ): Promise<void> {
-    // Save notifications to database (even if some users don't have FCM tokens)
-    if (userIds?.length) {
-      await this.prisma.notification.createMany({
-        data: userIds.map((userId) => ({
+    if (!userIds || userIds.length === 0) return;
+
+    // Fetch user preferences and tokens in a single query
+    const users: Array<{ id: string; language?: string | null; fcmToken?: string | null }> =
+      (await this.prisma.user.findMany({
+        where: { id: { in: userIds } },
+        select: { id: true, language: true, fcmToken: true } as any,
+      })) as any;
+
+    // Group users by language so we translate accurately and batch push/db operations
+    const languageGroups = new Map<string, { userIds: string[]; tokens: string[]; finalTitle: string; finalBody: string }>();
+
+    for (const user of users) {
+      const rawLang = user.language;
+      const lang = rawLang && ['en', 'pt', 'it', 'es', 'fr'].includes(rawLang) ? rawLang : 'en';
+
+      if (!languageGroups.has(lang)) {
+        const translated = translateNotification(title, body, lang, data);
+        languageGroups.set(lang, {
+          userIds: [],
+          tokens: [],
+          finalTitle: translated.title,
+          finalBody: translated.body,
+        });
+      }
+
+      const group = languageGroups.get(lang)!;
+      group.userIds.push(user.id);
+      if (user.fcmToken) {
+        group.tokens.push(user.fcmToken);
+      }
+    }
+
+    // Handle any userIds not found in DB (fallback to en)
+    const foundUserIds = new Set(users.map((u) => u.id));
+    const missingUserIds = userIds.filter((id) => !foundUserIds.has(id));
+    if (missingUserIds.length > 0) {
+      if (!languageGroups.has('en')) {
+        const translated = translateNotification(title, body, 'en', data);
+        languageGroups.set('en', {
+          userIds: [],
+          tokens: [],
+          finalTitle: translated.title,
+          finalBody: translated.body,
+        });
+      }
+      languageGroups.get('en')!.userIds.push(...missingUserIds);
+    }
+
+    // Save notifications to database with translated title and body per language group
+    const notificationCreateData: Prisma.NotificationCreateManyInput[] = [];
+    for (const group of languageGroups.values()) {
+      for (const userId of group.userIds) {
+        notificationCreateData.push({
           userId,
-          title,
-          body,
+          title: group.finalTitle,
+          body: group.finalBody,
           data: data || {},
-        })),
+        });
+      }
+    }
+
+    if (notificationCreateData.length > 0) {
+      await this.prisma.notification.createMany({
+        data: notificationCreateData,
       });
     }
 
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, fcmToken: true },
-    });
-
-    const tokens = users
-      .filter((user) => (user as any).fcmToken)
-      .map((user) => (user as any).fcmToken);
-
-    if (tokens.length === 0) {
-      // console.log('No FCM tokens found for the users');
-      return;
-    }
-
+    // Send FCM push notifications for each language group
     const notificationCategory = this.getNotificationCategory(data);
-    const payloadData = this.sanitizeDataForFcm(data, title, body);
-    const message = {
-      tokens,
-      data: payloadData,
-      apns: {
-        headers: {
-          'apns-push-type': 'alert',
-          'apns-priority': '10',
-        },
-        payload: {
-          aps: {
-            sound: 'default',
-            mutableContent: true,
-            contentAvailable: true,
-            ...(notificationCategory ? { category: notificationCategory } : {}),
+    for (const group of languageGroups.values()) {
+      if (group.tokens.length === 0) continue;
+
+      const payloadData = this.sanitizeDataForFcm(data, group.finalTitle, group.finalBody);
+      const message = {
+        tokens: group.tokens,
+        data: payloadData,
+        apns: {
+          headers: {
+            'apns-push-type': 'alert',
+            'apns-priority': '10',
+          },
+          payload: {
+            aps: {
+              sound: 'default',
+              mutableContent: true,
+              contentAvailable: true,
+              ...(notificationCategory ? { category: notificationCategory } : {}),
+            },
           },
         },
-      },
-      android: {
-        priority: 'high' as const,
-        notification: {
-          sound: 'default',
-          ...(notificationCategory ? { clickAction: notificationCategory } : {}),
+        android: {
+          priority: 'high' as const,
+          notification: {
+            sound: 'default',
+            ...(notificationCategory ? { clickAction: notificationCategory } : {}),
+          },
         },
-      },
-    };
+      };
 
-    try {
-      // console.log('FCM APNS debug (multicast):', {
-      //   userCount: userIds.length,
-      //   tokenCount: tokens.length,
-      //   aps: message.apns.payload.aps,
-      // });
-      const response = await admin.messaging().sendEachForMulticast(message);
-      // console.log('Successfully sent messages:', response);
-    } catch (error) {
-      console.error('Error sending messages:', error);
+      try {
+        await admin.messaging().sendEachForMulticast(message);
+      } catch (error) {
+        console.error('Error sending multicast message:', error);
+      }
     }
   }
 
