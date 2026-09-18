@@ -1,0 +1,12 @@
+{
+  "USER_NOT_FOUND": "Utilisateur introuvable.",
+  "INSUFFICIENT_BALANCE": "Solde de jetons insuffisant pour effectuer cette transaction.",
+  "INVALID_PAYMENT": "La vérification du paiement a échoué ou a été annulée.",
+  "KYC_REQUIRED": "La vérification KYC est requise pour effectuer cette action.",
+  "POST_NOT_FOUND": "Publication introuvable.",
+  "MISSION_NOT_FOUND": "Mission introuvable.",
+  "UNAUTHORIZED_ACCESS": "Vous n'avez pas l'autorisation d'effectuer cette action.",
+  "BATTLE_NOT_FOUND": "Défi introuvable.",
+  "INVALID_OTP": "Le code OTP fourni n'est pas valide ou a expiré.",
+  "FILE_TOO_LARGE": "La taille du fichier téléchargé dépasse la limite autorisée."
+}

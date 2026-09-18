@@ -1,0 +1,12 @@
+{
+  "USER_NOT_FOUND": "Usuario no encontrado.",
+  "INSUFFICIENT_BALANCE": "Saldo de tokens insuficiente para completar esta transacción.",
+  "INVALID_PAYMENT": "La verificación del pago falló o fue cancelada.",
+  "KYC_REQUIRED": "Se requiere verificación KYC para realizar esta acción.",
+  "POST_NOT_FOUND": "Publicación no encontrada.",
+  "MISSION_NOT_FOUND": "Misión no encontrada.",
+  "UNAUTHORIZED_ACCESS": "No tienes permiso para realizar esta acción.",
+  "BATTLE_NOT_FOUND": "Batalla no encontrada.",
+  "INVALID_OTP": "El OTP proporcionado no es válido o ha caducado.",
+  "FILE_TOO_LARGE": "El tamaño del archivo subido excede el límite permitido."
+}

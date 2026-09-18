@@ -66,6 +66,7 @@ model User {
   website_link          String?
   social_media_links    Json?
   fcmToken              String?
+  language              String                    @default("en")
   canAccessPlatform     String                    @default("false")
   bannedUntil           DateTime?
   screenshotAttempts    Int                       @default(0)

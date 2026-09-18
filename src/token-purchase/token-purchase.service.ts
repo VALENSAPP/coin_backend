@@ -670,11 +670,14 @@ export class TokenPurchaseService {
 
       // Send push notification to the user
       try {
-        await this.notificationService.sendNotificationToUser(
+        await this.notificationService.sendLocalizedNotificationToUser(
           tokenPurchase.userId,
-          'Token Purchase Successful',
-          `Congratulations! You have successfully purchased ${tokenPurchase.tokensReceived} tokens.`,
-          { type: 'token_purchase', purchaseId: tokenPurchase.id }
+          'notifications.TOKEN_PURCHASE_TITLE',
+          'notifications.TOKEN_PURCHASE_BODY',
+          {
+            bodyArgs: { amount: tokenPurchase.tokensReceived },
+            data: { type: 'token_purchase', purchaseId: tokenPurchase.id },
+          },
         );
       } catch (notificationError) {
         this.logger.error('Failed to send push notification:', notificationError);

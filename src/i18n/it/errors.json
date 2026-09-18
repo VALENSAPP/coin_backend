@@ -1,0 +1,12 @@
+{
+  "USER_NOT_FOUND": "Utente non trovato.",
+  "INSUFFICIENT_BALANCE": "Saldo di token insufficiente per completare questa transazione.",
+  "INVALID_PAYMENT": "La verifica del pagamento è fallita o è stata annullata.",
+  "KYC_REQUIRED": "La verifica KYC è richiesta per eseguire questa azione.",
+  "POST_NOT_FOUND": "Post non trovato.",
+  "MISSION_NOT_FOUND": "Missione non trovata.",
+  "UNAUTHORIZED_ACCESS": "Non disponi delle autorizzazioni necessarie per eseguire questa azione.",
+  "BATTLE_NOT_FOUND": "Sfida non trovata.",
+  "INVALID_OTP": "L'OTP inserito non è valido o è scaduto.",
+  "FILE_TOO_LARGE": "La dimensione del file caricato supera il limite consentito."
+}

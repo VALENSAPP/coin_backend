@@ -1,0 +1,8 @@
+{
+  "SUCCESS": "Éxito",
+  "FAILED": "Fallido",
+  "NOT_FOUND": "Recurso no encontrado",
+  "UNAUTHORIZED": "Acceso no autorizado",
+  "SERVER_ERROR": "Error interno del servidor. Por favor, inténtelo de nuevo más tarde.",
+  "VALIDATION_ERROR": "Error de validación en los datos enviados."
+}

@@ -33,10 +33,39 @@ import { DeepLinkModule } from './deep-link/deep-link.module';
 import { PostMessageModule } from './post-message/post-message.module';
 import { RewardsModule } from './rewards/rewards.module';
 
+import * as path from 'path';
+import {
+  I18nModule,
+  AcceptLanguageResolver,
+  HeaderResolver,
+  QueryResolver,
+  I18nJsonLoader,
+} from 'nestjs-i18n';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     ScheduleModule.forRoot(),
+    I18nModule.forRoot({
+      fallbackLanguage: 'en',
+      fallbacks: {
+        'pt-*': 'pt',
+        'it-*': 'it',
+        'es-*': 'es',
+        'fr-*': 'fr',
+        'en-*': 'en',
+      },
+      loader: I18nJsonLoader,
+      loaderOptions: {
+        path: path.join(__dirname, '/i18n/'),
+        watch: true,
+      },
+      resolvers: [
+        new HeaderResolver(['x-custom-lang', 'x-lang']),
+        AcceptLanguageResolver,
+        new QueryResolver(['lang', 'locale']),
+      ],
+    }),
     PostModule,
     UserModule,
     AuthModule,

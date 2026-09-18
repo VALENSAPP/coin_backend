@@ -2,12 +2,47 @@ import { Injectable } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { PrismaService } from '../prisma/prisma.service';
 import { Notification, Prisma } from '@prisma/client';
+import { I18nService } from 'nestjs-i18n';
 
 type NotificationPrismaClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class NotificationService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private i18n: I18nService,
+  ) { }
+
+  /**
+   * Retrieves the preferred language for a given user (defaults to 'en').
+   */
+  async getUserLanguage(userId?: string): Promise<string> {
+    if (!userId) return 'en';
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { language: true } as any,
+      });
+      const lang = (user as any)?.language;
+      return lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang) ? lang : 'en';
+    } catch {
+      return 'en';
+    }
+  }
+
+  /**
+   * Translates a given key with optional arguments and target language.
+   */
+  translate(key: string, options?: { lang?: string; args?: Record<string, any> }): string {
+    try {
+      return this.i18n.t(key, {
+        lang: options?.lang || 'en',
+        args: options?.args,
+      }) as string;
+    } catch {
+      return key;
+    }
+  }
 
   async createInAppNotificationIfAbsent(
     prismaClient: NotificationPrismaClient,
@@ -173,6 +208,27 @@ export class NotificationService {
     }
 
     return { sideACount, sideBCount };
+  }
+
+  async sendLocalizedNotificationToUser(
+    userId: string,
+    titleKeyOrText: string,
+    bodyKeyOrText: string,
+    options?: {
+      titleArgs?: Record<string, any>;
+      bodyArgs?: Record<string, any>;
+      data?: Record<string, any>;
+    },
+  ): Promise<void> {
+    const lang = await this.getUserLanguage(userId);
+    const title = (titleKeyOrText.startsWith('notifications.') || titleKeyOrText.startsWith('common.') || titleKeyOrText.startsWith('errors.'))
+      ? this.translate(titleKeyOrText, { lang, args: options?.titleArgs })
+      : titleKeyOrText;
+    const body = (bodyKeyOrText.startsWith('notifications.') || bodyKeyOrText.startsWith('common.') || bodyKeyOrText.startsWith('errors.'))
+      ? this.translate(bodyKeyOrText, { lang, args: options?.bodyArgs })
+      : bodyKeyOrText;
+
+    return this.sendNotificationToUser(userId, title, body, options?.data);
   }
 
   async sendNotificationToUser(
@@ -1104,18 +1160,22 @@ export class NotificationService {
   }
 
   async sendWelcomeOnboarding(userId: string): Promise<void> {
+    const lang = await this.getUserLanguage(userId);
+    const title = this.translate('notifications.WELCOME_TITLE', { lang });
+    const body = this.translate('notifications.WELCOME_BODY', { lang });
+
     return this.sendNotificationToUser(
       userId,
-      '\uD83D\uDE80 Welcome to Valens!',
-      'Your profile is live. Start posting, join Battles, and grow your following today!',
+      title,
+      body,
       {
         type: 'welcome_onboarding',
         userId,
         notificationCategory: 'WELCOME_ONBOARDING',
         deepLink: 'valens://home',
         expandedTitle: 'welcome_onboarding',
-        expandedDisplayTitle: 'WELCOME TO VALENS',
-        expandedBody: 'Your profile is live. Start posting, join Battles, and grow your following today!',
+        expandedDisplayTitle: title,
+        expandedBody: body,
         primaryAction: 'START_EXPLORING',
         secondaryAction: 'CREATE_POST',
       },

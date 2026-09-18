@@ -1,0 +1,8 @@
+{
+  "SUCCESS": "Success",
+  "FAILED": "Failed",
+  "NOT_FOUND": "Resource not found",
+  "UNAUTHORIZED": "Unauthorized access",
+  "SERVER_ERROR": "Internal server error. Please try again later.",
+  "VALIDATION_ERROR": "Validation error in submitted data."
+}

@@ -998,6 +998,26 @@ export class UserController {
     return this.userService.updateFcmToken(userId, dto.fcmToken);
   }
 
+  @Post('update-language')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update preferred language for notifications and responses (en, pt, it, es, fr)' })
+  @ApiBody({ schema: { type: 'object', properties: { language: { type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'] } } } })
+  async updateLanguage(@Req() req: Request, @Body() dto: { language: string }) {
+    const userId = (req.user as any).userId;
+    return this.userService.updateLanguage(userId, dto.language);
+  }
+
+  @Patch('language')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update preferred language (en, pt, it, es, fr)' })
+  @ApiBody({ schema: { type: 'object', properties: { language: { type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'] } } } })
+  async patchLanguage(@Req() req: Request, @Body() dto: { language: string }) {
+    const userId = (req.user as any).userId;
+    return this.userService.updateLanguage(userId, dto.language);
+  }
+
   @Patch('updateWalletAddress')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

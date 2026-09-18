@@ -3552,6 +3552,25 @@ export class UserService {
     return { message: 'FCM token updated successfully' };
   }
 
+  async updateLanguage(userId: string, language: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+    const validLanguages = ['en', 'pt', 'it', 'es', 'fr'];
+    const normalized = (language || '').toLowerCase().trim();
+    if (!validLanguages.includes(normalized)) {
+      throw new BadRequestException(`Invalid language. Supported languages: ${validLanguages.join(', ')}`);
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('User not found');
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { language: normalized } as any,
+    });
+
+    return { message: 'Language preference updated successfully', language: normalized };
+  }
+
   async updateWalletAddress(userId: string, walletAddress: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!walletAddress?.trim()) throw new BadRequestException('Wallet address is required');
