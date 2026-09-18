@@ -5,6 +5,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { setupSwagger } from './swagger/swagger.config';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { I18nExceptionFilter } from './common/filters/i18n-exception.filter';
+import { I18nService } from 'nestjs-i18n';
 import * as bodyParser from 'body-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
@@ -139,7 +141,9 @@ async function bootstrap() {
     }
   });
 
-  app.useGlobalInterceptors(new ResponseInterceptor());
+  const i18nService = app.get(I18nService);
+  app.useGlobalInterceptors(new ResponseInterceptor(i18nService));
+  app.useGlobalFilters(new I18nExceptionFilter(i18nService));
 
   const swaggerUsername = process.env.SWAGGER_USERNAME;
   const swaggerPassword = process.env.SWAGGER_PASSWORD;

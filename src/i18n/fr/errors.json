@@ -1,12 +1,26 @@
 {
   "USER_NOT_FOUND": "Utilisateur introuvable.",
+  "INVALID_CREDENTIALS": "Les identifiants fournis ne sont pas valides.",
+  "INVALID_LOGIN_TYPE_OR_MISSING_CREDENTIALS": "Type de connexion invalide ou identifiants manquants",
+  "EMAIL_ALREADY_EXISTS": "L'adresse e-mail est déjà enregistrée.",
+  "USERNAME_ALREADY_EXISTS": "Le nom d'utilisateur est déjà utilisé.",
+  "DISPLAY_NAME_IS_ALREADY_TAKEN": "Le nom d'affichage est déjà utilisé",
+  "INVALID_PASSWORD": "Le mot de passe est incorrect.",
+  "TOKEN_EXPIRED": "La session a expiré. Veuillez vous reconnecter.",
   "INSUFFICIENT_BALANCE": "Solde de jetons insuffisant pour effectuer cette transaction.",
+  "INSUFFICIENT_TOKEN_BALANCE": "Solde de jetons insuffisant.",
   "INVALID_PAYMENT": "La vérification du paiement a échoué ou a été annulée.",
   "KYC_REQUIRED": "La vérification KYC est requise pour effectuer cette action.",
   "POST_NOT_FOUND": "Publication introuvable.",
+  "STORY_NOT_FOUND": "Story introuvable.",
   "MISSION_NOT_FOUND": "Mission introuvable.",
-  "UNAUTHORIZED_ACCESS": "Vous n'avez pas l'autorisation d'effectuer cette action.",
   "BATTLE_NOT_FOUND": "Défi introuvable.",
+  "UNAUTHORIZED_ACCESS": "Vous n'avez pas l'autorisation d'effectuer cette action.",
+  "FORBIDDEN_RESOURCE": "L'accès à cette ressource est interdit.",
   "INVALID_OTP": "Le code OTP fourni n'est pas valide ou a expiré.",
-  "FILE_TOO_LARGE": "La taille du fichier téléchargé dépasse la limite autorisée."
+  "FILE_TOO_LARGE": "La taille du fichier téléchargé dépasse la limite autorisée.",
+  "FCM_TOKEN_REQUIRED": "Jeton FCM requis",
+  "USER_ID_REQUIRED": "ID utilisateur requis",
+  "WALLET_ADDRESS_IS_REQUIRED": "L'adresse du portefeuille est requise",
+  "INTERNAL_SERVER_ERROR": "Erreur interne du serveur. Veuillez réessayer plus tard."
 }

@@ -1,12 +1,26 @@
 {
   "USER_NOT_FOUND": "User not found.",
+  "INVALID_CREDENTIALS": "Invalid credentials provided.",
+  "INVALID_LOGIN_TYPE_OR_MISSING_CREDENTIALS": "Invalid login type or missing credentials",
+  "EMAIL_ALREADY_EXISTS": "Email is already registered.",
+  "USERNAME_ALREADY_EXISTS": "Username is already taken.",
+  "DISPLAY_NAME_IS_ALREADY_TAKEN": "Display name is already taken",
+  "INVALID_PASSWORD": "Password is incorrect.",
+  "TOKEN_EXPIRED": "Session token has expired. Please login again.",
   "INSUFFICIENT_BALANCE": "Insufficient token balance to complete this transaction.",
+  "INSUFFICIENT_TOKEN_BALANCE": "Insufficient token balance.",
   "INVALID_PAYMENT": "Payment verification failed or was cancelled.",
   "KYC_REQUIRED": "KYC verification is required to perform this action.",
   "POST_NOT_FOUND": "Post not found.",
+  "STORY_NOT_FOUND": "Story not found.",
   "MISSION_NOT_FOUND": "Mission not found.",
-  "UNAUTHORIZED_ACCESS": "You do not have permission to perform this action.",
   "BATTLE_NOT_FOUND": "Battle not found.",
+  "UNAUTHORIZED_ACCESS": "You do not have permission to perform this action.",
+  "FORBIDDEN_RESOURCE": "Access to this resource is forbidden.",
   "INVALID_OTP": "The OTP provided is invalid or has expired.",
-  "FILE_TOO_LARGE": "The uploaded file size exceeds the allowed limit."
+  "FILE_TOO_LARGE": "The uploaded file size exceeds the allowed limit.",
+  "FCM_TOKEN_REQUIRED": "FCM token required",
+  "USER_ID_REQUIRED": "User ID required",
+  "WALLET_ADDRESS_IS_REQUIRED": "Wallet address is required",
+  "INTERNAL_SERVER_ERROR": "Internal server error. Please try again later."
 }

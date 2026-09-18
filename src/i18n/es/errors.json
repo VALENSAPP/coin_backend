@@ -1,12 +1,26 @@
 {
   "USER_NOT_FOUND": "Usuario no encontrado.",
+  "INVALID_CREDENTIALS": "Las credenciales proporcionadas no son válidas.",
+  "INVALID_LOGIN_TYPE_OR_MISSING_CREDENTIALS": "Tipo de inicio de sesión no válido o faltan credenciales",
+  "EMAIL_ALREADY_EXISTS": "El correo electrónico ya está registrado.",
+  "USERNAME_ALREADY_EXISTS": "El nombre de usuario ya está en uso.",
+  "DISPLAY_NAME_IS_ALREADY_TAKEN": "El nombre para mostrar ya está en uso",
+  "INVALID_PASSWORD": "La contraseña es incorrecta.",
+  "TOKEN_EXPIRED": "La sesión ha caducado. Inicie sesión nuevamente.",
   "INSUFFICIENT_BALANCE": "Saldo de tokens insuficiente para completar esta transacción.",
+  "INSUFFICIENT_TOKEN_BALANCE": "Saldo de tokens insuficiente.",
   "INVALID_PAYMENT": "La verificación del pago falló o fue cancelada.",
   "KYC_REQUIRED": "Se requiere verificación KYC para realizar esta acción.",
   "POST_NOT_FOUND": "Publicación no encontrada.",
+  "STORY_NOT_FOUND": "Historia no encontrada.",
   "MISSION_NOT_FOUND": "Misión no encontrada.",
-  "UNAUTHORIZED_ACCESS": "No tienes permiso para realizar esta acción.",
   "BATTLE_NOT_FOUND": "Batalla no encontrada.",
+  "UNAUTHORIZED_ACCESS": "No tienes permiso para realizar esta acción.",
+  "FORBIDDEN_RESOURCE": "El acceso a este recurso está prohibido.",
   "INVALID_OTP": "El OTP proporcionado no es válido o ha caducado.",
-  "FILE_TOO_LARGE": "El tamaño del archivo subido excede el límite permitido."
+  "FILE_TOO_LARGE": "El tamaño del archivo subido excede el límite permitido.",
+  "FCM_TOKEN_REQUIRED": "Token FCM requerido",
+  "USER_ID_REQUIRED": "ID de usuario requerido",
+  "WALLET_ADDRESS_IS_REQUIRED": "La dirección de la billetera es obligatoria",
+  "INTERNAL_SERVER_ERROR": "Error interno del servidor. Por favor, inténtelo de nuevo más tarde."
 }
