@@ -4,5 +4,9 @@
   "NOT_FOUND": "Recurso no encontrado",
   "UNAUTHORIZED": "Acceso no autorizado",
   "SERVER_ERROR": "Error interno del servidor. Por favor, inténtelo de nuevo más tarde.",
-  "VALIDATION_ERROR": "Error de validación en los datos enviados."
+  "VALIDATION_ERROR": "Error de validación en los datos enviados.",
+  "LOGIN_SUCCESS": "Usuario conectado exitosamente",
+  "LOGOUT_SUCCESS": "Usuario desconectado exitosamente",
+  "REFRESH_SUCCESS": "Token actualizado con éxito",
+  "UPDATE_SUCCESS": "Actualizado con éxito"
 }

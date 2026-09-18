@@ -4,5 +4,9 @@
   "NOT_FOUND": "Ressource introuvable",
   "UNAUTHORIZED": "Accès non autorisé",
   "SERVER_ERROR": "Erreur interne du serveur. Veuillez réessayer plus tard.",
-  "VALIDATION_ERROR": "Erreur de validation dans les données soumises."
+  "VALIDATION_ERROR": "Erreur de validation dans les données soumises.",
+  "LOGIN_SUCCESS": "Utilisateur connecté avec succès",
+  "LOGOUT_SUCCESS": "Utilisateur déconnecté avec succès",
+  "REFRESH_SUCCESS": "Jeton actualisé avec succès",
+  "UPDATE_SUCCESS": "Mis à jour avec succès"
 }

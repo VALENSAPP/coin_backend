@@ -5,6 +5,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiProperty, ApiOperation } from '@nestjs/swagger';
 import { IsString, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
 import { RegistrationType } from '../user/user.controller';
+import { I18n, I18nContext } from 'nestjs-i18n';
 
 export class RefreshTokenDto {
   @ApiProperty({ required: true })
@@ -128,23 +129,23 @@ export class AuthController {
 
   @Post('login')
   @ApiOperation({ summary: 'Login user' })
-  async login(@Body() body: LoginDto, @Request() req: any) {
+  async login(@Body() body: LoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
     const result = await this.authService.login(body, req);
     if (result && typeof result === 'object' && (result as any).error === true) {
-      throw new UnauthorizedException((result as any).msg || 'Login failed');
+      throw new UnauthorizedException((result as any).msg || i18n.t('errors.UNAUTHORIZED_ACCESS'));
     }
     return {
-      message: 'User logged in successfully',
+      message: i18n.t('common.LOGIN_SUCCESS'),
       user: result
     };
   }
 
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
-  async refreshToken(@Body() body: RefreshTokenDto, @Request() req: any) {
+  async refreshToken(@Body() body: RefreshTokenDto, @Request() req: any, @I18n() i18n: I18nContext) {
     const result = await this.authService.refreshToken(body.refreshToken, req);
     return {
-      message: 'Token refreshed successfully',
+      message: i18n.t('common.REFRESH_SUCCESS'),
       ...result
     };
   }
