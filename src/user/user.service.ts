@@ -928,6 +928,7 @@ export class UserService {
         htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
         htmlTemplate = htmlTemplate.replace(/{{logoUrl}}/g, logoUrl);
         htmlTemplate = htmlTemplate.replace(/{{logo_url}}/g, logoUrl);
+        htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
 
         await sgMail.send({
           to: email,
@@ -1034,6 +1035,7 @@ export class UserService {
       htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
       htmlTemplate = htmlTemplate.replace(/{{logoUrl}}/g, logoUrl);
       htmlTemplate = htmlTemplate.replace(/{{logo_url}}/g, logoUrl);
+      htmlTemplate = htmlTemplate.replace(/{{otp_code}}/g, otp);
 
       await sgMail.send({
         to: email,
