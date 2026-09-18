@@ -3051,24 +3051,28 @@ export class UserService {
     const now = new Date();
 
     // Enforce 180-day restriction if price is changed
-    if (isPriceChanged && subscription.nextPriceUpdateAvailableAt) {
-      const lockUntil = new Date(subscription.nextPriceUpdateAvailableAt);
-      if (now < lockUntil) {
-        const daysRemaining = Math.max(
-          1,
-          Math.ceil((lockUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-        );
-        const availableDateFormatted = lockUntil.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
-        throw new BadRequestException(
-          `Subscription price cannot be updated yet. It is locked for 180 days after a price change. Next update available in ${daysRemaining} day(s) on ${availableDateFormatted}`
-        );
-      }
-    }
+    //start
 
+    // uncomment this code 
+    // if (isPriceChanged && subscription.nextPriceUpdateAvailableAt) {
+    //   const lockUntil = new Date(subscription.nextPriceUpdateAvailableAt);
+    //   if (now < lockUntil) {
+    //     const daysRemaining = Math.max(
+    //       1,
+    //       Math.ceil((lockUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    //     );
+    //     const availableDateFormatted = lockUntil.toLocaleDateString('en-US', {
+    //       month: 'short',
+    //       day: 'numeric',
+    //       year: 'numeric',
+    //     });
+    //     throw new BadRequestException(
+    //       `Subscription price cannot be updated yet. It is locked for 180 days after a price change. Next update available in ${daysRemaining} day(s) on ${availableDateFormatted}`
+    //     );
+    //   }
+    // }
+
+    //-- end
     const next180Days = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
 
     const updated = await this.prisma.userSubscription.update({
