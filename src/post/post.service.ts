@@ -4578,6 +4578,8 @@ export class PostService {
     return conversations.map(conv => ({
       id: conv.id,
       type: conv.type,
+      chatType: (conv as any).chatType,
+      typeOfChat: (conv as any).chatType,
       content: conv.content,
       createdAt: conv.createdAt,
       sender: conv.sender,
@@ -4636,6 +4638,7 @@ export class PostService {
         createdAt: true,
         content: true,
         type: true,
+        chatType: true,
         mediaId: true,
         mediaType: true,
       },
@@ -4861,6 +4864,8 @@ export class PostService {
       return {
         id: conv.id,
         type: conv.type,
+        chatType: (conv as any).chatType,
+        typeOfChat: (conv as any).chatType,
         content: conv.content,
         mediaType: conv.mediaType,
         ownerId: conv.ownerId || (post?.ownerId ?? story?.ownerId ?? highlight?.ownerId ?? null),

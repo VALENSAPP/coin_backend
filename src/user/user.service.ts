@@ -3332,6 +3332,7 @@ export class UserService {
           {
             type: 'subscription_price_changed',
             action: 'subscription_price_changed',
+            typeOfChat: 'subscription_renewal',
             creatorId,
             creatorName: effectiveCreatorName,
             oldPrice: oldPrice.toString(),
@@ -3374,7 +3375,7 @@ export class UserService {
         await this.prisma.conversation.create({
           data: {
             type: 'CHAT',
-            chatType: 'subscription_price_changed',
+            chatType: 'subscription_renewal',
             senderId: creatorId,
             receiverId: fan.id,
             content: chatMessageContent,
