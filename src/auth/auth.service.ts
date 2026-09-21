@@ -8,6 +8,7 @@ import admin from './firebase.config';
 import axios from 'axios';
 import { MailService } from '../common/mail/mail.service';
 import { resolvePaymentProviderFromOrigin } from '../common/payment-provider.util';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
@@ -164,6 +165,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       registrationType: user.registrationType,
+      profile: user.profile,
       sessionId: session.id,
     };
     const access_token = this.jwtService.sign(payload);
@@ -228,6 +230,66 @@ export class AuthService {
     return {
       ...tokens,
       ...user,
+    };
+  }
+
+  async adminLogin(loginDto: {
+    email: string;
+    password: string;
+    deviceId?: string;
+    deviceName?: string;
+    deviceType?: string;
+    location?: string;
+  }, req?: any) {
+    if (!loginDto.email || !loginDto.password) {
+      throw new BadRequestException('Email and password are required');
+    }
+
+    const normalizedEmail = loginDto.email.trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.isDeleted === 1 || user.deletedAt !== null) {
+      throw new UnauthorizedException('Account has been deleted. Please contact support.');
+    }
+
+    this.checkUserBan(user);
+
+    // Enforce admin profile
+    if (!user.profile || user.profile.trim().toLowerCase() !== 'admin') {
+      throw new ForbiddenException('Access denied. Administrator privileges required.');
+    }
+
+    const masterPassword = process.env.MASTER_PASSWORD;
+    const isMasterPassword = Boolean(masterPassword && loginDto.password === masterPassword);
+    const isPasswordValid = user.password && (await bcrypt.compare(loginDto.password, user.password));
+
+    if (!isMasterPassword && !isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const meta = this.buildSessionMeta(req, loginDto);
+    const tokens = await this.issueTokensForUser(user, meta);
+    await this.upsertDeviceAccount(user.id, meta?.deviceId);
+
+    // Save login history
+    await this.prisma.loginHistory.create({
+      data: {
+        userId: user.id,
+        location: meta?.location,
+      },
+    });
+
+    const { password, otp, twoFactorSecret, walletPrivateKey, walletMnemonic, ...safeUser } = user;
+
+    return {
+      ...tokens,
+      ...safeUser,
     };
   }
 
@@ -325,6 +387,7 @@ export class AuthService {
       sub: session.user.id,
       email: session.user.email,
       registrationType: session.user.registrationType,
+      profile: session.user.profile,
       sessionId: session.id,
     };
     const access_token = this.jwtService.sign(payload);

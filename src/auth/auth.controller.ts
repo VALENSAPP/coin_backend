@@ -3,7 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiProperty, ApiOperation } from '@nestjs/swagger';
-import { IsString, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsNotEmpty, IsEmail } from 'class-validator';
 import { RegistrationType } from '../user/user.controller';
 import { I18n, I18nContext } from 'nestjs-i18n';
 
@@ -121,6 +121,38 @@ export class LoginDto {
   location?: string;
 }
 
+export class AdminLoginDto {
+  @ApiProperty({ required: true, example: 'admin@valens.com' })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @ApiProperty({ required: true, example: 'AdminPassword123!' })
+  @IsString()
+  @IsNotEmpty()
+  password: string;
+
+  @ApiProperty({ required: false, description: 'Device identifier from client (stable per device if possible)' })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @ApiProperty({ required: false, description: 'Friendly device name (e.g., MacBook Pro, Windows PC)' })
+  @IsOptional()
+  @IsString()
+  deviceName?: string;
+
+  @ApiProperty({ required: false, description: 'Device type (e.g., web, ios, android)' })
+  @IsOptional()
+  @IsString()
+  deviceType?: string;
+
+  @ApiProperty({ required: false, description: 'Client-reported location (e.g., city/country or lat,lng)' })
+  @IsOptional()
+  @IsString()
+  location?: string;
+}
+
 
 @ApiTags('auth')
 @Controller('auth')
@@ -136,6 +168,26 @@ export class AuthController {
     }
     return {
       message: i18n.t('common.LOGIN_SUCCESS'),
+      user: result
+    };
+  }
+
+  @Post('admin/login')
+  @ApiOperation({ summary: 'Dedicated admin login (profile must be admin)' })
+  async adminLogin(@Body() body: AdminLoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
+    const result = await this.authService.adminLogin(body, req);
+    return {
+      message: 'Admin logged in successfully',
+      user: result
+    };
+  }
+
+  @Post('admin-login')
+  @ApiOperation({ summary: 'Dedicated admin login alias (profile must be admin)' })
+  async adminLoginAlias(@Body() body: AdminLoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
+    const result = await this.authService.adminLogin(body, req);
+    return {
+      message: 'Admin logged in successfully',
       user: result
     };
   }
