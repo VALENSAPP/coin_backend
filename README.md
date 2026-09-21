@@ -330,3 +330,9 @@ pm2 restart backend-server
 ## 📄 License
 
 This project is proprietary and confidential. Unauthorized copying, distribution, or modification is strictly prohibited.
+
+## Swagger
+
+Swagger Url - https://api.valens.app/api
+Swagger Username - valens
+Swagger Password - Valens@7878
