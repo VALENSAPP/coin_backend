@@ -37,12 +37,12 @@ export class ModerationService {
   }
 
   /**
-   * Evaluate a post for relevance and content safety guidelines
+   * Evaluate a post for relevance and content safety guidelines (including Caption & Text)
    */
   async evaluatePost(input: PostModerationInput): Promise<ModerationResult> {
     const textPieces = [
-      input.text ? `Text: ${input.text}` : '',
-      input.caption ? `Caption: ${input.caption}` : '',
+      input.caption ? `Caption / Title: "${input.caption}"` : '',
+      input.text ? `Post Text Content: "${input.text}"` : '',
       input.hashtag && input.hashtag.length > 0 ? `Hashtags: ${input.hashtag.join(', ')}` : '',
       input.type ? `Post Type: ${input.type}` : '',
       input.format ? `Format: ${input.format}` : '',
@@ -52,29 +52,56 @@ export class ModerationService {
     const images = (input.images || []).filter((img) => typeof img === 'string' && img.startsWith('http'));
 
     const systemPrompt = `You are an AI Content Moderator for a social & marketplace platform (Valens).
-Your task is to evaluate posts uploaded by users.
+Your task is to evaluate posts uploaded by users, paying close attention to the CAPTION, POST TEXT, and ATTACHED IMAGES.
 
 Evaluate against 2 core criteria:
 1. RELEVANCE & INTEGRITY (isRelevant):
-   - Reject/flag: Gibberish/keyboard smash (e.g. "asdfghjkl", "111111"), spam links, bot promotions, pump-and-dump crypto shilling, fraudulent schemes, or completely off-topic nonsense.
-   - Normal personal thoughts, stories, creative posts, media sharing, crowdfunding, questions, and community interactions ARE RELEVANT.
+   - CAPTION / NAME CHECK: Reject/flag if the caption or title is gibberish/keyboard smash (e.g. "asdfghjkl", "111111", "aaaaaa"), spam links, scam promotions (e.g. "free money click here", "@telegram_bot"), crypto pump schemes, or completely meaningless text.
+   - Genuine user thoughts, descriptions, creative captions, and community conversations ARE RELEVANT.
 2. SAFETY & COMMUNITY STANDARDS (isSafe):
-   - Reject/flag: Hate speech, severe harassment/bullying, sexual/pornographic/NSFW content, extreme gore/violence/weapons, illegal drugs/contraband, scam flyers, phishing.
+   - Reject/flag: Hate speech, profanity/vulgarity in caption or text, harassment/bullying, sexual/pornographic/NSFW content, extreme gore/violence/weapons, illegal drugs/contraband, scam flyers, phishing.
 
 Respond strictly in valid JSON format:
 {
   "isRelevant": boolean,
   "isSafe": boolean,
   "confidence": number (0.0 to 1.0),
-  "flags": string[] (e.g. ["spam", "gibberish", "nsfw", "hate_speech", "off_topic"]),
+  "flags": string[] (e.g. ["inappropriate_caption", "spam_caption", "gibberish", "nsfw", "hate_speech", "off_topic"]),
   "reason": string (short human-readable explanation)
 }`;
 
     const userPrompt = `Evaluate this POST:
-${fullText || '(No text provided, only media)'}
+${fullText || '(No text/caption provided, only media)'}
 ${images.length > 0 ? `Attached Image URLs: ${images.slice(0, 3).join(', ')}` : ''}`;
 
     return this.runAIModeration(systemPrompt, userPrompt, images);
+  }
+
+  /**
+   * Evaluate standalone Caption or Name
+   */
+  async evaluateTextOrCaption(
+    captionOrName: string,
+    fieldType: 'caption' | 'name' | 'title' = 'caption',
+  ): Promise<ModerationResult> {
+    const systemPrompt = `You are an AI Content Moderator.
+Evaluate this user-submitted ${fieldType.toUpperCase()} for validity, safety, and relevance.
+
+Criteria:
+1. isRelevant: Reject keyboard smash, gibberish (e.g. "asdfgh", "111111"), scam advertisements, or spam.
+2. isSafe: Reject hate speech, slurs, profanity, harassment, sexual references, or illegal goods.
+
+Respond strictly in valid JSON format:
+{
+  "isRelevant": boolean,
+  "isSafe": boolean,
+  "confidence": number (0.0 to 1.0),
+  "flags": string[],
+  "reason": string
+}`;
+
+    const userPrompt = `${fieldType.toUpperCase()} to evaluate: "${captionOrName}"`;
+    return this.runAIModeration(systemPrompt, userPrompt, []);
   }
 
   /**
@@ -104,26 +131,26 @@ ${input.postText ? `Original Post Context: "${input.postText.slice(0, 200)}"` : 
   }
 
   /**
-   * Evaluate a product/closet item for valid marketplace listing
+   * Evaluate a product/closet item for valid marketplace listing (including Name & Category)
    */
   async evaluateProduct(input: ProductModerationInput): Promise<ModerationResult> {
     const productInfo = [
-      `Product Name: ${input.name}`,
-      `Category: ${input.category}`,
-      input.brand ? `Brand: ${input.brand}` : '',
-      input.description ? `Description: ${input.description}` : '',
+      `Product Name / Caption: "${input.name}"`,
+      `Category: "${input.category}"`,
+      input.brand ? `Brand: "${input.brand}"` : '',
+      input.description ? `Description: "${input.description}"` : '',
       input.price !== null && input.price !== undefined ? `Price: $${input.price}` : '',
     ].filter(Boolean).join('\n');
 
     const images = (input.images || []).filter((img) => typeof img === 'string' && img.startsWith('http'));
 
     const systemPrompt = `You are an AI Marketplace Moderator for a fashion & lifestyle closet/shop platform.
-Evaluate this product listing.
+Evaluate this product listing, paying special attention to the PRODUCT NAME / CAPTION, CATEGORY, and IMAGES.
 
 Criteria:
 1. isRelevant:
-   - Must be a genuine product listing (e.g. clothing, shoes, accessories, books, electronics, decor).
-   - Reject/flag: Gibberish/fake test items, off-platform solicitations, services not suitable for closet shopping, spam.
+   - PRODUCT NAME / CAPTION CHECK: Must be a legitimate product title (e.g. "Vintage Leather Jacket", "Nike Air Max Shoes", "Harry Potter Book", "Silk Dress").
+   - Reject/flag: Gibberish/test names (e.g. "asdfgh", "111111", "test test test"), offensive/joke names, off-platform scam solicitations, spam link names.
 2. isSafe:
    - Reject/flag: Illegal goods, weapons, prescription drugs, counterfeit promotion, adult/NSFW items, fraudulent items.
 
@@ -132,13 +159,11 @@ Respond strictly in valid JSON format:
   "isRelevant": boolean,
   "isSafe": boolean,
   "confidence": number (0.0 to 1.0),
-  "flags": string[],
+  "flags": string[] (e.g. ["invalid_product_name", "spam_name", "prohibited_item", "gibberish_name"]),
   "reason": string
 }`;
 
-    const userPrompt = `Product Details:
-${productInfo}
-${images.length > 0 ? `Product Images: ${images.slice(0, 3).join(', ')}` : ''}`;
+    const userPrompt = `Product Details:\n${productInfo}`;
 
     return this.runAIModeration(systemPrompt, userPrompt, images);
   }
