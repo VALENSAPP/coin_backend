@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { uploadFileToS3, uploadImageToS3 } from '../../common/s3.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { ModerationService } from '../../moderation/moderation.service';
 import { CreateShopEbookDto } from './dto/create-shop-ebook.dto';
 
 const SHOP_EBOOK_IMAGES_FOLDER = 'shop-ebook-images';
@@ -8,7 +9,10 @@ const SHOP_EBOOK_PDF_FOLDER = 'shop-ebook-pdfs';
 
 @Injectable()
 export class ShopEbookService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly moderationService: ModerationService,
+    ) { }
 
     async deleteEbook(userId: string, ebookId: string) {
         await this.ensureUserExists(userId);
@@ -110,7 +114,13 @@ export class ShopEbookService {
         if (!closet) throw new NotFoundException('Closet not found');
 
         const ebooks = await (this.prisma as any).shopEbook.findMany({
-            where: { closetId },
+            where: {
+                closetId,
+                OR: [
+                    { moderationStatus: 'APPROVED' },
+                    { userId: viewerUserId },
+                ],
+            },
             orderBy: { createdAt: 'desc' },
         });
 
@@ -203,6 +213,14 @@ export class ShopEbookService {
             this.uploadEbookPdf(ebookPdfFile),
         ]);
 
+        const moderation = await this.moderationService.evaluateProduct({
+            name: dto.caption || dto.text || 'Shop Ebook',
+            category: 'Ebook',
+            description: dto.text ?? undefined,
+            images: imageUrls,
+            price: dto.amount,
+        });
+
         const created = await (this.prisma as any).shopEbook.create({
             data: {
                 userId,
@@ -215,12 +233,35 @@ export class ShopEbookService {
                 isDownload: dto.isDownload ?? true,
                 promoCode: dto.promoCode ?? null,
                 tableContent: dto.tableContent ?? [],
+                moderationStatus: moderation.status,
+                moderationReason: moderation.reason,
+                moderationScore: moderation.score,
+                moderatedBy: moderation.moderatedBy,
+                moderatedAt: new Date(),
             },
         });
 
+        if (moderation.status === 'PENDING_APPROVAL') {
+            await (this.prisma as any).moderationAuditLog.create({
+                data: {
+                    contentType: 'EBOOK',
+                    contentId: created.id,
+                    authorId: userId,
+                    aiVerdict: 'PENDING_APPROVAL',
+                    aiReason: moderation.reason,
+                    aiConfidence: moderation.score,
+                    flaggedLabels: moderation.flaggedLabels || [],
+                },
+            });
+        }
+
         return {
-            message: 'Shop ebook created successfully',
+            message:
+                moderation.status === 'PENDING_APPROVAL'
+                    ? 'Shop ebook submitted and is pending admin approval'
+                    : 'Shop ebook created successfully',
             ebook: created,
+            isPendingApproval: moderation.status === 'PENDING_APPROVAL',
         };
     }
 }

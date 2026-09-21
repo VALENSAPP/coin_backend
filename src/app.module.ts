@@ -32,6 +32,7 @@ import { AppService } from './app.service';
 import { DeepLinkModule } from './deep-link/deep-link.module';
 import { PostMessageModule } from './post-message/post-message.module';
 import { RewardsModule } from './rewards/rewards.module';
+import { ModerationModule } from './moderation/moderation.module';
 
 import * as path from 'path';
 import {
@@ -95,6 +96,7 @@ import {
     DeepLinkModule,
     PostMessageModule,
     RewardsModule,
+    ModerationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

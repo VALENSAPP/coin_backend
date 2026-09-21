@@ -7,13 +7,17 @@ import { UpdateMyclosetDto } from './dto/update-mycloset.dto';
 import { CreateClosetItemDto } from './dto/create-closet-item.dto';
 import { UpdateClosetItemDto } from './dto/update-closet-item.dto';
 import { ListShopsQueryDto } from './dto/list-shops-query.dto';
+import { ModerationService } from '../../moderation/moderation.service';
 
 const MYCLOSET_LOGOS_FOLDER = 'mycloset-logos';
 const CLOSET_ITEMS_FOLDER = 'closet-items';
 
 @Injectable()
 export class MyclosetService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly moderationService: ModerationService,
+  ) { }
 
   private async uploadLogoIfProvided(file?: Express.Multer.File): Promise<string | undefined> {
     if (!file) return undefined;
@@ -209,6 +213,7 @@ export class MyclosetService {
                 where: {
                   isActive: true,
                   isDeleted: false,
+                  moderationStatus: 'APPROVED' as any,
                 },
               },
             },
@@ -402,13 +407,23 @@ export class MyclosetService {
 
     const closet = await this.findMineOrThrow(userId);
     const images = (await this.uploadItemImages(imageFiles)) || [];
+    const itemName = this.getItemName(dto);
 
-    return this.prisma.closetItems.create({
+    const moderation = await this.moderationService.evaluateProduct({
+      name: itemName,
+      category: dto.category,
+      description: dto.description,
+      brand: dto.brand,
+      images,
+      price: dto.price,
+    });
+
+    const item = await this.prisma.closetItems.create({
       data: {
         closetId: closet.id,
         userId,
         images,
-        name: this.getItemName(dto),
+        name: itemName,
         category: dto.category,
         brand: dto.brand,
         condition: dto.condition,
@@ -424,8 +439,29 @@ export class MyclosetService {
         residentNumber: dto.residentNumber,
         buyerChatEnabled: dto.buyerChatEnabled,
         returnPolicy: dto.returnPolicy,
-      },
+        moderationStatus: moderation.status,
+        moderationReason: moderation.reason,
+        moderationScore: moderation.score,
+        moderatedBy: moderation.moderatedBy,
+        moderatedAt: new Date(),
+      } as any,
     });
+
+    if (moderation.status === 'PENDING_APPROVAL') {
+      await (this.prisma as any).moderationAuditLog.create({
+        data: {
+          contentType: 'PRODUCT',
+          contentId: item.id,
+          authorId: userId,
+          aiVerdict: 'PENDING_APPROVAL',
+          aiReason: moderation.reason,
+          aiConfidence: moderation.score,
+          flaggedLabels: moderation.flaggedLabels || [],
+        },
+      });
+    }
+
+    return item;
   }
 
   async findMyItems(userId: string) {
@@ -448,7 +484,7 @@ export class MyclosetService {
     if (!closet) throw new NotFoundException('Mycloset not found');
 
     return this.prisma.closetItems.findMany({
-      where: { closetId },
+      where: { closetId, moderationStatus: 'APPROVED' as any },
       orderBy: { createdAt: 'desc' },
     });
   }

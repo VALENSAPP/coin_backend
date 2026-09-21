@@ -16,6 +16,7 @@ import { profile } from 'console';
 import { start } from 'repl';
 import { endWith } from 'rxjs';
 import { NotificationService } from '../notification/notification.service';
+import { ModerationService } from '../moderation/moderation.service';
 import { format } from 'path';
 
 type PostFormat = 'image' | 'video' | 'reel' | 'ebook';
@@ -36,6 +37,7 @@ export class PostService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly moderationService: ModerationService,
   ) { }
 
   private isPrivateCircleVisibility(visibleTo?: string | null): boolean {
@@ -267,11 +269,21 @@ export class PostService {
 
     const subscriptionContentAccess = this.buildSubscriptionContentAccessWhere(viewerUserId);
 
+    const moderationVisibility: Prisma.PostWhereInput = viewerUserId
+      ? {
+          OR: [
+            { moderationStatus: 'APPROVED' as any },
+            { userId: viewerUserId },
+          ],
+        }
+      : { moderationStatus: 'APPROVED' as any };
+
     if (!viewerUserId) {
       return {
         AND: [
           { OR: publicVisibility },
           subscriptionContentAccess,
+          moderationVisibility,
         ],
       };
     }
@@ -299,11 +311,18 @@ export class PostService {
           ],
         },
         subscriptionContentAccess,
+        moderationVisibility,
       ],
     };
   }
 
-  private async ensureCanViewPost(post: { userId: string; type?: string | null; visibleTo?: string | null; privateCircleId?: string | null }, viewerUserId?: string) {
+  private async ensureCanViewPost(post: { userId: string; type?: string | null; visibleTo?: string | null; privateCircleId?: string | null; moderationStatus?: any }, viewerUserId?: string) {
+    if (post.moderationStatus && post.moderationStatus !== 'APPROVED') {
+      if (!viewerUserId || post.userId !== viewerUserId) {
+        throw new BadRequestException('Post is pending moderation review');
+      }
+    }
+
     await this.ensureCanViewSubscriptionContent(post, viewerUserId);
 
     if (!this.isPrivateCircleVisibility(post.visibleTo)) return;
@@ -731,6 +750,17 @@ export class PostService {
       }
 
       let remainingHitsAfterCreate: number | null = null;
+
+      // Run AI Content Moderation
+      const moderation = await this.moderationService.evaluatePost({
+        text: processedData.text,
+        caption: processedData.caption,
+        hashtag: processedData.hashtag,
+        images: imageUrls,
+        type,
+        format: postFormat,
+      });
+
       const createdPost = await this.prisma.$transaction(async (tx) => {
         // For crowdfunding, decrement hit with priority: subscription hits first, then purchased hits
         if (type === 'crowdfunding' || type === 'support') {
@@ -780,7 +810,7 @@ export class PostService {
           remainingHitsAfterCreate = updatedPostHit.hitLeft;
         }
 
-        // Create the post
+        // Create the post with moderation status
         const post = await tx.post.create({
           data: {
             userId,
@@ -792,10 +822,30 @@ export class PostService {
             isTrustPost: resolvedIsTrustPost,
             videoText: shouldApplyVideoText,
             videoTextItems: shouldApplyVideoText ? (normalizedVideoTextItems as any) : null,
+            moderationStatus: moderation.status,
+            moderationReason: moderation.reason,
+            moderationScore: moderation.score,
+            moderatedBy: moderation.moderatedBy,
+            moderatedAt: new Date(),
           } as any,
         });
 
         await this.syncPostHashtags(tx, post.id, processedData.hashtag);
+
+        if (moderation.status === 'PENDING_APPROVAL') {
+          await (tx as any).moderationAuditLog.create({
+            data: {
+              contentType: 'POST',
+              contentId: post.id,
+              authorId: userId,
+              aiVerdict: 'PENDING_APPROVAL',
+              aiReason: moderation.reason,
+              aiConfidence: moderation.score,
+              flaggedLabels: moderation.flaggedLabels || [],
+            },
+          });
+        }
+
         return post;
       }, {
         timeout: 15000 // Increased timeout
@@ -809,7 +859,7 @@ export class PostService {
         }
       }
 
-      if (isMissionPost) {
+      if (isMissionPost && createdPost.moderationStatus === 'APPROVED') {
         try {
           await this.notificationService.sendMissionPostLaunchedToFollowers(createdPost.id);
         } catch (notificationError) {
@@ -817,7 +867,7 @@ export class PostService {
         }
       }
 
-      if (this.isPrivateCircleVisibility(createdPost.visibleTo) && createdPost.privateCircleId) {
+      if (this.isPrivateCircleVisibility(createdPost.visibleTo) && createdPost.privateCircleId && createdPost.moderationStatus === 'APPROVED') {
         try {
           await this.notificationService.sendPrivateCircleExclusivePostPublished(createdPost.id);
         } catch (notificationError) {
@@ -3094,6 +3144,30 @@ export class PostService {
       }
     }
 
+    // Check if content is modified to re-trigger AI moderation
+    const isContentModified =
+      updateData.text !== undefined ||
+      updateData.caption !== undefined ||
+      updateData.hashtag !== undefined ||
+      (mediaFiles && mediaFiles.length > 0);
+
+    if (isContentModified) {
+      const moderation = await this.moderationService.evaluatePost({
+        text: updateFields.text !== undefined ? updateFields.text : post.text,
+        caption: updateFields.caption !== undefined ? updateFields.caption : post.caption,
+        hashtag: updateFields.hashtag !== undefined ? updateFields.hashtag : post.hashtag,
+        images: updateFields.images !== undefined ? updateFields.images : post.images,
+        type: updateFields.type !== undefined ? updateFields.type : post.type,
+        format: post.format,
+      });
+
+      updateFields.moderationStatus = moderation.status;
+      updateFields.moderationReason = moderation.reason;
+      updateFields.moderationScore = moderation.score;
+      updateFields.moderatedBy = moderation.moderatedBy;
+      updateFields.moderatedAt = new Date();
+    }
+
     const updatedPost = await this.prisma.$transaction(async (tx) => {
       const nextHashtags =
         updateData.hashtag !== undefined || updateData.text !== undefined || updateData.caption !== undefined
@@ -3111,6 +3185,19 @@ export class PostService {
 
       if (updateData.hashtag !== undefined || updateData.text !== undefined || updateData.caption !== undefined) {
         await this.syncPostHashtags(tx, postId, nextHashtags);
+      }
+
+      if (updateFields.moderationStatus === 'PENDING_APPROVAL') {
+        await (tx as any).moderationAuditLog.create({
+          data: {
+            contentType: 'POST',
+            contentId: postId,
+            authorId: userId,
+            aiVerdict: 'PENDING_APPROVAL',
+            aiReason: updateFields.moderationReason,
+            aiConfidence: updateFields.moderationScore,
+          },
+        });
       }
 
       return savedPost;
@@ -3735,17 +3822,49 @@ export class PostService {
       if (parent.parentId) throw new BadRequestException('Replies cannot have subcomments');
     }
 
-    const createdComment = await this.prisma.postComment.create({
-      data: { postId, userId, comment, parentId: parentCommentId || null },
+    // Run AI Comment Moderation
+    const moderation = await this.moderationService.evaluateComment({
+      comment,
+      postText: post.text || post.caption || undefined,
     });
 
-    try {
-      await Promise.all([
-        this.notificationService.sendPostCommentNotification(postId, createdComment.id, userId),
-        this.notificationService.sendPostMentionNotifications(postId, createdComment.id, userId),
-      ]);
-    } catch (error) {
-      console.error('Failed to send post comment or mention notification:', error);
+    const createdComment = await this.prisma.postComment.create({
+      data: {
+        postId,
+        userId,
+        comment,
+        parentId: parentCommentId || null,
+        moderationStatus: moderation.status,
+        moderationReason: moderation.reason,
+        moderationScore: moderation.score,
+        moderatedBy: moderation.moderatedBy,
+        moderatedAt: new Date(),
+      } as any,
+    });
+
+    if (moderation.status === 'PENDING_APPROVAL') {
+      await (this.prisma as any).moderationAuditLog.create({
+        data: {
+          contentType: 'COMMENT',
+          contentId: createdComment.id,
+          authorId: userId,
+          aiVerdict: 'PENDING_APPROVAL',
+          aiReason: moderation.reason,
+          aiConfidence: moderation.score,
+          flaggedLabels: moderation.flaggedLabels || [],
+        },
+      });
+    }
+
+    if (moderation.status === 'APPROVED') {
+      try {
+        await Promise.all([
+          this.notificationService.sendPostCommentNotification(postId, createdComment.id, userId),
+          this.notificationService.sendPostMentionNotifications(postId, createdComment.id, userId),
+        ]);
+      } catch (error) {
+        console.error('Failed to send post comment or mention notification:', error);
+      }
     }
 
     return createdComment;
@@ -3761,10 +3880,21 @@ export class PostService {
     if (!comment) throw new BadRequestException('Comment not found');
     if (comment.userId !== userId) throw new BadRequestException('Not allowed to edit this comment');
 
+    const moderation = await this.moderationService.evaluateComment({
+      comment: newComment,
+    });
+
     // Update the comment
     return this.prisma.postComment.update({
       where: { id: commentId },
-      data: { comment: newComment },
+      data: {
+        comment: newComment,
+        moderationStatus: moderation.status,
+        moderationReason: moderation.reason,
+        moderationScore: moderation.score,
+        moderatedBy: moderation.moderatedBy,
+        moderatedAt: new Date(),
+      } as any,
     });
   }
 
@@ -3801,21 +3931,7 @@ export class PostService {
             },
           });
         }
-        return;
-      }
-
-      if (!existing) {
-        await tx.postCommentReaction.create({
-          data: {
-            commentId,
-            userId,
-            type: reaction,
-          },
-        });
-        return;
-      }
-
-      if (existing.type !== reaction) {
+      } else if (existing) {
         await tx.postCommentReaction.update({
           where: {
             commentId_userId: {
@@ -3824,6 +3940,14 @@ export class PostService {
             },
           },
           data: { type: reaction },
+        });
+      } else {
+        await tx.postCommentReaction.create({
+          data: {
+            commentId,
+            userId,
+            type: reaction,
+          },
         });
       }
     });
@@ -3846,7 +3970,7 @@ export class PostService {
     };
   }
 
-  // Get comments for a post
+  // Get comments for a post (only approved comments or author's own pending)
   async getCommentListOnPost(postId: string, viewerUserId?: string) {
     if (!postId) throw new BadRequestException('Post ID required');
     // Check if post exists
@@ -3855,14 +3979,25 @@ export class PostService {
     });
     if (!post) throw new BadRequestException('Post not found');
     await this.ensureCanViewPost(post, viewerUserId);
+
+    const commentWhere: any = viewerUserId
+      ? {
+          postId,
+          OR: [
+            { moderationStatus: 'APPROVED' },
+            { userId: viewerUserId },
+          ],
+        }
+      : { postId, moderationStatus: 'APPROVED' };
+
     const comments = await this.prisma.postComment.findMany({
-      where: { postId },
+      where: commentWhere,
       orderBy: { createdAt: 'desc' },
       include: {
         user: { select: { displayName: true, image: true, id: true } },
       },
     });
-    const commentCount = await this.prisma.postComment.count({ where: { postId } });
+    const commentCount = await this.prisma.postComment.count({ where: commentWhere });
     const commentIds = comments.map((c: any) => c.id);
 
     const [reactionCounts, viewerReactions] = await Promise.all([

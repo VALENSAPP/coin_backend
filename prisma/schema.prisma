@@ -247,6 +247,11 @@ model ClosetItems {
   residentNumber                String?
   buyerChatEnabled              Boolean?
   returnPolicy                  String?                        @db.Text
+  moderationStatus              ModerationStatus               @default(APPROVED)
+  moderationReason              String?                        @db.Text
+  moderationScore               Float?
+  moderatedBy                   String?
+  moderatedAt                   DateTime?
   createdAt                     DateTime                       @default(now())
   updatedAt                     DateTime                       @updatedAt
   closet                        Mycloset                       @relation(fields: [closetId], references: [id], onDelete: Cascade)
@@ -262,6 +267,7 @@ model ClosetItems {
   @@index([closetId])
   @@index([userId])
   @@index([category])
+  @@index([moderationStatus])
   @@map("closetItems")
 }
 
@@ -358,16 +364,22 @@ model ShopEbook {
   amount       Float
   isDownload   Boolean  @default(true)
   promoCode    String?
-  tableContent String[] @default([])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  closet       Mycloset @relation(fields: [closetId], references: [id], onDelete: Cascade)
-  payments     ShopEbookPayments[]
+  tableContent     String[]            @default([])
+  moderationStatus ModerationStatus    @default(APPROVED)
+  moderationReason String?             @db.Text
+  moderationScore  Float?
+  moderatedBy      String?
+  moderatedAt      DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  closet           Mycloset            @relation(fields: [closetId], references: [id], onDelete: Cascade)
+  payments         ShopEbookPayments[]
 
   @@index([userId])
   @@index([closetId])
   @@index([createdAt])
+  @@index([moderationStatus])
   @@map("shopEbooks")
 }
 
@@ -494,6 +506,11 @@ model Post {
   allowDownload    Boolean         @default(true)
   amount           Float?
   promoCode        String?
+  moderationStatus ModerationStatus @default(APPROVED)
+  moderationReason String?          @db.Text
+  moderationScore  Float?
+  moderatedBy      String?
+  moderatedAt      DateTime?
   ebookPayments    EbookPayments[]
   hides            HidePost[]
   reports          PostReport[]
@@ -508,6 +525,7 @@ model Post {
   postHashtags     PostHashtag[]
 
   @@index([privateCircleId])
+  @@index([moderationStatus])
 }
 
 model Hashtag {
@@ -602,17 +620,23 @@ model PostComment {
   userId      String
   comment     String
   parentId    String?
-  commentType cmntType              @default(NORMAL)
-  createdAt   DateTime              @default(now())
-  post        Post                  @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent      PostComment?          @relation("PostCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
-  replies     PostComment[]         @relation("PostCommentThread")
-  reactions   PostCommentReaction[]
+  commentType      cmntType              @default(NORMAL)
+  moderationStatus ModerationStatus      @default(APPROVED)
+  moderationReason String?               @db.Text
+  moderationScore  Float?
+  moderatedBy      String?
+  moderatedAt      DateTime?
+  createdAt        DateTime              @default(now())
+  post             Post                  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent           PostComment?          @relation("PostCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies          PostComment[]         @relation("PostCommentThread")
+  reactions        PostCommentReaction[]
 
   @@index([postId])
   @@index([userId])
   @@index([parentId])
+  @@index([moderationStatus])
 }
 
 model PostCommentReaction {
@@ -2420,3 +2444,38 @@ model PointsRedemption {
   @@index([userId])
   @@index([status])
 }
+
+enum ModerationStatus {
+  APPROVED
+  PENDING_APPROVAL
+  REJECTED
+}
+
+enum ModerationContentType {
+  POST
+  COMMENT
+  PRODUCT
+  EBOOK
+}
+
+model ModerationAuditLog {
+  id            String                @id @default(uuid())
+  contentType   ModerationContentType
+  contentId     String
+  authorId      String
+  aiVerdict     ModerationStatus
+  aiReason      String?               @db.Text
+  aiConfidence  Float?
+  flaggedLabels String[]              @default([])
+  adminAction   ModerationStatus?
+  adminReason   String?               @db.Text
+  adminId       String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([contentType, contentId])
+  @@index([authorId])
+  @@index([aiVerdict])
+  @@index([createdAt])
+}
+
