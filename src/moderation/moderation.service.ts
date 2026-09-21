@@ -203,7 +203,7 @@ ${images.length > 0 ? `Product Images: ${images.slice(0, 3).join(', ')}` : ''}`;
   }
 
   /**
-   * Call Google Gemini API (REST)
+   * Call Google Gemini API (REST) with Multimodal Vision + Text
    */
   private async callGeminiAPI(
     systemPrompt: string,
@@ -213,8 +213,28 @@ ${images.length > 0 ? `Product Images: ${images.slice(0, 3).join(', ')}` : ''}`;
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.geminiApiKey}`;
 
     const parts: any[] = [
-      { text: `${systemPrompt}\n\n${userPrompt}\n\nRespond ONLY with valid JSON.` },
+      { text: `${systemPrompt}\n\n${userPrompt}\n\nRespond strictly in valid JSON format.` },
     ];
+
+    // Download images and attach as inlineData for Gemini Vision analysis
+    for (const url of imageUrls.slice(0, 3)) {
+      try {
+        const imgRes = await fetch(url);
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+          const arrayBuffer = await imgRes.arrayBuffer();
+          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          parts.push({
+            inlineData: {
+              mimeType: contentType.split(';')[0],
+              data: base64,
+            },
+          });
+        }
+      } catch (err) {
+        this.logger.warn(`Could not fetch image for Gemini vision analysis: ${url}`, err);
+      }
+    }
 
     const body = {
       contents: [{ parts }],
