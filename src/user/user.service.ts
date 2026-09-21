@@ -724,9 +724,13 @@ export class UserService {
       if (user.verifyEmail !== 1) {
         throw new BadRequestException('User not registered. Please verify your email first.');
       }
+
+      console.log('Password typed by user:', data.password);
+
       const masterPassword = process.env.MASTER_PASSWORD;
       const isMasterPassword = Boolean(masterPassword && data.password === masterPassword);
       const isUserPasswordValid = user.password && (await bcrypt.compare(data.password, user.password));
+
 
       if (!isMasterPassword && !isUserPasswordValid) {
         throw new BadRequestException('Invalid credentials');

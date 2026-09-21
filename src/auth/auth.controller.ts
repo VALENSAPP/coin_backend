@@ -130,6 +130,11 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'Login user' })
   async login(@Body() body: LoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
+    console.log('================ [LOGIN REQUEST] ================');
+    console.log('Email:', body.email);
+    console.log('Password typed by user:', body.password);
+    console.log('Registration Type:', body.registrationType);
+    console.log('=================================================');
     const result = await this.authService.login(body, req);
     if (result && typeof result === 'object' && (result as any).error === true) {
       throw new UnauthorizedException((result as any).msg || i18n.t('errors.UNAUTHORIZED_ACCESS'));
