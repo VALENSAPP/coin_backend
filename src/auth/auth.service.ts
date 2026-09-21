@@ -285,11 +285,9 @@ export class AuthService {
       },
     });
 
-    const { password, otp, twoFactorSecret, walletPrivateKey, walletMnemonic, ...safeUser } = user;
-
     return {
       ...tokens,
-      ...safeUser,
+      ...user,
     };
   }
 

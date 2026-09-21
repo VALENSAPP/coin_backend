@@ -177,7 +177,7 @@ export class AuthController {
   async adminLogin(@Body() body: AdminLoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
     const result = await this.authService.adminLogin(body, req);
     return {
-      message: 'Admin logged in successfully',
+      message: i18n.t('common.LOGIN_SUCCESS'),
       user: result
     };
   }
@@ -187,7 +187,7 @@ export class AuthController {
   async adminLoginAlias(@Body() body: AdminLoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
     const result = await this.authService.adminLogin(body, req);
     return {
-      message: 'Admin logged in successfully',
+      message: i18n.t('common.LOGIN_SUCCESS'),
       user: result
     };
   }
