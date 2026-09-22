@@ -970,12 +970,16 @@ export class AuthService {
     // 3. Send professional email notification via SendGrid
     if (user.email) {
       try {
+        const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+        const profileUrl = `${baseUrl.replace(/\/$/, '')}/profile/${user.id}`;
         await this.mailService.sendTemplateEmail({
           to: user.email,
           subject: '⚠️ Important Security Notice: Temporary Account Suspension (24 Hours) - Valens',
           templateFile: 'snapshot-ban-email.html',
           replacements: {
             user_name: user.displayName || user.userName || 'Valens User',
+            profile_url: profileUrl,
+            profileUrl: profileUrl,
             reason: 'Repeated unauthorized screen capture / snapshot attempts (3 strikes reached)',
             suspension_duration: '24 Hours',
             locked_at: new Date().toUTCString(),

@@ -55,6 +55,8 @@ export class MailService {
             app_url: appRedirectUrl,
             logoUrl: defaultLogoUrl,
             logo_url: defaultLogoUrl,
+            profileUrl: appRedirectUrl,
+            profile_url: appRedirectUrl,
             companyName: 'Valens Technologies INC.',
             company_name: 'Valens Technologies INC.',
         };

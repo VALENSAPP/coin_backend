@@ -933,6 +933,10 @@ export class UserService {
           (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/logo.png` : '') ||
           'https://api.valens.app/logo.png';
 
+        const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+        const profileUrl = `${baseUrl.replace(/\/$/, '')}/profile/${user.id}`;
+        htmlTemplate = htmlTemplate.replace(/{{profile_url}}/g, profileUrl);
+        htmlTemplate = htmlTemplate.replace(/{{profileUrl}}/g, profileUrl);
         htmlTemplate = htmlTemplate.replace(/{{appUrl}}/g, appRedirectUrl);
         htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
         htmlTemplate = htmlTemplate.replace(/{{logoUrl}}/g, logoUrl);
@@ -1040,6 +1044,10 @@ export class UserService {
         (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/logo.png` : '') ||
         'https://api.valens.app/logo.png';
 
+      const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+      const profileUrl = `${baseUrl.replace(/\/$/, '')}/profile/${user.id}`;
+      htmlTemplate = htmlTemplate.replace(/{{profile_url}}/g, profileUrl);
+      htmlTemplate = htmlTemplate.replace(/{{profileUrl}}/g, profileUrl);
       htmlTemplate = htmlTemplate.replace(/{{appUrl}}/g, appRedirectUrl);
       htmlTemplate = htmlTemplate.replace(/{{app_url}}/g, appRedirectUrl);
       htmlTemplate = htmlTemplate.replace(/{{logoUrl}}/g, logoUrl);
@@ -3405,13 +3413,17 @@ export class UserService {
       // 3. Send email notification via SendGrid template if email is present
       if (fan.email) {
         try {
+          const subscriberProfileUrl = `${baseUrl.replace(/\/$/, '')}/profile/${fan.id}`;
+          const creatorProfileUrl = `${baseUrl.replace(/\/$/, '')}/profile/${creatorId}`;
           await this.mailService.sendTemplateEmail({
             to: fan.email,
             subject: `Important update regarding your subscription to ${effectiveCreatorName}`,
             templateFile: 'subscription-price-changed.html',
             replacements: {
               subscriberName: fan.displayName || fan.userName || 'Subscriber',
+              subscriberProfileUrl,
               creatorName: effectiveCreatorName,
+              creatorProfileUrl,
               oldPrice: oldPrice.toFixed(2),
               newPrice: newPrice.toFixed(2),
               periodEndDate: formattedPeriodEnd,

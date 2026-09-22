@@ -452,13 +452,14 @@ export class OrderService {
                     total: true,
                     seller: {
                         select: {
+                            id: true,
                             email: true,
                             displayName: true,
                             userName: true,
                             companyProfile: { select: { email: true } },
                         },
                     },
-                    buyer: { select: { displayName: true, userName: true } },
+                    buyer: { select: { id: true, displayName: true, userName: true } },
                     items: { select: { productName: true }, take: 1 },
                 },
             });
@@ -467,13 +468,21 @@ export class OrderService {
             const sellerEmail = order.seller?.companyProfile?.email || order.seller?.email;
             if (!sellerEmail) return;
 
+            const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+            const sellerProfileUrl = order.seller?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.seller.id}` : `${baseUrl}/open-app`;
+            const buyerProfileUrl = order.buyer?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.buyer.id}` : `${baseUrl}/open-app`;
+
             await this.mailService.sendTemplateEmail({
                 to: sellerEmail,
                 subject: 'You have a new order on Valens',
                 templateFile: 'new-order-seller.html',
                 replacements: {
                     seller_name: order.seller?.displayName || order.seller?.userName || 'Seller',
+                    seller_profile_url: sellerProfileUrl,
+                    sellerProfileUrl,
                     buyer_name: order.buyer?.userName || order.buyer?.displayName || 'A buyer',
+                    buyer_profile_url: buyerProfileUrl,
+                    buyerProfileUrl,
                     order_number: order.orderNumber,
                     product_name: order.items[0]?.productName || 'your item',
                     order_total: `$${order.total.toFixed(2)}`,

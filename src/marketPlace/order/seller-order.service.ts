@@ -454,6 +454,10 @@ export class SellerOrderService {
             const orderDetailsLink = `${appBaseUrl}/orders/${order.id}`;
             const chatLink = `${appBaseUrl}/marketplace/chat?orderId=${order.id}`;
 
+            const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+            const sellerProfileUrl = order.seller?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.seller.id}` : `${baseUrl}/open-app`;
+            const buyerProfileUrl = order.buyer?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.buyer.id}` : `${baseUrl}/open-app`;
+
             const plainText = `Your Order Is Ready for Pickup! 🎉\n\nGood news! ${sellerUsername} is preparing your order and is ready to coordinate the pickup with you.\n\nPlease check the pickup location, date, and time in your order details and arrive at the agreed time.\n\nNeed to make arrangements or have a question? Chat directly with the seller through Valens.`;
 
             await this.mailService.sendTemplateEmail({
@@ -462,7 +466,11 @@ export class SellerOrderService {
                 templateFile: 'local-pickup-order-ready.html',
                 replacements: {
                     seller_username: sellerUsername,
+                    seller_profile_url: sellerProfileUrl,
+                    sellerProfileUrl,
                     buyer_name: order.buyer?.displayName || order.buyer?.userName || 'Valued Customer',
+                    buyer_profile_url: buyerProfileUrl,
+                    buyerProfileUrl,
                     order_number: order.orderNumber,
                     product_name: firstItem?.productName || firstItem?.product?.name || 'your item',
                     pickup_address_row: pickupAddressRow,
@@ -489,12 +497,17 @@ export class SellerOrderService {
 
             const plainText = `Your Order Is Being Prepared for Shipping! 📦\n\nGood news! ${sellerUsername} is preparing your order for shipment.\n\nOnce your order has been shipped, you’ll receive a notification with the carrier and tracking number so you can follow your package until delivery.\n\nHave a question about your order? Chat directly with the seller through Valens.`;
 
+            const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+            const sellerProfileUrl = order.seller?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.seller.id}` : `${baseUrl}/open-app`;
+
             await this.mailService.sendTemplateEmail({
                 to: order.buyer.email,
                 subject: 'Your Order Is Being Prepared for Shipping! 📦',
                 templateFile: 'ship-items-order-processing.html',
                 replacements: {
                     seller_username: sellerUsername,
+                    seller_profile_url: sellerProfileUrl,
+                    sellerProfileUrl,
                     order_number: order.orderNumber,
                     product_name: firstItem?.productName || firstItem?.product?.name || 'your item',
                     order_total: `$${Number(order.total || 0).toFixed(2)}`,
@@ -523,13 +536,21 @@ export class SellerOrderService {
 
             const plainText = `Your Valens pickup was completed successfully\n\nCongratulations on your sale! Your buyer successfully picked up the item at the scheduled location.\nThe transaction is now complete.\nThank you for selling on Valens.`;
 
+            const baseUrl = process.env.BASE_URL || 'https://api.valens.app';
+            const sellerProfileUrl = order.seller?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.seller.id}` : `${baseUrl}/open-app`;
+            const buyerProfileUrl = order.buyer?.id ? `${baseUrl.replace(/\/$/, '')}/profile/${order.buyer.id}` : `${baseUrl}/open-app`;
+
             await this.mailService.sendTemplateEmail({
                 to: order.seller.email,
                 subject: 'Your Valens pickup was completed successfully',
                 templateFile: 'local-pickup-completed-seller.html',
                 replacements: {
                     seller_name: sellerName,
+                    seller_profile_url: sellerProfileUrl,
+                    sellerProfileUrl,
                     buyer_name: buyerName,
+                    buyer_profile_url: buyerProfileUrl,
+                    buyerProfileUrl,
                     order_number: order.orderNumber,
                     product_name: productName,
                     order_total: orderTotal,
