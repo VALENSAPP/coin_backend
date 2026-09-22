@@ -182,16 +182,6 @@ export class AuthController {
     };
   }
 
-  @Post('admin-login')
-  @ApiOperation({ summary: 'Dedicated admin login alias (profile must be admin)' })
-  async adminLoginAlias(@Body() body: AdminLoginDto, @Request() req: any, @I18n() i18n: I18nContext) {
-    const result = await this.authService.adminLogin(body, req);
-    return {
-      message: i18n.t('common.LOGIN_SUCCESS'),
-      user: result
-    };
-  }
-
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   async refreshToken(@Body() body: RefreshTokenDto, @Request() req: any, @I18n() i18n: I18nContext) {
