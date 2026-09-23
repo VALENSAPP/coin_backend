@@ -1955,8 +1955,9 @@ const PATTERN_RULES: PatternRule[] = [
       }),
     },
   },
+];
 
- /**
+/**
  * Normalizes any language input (e.g. 'eng', 'en-US', 'pt-BR', 'por', 'spanish') to a SupportedLanguage ('en', 'es', 'fr', 'it', 'pt').
  */
 export function normalizeLanguage(lang?: string): SupportedLanguage {
