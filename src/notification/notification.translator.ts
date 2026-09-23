@@ -2005,8 +2005,286 @@ const PATTERN_RULES: PatternRule[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Reverse Translation Engine (Multi-Language -> Canonical English)
+// ---------------------------------------------------------------------------
+
+// Build inverted title map: (any translated title -> Canonical English title)
+const REVERSE_TITLE_MAP: Record<string, string> = {};
+for (const [enTitle, translations] of Object.entries(TITLE_MAP)) {
+  REVERSE_TITLE_MAP[enTitle.toLowerCase().trim()] = enTitle;
+  for (const translated of Object.values(translations)) {
+    if (typeof translated === 'string' && translated.trim()) {
+      REVERSE_TITLE_MAP[translated.toLowerCase().trim()] = enTitle;
+    }
+  }
+}
+
+interface ReversePatternRule {
+  bodyPatterns: RegExp[];
+  toEnglishBody: (match: RegExpMatchArray, data?: Record<string, any>) => string;
+  defaultEnglishTitle?: string;
+}
+
+const REVERSE_BODY_RULES: ReversePatternRule[] = [
+  // 1. Post Liked
+  {
+    defaultEnglishTitle: 'Post Liked',
+    bodyPatterns: [
+      /^(.*?)\s+curtiu sua publicação(?:\s+do círculo privado)?\.?$/i,
+      /^A\s+(.*?)\s+le gustó tu publicación(?:\s+del círculo privado)?\.?$/i,
+      /^(.*?)\s+a aimé votre publication(?:\s+de cercle privé)?\.?$/i,
+      /^A\s+(.*?)\s+piace il tuo post(?:\s+del cerchio privato)?\.?$/i,
+      /^(.*?)\s+liked your (private circle post|post)\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const isCircle = data?.isPrivateCircle || match[0]?.toLowerCase().includes('círculo') || match[0]?.toLowerCase().includes('cerchio') || match[0]?.toLowerCase().includes('cercle') || match[0]?.toLowerCase().includes('circle');
+      return `${match[1] || 'Someone'} liked your ${isCircle ? 'private circle post.' : 'post.'}`;
+    },
+  },
+
+  // 2. Follower
+  {
+    defaultEnglishTitle: '👤 New Follower!',
+    bodyPatterns: [
+      /^(.*?)\s+começou a seguir você(?:\.\s*Confira o perfil\.?)?$/i,
+      /^(.*?)\s+comenzó a seguirte(?:\.\s*Revisa su perfil\.?)?$/i,
+      /^(.*?)\s+a commencé à vous suivre(?:\.\s*Consultez son profil\.?)?$/i,
+      /^(.*?)\s+ha iniziato a seguirti(?:\.\s*Guarda il suo profilo\.?)?$/i,
+      /^(.*?)\s+started following you(?:\.\s*Check out their profile\.?)?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} started following you. Check out their profile.`,
+  },
+
+  // 3. Unfollowed
+  {
+    defaultEnglishTitle: 'Follower Unfollowed',
+    bodyPatterns: [
+      /^(.*?)\s+deixou de seguir você\.?$/i,
+      /^(.*?)\s+dejó de seguirte\.?$/i,
+      /^(.*?)\s+ne vous suit plus\.?$/i,
+      /^(.*?)\s+ha smesso di seguirti\.?$/i,
+      /^(.*?)\s+unfollowed you\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} unfollowed you.`,
+  },
+
+  // 4. New Comment
+  {
+    defaultEnglishTitle: '💬 New Comment',
+    bodyPatterns: [
+      /^(.*?)\s+comentou na sua publicação:\s*"(.*)"$/is,
+      /^(.*?)\s+comentó en tu publicación:\s*"(.*)"$/is,
+      /^(.*?)\s+a commenté votre publication\s*:\s*"(.*)"$/is,
+      /^(.*?)\s+ha commentato il tuo post:\s*"(.*)"$/is,
+      /^(.*?)\s+commented on your post:\s*"(.*)"$/is,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} commented on your post: "${match[2] || ''}"`,
+  },
+
+  // 5. Mentioned
+  {
+    defaultEnglishTitle: '📢 You were mentioned!',
+    bodyPatterns: [
+      /^(.*?)\s+mencionou você em um comentário:\s*"(.*)"$/is,
+      /^(.*?)\s+te mencionó en un comentario:\s*"(.*)"$/is,
+      /^(.*?)\s+vous a mentionné dans un commentaire\s*:\s*"(.*)"$/is,
+      /^(.*?)\s+ti ha menzionato in un commento:\s*"(.*)"$/is,
+      /^(.*?)\s+mentioned you in a comment:\s*"(.*)"$/is,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} mentioned you in a comment: "${match[2] || ''}"`,
+  },
+
+  // 6. Tokens Received
+  {
+    defaultEnglishTitle: 'Tokens Received',
+    bodyPatterns: [
+      /^Você recebeu ([\d,.]+)\s+tokens de (.*?)\.?$/i,
+      /^Recibiste ([\d,.]+)\s+tokens de (.*?)\.?$/i,
+      /^Vous avez reçu ([\d,.]+)\s+jetons de (.*?)\.?$/i,
+      /^Hai ricevuto ([\d,.]+)\s+token da (.*?)\.?$/i,
+      /^You received ([\d,.]+)\s+tokens from (.*?)\.?$/i,
+    ],
+    toEnglishBody: (match) => `You received ${match[1] || '0'} tokens from ${match[2] || 'someone'}.`,
+  },
+
+  // 7. Tokens Credited
+  {
+    defaultEnglishTitle: 'Tokens Credited',
+    bodyPatterns: [
+      /^Você recebeu ([\d,.]+)\s+tokens creditados\.?$/i,
+      /^Se te acreditaron ([\d,.]+)\s+tokens\.?$/i,
+      /^Vous avez été crédité de ([\d,.]+)\s+jetons\.?$/i,
+      /^Ti sono stati accreditati ([\d,.]+)\s+token\.?$/i,
+      /^You were credited ([\d,.]+)\s+tokens\.?$/i,
+    ],
+    toEnglishBody: (match) => `You were credited ${match[1] || '0'} tokens.`,
+  },
+
+  // 8. Mission Donation
+  {
+    defaultEnglishTitle: 'Mission Donation',
+    bodyPatterns: [
+      /^(.*?)\s+doou \$?([\d,.]+)\s+para a sua publicação\.?$/i,
+      /^(.*?)\s+donó \$?([\d,.]+)\s+a tu publicación\.?$/i,
+      /^(.*?)\s+a fait un don de \$?([\d,.]+)\s+à votre publication\.?$/i,
+      /^(.*?)\s+ha donato \$?([\d,.]+)\s+al tuo post\.?$/i,
+      /^(.*?)\s+donated \$?([\d,.]+)\s+to your post\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} donated $${match[2] || '0'} to your post.`,
+  },
+
+  // 9. Following Payment
+  {
+    defaultEnglishTitle: 'Following Payment',
+    bodyPatterns: [
+      /^(.*?)\s+comprou sua assinatura de conteúdo privado\.?$/i,
+      /^(.*?)\s+compró tu suscripción de contenido privado\.?$/i,
+      /^(.*?)\s+a acheté votre abonnement à du contenu privé\.?$/i,
+      /^(.*?)\s+ha acquistato il tuo abbonamento a contenuti privati\.?$/i,
+      /^(.*?)\s+bought your private content subscription\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} bought your private content subscription.`,
+  },
+
+  // 10. Tagged in a post
+  {
+    defaultEnglishTitle: 'Tagged in a post',
+    bodyPatterns: [
+      /^(.*?)\s+marcou você em uma publicação(?:\s+do círculo privado)?\.?$/i,
+      /^(.*?)\s+te etiquetó en una publicación(?:\s+del círculo privado)?\.?$/i,
+      /^(.*?)\s+vous a identifié dans une publication(?:\s+de cercle privé)?\.?$/i,
+      /^(.*?)\s+ti ha taggato in un post(?:\s+del cerchio privato)?\.?$/i,
+      /^(.*?)\s+tagged you in a (post|private circle post)\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const isCircle = data?.isPrivateCircle || match[0]?.toLowerCase().includes('círculo') || match[0]?.toLowerCase().includes('cerchio') || match[0]?.toLowerCase().includes('cercle') || match[0]?.toLowerCase().includes('circle');
+      return `${match[1] || 'Someone'} tagged you in a ${isCircle ? 'private circle post.' : 'post.'}`;
+    },
+  },
+
+  // 11. Battle Invitation
+  {
+    defaultEnglishTitle: 'Battle Invitation',
+    bodyPatterns: [
+      /^(.*?)\s+desafiou você para uma Batalha\.\s*Revise o lado e argumento dela\.?$/i,
+      /^(.*?)\s+te desafió a una Batalla\.\s*Revisa su postura y argumento\.?$/i,
+      /^(.*?)\s+vous a défié pour un Défi\.\s*Consultez son camp et son argument\.?$/i,
+      /^(.*?)\s+ti ha sfidato a una Battaglia\.\s*Controlla la sua fazione e tesi\.?$/i,
+      /^(.*?)\s+challenged you to a Battle\.\s*Review their side and argument\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} challenged you to a Battle. Review their side and argument.`,
+  },
+
+  // 12. Shop Battle Challenge
+  {
+    defaultEnglishTitle: 'Shop Battle Challenge',
+    bodyPatterns: [
+      /^(.*?)\s+desafiou sua loja para uma batalha\.?$/i,
+      /^(.*?)\s+desafió a tu tienda a una batalla\.?$/i,
+      /^(.*?)\s+a défié votre boutique pour un défi\.?$/i,
+      /^(.*?)\s+ha sfidato il tuo negozio a una battaglia\.?$/i,
+      /^(.*?)\s+challenged your shop to a battle\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'A shop'} challenged your shop to a battle.`,
+  },
+
+  // 13. Orders: Placed
+  {
+    defaultEnglishTitle: 'Order Placed Successfully',
+    bodyPatterns: [
+      /^Seu pedido (?:#([^\s]+)\s+)?foi realizado com sucesso\.?$/i,
+      /^Tu pedido (?:#([^\s]+)\s+)?ha sido realizado con éxito\.?$/i,
+      /^Votre commande (?:#([^\s]+)\s+)?a été passée avec succès\.?$/i,
+      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato effettuato con successo\.?$/i,
+      /^Your order (?:#([^\s]+)\s+)?has been placed successfully\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderId || '';
+      return orderId ? `Your order #${orderId} has been placed successfully.` : 'Your order has been placed successfully.';
+    },
+  },
+
+  // 14. Orders: New Order for seller
+  {
+    defaultEnglishTitle: 'You have a new order',
+    bodyPatterns: [
+      /^Você recebeu um novo pedido (?:#([^\s]+))?\.?$/i,
+      /^Has recibido un nuevo pedido (?:#([^\s]+))?\.?$/i,
+      /^Vous avez reçu une nouvelle commande (?:#([^\s]+))?\.?$/i,
+      /^Hai ricevuto un nuovo ordine (?:#([^\s]+))?\.?$/i,
+      /^You received a new order (?:#([^\s]+))?\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderId || '';
+      return orderId ? `You received a new order #${orderId}.` : 'You received a new order.';
+    },
+  },
+
+  // 15. Orders: Shipped
+  {
+    defaultEnglishTitle: 'Order Shipped',
+    bodyPatterns: [
+      /^Seu pedido (?:#([^\s]+)\s+)?foi enviado\.?$/i,
+      /^Tu pedido (?:#([^\s]+)\s+)?ha sido enviado\.?$/i,
+      /^Votre commande (?:#([^\s]+)\s+)?a été expédiée\.?$/i,
+      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato spedito\.?$/i,
+      /^Your order (?:#([^\s]+)\s+)?has been shipped\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderId || '';
+      return orderId ? `Your order #${orderId} has been shipped.` : 'Your order has been shipped.';
+    },
+  },
+
+  // 16. Orders: Delivered
+  {
+    defaultEnglishTitle: 'Order Delivered',
+    bodyPatterns: [
+      /^Seu pedido (?:#([^\s]+)\s+)?foi entregue\.?$/i,
+      /^Tu pedido (?:#([^\s]+)\s+)?ha sido entregado\.?$/i,
+      /^Votre commande (?:#([^\s]+)\s+)?a été livrée\.?$/i,
+      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato consegnato\.?$/i,
+      /^Your order (?:#([^\s]+)\s+)?has been delivered\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderId || '';
+      return orderId ? `Your order #${orderId} has been delivered.` : 'Your order has been delivered.';
+    },
+  },
+
+  // 17. Orders: Cancelled
+  {
+    defaultEnglishTitle: 'Order Cancelled',
+    bodyPatterns: [
+      /^Seu pedido (?:#([^\s]+)\s+)?foi cancelado\.?$/i,
+      /^Tu pedido (?:#([^\s]+)\s+)?ha sido cancelado\.?$/i,
+      /^Votre commande (?:#([^\s]+)\s+)?a été annulée\.?$/i,
+      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato annullato\.?$/i,
+      /^Your order (?:#([^\s]+)\s+)?has been cancelled\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderId || '';
+      return orderId ? `Your order #${orderId} has been cancelled.` : 'Your order has been cancelled.';
+    },
+  },
+
+  // 18. Badge unlocked
+  {
+    defaultEnglishTitle: '🥇 New Badge Unlocked!',
+    bodyPatterns: [
+      /^Parabéns!\s*Você desbloqueou o emblema "(.*?)"\.?$/i,
+      /^¡Felicitaciones!\s*Has desbloqueado la insignia "(.*?)"\.?$/i,
+      /^Félicitations !\s*Vous avez débloqué le badge «\s*(.*?)\s*»\.?$/i,
+      /^Congratulazioni!\s*Hai sbloccato il badge "(.*?)"\.?$/i,
+      /^Congratulations!\s*You unlocked the "(.*?)" badge\.?$/i,
+    ],
+    toEnglishBody: (match) => `Congratulations! You unlocked the "${match[1] || ''}" badge.`,
+  },
+];
+
 /**
- * Main translation function
+ * Main translation function (English -> Target Language)
  */
 export function translateNotification(
   title: string,
@@ -2059,3 +2337,92 @@ export function translateNotification(
     body: safeBody,
   };
 }
+
+/**
+ * Reverse translates any localized notification (pt, es, fr, it) back to canonical English.
+ */
+export function reverseTranslateToEnglish(
+  title: string,
+  body: string,
+  data?: Record<string, any>,
+): TranslatedNotification {
+  const safeTitle = (title || '').trim();
+  const safeBody = (body || '').trim();
+
+  // 1. Resolve Title to English
+  let enTitle = safeTitle;
+  const lowerTitle = safeTitle.toLowerCase();
+  if (REVERSE_TITLE_MAP[lowerTitle]) {
+    enTitle = REVERSE_TITLE_MAP[lowerTitle];
+  }
+
+  // 2. Resolve Body to English
+  let enBody = safeBody;
+  for (const rule of REVERSE_BODY_RULES) {
+    for (const pattern of rule.bodyPatterns) {
+      const match = safeBody.match(pattern);
+      if (match) {
+        enBody = rule.toEnglishBody(match, data);
+        if (rule.defaultEnglishTitle && (!enTitle || enTitle === safeTitle)) {
+          enTitle = rule.defaultEnglishTitle;
+        }
+        return { title: enTitle, body: enBody };
+      }
+    }
+  }
+
+  return { title: enTitle, body: enBody };
+}
+
+/**
+ * Localizes any notification object (whether new with rawTitle/rawBody in data or legacy DB row)
+ * into the requested target language (en, pt, es, fr, it).
+ */
+export function localizeNotification<T extends { title: string; body: string; data?: any }>(
+  notification: T,
+  targetLang?: string,
+): T {
+  const lang = (targetLang || 'en').toLowerCase().trim();
+  const notifData = notification.data as Record<string, any> | null | undefined;
+
+  let canonicalEnglishTitle = notifData?.rawTitle as string | undefined;
+  let canonicalEnglishBody = notifData?.rawBody as string | undefined;
+
+  // If raw English template was preserved in data:
+  if (canonicalEnglishTitle && canonicalEnglishBody) {
+    if (lang === 'en') {
+      return {
+        ...notification,
+        title: canonicalEnglishTitle,
+        body: canonicalEnglishBody,
+      };
+    }
+    const translated = translateNotification(canonicalEnglishTitle, canonicalEnglishBody, lang, notifData || {});
+    return {
+      ...notification,
+      title: translated.title,
+      body: translated.body,
+    };
+  }
+
+  // Legacy row without rawTitle/rawBody: reverse-translate to canonical English first
+  const reversed = reverseTranslateToEnglish(notification.title, notification.body, notifData || {});
+  canonicalEnglishTitle = reversed.title;
+  canonicalEnglishBody = reversed.body;
+
+  if (lang === 'en') {
+    return {
+      ...notification,
+      title: canonicalEnglishTitle,
+      body: canonicalEnglishBody,
+    };
+  }
+
+  const translated = translateNotification(canonicalEnglishTitle, canonicalEnglishBody, lang, notifData || {});
+  return {
+    ...notification,
+    title: translated.title,
+    body: translated.body,
+  };
+}
+

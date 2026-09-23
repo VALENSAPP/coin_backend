@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 import { PrismaService } from '../prisma/prisma.service';
 import { Notification, Prisma } from '@prisma/client';
 import { I18nService } from 'nestjs-i18n';
-import { translateNotification } from './notification.translator';
+import { translateNotification, reverseTranslateToEnglish, localizeNotification } from './notification.translator';
 
 type NotificationPrismaClient = PrismaService | Prisma.TransactionClient;
 
@@ -71,6 +71,8 @@ export class NotificationService {
           body,
           data: {
             type: payload.type,
+            rawTitle: payload.title,
+            rawBody: payload.body,
             ...(payload.metadata || {}),
           },
         },
@@ -254,13 +256,17 @@ export class NotificationService {
     const finalTitle = translated.title;
     const finalBody = translated.body;
 
-    // Save notification to database with translated title and body
+    // Save notification to database with translated title and body, preserving canonical raw template in data JSON
     await this.prisma.notification.create({
       data: {
         userId,
         title: finalTitle,
         body: finalBody,
-        data: data || {},
+        data: {
+          ...(data || {}),
+          rawTitle: title,
+          rawBody: body,
+        },
       },
     });
 
@@ -429,7 +435,11 @@ export class NotificationService {
           userId,
           title: group.finalTitle,
           body: group.finalBody,
-          data: data || {},
+          data: {
+            ...(data || {}),
+            rawTitle: title,
+            rawBody: body,
+          },
         });
       }
     }
@@ -548,12 +558,17 @@ export class NotificationService {
       limit?: number;
       page?: number;
       isRead?: boolean;
+      lang?: string;
     },
   ): Promise<Notification[]> {
     const page = options?.page && options.page > 0 ? options.page : 1;
     const limit = options?.limit && options.limit > 0 ? options.limit : 100;
     const take = Math.min(limit, 200);
     const skip = (page - 1) * take;
+
+    const targetLang = options?.lang && ['en', 'pt', 'it', 'es', 'fr'].includes(options.lang.toLowerCase())
+      ? options.lang.toLowerCase()
+      : await this.getUserLanguage(userId);
 
     const notifications = await this.prisma.notification.findMany({
       where: {
@@ -676,13 +691,18 @@ export class NotificationService {
       }
 
       n.data = notifData;
+
+      // Dynamically localize title and body into the user's active/requested language
+      const localized = localizeNotification(n, targetLang);
+      n.title = localized.title;
+      n.body = localized.body;
     }
 
     return notifications;
   }
 
-  async getBattleNotifications(userId: string, limit: number = 100): Promise<any[]> {
-    const notifications = await this.getNotifications(userId, { limit });
+  async getBattleNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
+    const notifications = await this.getNotifications(userId, { limit, lang });
     const battleNotifs = notifications.filter((n) => {
       const type = (n as any)?.data?.type;
       return typeof type === 'string' && type.startsWith('battle_');
@@ -729,7 +749,11 @@ export class NotificationService {
   }
 
   // Likes on the current user's posts (computed, not stored in Notification table)
-  async getLikePostNotifications(userId: string, limit: number = 100): Promise<any[]> {
+  async getLikePostNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
+    const targetLang = lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang.toLowerCase())
+      ? lang.toLowerCase()
+      : await this.getUserLanguage(userId);
+
     const likes = await this.prisma.postLike.findMany({
       where: {
         userId: { not: userId },
@@ -775,17 +799,29 @@ export class NotificationService {
         ['mission-post', 'crowdfunding', 'support'].includes(like.post?.type || ''),
       );
 
+      const rawTitle = 'Post Liked';
+      const rawBody = `${like.user?.displayName || like.user?.userName || 'Someone'} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`;
+      const translated = translateNotification(rawTitle, rawBody, targetLang, {
+        type: 'like',
+        likerId: like.user?.id,
+        postId: like.post?.id,
+        isTrustPost,
+        isPrivateCircle: isPrivateCirclePost,
+      });
+
       return {
         id: like.id,
         userId,
-        title: 'Post Liked',
-        body: `${like.user?.displayName || like.user?.userName || 'Someone'} ${isPrivateCirclePost ? 'liked your private circle post.' : 'liked your post.'}`,
+        title: translated.title,
+        body: translated.body,
         isTrustPost,
         data: {
           type: 'like',
           likerId: like.user?.id,
           postId: like.post?.id,
           isTrustPost,
+          rawTitle,
+          rawBody,
         },
         isRead: !!(like as any).isReadByOwner,
         createdAt: like.createdAt,
@@ -797,7 +833,11 @@ export class NotificationService {
   }
 
   // Mission donations on the current user's posts (computed, not stored in Notification table)
-  async getMissionDonationNotifications(userId: string, limit: number = 100): Promise<any[]> {
+  async getMissionDonationNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
+    const targetLang = lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang.toLowerCase())
+      ? lang.toLowerCase()
+      : await this.getUserLanguage(userId);
+
     const donations = await this.prisma.donationData.findMany({
       where: {
         vendorId: userId,
@@ -841,11 +881,21 @@ export class NotificationService {
     return donations.map((donation) => {
       const donor = donorMap.get(donation.userId);
       const post = donation.postId ? postMap.get(donation.postId) : undefined;
+      const rawTitle = 'Mission Donation';
+      const rawBody = `${donor?.displayName || donor?.userName || 'Someone'} donated $${donation.amount} to your post.`;
+      const translated = translateNotification(rawTitle, rawBody, targetLang, {
+        type: 'mission_donation',
+        donorId: donation.userId,
+        postId: donation.postId,
+        donationId: donation.id,
+        isTrustPost: true,
+      });
+
       return {
         id: donation.id,
         userId,
-        title: 'Mission Donation',
-        body: `${donor?.displayName || donor?.userName || 'Someone'} donated $${donation.amount} to your post.`,
+        title: translated.title,
+        body: translated.body,
         isTrustPost: true,
         data: {
           type: 'mission_donation',
@@ -853,6 +903,8 @@ export class NotificationService {
           postId: donation.postId,
           donationId: donation.id,
           isTrustPost: true,
+          rawTitle,
+          rawBody,
         },
         isRead: !!(donation as any).isReadByOwner,
         createdAt: donation.createdAt,
@@ -864,7 +916,11 @@ export class NotificationService {
   }
 
   // Pay-following payments received by the current user
-  async getPayFollowingNotifications(userId: string, limit: number = 100): Promise<any[]> {
+  async getPayFollowingNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
+    const targetLang = lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang.toLowerCase())
+      ? lang.toLowerCase()
+      : await this.getUserLanguage(userId);
+
     const payments = await this.prisma.payment.findMany({
       where: {
         receiverId: userId,
@@ -895,16 +951,27 @@ export class NotificationService {
 
     return payments.map((payment) => {
       const payer = payerMap.get(payment.userId);
+      const rawTitle = 'Following Payment';
+      const rawBody = `${payer?.displayName || payer?.userName || 'Someone'} bought your private content subscription.`;
+      const translated = translateNotification(rawTitle, rawBody, targetLang, {
+        type: 'pay_following',
+        payerId: payment.userId,
+        receiverId: payment.receiverId,
+        paymentId: payment.id,
+      });
+
       return {
         id: payment.id,
         userId,
-        title: 'Following Payment',
-        body: `${payer?.displayName || payer?.userName || 'Someone'} bought your private content subscription.`,
+        title: translated.title,
+        body: translated.body,
         data: {
           type: 'pay_following',
           payerId: payment.userId,
           receiverId: payment.receiverId,
           paymentId: payment.id,
+          rawTitle,
+          rawBody,
         },
         isRead: !!(payment as any).isReadByOwner,
         createdAt: payment.createdAt,

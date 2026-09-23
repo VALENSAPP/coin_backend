@@ -15,11 +15,13 @@ export class NotificationController {
   @ApiQuery({ name: 'limit', required: false, type: 'number' })
   @ApiQuery({ name: 'page', required: false, type: 'number' })
   @ApiQuery({ name: 'isRead', required: false, type: 'string', enum: ['true', 'false'] })
+  @ApiQuery({ name: 'lang', required: false, type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'], description: 'Override preferred language' })
   async getNotifications(
     @Req() req: any,
     @Query('limit') limit?: string,
     @Query('page') page?: string,
     @Query('isRead') isRead?: string,
+    @Query('lang') lang?: string,
   ) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
@@ -43,10 +45,11 @@ export class NotificationController {
       limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
       page: Number.isFinite(parsedPage) ? parsedPage : undefined,
       isRead: parsedIsRead,
+      lang,
     });
-    const likePostNotifications = await this.notificationService.getLikePostNotifications(userId);
-    const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId);
-    const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId);
+    const likePostNotifications = await this.notificationService.getLikePostNotifications(userId, undefined, lang);
+    const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId, undefined, lang);
+    const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId, undefined, lang);
 
     // Prefer computed like notifications and remove duplicate like rows by actor+post.
     const filteredStoredNotifications = notifications.filter(
@@ -74,13 +77,15 @@ export class NotificationController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiQuery({ name: 'limit', required: false, type: 'number' })
-  async getBattleNotifications(@Req() req: any, @Query('limit') limit?: string) {
+  @ApiQuery({ name: 'lang', required: false, type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'], description: 'Override preferred language' })
+  async getBattleNotifications(@Req() req: any, @Query('limit') limit?: string, @Query('lang') lang?: string) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
     const parsedLimit = limit ? Number(limit) : undefined;
     const notifications = await this.notificationService.getBattleNotifications(
       userId,
       Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      lang,
     );
     return { notifications };
   }
