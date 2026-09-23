@@ -697,10 +697,10 @@ export class BillingService {
     const creatorName = updated.buyUser?.displayName || updated.buyUser?.userName || 'creator';
     const formattedEndDate = updated.endDate
       ? new Date(updated.endDate).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        })
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
       : 'the end of your billing cycle';
 
     // Send in-app and push notification to the fan
@@ -1749,7 +1749,7 @@ export class BillingService {
 
   async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
-    
+
     // Check if this was a following subscription
     const fanSub = await this.prisma.fansSubscriptionBuyData.findFirst({
       where: { stripeSubscriptionId: subscription.id },
@@ -2722,16 +2722,16 @@ export class BillingService {
     const fanUserIds = records.map((r) => r.fanUserId);
     const paymentsAggregates = fanUserIds.length > 0
       ? await this.prisma.payment.groupBy({
-          by: ['userId'],
-          where: {
-            receiverId: creatorId,
-            userId: { in: fanUserIds },
-            forPayment: 'following',
-            status: 'succeeded',
-          },
-          _sum: { amount: true, totalAmount: true },
-          _count: { id: true },
-        })
+        by: ['userId'],
+        where: {
+          receiverId: creatorId,
+          userId: { in: fanUserIds },
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: { amount: true, totalAmount: true },
+        _count: { id: true },
+      })
       : [];
 
     const paymentMap = new Map<string, { totalPaidAmount: number; totalEarnedAmount: number; paymentsCount: number }>();
@@ -3029,16 +3029,16 @@ export class BillingService {
     const creatorIds = records.map((r) => r.buyUserId);
     const paymentsAggregates = creatorIds.length > 0
       ? await this.prisma.payment.groupBy({
-          by: ['receiverId'],
-          where: {
-            userId: fanUserId,
-            receiverId: { in: creatorIds },
-            forPayment: 'following',
-            status: 'succeeded',
-          },
-          _sum: { totalAmount: true },
-          _count: { id: true },
-        })
+        by: ['receiverId'],
+        where: {
+          userId: fanUserId,
+          receiverId: { in: creatorIds },
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: { totalAmount: true },
+        _count: { id: true },
+      })
       : [];
 
     const paymentMap = new Map<string, { totalPaidAmount: number; paymentsCount: number }>();
@@ -3608,11 +3608,11 @@ export class BillingService {
     });
   }
 
-  async buyHit(amount: number, hitCount: number, userId: string) {
+  async buyHit(hitCount: number, userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     if (!hitCount || hitCount <= 0) throw new BadRequestException('hitCount must be greater than 0');
-
+    const amount = Math.round(hitCount * (Number(process.env.CREDIT_PRICE) * 100));
     const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
 
     if (provider === 'PAGBANK') {
@@ -3651,7 +3651,8 @@ export class BillingService {
     }
 
     if (!amount || amount <= 0) throw new BadRequestException('amount must be greater than 0');
-    const amountMinor = Math.round(amount * 100);
+    // const amountMinor = Math.round(amount * 100);
+    const amountMinor = amount;
 
     const session = await this.stripe.checkout.sessions.create({
       payment_method_types: ['card'],

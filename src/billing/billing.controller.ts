@@ -398,7 +398,7 @@ export class BillingController {
       throw new BadRequestException('User ID mismatch');
     }
 
-    const result = await this.billingService.buyHit(dto.amount, dto.hitCount, dto.userId);
+    const result = await this.billingService.buyHit(dto.hitCount, dto.userId);
     return { message: 'Checkout session created', ...result };
   }
 
