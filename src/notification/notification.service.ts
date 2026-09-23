@@ -227,21 +227,14 @@ export class NotificationService {
       data?: Record<string, any>;
     },
   ): Promise<void> {
-    const lang = await this.getUserLanguage(userId);
-    let title = (titleKeyOrText.startsWith('notifications.') || titleKeyOrText.startsWith('common.') || titleKeyOrText.startsWith('errors.'))
-      ? this.translate(titleKeyOrText, { lang, args: options?.titleArgs })
+    const rawTitle = (titleKeyOrText.startsWith('notifications.') || titleKeyOrText.startsWith('common.') || titleKeyOrText.startsWith('errors.'))
+      ? this.translate(titleKeyOrText, { lang: 'en', args: options?.titleArgs })
       : titleKeyOrText;
-    let body = (bodyKeyOrText.startsWith('notifications.') || bodyKeyOrText.startsWith('common.') || bodyKeyOrText.startsWith('errors.'))
-      ? this.translate(bodyKeyOrText, { lang, args: options?.bodyArgs })
+    const rawBody = (bodyKeyOrText.startsWith('notifications.') || bodyKeyOrText.startsWith('common.') || bodyKeyOrText.startsWith('errors.'))
+      ? this.translate(bodyKeyOrText, { lang: 'en', args: options?.bodyArgs })
       : bodyKeyOrText;
 
-    if (!titleKeyOrText.startsWith('notifications.') && !titleKeyOrText.startsWith('common.') && !titleKeyOrText.startsWith('errors.')) {
-      const translated = translateNotification(title, body, lang, options?.data);
-      title = translated.title;
-      body = translated.body;
-    }
-
-    return this.sendNotificationToUser(userId, title, body, options?.data);
+    return this.sendNotificationToUser(userId, rawTitle, rawBody, options?.data);
   }
 
   async sendNotificationToUser(
@@ -329,8 +322,7 @@ export class NotificationService {
       return;
     }
 
-    const rawLang = (user as any)?.language;
-    const lang = rawLang && ['en', 'pt', 'it', 'es', 'fr'].includes(rawLang) ? rawLang : 'en';
+    const lang = normalizeLanguage((user as any)?.language);
     const translated = translateNotification(title, body, lang, data);
     const finalTitle = translated.title;
     const finalBody = translated.body;
@@ -390,8 +382,7 @@ export class NotificationService {
     const languageGroups = new Map<string, { userIds: string[]; tokens: string[]; finalTitle: string; finalBody: string }>();
 
     for (const user of users) {
-      const rawLang = user.language;
-      const lang = rawLang && ['en', 'pt', 'it', 'es', 'fr'].includes(rawLang) ? rawLang : 'en';
+      const lang = normalizeLanguage(user.language);
 
       if (!languageGroups.has(lang)) {
         const translated = translateNotification(title, body, lang, data);
@@ -1277,22 +1268,21 @@ export class NotificationService {
   }
 
   async sendWelcomeOnboarding(userId: string): Promise<void> {
-    const lang = await this.getUserLanguage(userId);
-    const title = this.translate('notifications.WELCOME_TITLE', { lang });
-    const body = this.translate('notifications.WELCOME_BODY', { lang });
+    const rawTitle = 'Welcome to Valens!';
+    const rawBody = 'Welcome to Valens! Explore features, connect with creators, and enjoy the community.';
 
     return this.sendNotificationToUser(
       userId,
-      title,
-      body,
+      rawTitle,
+      rawBody,
       {
         type: 'welcome_onboarding',
         userId,
         notificationCategory: 'WELCOME_ONBOARDING',
         deepLink: 'valens://home',
         expandedTitle: 'welcome_onboarding',
-        expandedDisplayTitle: title,
-        expandedBody: body,
+        expandedDisplayTitle: rawTitle,
+        expandedBody: rawBody,
         primaryAction: 'START_EXPLORING',
         secondaryAction: 'CREATE_POST',
       },

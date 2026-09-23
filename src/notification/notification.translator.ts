@@ -17,12 +17,32 @@ interface PatternRule {
   bodyPattern: RegExp | string;
   // Translators for each language (returning title and body)
   translations: {
-    [key in 'es' | 'fr' | 'it' | 'pt']: (titleMatch: RegExpMatchArray | null, bodyMatch: RegExpMatchArray | null, data?: Record<string, any>) => TranslatedNotification;
+    [key in 'es' | 'fr' | 'it' | 'pt']: (
+      titleMatch: RegExpMatchArray | null,
+      bodyMatch: RegExpMatchArray | null,
+      data?: Record<string, any>,
+    ) => TranslatedNotification;
   };
 }
 
-// Exact title mapping when body can be translated separately or generically
-const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
+/**
+ * Normalizes any language input (e.g. 'eng', 'en-US', 'pt-BR', 'por', 'spanish') to a SupportedLanguage ('en', 'es', 'fr', 'it', 'pt').
+ */
+export function normalizeLanguage(lang?: string | null): SupportedLanguage {
+  if (!lang) return 'en';
+  const clean = lang.toLowerCase().trim();
+  if (clean === 'en' || clean === 'eng' || clean === 'english' || clean.startsWith('en-') || clean.startsWith('en_')) return 'en';
+  if (clean === 'pt' || clean === 'por' || clean === 'portuguese' || clean.startsWith('pt-') || clean.startsWith('pt_')) return 'pt';
+  if (clean === 'es' || clean === 'spa' || clean === 'spanish' || clean.startsWith('es-') || clean.startsWith('es_')) return 'es';
+  if (clean === 'fr' || clean === 'fra' || clean === 'fre' || clean === 'french' || clean.startsWith('fr-') || clean.startsWith('fr_')) return 'fr';
+  if (clean === 'it' || clean === 'ita' || clean === 'italian' || clean.startsWith('it-') || clean.startsWith('it_')) return 'it';
+  return 'en';
+}
+
+// ============================================================================
+// 1. EXACT TITLE MAP (English -> Target Languages)
+// ============================================================================
+export const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
   'Welcome to Valens!': {
     es: '¡Bienvenido a Valens!',
     fr: 'Bienvenue sur Valens !',
@@ -41,6 +61,12 @@ const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
     it: '👤 Nuovo Follower!',
     pt: '👤 Novo Seguidor!',
   },
+  'New Unfollower': {
+    es: 'Nuevo no seguidor',
+    fr: 'Nouvel utilisateur désabonné',
+    it: 'Nuovo non follower',
+    pt: 'Novo Deixou de Seguir',
+  },
   'Follower Unfollowed': {
     es: 'Seguidor te dejó de seguir',
     fr: 'Abonné désabonné',
@@ -53,11 +79,35 @@ const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
     it: 'Mi piace al post',
     pt: 'Publicação Curtida',
   },
+  'Mission Donation': {
+    es: 'Donación de Misión',
+    fr: 'Don de Mission',
+    it: 'Donazione per la Missione',
+    pt: 'Doação para Missão',
+  },
+  'Pay to Follow': {
+    es: 'Pago para Seguir',
+    fr: 'Paiement pour Suivre',
+    it: 'Paga per Seguire',
+    pt: 'Pagamento para Seguir',
+  },
+  'Following Payment': {
+    es: 'Pago de Suscripción',
+    fr: 'Paiement d\'Abonnement',
+    it: 'Pagamento Abbonamento',
+    pt: 'Pagamento de Assinatura',
+  },
   '💬 New Comment': {
     es: '💬 Nuevo Comentario',
     fr: '💬 Nouveau Commentaire',
     it: '💬 Nuovo Commento',
     pt: '💬 Novo Comentário',
+  },
+  'New Comment': {
+    es: 'Nuevo Comentario',
+    fr: 'Nouveau Commentaire',
+    it: 'Nuovo Commento',
+    pt: 'Novo Comentário',
   },
   '📢 You were mentioned!': {
     es: '📢 ¡Fuiste mencionado!',
@@ -160,6 +210,42 @@ const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
     fr: 'Défi de Boutique Refusé',
     it: 'Battaglia Negozio Rifiutata',
     pt: 'Batalha de Loja Recusada',
+  },
+  'Shop Battle Challenge Cancelled': {
+    es: 'Desafío de Batalla de Tienda Cancelado',
+    fr: 'Défi de Boutique Annulé',
+    it: 'Sfida Battaglia Negozio Annullata',
+    pt: 'Desafio de Batalha de Loja Cancelado',
+  },
+  'Shop Battle Challenge Expired': {
+    es: 'Desafío de Batalla de Tienda Expirado',
+    fr: 'Défi de Boutique Expiré',
+    it: 'Sfida Battaglia Negozio Scaduta',
+    pt: 'Desafio de Batalha de Loja Expirado',
+  },
+  'Marketplace Battle Is Live': {
+    es: 'La Batalla del Marketplace está en Vivo',
+    fr: 'Le Défi Marketplace est en Direct',
+    it: 'La Battaglia del Marketplace è Live',
+    pt: 'A Batalha do Marketplace está ao Vivo',
+  },
+  'Marketplace Battle Cancelled': {
+    es: 'Batalla del Marketplace Cancelada',
+    fr: 'Défi Marketplace Annulé',
+    it: 'Battaglia Marketplace Annullata',
+    pt: 'Batalha do Marketplace Cancelada',
+  },
+  'Marketplace Battle Completed': {
+    es: 'Batalla del Marketplace Completada',
+    fr: 'Défi Marketplace Terminé',
+    it: 'Battaglia Marketplace Completata',
+    pt: 'Batalha do Marketplace Concluída',
+  },
+  'Marketplace Battle Ended In Tie': {
+    es: 'Batalla del Marketplace Terminó en Empate',
+    fr: 'Défi Marketplace Terminé par une Égalité',
+    it: 'Battaglia Marketplace Terminata in Parità',
+    pt: 'Batalha do Marketplace Terminou em Empate',
   },
   '⚔️ Battle Started': {
     es: '⚔️ Batalla Iniciada',
@@ -407,6 +493,18 @@ const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
     it: 'Token Ricevuti',
     pt: 'Tokens Recebidos',
   },
+  'Token Purchase Successful': {
+    es: 'Compra de Tokens Exitosa',
+    fr: 'Achat de Jetons Réussi',
+    it: 'Acquisto Token Riuscito',
+    pt: 'Compra de Tokens Bem-sucedida',
+  },
+  'Token Purchase': {
+    es: 'Compra de Tokens',
+    fr: 'Achat de Jetons',
+    it: 'Acquisto Token',
+    pt: 'Compra de Tokens',
+  },
   'Payout Deposited': {
     es: 'Pago Depositado',
     fr: 'Paiement Déposé',
@@ -436,6 +534,12 @@ const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
     fr: 'Problème de Paiement Bancaire',
     it: 'Problema di Pagamento Bancario',
     pt: 'Problema no Pagamento Bancário',
+  },
+  'Subscription Price Update': {
+    es: 'Actualización de Precio de Suscripción',
+    fr: 'Mise à Jour du Prix de l\'Abonnement',
+    it: 'Aggiornamento Prezzo Abbonamento',
+    pt: 'Atualização do Preço da Assinatura',
   },
   'Subscription Price Updated': {
     es: 'Precio de Suscripción Actualizado',
@@ -475,7 +579,10 @@ const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
   },
 };
 
-const PATTERN_RULES: PatternRule[] = [
+// ============================================================================
+// 2. PATTERN RULES (English -> Target Languages)
+// ============================================================================
+export const PATTERN_RULES: PatternRule[] = [
   // 1. Mission launched title: "🎯 @creator launched a Mission!"
   {
     titlePattern: /^🎯\s*(.*?)\s+launched a Mission!$/i,
@@ -500,7 +607,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 2. Follower: "@username started following you. Check out their profile." or "@username started following you."
+  // 2. Follower: "@username started following you. Check out their profile."
   {
     titlePattern: /^(?:👤\s*)?New Follower!?$/i,
     bodyPattern: /^(.*?)\s+started following you(?:\.\s*Check out their profile\.?)?$/i,
@@ -526,7 +633,7 @@ const PATTERN_RULES: PatternRule[] = [
 
   // 3. Unfollowed: "@username unfollowed you."
   {
-    titlePattern: /^Follower Unfollowed$/i,
+    titlePattern: /^(?:New Unfollower|Follower Unfollowed)$/i,
     bodyPattern: /^(.*?)\s+unfollowed you\.?$/i,
     translations: {
       es: (_, b) => ({
@@ -592,9 +699,57 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 5. New Comment: '@username commented on your post: "..."'
+  // 5. Mission Donation: "@donor donated $amount to your post."
   {
-    titlePattern: /^💬\s*New Comment$/i,
+    titlePattern: /^Mission Donation$/i,
+    bodyPattern: /^(.*?)\s+donated \$?([\d,.]+)\s+to your post\.?$/i,
+    translations: {
+      es: (_, b) => ({
+        title: 'Donación de Misión',
+        body: `${b?.[1] || 'Alguien'} donó $${b?.[2] || '0'} a tu publicación.`,
+      }),
+      fr: (_, b) => ({
+        title: 'Don de Mission',
+        body: `${b?.[1] || 'Quelqu\'un'} a fait un don de $${b?.[2] || '0'} à votre publication.`,
+      }),
+      it: (_, b) => ({
+        title: 'Donazione per la Missione',
+        body: `${b?.[1] || 'Qualcuno'} ha donato $${b?.[2] || '0'} al tuo post.`,
+      }),
+      pt: (_, b) => ({
+        title: 'Doação para Missão',
+        body: `${b?.[1] || 'Alguém'} doou $${b?.[2] || '0'} para a sua publicação.`,
+      }),
+    },
+  },
+
+  // 6. Pay to Follow: "@payer paid $amount to follow you."
+  {
+    titlePattern: /^(?:Pay to Follow|Following Payment)$/i,
+    bodyPattern: /^(.*?)\s+paid \$?([\d,.]+)\s+to follow you\.?$/i,
+    translations: {
+      es: (_, b) => ({
+        title: 'Pago para Seguir',
+        body: `${b?.[1] || 'Alguien'} pagó $${b?.[2] || '0'} para seguirte.`,
+      }),
+      fr: (_, b) => ({
+        title: 'Paiement pour Suivre',
+        body: `${b?.[1] || 'Quelqu\'un'} a payé $${b?.[2] || '0'} pour vous suivre.`,
+      }),
+      it: (_, b) => ({
+        title: 'Paga per Seguire',
+        body: `${b?.[1] || 'Qualcuno'} ha pagato $${b?.[2] || '0'} per seguirti.`,
+      }),
+      pt: (_, b) => ({
+        title: 'Pagamento para Seguir',
+        body: `${b?.[1] || 'Alguém'} pagou $${b?.[2] || '0'} para seguir você.`,
+      }),
+    },
+  },
+
+  // 7. New Comment: '@username commented on your post: "..."'
+  {
+    titlePattern: /^(?:💬\s*)?New Comment$/i,
     bodyPattern: /^(.*?)\s+commented on your post:\s*"(.*)"$/is,
     translations: {
       es: (_, b) => ({
@@ -616,7 +771,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 6. Mentioned in post: "@username mentioned you in a post. Tap to see the context." or Battle post
+  // 8. Mentions: "@username mentioned you in a post. Tap to see the context." or Battle post
   {
     titlePattern: /^📢\s*You were mentioned!$/i,
     bodyPattern: /^(.*?)\s+mentioned you in a (Battle post|post)\.\s*Tap to see the context\.?$/i,
@@ -660,31 +815,31 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 7. Tagged in a post / circle post
+  // 9. Tagged in a post / circle post
   {
-    titlePattern: /^Tagged in a (post|private circle post)$/i,
-    bodyPattern: /^(.*?)\s+tagged you in a (post|private circle post)\.?$/i,
+    titlePattern: /^Tagged in a (private circle post|post)$/i,
+    bodyPattern: /^(.*?)\s+tagged you in a (private circle post|post)\.?$/i,
     translations: {
       es: (t, b) => {
-        const isCircle = (t?.[1] || b?.[2] || '').includes('circle');
+        const isCircle = t?.[1]?.includes('private circle') || b?.[2]?.includes('private circle');
         return {
           title: isCircle ? 'Etiquetado en un círculo privado' : 'Etiquetado en una publicación',
           body: isCircle
-            ? `${b?.[1] || 'Alguien'} te etiquetó en una publicación de círculo privado.`
+            ? `${b?.[1] || 'Alguien'} te etiquetó en una publicación del círculo privado.`
             : `${b?.[1] || 'Alguien'} te etiquetó en una publicación.`,
         };
       },
       fr: (t, b) => {
-        const isCircle = (t?.[1] || b?.[2] || '').includes('circle');
+        const isCircle = t?.[1]?.includes('private circle') || b?.[2]?.includes('private circle');
         return {
           title: isCircle ? 'Identifié dans un cercle privé' : 'Identifié dans une publication',
           body: isCircle
-            ? `${b?.[1] || 'Quelqu\'un'} vous a identifié dans un cercle privé.`
+            ? `${b?.[1] || 'Quelqu\'un'} vous a identifié dans une publication de cercle privé.`
             : `${b?.[1] || 'Quelqu\'un'} vous a identifié dans une publication.`,
         };
       },
       it: (t, b) => {
-        const isCircle = (t?.[1] || b?.[2] || '').includes('circle');
+        const isCircle = t?.[1]?.includes('private circle') || b?.[2]?.includes('private circle');
         return {
           title: isCircle ? 'Taggato in un cerchio privato' : 'Taggato in un post',
           body: isCircle
@@ -693,7 +848,7 @@ const PATTERN_RULES: PatternRule[] = [
         };
       },
       pt: (t, b) => {
-        const isCircle = (t?.[1] || b?.[2] || '').includes('circle');
+        const isCircle = t?.[1]?.includes('private circle') || b?.[2]?.includes('private circle');
         return {
           title: isCircle ? 'Marcado em um círculo privado' : 'Marcado em uma publicação',
           body: isCircle
@@ -704,9 +859,9 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 8. Private circle: "You've Been Chosen" / "${ownerName} added you to their Private Circle."
+  // 10. Private Circle: "You've Been Chosen" / "@creator added you to their Private Circle."
   {
-    titlePattern: /^"?You've Been Chosen"?$/i,
+    titlePattern: /^You've Been Chosen$/i,
     bodyPattern: /^(.*?)\s+added you to their Private Circle\.?$/i,
     translations: {
       es: (_, b) => ({
@@ -728,7 +883,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 9. Circle is growing: "${joinedUserHandle} just joined your Private Circle. You now have ${totalMembers} members."
+  // 11. Private Circle Growing: "👥 Your Circle is growing!"
   {
     titlePattern: /^👥\s*Your Circle is growing!$/i,
     bodyPattern: /^(.*?)\s+just joined your Private Circle\.\s*You now have\s+(\d+)\s+members\.?$/i,
@@ -752,7 +907,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 10. Private circle post: "${creatorHandle} just posted exclusive content for your Private Circle. Only you can see this."
+  // 12. Private Circle: Exclusive post published
   {
     titlePattern: /^🔐\s*New exclusive post in your Circle!$/i,
     bodyPattern: /^(.*?)\s+just posted exclusive content for your Private Circle\.\s*Only you can see this\.?$/i,
@@ -776,7 +931,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 11. Private circle access removed: "You have been removed from ${ownerHandle}'s Private Circle. Exclusive content is no longer accessible."
+  // 13. Private Circle Access Removed
   {
     titlePattern: /^🔓\s*Private Circle access removed\.?$/i,
     bodyPattern: /^You have been removed from (.*?)'s Private Circle\.\s*Exclusive content is no longer accessible\.?$/i,
@@ -800,7 +955,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 12. Drop trending: "${actorText} reacted to your Drop Story. It's getting traction!"
+  // 14. Drop Trending
   {
     titlePattern: /^🎬\s*Your Drop is trending!$/i,
     bodyPattern: /^(.*?)\s+reacted to your Drop Story\.\s*It's getting traction!?$/i,
@@ -824,7 +979,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 13. Story views: "${viewerText} viewed your Story in the last hour."
+  // 15. Story views: "👁 Your Story is Popular!"
   {
     titlePattern: /^👁\s*Your Story is Popular!$/i,
     bodyPattern: /^(.*?)\s+viewed your Story in the last hour\.?$/i,
@@ -848,7 +1003,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 14. Post credits low: "You have 1 post credit remaining. Upgrade to keep posting."
+  // 16. Post credit low: "⚠️ 1 Post Credit Left"
   {
     titlePattern: /^⚠️\s*1 Post Credit Left$/i,
     bodyPattern: /^You have 1 post credit remaining\.\s*Upgrade to keep posting\.?$/i,
@@ -872,22 +1027,22 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 15. Battle invite: "${inviterHandle} challenged you to a Battle. Review their side and argument."
+  // 17. Battle Invite: "${inviterHandle} challenged you to a Battle. Review their side and argument."
   {
     titlePattern: /^Battle Invitation$/i,
     bodyPattern: /^(.*?)\s+challenged you to a Battle\.\s*Review their side and argument\.?$/i,
     translations: {
       es: (_, b) => ({
         title: 'Invitación a Batalla',
-        body: `${b?.[1] || 'Alguien'} te desafió a una Batalla. Revisa su posición y argumento.`,
+        body: `${b?.[1] || 'Alguien'} te desafió a una Batalla. Revisa su postura y argumento.`,
       }),
       fr: (_, b) => ({
         title: 'Invitation au Défi',
-        body: `${b?.[1] || 'Quelqu\'un'} vous a défié pour une Batalla. Examinez son camp et son argument.`,
+        body: `${b?.[1] || 'Quelqu\'un'} vous a défié pour un Défi. Examinez son camp et son argument.`,
       }),
       it: (_, b) => ({
         title: 'Invito alla Battaglia',
-        body: `${b?.[1] || 'Qualcuno'} ti ha sfidato a una Battaglia. Esamina la sua posizione e le sue argomentazioni.`,
+        body: `${b?.[1] || 'Qualcuno'} ti ha sfidato a una Battaglia. Esamina la sua fazione e le sue argomentazioni.`,
       }),
       pt: (_, b) => ({
         title: 'Convite para Batalha',
@@ -896,7 +1051,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 16. Shop battle challenge: "${inviterName} challenged your shop to a battle."
+  // 18. Shop Battle Challenge
   {
     titlePattern: /^Shop Battle Challenge$/i,
     bodyPattern: /^(.*?)\s+challenged your shop to a battle\.?$/i,
@@ -920,26 +1075,26 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 17. Shop battle accepted / declined
+  // 19. Shop Battle Accepted / Declined / Cancelled / Expired
   {
     titlePattern: /^Shop Battle Accepted$/i,
     bodyPattern: /^A cross-shop battle challenge was accepted\.\s*The battle is ready\.?$/i,
     translations: {
       es: () => ({
         title: 'Batalla de Tienda Aceptada',
-        body: 'El desafío de batalla entre tiendas fue aceptado. La batalla está lista.',
+        body: 'Se aceptó un desafío de batalla entre tiendas. La batalla está lista.',
       }),
       fr: () => ({
         title: 'Défi de Boutique Accepté',
-        body: 'Le défi de combat entre boutiques a été accepté. Le combat est prêt.',
+        body: 'Un défi entre boutiques a été accepté. La bataille est prête.',
       }),
       it: () => ({
         title: 'Battaglia Negozio Accettata',
-        body: 'La sfida di battaglia tra negozi è stata accettata. La battaglia è pronta.',
+        body: 'Una sfida tra negozi è stata accettata. La battaglia è pronta.',
       }),
       pt: () => ({
         title: 'Batalha de Loja Aceita',
-        body: 'O desafio de batalha entre lojas foi aceito. A batalha está pronta.',
+        body: 'Um desafio de batalha entre lojas foi aceito. A batalha está pronta.',
       }),
     },
   },
@@ -949,11 +1104,11 @@ const PATTERN_RULES: PatternRule[] = [
     translations: {
       es: () => ({
         title: 'Batalla de Tienda Rechazada',
-        body: 'Tu desafío de batalla entre tiendas fue rechazado. Los puntos apostados fueron reembolsados.',
+        body: 'Tu desafío entre tiendas fue rechazado. Los puntos de apuesta fueron reembolsados.',
       }),
       fr: () => ({
         title: 'Défi de Boutique Refusé',
-        body: 'Votre défi de combat entre boutiques a été refusé. Les points misés ont été remboursés.',
+        body: 'Votre défi entre boutiques a été refusé. Les points misés ont été remboursés.',
       }),
       it: () => ({
         title: 'Battaglia Negozio Rifiutata',
@@ -965,8 +1120,140 @@ const PATTERN_RULES: PatternRule[] = [
       }),
     },
   },
+  {
+    titlePattern: /^Shop Battle Challenge Cancelled$/i,
+    bodyPattern: /^A shop battle challenge was cancelled by the challenger\.?$/i,
+    translations: {
+      es: () => ({
+        title: 'Desafío de Batalla de Tienda Cancelado',
+        body: 'Un desafío de batalla de tienda fue cancelado por el retador.',
+      }),
+      fr: () => ({
+        title: 'Défi de Boutique Annulé',
+        body: 'Un défi de boutique a été annulé par le challenger.',
+      }),
+      it: () => ({
+        title: 'Sfida Battaglia Negozio Annullata',
+        body: 'Una sfida di battaglia del negozio è stata annullata dallo sfidante.',
+      }),
+      pt: () => ({
+        title: 'Desafio de Batalha de Loja Cancelado',
+        body: 'Um desafio de batalha de loja foi cancelado pelo desafiante.',
+      }),
+    },
+  },
+  {
+    titlePattern: /^Shop Battle Challenge Expired$/i,
+    bodyPattern: /^Your challenge "(.*?)" expired without a response\.?$/i,
+    translations: {
+      es: (_, b) => ({
+        title: 'Desafío de Batalla de Tienda Expirado',
+        body: `Tu desafío "${b?.[1] || ''}" expiró sin respuesta.`,
+      }),
+      fr: (_, b) => ({
+        title: 'Défi de Boutique Expiré',
+        body: `Votre défi « ${b?.[1] || ''} » a expiré sans réponse.`,
+      }),
+      it: (_, b) => ({
+        title: 'Sfida Battaglia Negozio Scaduta',
+        body: `La tua sfida "${b?.[1] || ''}" è scaduta senza risposta.`,
+      }),
+      pt: (_, b) => ({
+        title: 'Desafio de Batalha de Loja Expirado',
+        body: `Seu desafio "${b?.[1] || ''}" expirou sem resposta.`,
+      }),
+    },
+  },
 
-  // 18. Battle started
+  // 20. Marketplace Battle Is Live / Cancelled / Completed
+  {
+    titlePattern: /^Marketplace Battle Is Live$/i,
+    bodyPattern: /^Your marketplace battle "(.*?)" is now live\.?$/i,
+    translations: {
+      es: (_, b) => ({
+        title: 'La Batalla del Marketplace está en Vivo',
+        body: `Tu batalla del marketplace "${b?.[1] || ''}" ya está en vivo.`,
+      }),
+      fr: (_, b) => ({
+        title: 'Le Défi Marketplace est en Direct',
+        body: `Votre défi marketplace « ${b?.[1] || ''} » est maintenant en direct.`,
+      }),
+      it: (_, b) => ({
+        title: 'La Battaglia del Marketplace è Live',
+        body: `La tua battaglia del marketplace "${b?.[1] || ''}" è ora attiva.`,
+      }),
+      pt: (_, b) => ({
+        title: 'A Batalha do Marketplace está ao Vivo',
+        body: `Sua batalha do marketplace "${b?.[1] || ''}" está no ar agora.`,
+      }),
+    },
+  },
+  {
+    titlePattern: /^Marketplace Battle Cancelled$/i,
+    bodyPattern: /^Your marketplace battle "(.*?)" was cancelled\.?$/i,
+    translations: {
+      es: (_, b) => ({
+        title: 'Batalla del Marketplace Cancelada',
+        body: `Tu batalla del marketplace "${b?.[1] || ''}" fue cancelada.`,
+      }),
+      fr: (_, b) => ({
+        title: 'Défi Marketplace Annulé',
+        body: `Votre défi marketplace « ${b?.[1] || ''} » a été annulé.`,
+      }),
+      it: (_, b) => ({
+        title: 'Battaglia Marketplace Annullata',
+        body: `La tua battaglia del marketplace "${b?.[1] || ''}" è stata annullata.`,
+      }),
+      pt: (_, b) => ({
+        title: 'Batalha do Marketplace Cancelada',
+        body: `Sua batalha do marketplace "${b?.[1] || ''}" foi cancelada.`,
+      }),
+    },
+  },
+  {
+    titlePattern: /^(?:Marketplace Battle Completed|Marketplace Battle Ended In Tie)$/i,
+    bodyPattern: /^Your marketplace battle "(.*?)" (has a winner|ended in a tie)\.?$/i,
+    translations: {
+      es: (t, b) => {
+        const isTie = t?.[0]?.includes('Tie') || b?.[2]?.includes('tie');
+        return {
+          title: isTie ? 'Batalla del Marketplace Terminó en Empate' : 'Batalla del Marketplace Completada',
+          body: isTie
+            ? `Tu batalla del marketplace "${b?.[1] || ''}" terminó en empate.`
+            : `Tu batalla del marketplace "${b?.[1] || ''}" tiene un ganador.`,
+        };
+      },
+      fr: (t, b) => {
+        const isTie = t?.[0]?.includes('Tie') || b?.[2]?.includes('tie');
+        return {
+          title: isTie ? 'Défi Marketplace Terminé par une Égalité' : 'Défi Marketplace Terminé',
+          body: isTie
+            ? `Votre défi marketplace « ${b?.[1] || ''} » s'est terminé par une égalité.`
+            : `Votre défi marketplace « ${b?.[1] || ''} » a un gagnant.`,
+        };
+      },
+      it: (t, b) => {
+        const isTie = t?.[0]?.includes('Tie') || b?.[2]?.includes('tie');
+        return {
+          title: isTie ? 'Battaglia Marketplace Terminata in Parità' : 'Battaglia Marketplace Completata',
+          body: isTie
+            ? `La tua battaglia del marketplace "${b?.[1] || ''}" è terminata in parità.`
+            : `La tua battaglia del marketplace "${b?.[1] || ''}" ha un vincitore.`,
+        };
+      },
+      pt: (t, b) => {
+        const isTie = t?.[0]?.includes('Tie') || b?.[2]?.includes('tie');
+        return {
+          title: isTie ? 'Batalha do Marketplace Terminou em Empate' : 'Batalha do Marketplace Concluída',
+          body: isTie
+            ? `Sua batalha do marketplace "${b?.[1] || ''}" terminou empatada.`
+            : `Sua batalha do marketplace "${b?.[1] || ''}" tem um vencedor.`,
+        };
+      },
+    },
+  },
+
+  // 21. Battle Started: "⚔️ Battle Started" / "The debate is live. See who joins your side."
   {
     titlePattern: /^⚔️\s*Battle Started$/i,
     bodyPattern: /^The debate is live\.\s*See who joins your side\.?$/i,
@@ -985,15 +1272,15 @@ const PATTERN_RULES: PatternRule[] = [
       }),
       pt: () => ({
         title: '⚔️ Batalha Iniciada',
-        body: 'O debate está ao vivo. Veja quem entra do seu lado.',
+        body: 'O debate está no ar. Veja quem apoia seu lado.',
       }),
     },
   },
 
-  // 19. New participants in battle: "${safeNewCount} new participants joined your Battle. See which side the community is backing."
+  // 22. Battle New Participants
   {
     titlePattern: /^👥\s*New Participants!$/i,
-    bodyPattern: /^(.*?)\s+new participants joined your Battle\.\s*See which side the community is backing\.?$/i,
+    bodyPattern: /^(\d+)\s+new participants joined your Battle\.\s*See which side the community is backing\.?$/i,
     translations: {
       es: (_, b) => ({
         title: '👥 ¡Nuevos Participantes!',
@@ -1014,7 +1301,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 20. Battle closing soon: "Final votes are coming in. See the current outcome before time runs out."
+  // 23. Battle Closing Soon
   {
     titlePattern: /^⏳\s*Battle Closing Soon$/i,
     bodyPattern: /^Final votes are coming in\.\s*See the current outcome before time runs out\.?$/i,
@@ -1038,7 +1325,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 21. Battle completed: "See the final outcome and accuracy result for your Battle."
+  // 24. Battle Completed
   {
     titlePattern: /^🏆\s*Battle Completed$/i,
     bodyPattern: /^See the final outcome and accuracy result for your Battle\.?$/i,
@@ -1062,7 +1349,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 22. Battle declined: "The invited user declined your battle invite."
+  // 25. Battle Declined
   {
     titlePattern: /^Battle Declined$/i,
     bodyPattern: /^The invited user declined your battle invite\.?$/i,
@@ -1086,7 +1373,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 23. Battle invite expired: "Your battle was not accepted by ${safeName}."
+  // 26. Battle Invite Expired
   {
     titlePattern: /^Battle Invite Expired$/i,
     bodyPattern: /^Your battle was not accepted by (.*?)\.?$/i,
@@ -1110,7 +1397,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 24. Battle result / closed
+  // 27. Battle Result / Battle Closed
   {
     titlePattern: /^Battle Result$/i,
     bodyPattern: /^Your battle has ended\.\s*Check the results\.?$/i,
@@ -1156,9 +1443,9 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 25. Victory: "Your credibility score has increased. Check your updated achievements."
+  // 28. Battle Victory
   {
-    titlePattern: /^Victory! Your side won!$/i,
+    titlePattern: /^(?:Victory! Your side won!|Battle Victory!?)$/i,
     bodyPattern: /^Your credibility score has increased\.\s*Check your updated achievements\.?$/i,
     translations: {
       es: () => ({
@@ -1180,7 +1467,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 26. Loss / forecast missed: "The outcome did not match your forecast. Review your accuracy."
+  // 29. Battle Loss / Forecast Missed
   {
     titlePattern: /^Battle Result Updated$/i,
     bodyPattern: /^The outcome did not match your forecast\.\s*Review your accuracy\.?$/i,
@@ -1204,7 +1491,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 27. Leaderboard climbed: "See your new global ranking as a Forecaster on Valens."
+  // 30. Leaderboard Climbed
   {
     titlePattern: /^You moved up the leaderboard!$/i,
     bodyPattern: /^See your new global ranking as a Forecaster on Valens\.?$/i,
@@ -1228,7 +1515,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 28. New battle: "New battle: ..."
+  // 31. New Battle created to followers
   {
     titlePattern: /^New Battle$/i,
     bodyPattern: /^New battle:\s*(.*)$/i,
@@ -1252,7 +1539,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 29. Milestones 25%, 50%, 75%
+  // 32. Milestones 25%, 50%, 75%
   {
     titlePattern: /^📈\s*Mission is 25% funded!$/i,
     bodyPattern: /^(.*?)\s+campaign just hit its first milestone\.\s*Help push it further!?$/i,
@@ -1320,7 +1607,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 30. New backer: "${backerHandle} contributed $${donation.amount} to your Mission. You're now ${fundedPercent}% funded!"
+  // 33. New Backer on Mission: "${backerHandle} contributed $${donation.amount} to your Mission. You're now ${fundedPercent}% funded!"
   {
     titlePattern: /^🏦\s*New Backer on your Mission!$/i,
     bodyPattern: /^(.*?)\s+contributed \$?([\d,.]+)\s+to your Mission\.\s*You're now\s+([\d,.]+)%\s+funded!?$/i,
@@ -1344,7 +1631,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 31. Mission fully funded (to creator): "Congratulations! Your campaign hit the $... goal. Payout is being processed."
+  // 34. Mission Fully Funded (to creator)
   {
     titlePattern: /^🎉\s*Your Mission is FULLY FUNDED!$/i,
     bodyPattern: /^Congratulations!\s*Your campaign hit the \$?([\d,.]+)\s+goal\.\s*Payout is being processed\.?$/i,
@@ -1368,7 +1655,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 32. Mission fully funded (to backer): "${creatorHandle}'s Mission reached its goal! You helped make it happen. Thank you."
+  // 35. Mission Fully Funded (to backer)
   {
     titlePattern: /^🎉\s*Mission Fully Funded!$/i,
     bodyPattern: /^(.*?)\s+Mission reached its goal!\s*You helped make it happen\.\s*Thank you\.?$/i,
@@ -1392,7 +1679,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 33. Mission ending in 24 hours: "${creatorHandle}'s campaign closes tomorrow. Don't miss your chance to back it."
+  // 36. Mission Ending Soon (24 hours)
   {
     titlePattern: /^⏰\s*Mission ends in 24 hours!$/i,
     bodyPattern: /^(.*?)\s+campaign closes tomorrow\.\s*Don't miss your chance to back it\.?$/i,
@@ -1416,7 +1703,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 34. Contribution confirmed: "Your $${amountPaid} backing of ${creatorHandle}'s Mission is confirmed. Thank you for your support!"
+  // 37. Contribution Confirmed
   {
     titlePattern: /^✅\s*Contribution Confirmed!$/i,
     bodyPattern: /^Your \$?([\d,.]+)\s+backing of (.*?)\s+Mission is confirmed\.\s*Thank you for your support!?$/i,
@@ -1440,7 +1727,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 35. Badge unlocked: "You reached ${followers} followers! Dralens evolved to ${tier} tier. Congrats!"
+  // 38. Badge Tier Unlocked
   {
     titlePattern: /^🥇\s*New Badge Unlocked!$/i,
     bodyPattern: /^You reached ([\d,.]+)\s+followers!\s*Dralens evolved to (.*?)\s+tier\.\s*Congrats!?$/i,
@@ -1464,7 +1751,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 36. Order: "You have a new order" / "${buyerUsername} has placed a new order in your closet."
+  // 39. Order: You have a new order
   {
     titlePattern: /^You have a new order$/i,
     bodyPattern: /^(.*?)\s+has placed a new order in your closet\.?$/i,
@@ -1488,7 +1775,47 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 37. Order prepared: "${sellerUsername} is preparing your order for shipment..." or pickup
+  // 40. Order placed successfully
+  {
+    titlePattern: /^Order Placed Successfully$/i,
+    bodyPattern: /^Your order (?:#([^\s]+)\s+)?has been placed successfully\.(?:\s*You earned ([\d,.]+) Platform Points!?)?$/i,
+    translations: {
+      es: (_, b) => {
+        const orderPart = b?.[1] ? `#${b[1]} ` : '';
+        const pointsPart = b?.[2] ? ` ¡Ganaste ${b[2]} Puntos de Plataforma!` : '';
+        return {
+          title: 'Pedido Realizado con Éxito',
+          body: `Tu pedido ${orderPart}ha sido realizado con éxito.${pointsPart}`,
+        };
+      },
+      fr: (_, b) => {
+        const orderPart = b?.[1] ? `#${b[1]} ` : '';
+        const pointsPart = b?.[2] ? ` Vous avez gagné ${b[2]} Points de Plateforme !` : '';
+        return {
+          title: 'Commande Passée avec Succès',
+          body: `Votre commande ${orderPart}a été passée avec succès.${pointsPart}`,
+        };
+      },
+      it: (_, b) => {
+        const orderPart = b?.[1] ? `#${b[1]} ` : '';
+        const pointsPart = b?.[2] ? ` Hai guadagnato ${b[2]} Punti Piattaforma!` : '';
+        return {
+          title: 'Ordine Effettuato con Successo',
+          body: `Il tuo ordine ${orderPart}è stato effettuato con successo.${pointsPart}`,
+        };
+      },
+      pt: (_, b) => {
+        const orderPart = b?.[1] ? `#${b[1]} ` : '';
+        const pointsPart = b?.[2] ? ` Você ganhou ${b[2]} Pontos da Plataforma!` : '';
+        return {
+          title: 'Pedido Realizado com Sucesso',
+          body: `Seu pedido ${orderPart}foi realizado com sucesso.${pointsPart}`,
+        };
+      },
+    },
+  },
+
+  // 41. Order prepared (shipment or pickup)
   {
     titlePattern: /^Your Order is being prepared! 📦$/i,
     bodyPattern: /^(.*?)\s+is preparing your order for shipment.*$/is,
@@ -1534,7 +1861,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 38. Order shipped: "Your order has been shipped." or "... Tracking was validated with the carrier."
+  // 42. Order shipped
   {
     titlePattern: /^Order Shipped$/i,
     bodyPattern: /^Your order has been shipped\.(.*)?$/i,
@@ -1566,7 +1893,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 39. Order delivered / confirm delivery
+  // 43. Order delivered (carrier or simple)
   {
     titlePattern: /^Order Delivered$/i,
     bodyPattern: /^Carrier confirmed delivery\.\s*Confirm receipt or report a problem within 48 hours\.?$/i,
@@ -1678,7 +2005,7 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 40. Pickup completed & Sale completed
+  // 44. Pickup Completed / Sale Completed
   {
     titlePattern: /^🎉\s*Pickup Completed!$/i,
     bodyPattern: /^Your pickup was completed successfully\.\s*Thanks for shopping on Valens!?$/i,
@@ -1724,7 +2051,103 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 41. Chat message: "You have a new message in your marketplace chat."
+  // 45. Cancellation Requested
+  {
+    titlePattern: /^Cancellation Requested$/i,
+    bodyPattern: /^⚠️\s*(.*?)\s+requested to cancel Order\s*#?([^\s.]+)\.?(?:[\r\n]+Reason:\s*(.*?))?[\r\n]+Please review and approve or decline in your seller dashboard\.?$/is,
+    translations: {
+      es: (_, b) => {
+        const reason = b?.[3] ? `\nMotivo: ${b[3]}` : '';
+        return {
+          title: 'Cancelación Solicitada',
+          body: `⚠️ ${b?.[1] || 'El comprador'} solicitó cancelar el Pedido #${b?.[2] || ''}.${reason}\nPor favor revisa y aprueba o rechaza en tu panel de vendedor.`,
+        };
+      },
+      fr: (_, b) => {
+        const reason = b?.[3] ? `\nRaison : ${b[3]}` : '';
+        return {
+          title: 'Annulation Demandée',
+          body: `⚠️ ${b?.[1] || 'L\'acheteur'} a demandé l'annulation de la Commande #${b?.[2] || ''}.${reason}\nVeuillez examiner et approuver ou refuser dans votre tableau de bord.`,
+        };
+      },
+      it: (_, b) => {
+        const reason = b?.[3] ? `\nMotivo: ${b[3]}` : '';
+        return {
+          title: 'Annullamento Richiesto',
+          body: `⚠️ ${b?.[1] || 'L\'acquirente'} ha richiesto l'annullamento dell'Ordine #${b?.[2] || ''}.${reason}\nEsamina e approva o rifiuta nella dashboard venditore.`,
+        };
+      },
+      pt: (_, b) => {
+        const reason = b?.[3] ? `\nMotivo: ${b[3]}` : '';
+        return {
+          title: 'Cancelamento Solicitado',
+          body: `⚠️ ${b?.[1] || 'O comprador'} solicitou o cancelamento do Pedido #${b?.[2] || ''}.${reason}\nPor favor, revise e aprove ou recuse no painel do vendedor.`,
+        };
+      },
+    },
+  },
+
+  // 46. Cancellation Request Declined
+  {
+    titlePattern: /^Cancellation Request Declined$/i,
+    bodyPattern: /^ℹ️\s*Cancellation request for Order\s*#?([^\s.]+)\s+was declined by (.*?)\.?(?:[\r\n]+Reason:\s*(.*?))?[\r\n]+Order fulfillment will continue\.?$/is,
+    translations: {
+      es: (_, b) => {
+        const reason = b?.[3] ? `\nMotivo: ${b[3]}` : '';
+        return {
+          title: 'Solicitud de Cancelación Rechazada',
+          body: `ℹ️ La solicitud de cancelación del Pedido #${b?.[1] || ''} fue rechazada por ${b?.[2] || 'Vendedor'}.${reason}\nEl procesamiento del pedido continuará.`,
+        };
+      },
+      fr: (_, b) => {
+        const reason = b?.[3] ? `\nRaison : ${b[3]}` : '';
+        return {
+          title: 'Demande d\'Annulation Refusée',
+          body: `ℹ️ La demande d'annulation de la Commande #${b?.[1] || ''} a été refusée par ${b?.[2] || 'Vendeur'}.${reason}\nLe traitement de la commande se poursuivra.`,
+        };
+      },
+      it: (_, b) => {
+        const reason = b?.[3] ? `\nMotivo: ${b[3]}` : '';
+        return {
+          title: 'Richiesta di Annullamento Rifiutata',
+          body: `ℹ️ La richiesta di annullamento per l'Ordine #${b?.[1] || ''} è stata rifiutata da ${b?.[2] || 'Venditore'}.${reason}\nL'evasione dell'ordine continuerà.`,
+        };
+      },
+      pt: (_, b) => {
+        const reason = b?.[3] ? `\nMotivo: ${b[3]}` : '';
+        return {
+          title: 'Solicitação de Cancelamento Recusada',
+          body: `ℹ️ A solicitação de cancelamento do Pedido #${b?.[1] || ''} foi recusada por ${b?.[2] || 'Vendedor'}.${reason}\nO processamento do pedido continuará.`,
+        };
+      },
+    },
+  },
+
+  // 47. Order Cancelled
+  {
+    titlePattern: /^Order Cancelled$/i,
+    bodyPattern: /^Order (?:#([^\s]+)\s+)?was cancelled by (.*?)\.?(?:[\r\n]+Reason:\s*(.*?))?$/is,
+    translations: {
+      es: (_, b) => ({
+        title: 'Pedido Cancelado',
+        body: `El pedido ${b?.[1] ? `#${b[1]} ` : ''}fue cancelado por ${b?.[2] || 'el usuario'}.${b?.[3] ? ` Motivo: ${b[3]}` : ''}`,
+      }),
+      fr: (_, b) => ({
+        title: 'Commande Annulée',
+        body: `La commande ${b?.[1] ? `#${b[1]} ` : ''}a été annulée par ${b?.[2] || 'l\'utilisateur'}.${b?.[3] ? ` Raison : ${b[3]}` : ''}`,
+      }),
+      it: (_, b) => ({
+        title: 'Ordine Annullato',
+        body: `L'ordine ${b?.[1] ? `#${b[1]} ` : ''}è stato annullato da ${b?.[2] || 'l\'utente'}.${b?.[3] ? ` Motivo: ${b[3]}` : ''}`,
+      }),
+      pt: (_, b) => ({
+        title: 'Pedido Cancelado',
+        body: `O pedido ${b?.[1] ? `#${b[1]} ` : ''}foi cancelado por ${b?.[2] || 'o usuário'}.${b?.[3] ? ` Motivo: ${b[3]}` : ''}`,
+      }),
+    },
+  },
+
+  // 48. Closet Chat Message
   {
     titlePattern: /^New chat message$/i,
     bodyPattern: /^You have a new message in your marketplace chat\.?$/i,
@@ -1748,97 +2171,103 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 42. Platform Points Received: "${senderDisplayName} sent you ${transferAmount} platform points..."
+  // 49. Subscription Price Update: "Your subscription to ${creatorName} has changed to $${newPrice}/month."
   {
-    titlePattern: /^Platform Points Received$/i,
-    bodyPattern: /^(.*?)\s+sent you\s+([\d,.]+)\s+platform points(.*)$/i,
+    titlePattern: /^(?:Subscription Price Update|Subscription Price Updated)$/i,
+    bodyPattern: /^Your subscription to (.*?)\s+has changed to \$?([\d,.]+)\/month\.?$/i,
     translations: {
       es: (_, b) => ({
-        title: 'Puntos de Plataforma Recibidos',
-        body: `${b?.[1] || 'Alguien'} te envió ${b?.[2] || '0'} puntos de plataforma${b?.[3] || ''}`,
+        title: 'Actualización de Precio de Suscripción',
+        body: `Tu suscripción a ${b?.[1] || 'el creador'} ha cambiado a $${b?.[2] || '0'}/mes.`,
       }),
       fr: (_, b) => ({
-        title: 'Points de Plateforme Reçus',
-        body: `${b?.[1] || 'Quelqu\'un'} vous a envoyé ${b?.[2] || '0'} points de plateforme${b?.[3] || ''}`,
+        title: 'Mise à Jour du Prix de l\'Abonnement',
+        body: `Votre abonnement à ${b?.[1] || 'le créateur'} est passé à $${b?.[2] || '0'}/mois.`,
       }),
       it: (_, b) => ({
-        title: 'Punti Piattaforma Ricevuti',
-        body: `${b?.[1] || 'Qualcuno'} ti ha inviato ${b?.[2] || '0'} punti piattaforma${b?.[3] || ''}`,
+        title: 'Aggiornamento Prezzo Abbonamento',
+        body: `Il tuo abbonamento a ${b?.[1] || 'il creator'} è cambiato in $${b?.[2] || '0'}/mese.`,
       }),
       pt: (_, b) => ({
-        title: 'Pontos da Plataforma Recebidos',
-        body: `${b?.[1] || 'Alguém'} enviou para você ${b?.[2] || '0'} pontos da plataforma${b?.[3] || ''}`,
+        title: 'Atualização do Preço da Assinatura',
+        body: `Sua assinatura de ${b?.[1] || 'o criador'} mudou para $${b?.[2] || '0'}/mês.`,
       }),
     },
   },
 
-  // 43. Payout deposited / Withdrawal successful / failed
+  // 50. Tokens Received: "You received ${amount} tokens from ${sender}."
   {
-    titlePattern: /^Payout Deposited$/i,
-    bodyPattern: /^Your withdrawal of \$?([\d,.]+)\s+is being deposited to your bank\.?$/i,
+    titlePattern: /^Tokens Received$/i,
+    bodyPattern: /^You received ([\d,.]+)\s+tokens from (.*?)\.?$/i,
     translations: {
       es: (_, b) => ({
-        title: 'Pago Depositado',
-        body: `Tu retiro de $${b?.[1] || '0'} está siendo depositado en tu banco.`,
+        title: 'Tokens Recibidos',
+        body: `Recibiste ${b?.[1] || '0'} tokens de ${b?.[2] || 'un usuario'}.`,
       }),
       fr: (_, b) => ({
-        title: 'Paiement Déposé',
-        body: `Votre retrait de $${b?.[1] || '0'} est en cours de dépôt sur votre compte bancaire.`,
+        title: 'Jetons Reçus',
+        body: `Vous avez reçu ${b?.[1] || '0'} jetons de ${b?.[2] || 'un utilisateur'}.`,
       }),
       it: (_, b) => ({
-        title: 'Pagamento Depositato',
-        body: `Il tuo prelievo di $${b?.[1] || '0'} è in fase di accredito sul tuo conto bancario.`,
+        title: 'Token Ricevuti',
+        body: `Hai ricevuto ${b?.[1] || '0'} token da ${b?.[2] || 'un utente'}.`,
       }),
       pt: (_, b) => ({
-        title: 'Pagamento Depositado',
-        body: `Seu saque de $${b?.[1] || '0'} está sendo depositado no seu banco.`,
+        title: 'Tokens Recebidos',
+        body: `Você recebeu ${b?.[1] || '0'} tokens de ${b?.[2] || 'um usuário'}.`,
       }),
     },
   },
+
+  // 51. Tokens Credited
   {
-    titlePattern: /^Withdrawal Successful$/i,
-    bodyPattern: /^Your withdrawal of ([\d,.]+)\s+(.*?)\s+has been sent to your connected account\.?$/i,
+    titlePattern: /^Tokens Credited$/i,
+    bodyPattern: /^You were credited ([\d,.]+)\s+tokens\.?$/i,
     translations: {
       es: (_, b) => ({
-        title: 'Retiro Exitoso',
-        body: `Tu retiro de ${b?.[1] || '0'} ${b?.[2] || ''} ha sido enviado a tu cuenta conectada.`,
+        title: 'Tokens Acreditados',
+        body: `Se te acreditaron ${b?.[1] || '0'} tokens.`,
       }),
       fr: (_, b) => ({
-        title: 'Retrait Réussi',
-        body: `Votre retrait de ${b?.[1] || '0'} ${b?.[2] || ''} a été envoyé sur votre compte associé.`,
+        title: 'Jetons Crédités',
+        body: `Vous avez été crédité de ${b?.[1] || '0'} jetons.`,
       }),
       it: (_, b) => ({
-        title: 'Prelievo Riuscito',
-        body: `Il tuo prelievo di ${b?.[1] || '0'} ${b?.[2] || ''} è stato inviato al tuo conto collegato.`,
+        title: 'Token Accreditati',
+        body: `Ti sono stati accreditati ${b?.[1] || '0'} token.`,
       }),
       pt: (_, b) => ({
-        title: 'Saque Bem-sucedido',
-        body: `Seu saque de ${b?.[1] || '0'} ${b?.[2] || ''} foi enviado para sua conta conectada.`,
+        title: 'Tokens Creditados',
+        body: `Você recebeu ${b?.[1] || '0'} tokens creditados.`,
       }),
     },
   },
+
+  // 52. Token Purchase Successful
   {
-    titlePattern: /^Withdrawal Failed$/i,
-    bodyPattern: /^Your withdrawal of \$?([\d,.]+)\s+failed and was returned to your available balance\.?$/i,
+    titlePattern: /^(?:Token Purchase Successful|Token Purchase)$/i,
+    bodyPattern: /^(?:Your token purchase was successful\.|You have purchased ([\d,.]+)\s+tokens\.?)$/i,
     translations: {
       es: (_, b) => ({
-        title: 'Retiro Fallido',
-        body: `Tu retiro de $${b?.[1] || '0'} falló y fue devuelto a tu saldo disponible.`,
+        title: 'Compra de Tokens Exitosa',
+        body: b?.[1] ? `Has comprado ${b[1]} tokens con éxito.` : 'Tu compra de tokens fue exitosa.',
       }),
       fr: (_, b) => ({
-        title: 'Échec du Retrait',
-        body: `Votre retrait de $${b?.[1] || '0'} a échoué et a été recrédité sur votre solde disponible.`,
+        title: 'Achat de Jetons Réussi',
+        body: b?.[1] ? `Vous avez acheté ${b[1]} jetons avec succès.` : 'Votre achat de jetons a réussi.',
       }),
       it: (_, b) => ({
-        title: 'Prelievo Non Riuscito',
-        body: `Il tuo prelievo di $${b?.[1] || '0'} non è riuscito ed è stato restituito al tuo saldo disponibile.`,
+        title: 'Acquisto Token Riuscito',
+        body: b?.[1] ? `Hai acquistato ${b[1]} token con successo.` : 'Il tuo acquisto di token è andato a buon fine.',
       }),
       pt: (_, b) => ({
-        title: 'Falha no Saque',
-        body: `Seu saque de $${b?.[1] || '0'} falhou e foi devolvido ao seu saldo disponível.`,
+        title: 'Compra de Tokens Bem-sucedida',
+        body: b?.[1] ? `Você comprou ${b[1]} tokens com sucesso.` : 'Sua compra de tokens foi bem-sucedida.',
       }),
     },
   },
+
+  // 53. Payout Frozen
   {
     titlePattern: /^Payout Frozen$/i,
     bodyPattern: /^A buyer reported a problem\.\s*Your payout is on hold\.?$/i,
@@ -1861,138 +2290,440 @@ const PATTERN_RULES: PatternRule[] = [
       }),
     },
   },
+
+  // 54. Welcome to Valens
   {
-    titlePattern: /^Bank Payout Issue$/i,
-    bodyPattern: /^Your connected account payout to bank had an issue\..*$/i,
+    titlePattern: /^Welcome to Valens!?$/i,
+    bodyPattern: /^Welcome to Valens!\s*Explore features, connect with creators, and enjoy the community\.?$/i,
     translations: {
       es: () => ({
-        title: 'Problema de Pago Bancario',
-        body: 'Hubo un problema con el pago a tu cuenta bancaria conectada. Los fondos permanecen en tu cuenta Stripe; revisa tus datos bancarios.',
+        title: '¡Bienvenido a Valens!',
+        body: '¡Bienvenido a Valens! Explora funciones, conéctate con creadores y disfruta de la comunidad.',
       }),
       fr: () => ({
-        title: 'Problème de Paiement Bancaire',
-        body: 'Un problème est survenu lors du virement vers votre compte bancaire. Les fonds restent sur votre compte Stripe ; vérifiez vos coordonnées bancaires.',
+        title: 'Bienvenue sur Valens !',
+        body: 'Bienvenue sur Valens ! Découvrez les fonctionnalités, connectez-vous avec des créateurs et profitez de la communauté.',
       }),
       it: () => ({
-        title: 'Problema di Pagamento Bancario',
-        body: 'Si è verificato un problema con il bonifico sul tuo conto bancario collegato. I fondi rimangono sul tuo conto Stripe; controlla i tuoi dati bancari.',
+        title: 'Benvenuto su Valens!',
+        body: 'Benvenuto su Valens! Esplora le funzionalità, connettiti con i creator e goditi la community.',
       }),
       pt: () => ({
-        title: 'Problema no Pagamento Bancário',
-        body: 'Houve um problema com a transferência para sua conta bancária conectada. Os fundos permanecem na sua conta Stripe; verifique seus dados bancários.',
-      }),
-    },
-  },
-
-  // 44. Subscription price updated: "${effectiveCreatorName} updated their monthly subscription price to $${newPrice}. Your auto-renewal has been paused."
-  {
-    titlePattern: /^Subscription Price Updated$/i,
-    bodyPattern: /^(.*?)\s+updated their monthly subscription price to \$?([\d,.]+)\.\s*Your auto-renewal has been paused\.?$/i,
-    translations: {
-      es: (_, b) => ({
-        title: 'Precio de Suscripción Actualizado',
-        body: `${b?.[1] || 'El creador'} actualizó su precio de suscripción mensual a $${b?.[2] || '0'}. Tu renovación automática ha sido pausada.`,
-      }),
-      fr: (_, b) => ({
-        title: 'Prix de l\'Abonnement Mis à Jour',
-        body: `${b?.[1] || 'Le créateur'} a mis à jour le prix de son abonnement mensuel à $${b?.[2] || '0'}. Votre renouvellement automatique est suspendu.`,
-      }),
-      it: (_, b) => ({
-        title: 'Prezzo Abbonamento Aggiornato',
-        body: `${b?.[1] || 'Il creator'} ha aggiornato il prezzo dell'abbonamento mensile a $${b?.[2] || '0'}. Il rinnovo automatico è stato sospeso.`,
-      }),
-      pt: (_, b) => ({
-        title: 'Preço da Assinatura Atualizado',
-        body: `${b?.[1] || 'O criador'} atualizou o preço da assinatura mensal para $${b?.[2] || '0'}. Sua renovação automática foi pausada.`,
-      }),
-    },
-  },
-
-  // 45. Subscription auto-renewal cancelled: "Your auto-renewal for @${creatorName} has been cancelled. Your access will remain active until ${formattedEndDate}."
-  {
-    titlePattern: /^Subscription Autopay Cancelled$/i,
-    bodyPattern: /^Your auto-renewal for @?(.*?)\s+has been cancelled\.\s*Your access will remain active until (.*?)\.?$/i,
-    translations: {
-      es: (_, b) => ({
-        title: 'Pago Automático de Suscripción Cancelado',
-        body: `Tu renovación automática para @${b?.[1] || ''} ha sido cancelada. Tu acceso permanecerá activo hasta el ${b?.[2] || ''}.`,
-      }),
-      fr: (_, b) => ({
-        title: 'Renouvellement Automatique Annulé',
-        body: `Votre renouvellement automatique pour @${b?.[1] || ''} a été annulé. Votre accès restera actif jusqu'au ${b?.[2] || ''}.`,
-      }),
-      it: (_, b) => ({
-        title: 'Rinnovo Automatico Annullato',
-        body: `Il tuo rinnovo automatico per @${b?.[1] || ''} è stato annullato. Il tuo accesso rimarrà attivo fino al ${b?.[2] || ''}.`,
-      }),
-      pt: (_, b) => ({
-        title: 'Renovação Automática Cancelada',
-        body: `Sua renovação automática para @${b?.[1] || ''} foi cancelada. Seu acesso permanecerá ativo até ${b?.[2] || ''}.`,
-      }),
-    },
-  },
-
-  // 46. Subscription ended: "Your subscription to @${creatorName} has ended."
-  {
-    titlePattern: /^Subscription Ended$/i,
-    bodyPattern: /^Your subscription to @?(.*?)\s+has ended\.?$/i,
-    translations: {
-      es: (_, b) => ({
-        title: 'Suscripción Finalizada',
-        body: `Tu suscripción a @${b?.[1] || ''} ha finalizado.`,
-      }),
-      fr: (_, b) => ({
-        title: 'Abonnement Terminé',
-        body: `Votre abonnement à @${b?.[1] || ''} est terminé.`,
-      }),
-      it: (_, b) => ({
-        title: 'Abbonamento Terminato',
-        body: `Il tuo abbonamento a @${b?.[1] || ''} è terminato.`,
-      }),
-      pt: (_, b) => ({
-        title: 'Assinatura Encerrada',
-        body: `Sua assinatura de @${b?.[1] || ''} foi encerrada.`,
+        title: 'Bem-vindo ao Valens!',
+        body: 'Bem-vindo ao Valens! Explore recursos, conecte-se com criadores e aproveite a comunidade.',
       }),
     },
   },
 ];
 
-/**
- * Normalizes any language input (e.g. 'eng', 'en-US', 'pt-BR', 'por', 'spanish') to a SupportedLanguage ('en', 'es', 'fr', 'it', 'pt').
- */
-export function normalizeLanguage(lang?: string): SupportedLanguage {
-  if (!lang) return 'en';
-  const clean = lang.toLowerCase().trim();
-  if (clean === 'en' || clean === 'eng' || clean === 'english' || clean.startsWith('en-') || clean.startsWith('en_')) return 'en';
-  if (clean === 'pt' || clean === 'por' || clean === 'portuguese' || clean.startsWith('pt-') || clean.startsWith('pt_')) return 'pt';
-  if (clean === 'es' || clean === 'spa' || clean === 'spanish' || clean.startsWith('es-') || clean.startsWith('es_')) return 'es';
-  if (clean === 'fr' || clean === 'fra' || clean === 'fre' || clean === 'french' || clean.startsWith('fr-') || clean.startsWith('fr_')) return 'fr';
-  if (clean === 'it' || clean === 'ita' || clean === 'italian' || clean.startsWith('it-') || clean.startsWith('it_')) return 'it';
-  return 'en';
-}
+// ============================================================================
+// 3. REVERSE TITLE MAP (Any Language -> Canonical English Title)
+// ============================================================================
+export const REVERSE_TITLE_MAP: Record<string, string> = {};
 
-// ---------------------------------------------------------------------------
-// Reverse Translation Engine (Multi-Language -> Canonical English)
-// ---------------------------------------------------------------------------
-
-// Build inverted title map: (any translated title -> Canonical English title)
-const REVERSE_TITLE_MAP: Record<string, string> = {};
-for (const [enTitle, translations] of Object.entries(TITLE_MAP)) {
-  REVERSE_TITLE_MAP[enTitle.toLowerCase().trim()] = enTitle;
-  for (const translated of Object.values(translations)) {
-    if (typeof translated === 'string' && translated.trim()) {
-      REVERSE_TITLE_MAP[translated.toLowerCase().trim()] = enTitle;
-    }
+function registerReverseTitle(foreignTitle: string, canonicalEnglishTitle: string) {
+  if (!foreignTitle) return;
+  const clean = foreignTitle.toLowerCase().trim();
+  REVERSE_TITLE_MAP[clean] = canonicalEnglishTitle;
+  // Also register without emojis
+  const noEmoji = clean.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+  if (noEmoji && noEmoji !== clean) {
+    REVERSE_TITLE_MAP[noEmoji] = canonicalEnglishTitle;
   }
 }
 
+for (const [enTitle, translations] of Object.entries(TITLE_MAP)) {
+  registerReverseTitle(enTitle, enTitle);
+  for (const translated of Object.values(translations)) {
+    registerReverseTitle(translated, enTitle);
+  }
+}
+
+// Additional common title synonyms
+registerReverseTitle('novo seguidor', '👤 New Follower!');
+registerReverseTitle('nuevo seguidor', '👤 New Follower!');
+registerReverseTitle('nouveau abonné', '👤 New Follower!');
+registerReverseTitle('nuovo follower', '👤 New Follower!');
+registerReverseTitle('publicação curtida', 'Post Liked');
+registerReverseTitle('publicación que te gusta', 'Post Liked');
+registerReverseTitle('publication aimée', 'Post Liked');
+registerReverseTitle('mi piace al post', 'Post Liked');
+registerReverseTitle('novo comentário', '💬 New Comment');
+registerReverseTitle('nuevo comentario', '💬 New Comment');
+registerReverseTitle('nouveau commentaire', '💬 New Comment');
+registerReverseTitle('nuovo commento', '💬 New Comment');
+registerReverseTitle('você foi mencionado', '📢 You were mentioned!');
+registerReverseTitle('fuiste mencionado', '📢 You were mentioned!');
+registerReverseTitle('vous avez été mentionné', '📢 You were mentioned!');
+registerReverseTitle('sei stato menzionato', '📢 You were mentioned!');
+registerReverseTitle('pedido realizado com sucesso', 'Order Placed Successfully');
+registerReverseTitle('pedido enviado', 'Order Shipped');
+registerReverseTitle('pedido entregue', 'Order Delivered');
+registerReverseTitle('pedido cancelado', 'Order Cancelled');
+registerReverseTitle('seu pedido está sendo preparado', 'Your Order is being prepared! 📦');
+registerReverseTitle('batalha iniciada', '⚔️ Battle Started');
+registerReverseTitle('batalha concluída', '🏆 Battle Completed');
+registerReverseTitle('vitória! seu lado venceu!', 'Victory! Your side won!');
+registerReverseTitle('resultado de batalha atualizado', 'Battle Result Updated');
+registerReverseTitle('você subiu no ranking!', 'You moved up the leaderboard!');
+
+// ============================================================================
+// 4. REVERSE STATIC BODY MAP (Exact Sentences in Any Language -> English)
+// ============================================================================
+export const REVERSE_STATIC_BODY_MAP: Record<string, { title?: string; body: string }> = {
+  // Battle Started
+  'o debate está no ar. veja quem apoia seu lado.': {
+    title: '⚔️ Battle Started',
+    body: 'The debate is live. See who joins your side.',
+  },
+  'el debate está en vivo. mira quién se une a tu lado.': {
+    title: '⚔️ Battle Started',
+    body: 'The debate is live. See who joins your side.',
+  },
+  'le débat est en direct. voyez qui rejoint votre camp.': {
+    title: '⚔️ Battle Started',
+    body: 'The debate is live. See who joins your side.',
+  },
+  'il dibattito è aperto. guarda chi si unisce alla tua fazione.': {
+    title: '⚔️ Battle Started',
+    body: 'The debate is live. See who joins your side.',
+  },
+  'the debate is live. see who joins your side.': {
+    title: '⚔️ Battle Started',
+    body: 'The debate is live. See who joins your side.',
+  },
+
+  // Battle Closing Soon
+  'os votos finais estão chegando. veja o resultado antes que o tempo acabe.': {
+    title: '⏳ Battle Closing Soon',
+    body: 'Final votes are coming in. See the current outcome before time runs out.',
+  },
+  'se están recibiendo los votos finales. revisa el resultado antes de que se agote el tiempo.': {
+    title: '⏳ Battle Closing Soon',
+    body: 'Final votes are coming in. See the current outcome before time runs out.',
+  },
+  'les derniers votes arrivent. découvrez le résultat avant la fin du temps.': {
+    title: '⏳ Battle Closing Soon',
+    body: 'Final votes are coming in. See the current outcome before time runs out.',
+  },
+  "stanno arrivando gli ultimi voti. guarda l'esito prima che scada il tempo.": {
+    title: '⏳ Battle Closing Soon',
+    body: 'Final votes are coming in. See the current outcome before time runs out.',
+  },
+  'final votes are coming in. see the current outcome before time runs out.': {
+    title: '⏳ Battle Closing Soon',
+    body: 'Final votes are coming in. See the current outcome before time runs out.',
+  },
+
+  // Battle Completed
+  'veja o resultado final e a precisão da sua batalha.': {
+    title: '🏆 Battle Completed',
+    body: 'See the final outcome and accuracy result for your Battle.',
+  },
+  'mira el resultado final y la precisión de tu batalla.': {
+    title: '🏆 Battle Completed',
+    body: 'See the final outcome and accuracy result for your Battle.',
+  },
+  'découvrez le résultat final et la précision de votre défi.': {
+    title: '🏆 Battle Completed',
+    body: 'See the final outcome and accuracy result for your Battle.',
+  },
+  "guarda l'esito finale e il risultato di precisione della tua battaglia.": {
+    title: '🏆 Battle Completed',
+    body: 'See the final outcome and accuracy result for your Battle.',
+  },
+  'see the final outcome and accuracy result for your battle.': {
+    title: '🏆 Battle Completed',
+    body: 'See the final outcome and accuracy result for your Battle.',
+  },
+
+  // Battle Victory
+  'sua pontuação de credibilidade aumentou. confira suas conquistas atualizadas.': {
+    title: 'Victory! Your side won!',
+    body: 'Your credibility score has increased. Check your updated achievements.',
+  },
+  'tu puntuación de credibilidad ha aumentado. revisa tus logros actualizados.': {
+    title: 'Victory! Your side won!',
+    body: 'Your credibility score has increased. Check your updated achievements.',
+  },
+  'votre score de crédibilité a augmenté. consultez vos succès mis à jour.': {
+    title: 'Victory! Your side won!',
+    body: 'Your credibility score has increased. Check your updated achievements.',
+  },
+  'il tuo punteggio di credibilità è aumentato. controlla i tuoi obiettivi aggiornati.': {
+    title: 'Victory! Your side won!',
+    body: 'Your credibility score has increased. Check your updated achievements.',
+  },
+  'your credibility score has increased. check your updated achievements.': {
+    title: 'Victory! Your side won!',
+    body: 'Your credibility score has increased. Check your updated achievements.',
+  },
+
+  // Battle Loss / Forecast Missed
+  'o resultado não correspondeu à sua previsão. verifique sua precisão.': {
+    title: 'Battle Result Updated',
+    body: 'The outcome did not match your forecast. Review your accuracy.',
+  },
+  'el resultado no coincidió con tu pronóstico. revisa tu precisión.': {
+    title: 'Battle Result Updated',
+    body: 'The outcome did not match your forecast. Review your accuracy.',
+  },
+  'le résultat ne correspond pas à vos prévisions. vérifiez votre précision.': {
+    title: 'Battle Result Updated',
+    body: 'The outcome did not match your forecast. Review your accuracy.',
+  },
+  "l'esito non corrisponde alla tua previsione. verifica la tua precisione.": {
+    title: 'Battle Result Updated',
+    body: 'The outcome did not match your forecast. Review your accuracy.',
+  },
+  'the outcome did not match your forecast. review your accuracy.': {
+    title: 'Battle Result Updated',
+    body: 'The outcome did not match your forecast. Review your accuracy.',
+  },
+
+  // Battle Leaderboard
+  'veja seu novo ranking global como previsor no valens.': {
+    title: 'You moved up the leaderboard!',
+    body: 'See your new global ranking as a Forecaster on Valens.',
+  },
+  'mira tu nueva posición global como pronosticador en valens.': {
+    title: 'You moved up the leaderboard!',
+    body: 'See your new global ranking as a Forecaster on Valens.',
+  },
+  'découvrez votre nouveau rang mondial de pronostiqueur sur valens.': {
+    title: 'You moved up the leaderboard!',
+    body: 'See your new global ranking as a Forecaster on Valens.',
+  },
+  'guarda la tua nuova posizione globale come previsore su valens.': {
+    title: 'You moved up the leaderboard!',
+    body: 'See your new global ranking as a Forecaster on Valens.',
+  },
+  'see your new global ranking as a forecaster on valens.': {
+    title: 'You moved up the leaderboard!',
+    body: 'See your new global ranking as a Forecaster on Valens.',
+  },
+
+  // Battle Declined
+  'o usuário convidado recusou seu convite para a batalha.': {
+    title: 'Battle Declined',
+    body: 'The invited user declined your battle invite.',
+  },
+  'el usuario invitado rechazó tu invitación a la batalla.': {
+    title: 'Battle Declined',
+    body: 'The invited user declined your battle invite.',
+  },
+  "l'utilisateur invité a décliné votre invitation.": {
+    title: 'Battle Declined',
+    body: 'The invited user declined your battle invite.',
+  },
+  "l'utente invitato ha rifiutato il tuo invito alla battaglia.": {
+    title: 'Battle Declined',
+    body: 'The invited user declined your battle invite.',
+  },
+  'the invited user declined your battle invite.': {
+    title: 'Battle Declined',
+    body: 'The invited user declined your battle invite.',
+  },
+
+  // Battle Result / Closed
+  'sua batalha terminou. confira os resultados.': {
+    title: 'Battle Result',
+    body: 'Your battle has ended. Check the results.',
+  },
+  'tu batalla ha finalizado. revisa los resultados.': {
+    title: 'Battle Result',
+    body: 'Your battle has ended. Check the results.',
+  },
+  'votre défi est terminé. consultez les résultats.': {
+    title: 'Battle Result',
+    body: 'Your battle has ended. Check the results.',
+  },
+  'la tua battaglia è terminata. controlla i risultati.': {
+    title: 'Battle Result',
+    body: 'Your battle has ended. Check the results.',
+  },
+  'uma batalha que você segue terminou. confira os resultados.': {
+    title: 'Battle Closed',
+    body: 'A battle you follow has ended. Check the results.',
+  },
+  'una batalla que sigues ha finalizado. revisa los resultados.': {
+    title: 'Battle Closed',
+    body: 'A battle you follow has ended. Check the results.',
+  },
+  'un défi que vous suivez est terminé. consultez les résultats.': {
+    title: 'Battle Closed',
+    body: 'A battle you follow has ended. Check the results.',
+  },
+  'una battaglia che segui è terminata. controlla i risultati.': {
+    title: 'Battle Closed',
+    body: 'A battle you follow has ended. Check the results.',
+  },
+
+  // Orders Carrier Delivered
+  'a transportadora confirmou a entrega. confirme o recebimento ou relate um problema em até 48 horas.': {
+    title: 'Order Delivered',
+    body: 'Carrier confirmed delivery. Confirm receipt or report a problem within 48 hours.',
+  },
+  'el transportista confirmó la entrega. confirma la recepción o reporta un problema en 48 horas.': {
+    title: 'Order Delivered',
+    body: 'Carrier confirmed delivery. Confirm receipt or report a problem within 48 hours.',
+  },
+  'le transporteur a confirmé la livraison. confirmez la réception ou signalez un problème sous 48 heures.': {
+    title: 'Order Delivered',
+    body: 'Carrier confirmed delivery. Confirm receipt or report a problem within 48 hours.',
+  },
+  'il corriere ha confermato la consegna. conferma la ricezione o segnala un problema entro 48 ore.': {
+    title: 'Order Delivered',
+    body: 'Carrier confirmed delivery. Confirm receipt or report a problem within 48 hours.',
+  },
+
+  // Confirm delivery
+  'seu pedido foi marcado como entregue.': {
+    title: 'Confirm your delivery',
+    body: 'Your order was marked delivered.',
+  },
+  'tu pedido fue marcado como entregado.': {
+    title: 'Confirm your delivery',
+    body: 'Your order was marked delivered.',
+  },
+  'votre commande a été marquée comme livrée.': {
+    title: 'Confirm your delivery',
+    body: 'Your order was marked delivered.',
+  },
+  'il tuo ordine è stato contrassegnato come consegnato.': {
+    title: 'Confirm your delivery',
+    body: 'Your order was marked delivered.',
+  },
+
+  // Delivered Earnings Pending
+  'o comprador tem 48 horas para confirmar. os ganhos passarão para o seu saldo disponível após o período de proteção.': {
+    title: 'Delivered – Earnings Pending',
+    body: 'Buyer has 48 hours to confirm. Earnings move to your available balance after the protection window.',
+  },
+  'el comprador tiene 48 horas para confirmar. las ganancias pasarán a tu saldo disponible tras el periodo de protección.': {
+    title: 'Delivered – Earnings Pending',
+    body: 'Buyer has 48 hours to confirm. Earnings move to your available balance after the protection window.',
+  },
+
+  // Earnings Available
+  'seus ganhos do marketplace já estão disponíveis para saque.': {
+    title: 'Earnings Available',
+    body: 'Your marketplace earnings are now available to withdraw.',
+  },
+  'tus ganancias del marketplace ya están disponibles para retirar.': {
+    title: 'Earnings Available',
+    body: 'Your marketplace earnings are now available to withdraw.',
+  },
+  'vos gains de la marketplace sont maintenant disponibles pour le retrait.': {
+    title: 'Earnings Available',
+    body: 'Your marketplace earnings are now available to withdraw.',
+  },
+  'i tuoi guadagni del marketplace sono ora disponibili per il prelievo.': {
+    title: 'Earnings Available',
+    body: 'Your marketplace earnings are now available to withdraw.',
+  },
+
+  // Delivery Exception
+  'a transportadora relatou um problema na entrega. o pagamento pode estar retido.': {
+    title: 'Delivery Exception',
+    body: 'Carrier reported a delivery problem. Payout may be on hold.',
+  },
+  'el transportista informó de un problema en la entrega. el pago podría estar retenido.': {
+    title: 'Delivery Exception',
+    body: 'Carrier reported a delivery problem. Payout may be on hold.',
+  },
+
+  // Pickup Completed
+  'sua retirada foi concluída com sucesso. obrigado por comprar no valens!': {
+    title: '🎉 Pickup Completed!',
+    body: 'Your pickup was completed successfully. Thanks for shopping on Valens!',
+  },
+  'tu recogida se completó con éxito. ¡gracias por comprar en valens!': {
+    title: '🎉 Pickup Completed!',
+    body: 'Your pickup was completed successfully. Thanks for shopping on Valens!',
+  },
+  "votre retrait a été effectué avec succès. merci d'avoir fait vos achats sur valens !": {
+    title: '🎉 Pickup Completed!',
+    body: 'Your pickup was completed successfully. Thanks for shopping on Valens!',
+  },
+  'il tuo ritiro è stato completato con successo. grazie per aver acquistato su valens!': {
+    title: '🎉 Pickup Completed!',
+    body: 'Your pickup was completed successfully. Thanks for shopping on Valens!',
+  },
+
+  // Closet Chat
+  'você tem uma nova mensagem no chat do marketplace.': {
+    title: 'New chat message',
+    body: 'You have a new message in your marketplace chat.',
+  },
+  'tienes un nuevo mensaje en el chat del marketplace.': {
+    title: 'New chat message',
+    body: 'You have a new message in your marketplace chat.',
+  },
+  'vous avez un nouveau message dans votre chat marketplace.': {
+    title: 'New chat message',
+    body: 'You have a new message in your marketplace chat.',
+  },
+  'hai un nuovo messaggio nella chat del marketplace.': {
+    title: 'New chat message',
+    body: 'You have a new message in your marketplace chat.',
+  },
+
+  // Post credit low
+  'você tem 1 crédito de publicação restante. faça upgrade para continuar postando.': {
+    title: '⚠️ 1 Post Credit Left',
+    body: 'You have 1 post credit remaining. Upgrade to keep posting.',
+  },
+  'te queda 1 crédito de publicación. actualiza tu plan para seguir publicando.': {
+    title: '⚠️ 1 Post Credit Left',
+    body: 'You have 1 post credit remaining. Upgrade to keep posting.',
+  },
+
+  // Mission launched follower body
+  'ele(a) precisa do seu apoio. veja a meta e seja um dos primeiros apoiadores.': {
+    title: '🎯 Mission Launched',
+    body: 'They need your support. See the goal and be one of the first backers.',
+  },
+  'necesita tu apoyo. mira la meta y sé uno de los primeros patrocinadores.': {
+    title: '🎯 Mission Launched',
+    body: 'They need your support. See the goal and be one of the first backers.',
+  },
+
+  // Payout frozen
+  'um comprador relatou um problema. seu pagamento está retido.': {
+    title: 'Payout Frozen',
+    body: 'A buyer reported a problem. Your payout is on hold.',
+  },
+  'un comprador reportó un problema. tu pago está en espera.': {
+    title: 'Payout Frozen',
+    body: 'A buyer reported a problem. Your payout is on hold.',
+  },
+
+  // Shop battle accepted / declined
+  'um desafio de batalha entre lojas foi aceito. a batalha está pronta.': {
+    title: 'Shop Battle Accepted',
+    body: 'A cross-shop battle challenge was accepted. The battle is ready.',
+  },
+  'seu desafio de batalha entre lojas foi recusado. os pontos apostados foram reembolsados.': {
+    title: 'Shop Battle Declined',
+    body: 'Your cross-shop battle challenge was declined. Stake points were refunded if any.',
+  },
+  'um desafio de batalha de loja foi cancelado pelo desafiante.': {
+    title: 'Shop Battle Challenge Cancelled',
+    body: 'A shop battle challenge was cancelled by the challenger.',
+  },
+};
+
+// ============================================================================
+// 5. REVERSE PATTERN RULES (Multi-Language Regex -> Canonical English)
+// ============================================================================
 interface ReversePatternRule {
   bodyPatterns: RegExp[];
   toEnglishBody: (match: RegExpMatchArray, data?: Record<string, any>) => string;
   defaultEnglishTitle?: string;
 }
 
-const REVERSE_BODY_RULES: ReversePatternRule[] = [
+export const REVERSE_BODY_RULES: ReversePatternRule[] = [
   // 1. Post Liked
   {
     defaultEnglishTitle: 'Post Liked',
@@ -2024,7 +2755,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
 
   // 3. Unfollowed
   {
-    defaultEnglishTitle: 'Follower Unfollowed',
+    defaultEnglishTitle: 'New Unfollower',
     bodyPatterns: [
       /^(.*?)\s+deixou de seguir você\.?$/i,
       /^(.*?)\s+dejó de seguirte\.?$/i,
@@ -2048,7 +2779,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     toEnglishBody: (match) => `${match[1] || 'Someone'} commented on your post: "${match[2] || ''}"`,
   },
 
-  // 5. Mentioned
+  // 5. Mentions
   {
     defaultEnglishTitle: '📢 You were mentioned!',
     bodyPatterns: [
@@ -2057,14 +2788,8 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
       /^(.*?)\s+vous a mentionné dans (?:un post de Défi|une publication)\.\s*Appuyez pour voir le contexte\.?$/i,
       /^(.*?)\s+ti ha menzionato in un post(?: di Battaglia)?\.\s*Tocca per vedere il contesto\.?$/i,
       /^(.*?)\s+mentioned you in a (Battle post|post)\.\s*Tap to see the context\.?$/i,
-      /^(.*?)\s+mencionou você em um comentário:\s*"(.*)"$/is,
-      /^(.*?)\s+te mencionó en un comentario:\s*"(.*)"$/is,
-      /^(.*?)\s+vous a mentionné dans un commentaire\s*:\s*"(.*)"$/is,
-      /^(.*?)\s+ti ha menzionato in un commento:\s*"(.*)"$/is,
-      /^(.*?)\s+mentioned you in a comment:\s*"(.*)"$/is,
     ],
     toEnglishBody: (match) => {
-      if (match[2]) return `${match[1] || 'Someone'} mentioned you in a comment: "${match[2]}"`;
       const isBattle = match[0]?.toLowerCase().includes('batalha') || match[0]?.toLowerCase().includes('batalla') || match[0]?.toLowerCase().includes('défi') || match[0]?.toLowerCase().includes('battaglia') || match[0]?.toLowerCase().includes('battle');
       return `${match[1] || 'Someone'} mentioned you in a ${isBattle ? 'Battle post.' : 'post.'} Tap to see the context.`;
     },
@@ -2080,7 +2805,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
       /^Hai ricevuto ([\d,.]+)\s+token da (.*?)\.?$/i,
       /^You received ([\d,.]+)\s+tokens from (.*?)\.?$/i,
     ],
-    toEnglishBody: (match) => `You received ${match[1] || '0'} tokens from ${match[2] || 'someone'}.`,
+    toEnglishBody: (match) => `You received ${match[1] || '0'} tokens from ${match[2] || 'a user'}.`,
   },
 
   // 7. Tokens Credited
@@ -2109,17 +2834,17 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     toEnglishBody: (match) => `${match[1] || 'Someone'} donated $${match[2] || '0'} to your post.`,
   },
 
-  // 9. Following Payment
+  // 9. Pay to Follow
   {
-    defaultEnglishTitle: 'Following Payment',
+    defaultEnglishTitle: 'Pay to Follow',
     bodyPatterns: [
-      /^(.*?)\s+comprou sua assinatura de conteúdo privado\.?$/i,
-      /^(.*?)\s+compró tu suscripción de contenido privado\.?$/i,
-      /^(.*?)\s+a acheté votre abonnement à du contenu privé\.?$/i,
-      /^(.*?)\s+ha acquistato il tuo abbonamento a contenuti privati\.?$/i,
-      /^(.*?)\s+bought your private content subscription\.?$/i,
+      /^(.*?)\s+pagou \$?([\d,.]+)\s+para seguir você\.?$/i,
+      /^(.*?)\s+pagó \$?([\d,.]+)\s+para seguirte\.?$/i,
+      /^(.*?)\s+a payé \$?([\d,.]+)\s+pour vous suivre\.?$/i,
+      /^(.*?)\s+ha pagato \$?([\d,.]+)\s+per seguirti\.?$/i,
+      /^(.*?)\s+paid \$?([\d,.]+)\s+to follow you\.?$/i,
     ],
-    toEnglishBody: (match) => `${match[1] || 'Someone'} bought your private content subscription.`,
+    toEnglishBody: (match) => `${match[1] || 'Someone'} paid $${match[2] || '0'} to follow you.`,
   },
 
   // 10. Tagged in a post
@@ -2216,20 +2941,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     toEnglishBody: (match) => `${match[1] || 'A user'} viewed your Story in the last hour.`,
   },
 
-  // 17. Post credit low
-  {
-    defaultEnglishTitle: '⚠️ 1 Post Credit Left',
-    bodyPatterns: [
-      /^Você tem 1 crédito de publicação restante\.\s*Faça upgrade para continuar postando\.?$/i,
-      /^Te queda 1 crédito de publicación\.\s*Actualiza tu plan para seguir publicando\.?$/i,
-      /^Il vous reste 1 crédit de publication\.\s*Passez à l'offre supérieure pour continuer à publier\.?$/i,
-      /^Ti è rimasto 1 credito di pubblicazione\.\s*Effettua l'upgrade per continuare a pubblicare\.?$/i,
-      /^You have 1 post credit remaining\.\s*Upgrade to keep posting\.?$/i,
-    ],
-    toEnglishBody: () => 'You have 1 post credit remaining. Upgrade to keep posting.',
-  },
-
-  // 18. Battle Invitation
+  // 17. Battle Invitation
   {
     defaultEnglishTitle: 'Battle Invitation',
     bodyPatterns: [
@@ -2242,7 +2954,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     toEnglishBody: (match) => `${match[1] || 'Someone'} challenged you to a Battle. Review their side and argument.`,
   },
 
-  // 19. Shop Battle Challenge
+  // 18. Shop Battle Challenge
   {
     defaultEnglishTitle: 'Shop Battle Challenge',
     bodyPatterns: [
@@ -2255,155 +2967,266 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     toEnglishBody: (match) => `${match[1] || 'A shop'} challenged your shop to a battle.`,
   },
 
-  // 20. Orders: Placed
+  // 19. Battle New Participants
   {
-    defaultEnglishTitle: 'Order Placed Successfully',
+    defaultEnglishTitle: '👥 New Participants!',
     bodyPatterns: [
-      /^Seu pedido (?:#([^\s]+)\s+)?foi realizado com sucesso\.?$/i,
-      /^Tu pedido (?:#([^\s]+)\s+)?ha sido realizado con éxito\.?$/i,
-      /^Votre commande (?:#([^\s]+)\s+)?a été passée avec succès\.?$/i,
-      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato effettuato con successo\.?$/i,
-      /^Your order (?:#([^\s]+)\s+)?has been placed successfully\.?$/i,
+      /^(\d+)\s+novos participantes entraram na sua Batalha\.\s*Veja qual lado a comunidade está apoiando\.?$/i,
+      /^(\d+)\s+nuevos participantes se unieron a tu Batalla\.\s*Mira qué lado apoya la comunidad\.?$/i,
+      /^(\d+)\s+nouveaux participants ont rejoint votre combat\.\s*Voyez quel camp la communauté soutient\.?$/i,
+      /^(\d+)\s+nuovi partecipanti si sono uniti alla tua Battaglia\.\s*Guarda quale fazione sostiene la community\.?$/i,
+      /^(\d+)\s+new participants joined your Battle\.\s*See which side the community is backing\.?$/i,
     ],
-    toEnglishBody: (match, data) => {
-      const orderId = match[1] || data?.orderId || '';
-      return orderId ? `Your order #${orderId} has been placed successfully.` : 'Your order has been placed successfully.';
-    },
+    toEnglishBody: (match) => `${match[1] || '1'} new participants joined your Battle. See which side the community is backing.`,
   },
 
-  // 21. Orders: New Order for seller
+  // 20. Battle Invite Expired
   {
-    defaultEnglishTitle: 'You have a new order',
+    defaultEnglishTitle: 'Battle Invite Expired',
     bodyPatterns: [
-      /^Você recebeu um novo pedido (?:#([^\s]+))?\.?$/i,
-      /^Has recibido un nuevo pedido (?:#([^\s]+))?\.?$/i,
-      /^Vous avez reçu une nouvelle commande (?:#([^\s]+))?\.?$/i,
-      /^Hai ricevuto un nuovo ordine (?:#([^\s]+))?\.?$/i,
-      /^You received a new order (?:#([^\s]+))?\.?$/i,
+      /^Sua batalha não foi aceita por (.*?)\.?$/i,
+      /^Tu batalla no fue aceptada por (.*?)\.?$/i,
+      /^Votre défi n'a pas été accepté par (.*?)\.?$/i,
+      /^La tua battaglia non è stata accettata da (.*?)\.?$/i,
+      /^Your battle was not accepted by (.*?)\.?$/i,
     ],
-    toEnglishBody: (match, data) => {
-      const orderId = match[1] || data?.orderId || '';
-      return orderId ? `You received a new order #${orderId}.` : 'You received a new order.';
-    },
+    toEnglishBody: (match) => `Your battle was not accepted by ${match[1] || 'the invited user'}.`,
   },
 
-  // 22. Orders: Preparing
+  // 21. New Battle Created
   {
-    defaultEnglishTitle: 'Your Order is being prepared! 📦',
+    defaultEnglishTitle: 'New Battle',
     bodyPatterns: [
-      /^O vendedor está preparando seu pedido (?:#([^\s]+))?\.?$/i,
-      /^El vendedor está preparando tu pedido (?:#([^\s]+))?\.?$/i,
-      /^Le vendeur prépare votre commande (?:#([^\s]+))?\.?$/i,
-      /^Il venditore sta preparando il tuo ordine (?:#([^\s]+))?\.?$/i,
-      /^The seller is preparing your order (?:#([^\s]+))?\.?$/i,
+      /^Nova batalha:\s*(.*)$/i,
+      /^Nueva batalla:\s*(.*)$/i,
+      /^Nouveau défi\s*:\s*(.*)$/i,
+      /^Nuova battaglia:\s*(.*)$/i,
+      /^New battle:\s*(.*)$/i,
     ],
-    toEnglishBody: (match, data) => {
-      const orderId = match[1] || data?.orderId || '';
-      return orderId ? `The seller is preparing your order #${orderId}.` : 'The seller is preparing your order.';
-    },
+    toEnglishBody: (match) => `New battle: ${match[1] || ''}`,
   },
 
-  // 23. Orders: Shipped
-  {
-    defaultEnglishTitle: 'Order Shipped',
-    bodyPatterns: [
-      /^Seu pedido (?:#([^\s]+)\s+)?foi enviado\.?$/i,
-      /^Tu pedido (?:#([^\s]+)\s+)?ha sido enviado\.?$/i,
-      /^Votre commande (?:#([^\s]+)\s+)?a été expédiée\.?$/i,
-      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato spedito\.?$/i,
-      /^Your order (?:#([^\s]+)\s+)?has been shipped\.?$/i,
-    ],
-    toEnglishBody: (match, data) => {
-      const orderId = match[1] || data?.orderId || '';
-      return orderId ? `Your order #${orderId} has been shipped.` : 'Your order has been shipped.';
-    },
-  },
-
-  // 24. Orders: Delivered
-  {
-    defaultEnglishTitle: 'Order Delivered',
-    bodyPatterns: [
-      /^Seu pedido (?:#([^\s]+)\s+)?foi entregue\.?$/i,
-      /^Tu pedido (?:#([^\s]+)\s+)?ha sido entregado\.?$/i,
-      /^Votre commande (?:#([^\s]+)\s+)?a été livrée\.?$/i,
-      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato consegnato\.?$/i,
-      /^Your order (?:#([^\s]+)\s+)?has been delivered\.?$/i,
-    ],
-    toEnglishBody: (match, data) => {
-      const orderId = match[1] || data?.orderId || '';
-      return orderId ? `Your order #${orderId} has been delivered.` : 'Your order has been delivered.';
-    },
-  },
-
-  // 25. Orders: Cancelled
-  {
-    defaultEnglishTitle: 'Order Cancelled',
-    bodyPatterns: [
-      /^Seu pedido (?:#([^\s]+)\s+)?foi cancelado\.?$/i,
-      /^Tu pedido (?:#([^\s]+)\s+)?ha sido cancelado\.?$/i,
-      /^Votre commande (?:#([^\s]+)\s+)?a été annulée\.?$/i,
-      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato annullato\.?$/i,
-      /^Your order (?:#([^\s]+)\s+)?has been cancelled\.?$/i,
-    ],
-    toEnglishBody: (match, data) => {
-      const orderId = match[1] || data?.orderId || '';
-      return orderId ? `Your order #${orderId} has been cancelled.` : 'Your order has been cancelled.';
-    },
-  },
-
-  // 26. Badge unlocked
+  // 22. Badge Tier Unlocked
   {
     defaultEnglishTitle: '🥇 New Badge Unlocked!',
     bodyPatterns: [
-      /^Parabéns!\s*Você desbloqueou o emblema "(.*?)"\.?$/i,
-      /^¡Felicitaciones!\s*Has desbloqueado la insignia "(.*?)"\.?$/i,
-      /^Félicitations !\s*Vous avez débloqué le badge «\s*(.*?)\s*»\.?$/i,
-      /^Congratulazioni!\s*Hai sbloccato il badge "(.*?)"\.?$/i,
-      /^Congratulations!\s*You unlocked the "(.*?)" badge\.?$/i,
+      /^Você atingiu ([\d,.]+)\s+seguidores!\s*Dralens evoluiu para o nível (.*?)\.\s*Parabéns!?$/i,
+      /^¡Alcanzaste ([\d,.]+)\s+seguidores!\s*Dralens evolucionó al nivel (.*?)\.\s*¡Felicidades!?$/i,
+      /^Vous avez atteint ([\d,.]+)\s+abonnés !\s*Dralens a évolué au niveau (.*?)\.\s*Félicitations !?$/i,
+      /^Hai raggiunto ([\d,.]+)\s+follower!\s*Dralens si è evoluto al livello (.*?)\.\s*Congratulazioni!?$/i,
+      /^You reached ([\d,.]+)\s+followers!\s*Dralens evolved to (.*?)\s+tier\.\s*Congrats!?$/i,
     ],
-    toEnglishBody: (match) => `Congratulations! You unlocked the "${match[1] || ''}" badge.`,
+    toEnglishBody: (match) => `You reached ${match[1] || '0'} followers! Dralens evolved to ${match[2] || 'new'} tier. Congrats!`,
   },
 
-  // 27. Mission Backer
+  // 23. Orders: Placed
+  {
+    defaultEnglishTitle: 'Order Placed Successfully',
+    bodyPatterns: [
+      /^Seu pedido (?:#([^\s]+)\s+)?foi realizado com sucesso\.(?:\s*Você ganhou ([\d,.]+) Pontos da Plataforma!?)?$/i,
+      /^Tu pedido (?:#([^\s]+)\s+)?ha sido realizado con éxito\.(?:\s*¡Ganaste ([\d,.]+) Puntos de Plataforma!?)?$/i,
+      /^Votre commande (?:#([^\s]+)\s+)?a été passée avec succès\.(?:\s*Vous avez gagné ([\d,.]+) Points de Plateforme !?)?$/i,
+      /^Il tuo ordine (?:#([^\s]+)\s+)?è stato effettuato con successo\.(?:\s*Hai guadagnato ([\d,.]+) Punti Piattaforma!?)?$/i,
+      /^Your order (?:#([^\s]+)\s+)?has been placed successfully\.(?:\s*You earned ([\d,.]+) Platform Points!?)?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderNumber || data?.orderId || '';
+      const points = match[2] || data?.pointsEarned || '';
+      const orderPart = orderId ? `Your order #${orderId} has been placed successfully.` : 'Your order has been placed successfully.';
+      return points ? `${orderPart} You earned ${points} Platform Points!` : orderPart;
+    },
+  },
+
+  // 24. Orders: New Order for seller
+  {
+    defaultEnglishTitle: 'You have a new order',
+    bodyPatterns: [
+      /^(.*?)\s+fez um novo pedido no seu closet\.?$/i,
+      /^(.*?)\s+ha realizado un nuevo pedido en tu tienda\.?$/i,
+      /^(.*?)\s+a passé une nouvelle commande dans votre boutique\.?$/i,
+      /^(.*?)\s+ha effettuato un nuovo ordine nel tuo negozio\.?$/i,
+      /^(.*?)\s+has placed a new order in your closet\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'A buyer'} has placed a new order in your closet.`,
+  },
+
+  // 25. Orders: Preparing (shipment or pickup)
+  {
+    defaultEnglishTitle: 'Your Order is being prepared! 📦',
+    bodyPatterns: [
+      /^(.*?)\s+está preparando seu pedido para envio.*$/is,
+      /^(.*?)\s+está preparando tu pedido para el envío.*$/is,
+      /^(.*?)\s+prépare votre commande pour l'expédition.*$/is,
+      /^(.*?)\s+sta preparando il tuo ordine per la spedizione.*$/is,
+      /^(.*?)\s+is preparing your order for shipment.*$/is,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'The seller'} is preparing your order for shipment. We’ll notify you as soon as it ships and your tracking information is available.`,
+  },
+  {
+    defaultEnglishTitle: 'Your Order is being prepared! 📦',
+    bodyPatterns: [
+      /^(.*?)\s+está preparando seu pedido\.\s*Confira os detalhes de retirada.*$/is,
+      /^(.*?)\s+está preparando tu pedido\.\s*Consulta los detalles de recogida.*$/is,
+      /^(.*?)\s+prépare votre commande\.\s*Vérifiez les détails de retrait.*$/is,
+      /^(.*?)\s+sta preparando il tuo ordine\.\s*Controlla i dettagli del ritiro.*$/is,
+      /^(.*?)\s+is getting your order ready\.\s*Check your pickup details.*$/is,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'The seller'} is getting your order ready. Check your pickup details and chat with the seller if you need to coordinate anything.`,
+  },
+
+  // 26. Orders: Shipped
+  {
+    defaultEnglishTitle: 'Order Shipped',
+    bodyPatterns: [
+      /^Seu pedido foi enviado\.(.*)?$/i,
+      /^Tu pedido ha sido enviado\.(.*)?$/i,
+      /^Votre commande a été expédiée\.(.*)?$/i,
+      /^Il tuo ordine è stato spedito\.(.*)?$/i,
+      /^Your order has been shipped\.(.*)?$/i,
+    ],
+    toEnglishBody: (match) => {
+      const isCarrier = match[0]?.toLowerCase().includes('transportadora') || match[0]?.toLowerCase().includes('transportista') || match[0]?.toLowerCase().includes('transporteur') || match[0]?.toLowerCase().includes('corriere') || match[0]?.toLowerCase().includes('carrier') || match[0]?.toLowerCase().includes('tracking') || match[0]?.toLowerCase().includes('rastreamento');
+      return isCarrier ? 'Your order has been shipped. Tracking was validated with the carrier.' : 'Your order has been shipped.';
+    },
+  },
+
+  // 27. Orders: Sale completed (Pickup Seller)
+  {
+    defaultEnglishTitle: '🎉 Sale completed!',
+    bodyPatterns: [
+      /^(.*?)\s+retirou o pedido com sucesso!\s*Obrigado por vender no Valens!?$/i,
+      /^(.*?)\s+recogió con éxito el pedido!\s*¡Gracias por vender en Valens!?$/i,
+      /^(.*?)\s+a retiré la commande avec succès !\s*Merci de vendre sur Valens !?$/i,
+      /^(.*?)\s+ha ritirato con successo l'ordine!\s*Grazie per aver venduto su Valens!?$/i,
+      /^(.*?)\s+successfully picked up the order!\s*Thank you for selling on Valens!?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'The buyer'} successfully picked up the order! Thank you for selling on Valens!`,
+  },
+
+  // 28. Orders: Cancellation Requested
+  {
+    defaultEnglishTitle: 'Cancellation Requested',
+    bodyPatterns: [
+      /^⚠️\s*(.*?)\s+solicitou o cancelamento do Pedido\s*#?([^\s.]+)\.?(?:[\r\n]+Motivo:\s*(.*?))?[\r\n]+Por favor, revise e aprove ou recuse no painel do vendedor\.?$/is,
+      /^⚠️\s*(.*?)\s+solicitó cancelar el Pedido\s*#?([^\s.]+)\.?(?:[\r\n]+Motivo:\s*(.*?))?[\r\n]+Por favor revisa y aprueba o rechaza en tu panel de vendedor\.?$/is,
+      /^⚠️\s*(.*?)\s+a demandé l'annulation de la Commande\s*#?([^\s.]+)\.?(?:[\r\n]+Raison\s*:\s*(.*?))?[\r\n]+Veuillez examiner et approuver ou refuser dans votre tableau de bord\.?$/is,
+      /^⚠️\s*(.*?)\s+ha richiesto l'annullamento dell'Ordine\s*#?([^\s.]+)\.?(?:[\r\n]+Motivo:\s*(.*?))?[\r\n]+Esamina e approva o rifiuta nella dashboard venditore\.?$/is,
+      /^⚠️\s*(.*?)\s+requested to cancel Order\s*#?([^\s.]+)\.?(?:[\r\n]+Reason:\s*(.*?))?[\r\n]+Please review and approve or decline in your seller dashboard\.?$/is,
+    ],
+    toEnglishBody: (match) => {
+      const reason = match[3] ? `\nReason: ${match[3]}` : '';
+      return `⚠️ ${match[1] || 'Buyer'} requested to cancel Order #${match[2] || ''}.${reason}\nPlease review and approve or decline in your seller dashboard.`;
+    },
+  },
+
+  // 29. Orders: Cancellation Request Declined
+  {
+    defaultEnglishTitle: 'Cancellation Request Declined',
+    bodyPatterns: [
+      /^ℹ️\s*A solicitação de cancelamento do Pedido\s*#?([^\s.]+)\s+foi recusada por (.*?)\.?(?:[\r\n]+Motivo:\s*(.*?))?[\r\n]+O processamento do pedido continuará\.?$/is,
+      /^ℹ️\s*La solicitud de cancelación del Pedido\s*#?([^\s.]+)\s+fue rechazada por (.*?)\.?(?:[\r\n]+Motivo:\s*(.*?))?[\r\n]+El procesamiento del pedido continuará\.?$/is,
+      /^ℹ️\s*La demande d'annulation de la Commande\s*#?([^\s.]+)\s+a été refusée par (.*?)\.?(?:[\r\n]+Raison\s*:\s*(.*?))?[\r\n]+Le traitement de la commande se poursuivra\.?$/is,
+      /^ℹ️\s*La richiesta di annullamento per l'Ordine\s*#?([^\s.]+)\s+è stata rifiutata da (.*?)\.?(?:[\r\n]+Motivo:\s*(.*?))?[\r\n]+L'evasione dell'ordine continuerà\.?$/is,
+      /^ℹ️\s*Cancellation request for Order\s*#?([^\s.]+)\s+was declined by (.*?)\.?(?:[\r\n]+Reason:\s*(.*?))?[\r\n]+Order fulfillment will continue\.?$/is,
+    ],
+    toEnglishBody: (match) => {
+      const reason = match[3] ? `\nReason: ${match[3]}` : '';
+      return `ℹ️ Cancellation request for Order #${match[1] || ''} was declined by ${match[2] || 'Seller'}.${reason}\nOrder fulfillment will continue.`;
+    },
+  },
+
+  // 30. Orders: Cancelled
+  {
+    defaultEnglishTitle: 'Order Cancelled',
+    bodyPatterns: [
+      /^O pedido (?:#([^\s]+)\s+)?foi cancelado por (.*?)\.?(?:[\r\n]+Motivo:\s*(.*?))?$/is,
+      /^El pedido (?:#([^\s]+)\s+)?fue cancelado por (.*?)\.?(?:[\r\n]+Motivo:\s*(.*?))?$/is,
+      /^La commande (?:#([^\s]+)\s+)?a été annulée par (.*?)\.?(?:[\r\n]+Raison\s*:\s*(.*?))?$/is,
+      /^L'ordine (?:#([^\s]+)\s+)?è stato annullato da (.*?)\.?(?:[\r\n]+Motivo:\s*(.*?))?$/is,
+      /^Order (?:#([^\s]+)\s+)?was cancelled by (.*?)\.?(?:[\r\n]+Reason:\s*(.*?))?$/is,
+    ],
+    toEnglishBody: (match) => {
+      const orderPart = match[1] ? `Order #${match[1]} ` : 'Order ';
+      const reasonPart = match[3] ? `\nReason: ${match[3]}` : '';
+      return `${orderPart}was cancelled by ${match[2] || 'user'}.${reasonPart}`;
+    },
+  },
+
+  // 31. Mission Backer: "${backerHandle} contributed $${donation.amount} to your Mission. You're now ${fundedPercent}% funded!"
   {
     defaultEnglishTitle: '🏦 New Backer on your Mission!',
     bodyPatterns: [
-      /^(.*?)\s+apoiou sua missão com \$?([\d,.]+)\.?$/i,
-      /^(.*?)\s+apoyó tu misión con \$?([\d,.]+)\.?$/i,
-      /^(.*?)\s+a soutenu votre mission avec \$?([\d,.]+)\.?$/i,
-      /^(.*?)\s+ha sostenuto la tua missione con \$?([\d,.]+)\.?$/i,
-      /^(.*?)\s+backed your mission with \$?([\d,.]+)\.?$/i,
+      /^(.*?)\s+contribuiu com \$?([\d,.]+)\s+para sua Missão\.\s*Você está agora\s+([\d,.]+)%\s+financiado!?$/i,
+      /^(.*?)\s+contribuyó con \$?([\d,.]+)\s+a tu Misión\.\s*¡Ahora estás al\s+([\d,.]+)%\s+financiado!?$/i,
+      /^(.*?)\s+a contribué avec \$?([\d,.]+)\s+à votre Mission\.\s*Vous êtes maintenant financé à\s+([\d,.]+)\s*% !?$/i,
+      /^(.*?)\s+ha contribuito con \$?([\d,.]+)\s+alla tua Missione\.\s*Sei ora finanziato al\s+([\d,.]+)%!$/i,
+      /^(.*?)\s+contributed \$?([\d,.]+)\s+to your Mission\.\s*You're now\s+([\d,.]+)%\s+funded!?$/i,
     ],
-    toEnglishBody: (match) => `${match[1] || 'Someone'} backed your mission with $${match[2] || '0'}.`,
+    toEnglishBody: (match) => `${match[1] || 'Someone'} contributed $${match[2] || '0'} to your Mission. You're now ${match[3] || '0'}% funded!`,
   },
 
-  // 28. Mission Fully Funded
+  // 32. Mission Fully Funded (creator)
   {
     defaultEnglishTitle: '🎉 Your Mission is FULLY FUNDED!',
     bodyPatterns: [
-      /^Parabéns!\s*Sua missão foi 100% financiada\.?$/i,
-      /^¡Felicitaciones!\s*Tu misión está financiada al 100%\.?$/i,
-      /^Félicitations !\s*Votre mission est financée à 100 %\.?$/i,
-      /^Congratulazioni!\s*La tua missione è finanziata al 100%\.?$/i,
-      /^Congratulations!\s*Your mission is 100% funded\.?$/i,
+      /^Parabéns!\s*Sua campanha atingiu a meta de \$?([\d,.]+)\.\s*O pagamento está sendo processado\.?$/i,
+      /^¡Felicidades!\s*Tu campaña alcanzó la meta de \$?([\d,.]+)\.\s*El pago se está procesando\.?$/i,
+      /^Félicitations !\s*Votre campagne a atteint l'objectif de \$?([\d,.]+)\.\s*Le paiement est en cours de traitement\.?$/i,
+      /^Congratulazioni!\s*La tua campagna ha raggiunto l'obiettivo di \$?([\d,.]+)\.\s*Il pagamento è in fase di elaborazione\.?$/i,
+      /^Congratulations!\s*Your campaign hit the \$?([\d,.]+)\s+goal\.\s*Payout is being processed\.?$/i,
     ],
-    toEnglishBody: () => 'Congratulations! Your mission is 100% funded.',
+    toEnglishBody: (match) => `Congratulations! Your campaign hit the $${match[1] || '0'} goal. Payout is being processed.`,
   },
 
-  // 29. Subscription Price Increase
+  // 33. Mission Fully Funded (backer)
   {
-    defaultEnglishTitle: 'Subscription Price Updated',
+    defaultEnglishTitle: '🎉 Mission Fully Funded!',
     bodyPatterns: [
-      /^(.*?)\s+aumentou o preço da assinatura mensal de \$?([\d,.]+)\s+para \$?([\d,.]+)\.\s*Sua renovação automática foi cancelada\.?.*$/is,
-      /^(.*?)\s+aumentó el precio de suscripción mensual de \$?([\d,.]+)\s+a \$?([\d,.]+)\.\s*Tu renovación automática fue cancelada\.?.*$/is,
-      /^(.*?)\s+a augmenté le prix mensuel de \$?([\d,.]+)\s+à \$?([\d,.]+)\.\s*Votre renouvellement automatique a été annulé\.?.*$/is,
-      /^(.*?)\s+ha aumentato il prezzo dell'abbonamento mensile da \$?([\d,.]+)\s+a \$?([\d,.]+)\.\s*Il rinnovo automatico è stato annullato\.?.*$/is,
-      /^(.*?)\s+increased the monthly subscription price from \$?([\d,.]+)\s+to \$?([\d,.]+)\.\s*Your autopay has been cancelled\.?.*$/is,
+      /^(?:A Missão de |La Misión de |La Mission de |La Missione di )?(.*?)\s+(?:atingiu a meta|alcanzó su meta|a atteint son objectif|ha raggiunto il suo obiettivo|reached its goal)!\s*(?:Você ajudou|Ayudaste|Vous avez contribué|Hai contribuito|You helped).*(?:Obrigado|Gracias|Merci|Grazie|Thank you)\.?$/is,
     ],
-    toEnglishBody: (match) => `${match[1] || 'A creator'} increased the monthly subscription price from $${match[2] || '0'} to $${match[3] || '0'}. Your autopay has been cancelled. Re-subscribe to continue receiving exclusive content.`,
+    toEnglishBody: (match) => `${match[1] || "The creator's"} Mission reached its goal! You helped make it happen. Thank you.`,
   },
 
-  // 30. Welcome to Valens
+  // 34. Mission Ending Soon (24h)
+  {
+    defaultEnglishTitle: '⏰ Mission ends in 24 hours!',
+    bodyPatterns: [
+      /^A campanha de (.*?)\s+encerra amanhã\.\s*Não perca a chance de apoiar\.?$/i,
+      /^La campaña de (.*?)\s+cierra mañana\.\s*No pierdas la oportunidad de apoyarla\.?$/i,
+      /^La campagne de (.*?)\s+se termine demain\.\s*Ne manquez pas votre chance de la soutenir\.?$/i,
+      /^La campagna di (.*?)\s+si chiude domani\.\s*Non perdere l'occasione di sostenerla\.?$/i,
+      /^(.*?)\s+campaign closes tomorrow\.\s*Don't miss your chance to back it\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || "The creator"}'s campaign closes tomorrow. Don't miss your chance to back it.`,
+  },
+
+  // 35. Contribution Confirmed
+  {
+    defaultEnglishTitle: '✅ Contribution Confirmed!',
+    bodyPatterns: [
+      /^Seu apoio de \$?([\d,.]+)\s+para a Missão de (.*?)\s+está confirmado\.\s*Obrigado pelo seu apoio!?$/i,
+      /^Tu aporte de \$?([\d,.]+)\s+a la Misión de (.*?)\s+está confirmado\.\s*¡Gracias por tu apoyo!?$/i,
+      /^Votre soutien de \$?([\d,.]+)\s+pour la Mission de (.*?)\s+est confirmé\.\s*Merci pour votre soutien !?$/i,
+      /^Il tuo contributo di \$?([\d,.]+)\s+per la Missione di (.*?)\s+è confermato\.\s*Grazie per il tuo supporto!?$/i,
+      /^Your \$?([\d,.]+)\s+backing of (.*?)\s+Mission is confirmed\.\s*Thank you for your support!?$/i,
+    ],
+    toEnglishBody: (match) => `Your $${match[1] || '0'} backing of ${match[2] || "the creator"}'s Mission is confirmed. Thank you for your support!`,
+  },
+
+  // 36. Subscription Price Update
+  {
+    defaultEnglishTitle: 'Subscription Price Update',
+    bodyPatterns: [
+      /^Sua assinatura de (.*?)\s+mudou para \$?([\d,.]+)\/mês\.?$/i,
+      /^Tu suscripción a (.*?)\s+ha cambiado a \$?([\d,.]+)\/mes\.?$/i,
+      /^Votre abonnement à (.*?)\s+est passé à \$?([\d,.]+)\/mois\.?$/i,
+      /^Il tuo abbonamento a (.*?)\s+è cambiato in \$?([\d,.]+)\/mese\.?$/i,
+      /^Your subscription to (.*?)\s+has changed to \$?([\d,.]+)\/month\.?$/i,
+    ],
+    toEnglishBody: (match) => `Your subscription to ${match[1] || 'the creator'} has changed to $${match[2] || '0'}/month.`,
+  },
+
+  // 37. Welcome to Valens
   {
     defaultEnglishTitle: 'Welcome to Valens!',
     bodyPatterns: [
@@ -2417,13 +3240,322 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
   },
 ];
 
-/**
- * Main translation function (English -> Target Language)
- */
+// ============================================================================
+// 6. METADATA-BASED FALLBACK RECONSTRUCTION (Deterministic English)
+// ============================================================================
+export function reconstructEnglishFromMetadata(
+  type?: string,
+  data?: Record<string, any>,
+): TranslatedNotification | null {
+  if (!type && !data?.type) return null;
+  const notifType = (type || data?.type || '').toLowerCase();
+
+  switch (notifType) {
+    case 'like': {
+      const user = data?.likerUserName || data?.likerDisplayName || 'Someone';
+      const isCircle = Boolean(data?.isPrivateCircle);
+      return {
+        title: 'Post Liked',
+        body: `${user} ${isCircle ? 'liked your private circle post.' : 'liked your post.'}`,
+      };
+    }
+    case 'follow': {
+      const user = data?.followerUserName || data?.followerDisplayName || 'Someone';
+      return {
+        title: '👤 New Follower!',
+        body: `${user} started following you. Check out their profile.`,
+      };
+    }
+    case 'unfollow': {
+      const user = data?.unfollowerUserName || data?.unfollowerDisplayName || 'Someone';
+      return {
+        title: 'New Unfollower',
+        body: `${user} unfollowed you.`,
+      };
+    }
+    case 'post_comment': {
+      const user = data?.commenterUserName || data?.commenterDisplayName || 'Someone';
+      const preview = data?.commentPreview || '';
+      return {
+        title: '💬 New Comment',
+        body: preview ? `${user} commented on your post: "${preview}"` : `${user} commented on your post.`,
+      };
+    }
+    case 'post_tag': {
+      const user = data?.taggerUserName || data?.taggerDisplayName || 'Someone';
+      const isCircle = Boolean(data?.isPrivateCircle || data?.visibleTo === 'PRIVATE_CIRCLE');
+      return {
+        title: isCircle ? 'Tagged in a private circle post' : 'Tagged in a post',
+        body: `${user} tagged you in a ${isCircle ? 'private circle post.' : 'post.'}`,
+      };
+    }
+    case 'mention': {
+      const user = data?.mentionerUserName || data?.mentionerDisplayName || 'Someone';
+      const isBattle = data?.contextType === 'battle';
+      return {
+        title: '📢 You were mentioned!',
+        body: `${user} mentioned you in a ${isBattle ? 'Battle post.' : 'post.'} Tap to see the context.`,
+      };
+    }
+    case 'private_circle_added': {
+      const owner = data?.ownerUserName || data?.ownerDisplayName || 'A creator';
+      return {
+        title: "You've Been Chosen",
+        body: `${owner} added you to their Private Circle.`,
+      };
+    }
+    case 'private_circle_growing': {
+      const user = data?.joinedUserName || data?.joinedUserDisplayName || 'A new member';
+      const count = data?.totalMembers || '1';
+      return {
+        title: '👥 Your Circle is growing!',
+        body: `${user} just joined your Private Circle. You now have ${count} members.`,
+      };
+    }
+    case 'private_circle_exclusive_post': {
+      const creator = data?.creatorUserName || data?.creatorDisplayName || 'A creator';
+      return {
+        title: '🔐 New exclusive post in your Circle!',
+        body: `${creator} just posted exclusive content for your Private Circle. Only you can see this.`,
+      };
+    }
+    case 'private_circle_access_removed': {
+      const owner = data?.ownerUserName || data?.ownerDisplayName || 'the creator';
+      return {
+        title: '🔓 Private Circle access removed.',
+        body: `You have been removed from ${owner}'s Private Circle. Exclusive content is no longer accessible.`,
+      };
+    }
+    case 'battle_invite': {
+      const inviter = data?.inviterUserName || 'Someone';
+      return {
+        title: 'Battle Invitation',
+        body: `${inviter} challenged you to a Battle. Review their side and argument.`,
+      };
+    }
+    case 'battle_started':
+      return {
+        title: '⚔️ Battle Started',
+        body: 'The debate is live. See who joins your side.',
+      };
+    case 'battle_participant_joined': {
+      const count = data?.newCount || '1';
+      return {
+        title: '👥 New Participants!',
+        body: `${count} new participants joined your Battle. See which side the community is backing.`,
+      };
+    }
+    case 'battle_closing_soon':
+      return {
+        title: '⏳ Battle Closing Soon',
+        body: 'Final votes are coming in. See the current outcome before time runs out.',
+      };
+    case 'battle_completed':
+      return {
+        title: '🏆 Battle Completed',
+        body: 'See the final outcome and accuracy result for your Battle.',
+      };
+    case 'battle_declined':
+      return {
+        title: 'Battle Declined',
+        body: 'The invited user declined your battle invite.',
+      };
+    case 'battle_invite_expired': {
+      const invited = data?.invitedUserName || 'the invited user';
+      return {
+        title: 'Battle Invite Expired',
+        body: `Your battle was not accepted by ${invited}.`,
+      };
+    }
+    case 'battle_victory':
+      return {
+        title: 'Victory! Your side won!',
+        body: 'Your credibility score has increased. Check your updated achievements.',
+      };
+    case 'battle_forecast_missed':
+      return {
+        title: 'Battle Result Updated',
+        body: 'The outcome did not match your forecast. Review your accuracy.',
+      };
+    case 'battle_leaderboard_climbed':
+      return {
+        title: 'You moved up the leaderboard!',
+        body: 'See your new global ranking as a Forecaster on Valens.',
+      };
+    case 'marketplace_order_paid': {
+      const buyer = data?.buyerUsername || data?.buyerName || 'A buyer';
+      return {
+        title: 'You have a new order',
+        body: `${buyer} has placed a new order in your closet.`,
+      };
+    }
+    case 'marketplace_order_placed': {
+      const orderNum = data?.orderNumber ? `#${data.orderNumber} ` : '';
+      return {
+        title: 'Order Placed Successfully',
+        body: `Your order ${orderNum}has been placed successfully.`,
+      };
+    }
+    case 'seller_order_processing': {
+      const seller = data?.sellerName || 'The seller';
+      const isPickup = data?.shippingType === 'local_pickup';
+      return {
+        title: 'Your Order is being prepared! 📦',
+        body: isPickup
+          ? `${seller} is getting your order ready. Check your pickup details and chat with the seller if you need to coordinate anything.`
+          : `${seller} is preparing your order for shipment. We’ll notify you as soon as it ships and your tracking information is available.`,
+      };
+    }
+    case 'seller_order_shipped':
+      return {
+        title: 'Order Shipped',
+        body: 'Your order has been shipped. Tracking was validated with the carrier.',
+      };
+    case 'carrier_order_delivered':
+      return {
+        title: 'Order Delivered',
+        body: 'Carrier confirmed delivery. Confirm receipt or report a problem within 48 hours.',
+      };
+    case 'marketplace_delivery_protection_started':
+      return {
+        title: 'Confirm your delivery',
+        body: 'Your order was marked delivered.',
+      };
+    case 'marketplace_payout_scheduled':
+      return {
+        title: 'Delivered – Earnings Pending',
+        body: 'Buyer has 48 hours to confirm. Earnings move to your available balance after the protection window.',
+      };
+    case 'marketplace_earnings_available':
+      return {
+        title: 'Earnings Available',
+        body: 'Your marketplace earnings are now available to withdraw.',
+      };
+    case 'marketplace_payout_frozen':
+      return {
+        title: 'Payout Frozen',
+        body: 'A buyer reported a problem. Your payout is on hold.',
+      };
+    case 'marketplace_order_cancelled': {
+      const orderNum = data?.orderNumber ? `#${data.orderNumber} ` : '';
+      const by = (data?.cancelledBy || 'user').toLowerCase();
+      const reason = data?.reason ? `\nReason: ${data.reason}` : '';
+      return {
+        title: 'Order Cancelled',
+        body: `Order ${orderNum}was cancelled by ${by}.${reason}`,
+      };
+    }
+    case 'seller_pickup_completed': {
+      const buyer = data?.buyerName || data?.buyerUsername || 'The buyer';
+      return {
+        title: '🎉 Sale completed!',
+        body: `${buyer} successfully picked up the order! Thank you for selling on Valens!`,
+      };
+    }
+    case 'buyer_pickup_completed':
+      return {
+        title: '🎉 Pickup Completed!',
+        body: 'Your pickup was completed successfully. Thanks for shopping on Valens!',
+      };
+    case 'closet_chat_message':
+      return {
+        title: 'New chat message',
+        body: 'You have a new message in your marketplace chat.',
+      };
+    case 'tokens_received': {
+      const amount = data?.amount || '0';
+      const sender = data?.senderName || 'a user';
+      return {
+        title: 'Tokens Received',
+        body: `You received ${amount} tokens from ${sender}.`,
+      };
+    }
+    case 'welcome_onboarding':
+      return {
+        title: 'Welcome to Valens!',
+        body: 'Welcome to Valens! Explore features, connect with creators, and enjoy the community.',
+      };
+    default:
+      return null;
+  }
+}
+
+// ============================================================================
+// 7. COMMON PHRASE REPLACEMENTS FALLBACK (Any Language -> Canonical English)
+// ============================================================================
+const PHRASE_REPLACEMENTS: Array<{ pattern: RegExp; replacement: string }> = [
+  // Portuguese phrases
+  { pattern: /começou a seguir você(?:\.\s*Confira o perfil)?/gi, replacement: 'started following you. Check out their profile.' },
+  { pattern: /deixou de seguir você/gi, replacement: 'unfollowed you.' },
+  { pattern: /curtiu sua publicação do círculo privado/gi, replacement: 'liked your private circle post.' },
+  { pattern: /curtiu sua publicação/gi, replacement: 'liked your post.' },
+  { pattern: /comentou na sua publicação:\s*"(.*)"/gi, replacement: 'commented on your post: "$1"' },
+  { pattern: /mencionou você em uma publicação/gi, replacement: 'mentioned you in a post. Tap to see the context.' },
+  { pattern: /marcou você em uma publicação/gi, replacement: 'tagged you in a post.' },
+  { pattern: /adicionou você ao Círculo Privado dele\(a\)/gi, replacement: 'added you to their Private Circle.' },
+  { pattern: /acabou de entrar no seu Círculo Privado/gi, replacement: 'just joined your Private Circle.' },
+  { pattern: /foi realizado com sucesso/gi, replacement: 'has been placed successfully.' },
+  { pattern: /está sendo preparado/gi, replacement: 'is being prepared.' },
+  { pattern: /foi enviado/gi, replacement: 'has been shipped.' },
+  { pattern: /foi entregue/gi, replacement: 'has been delivered.' },
+  { pattern: /foi cancelado/gi, replacement: 'has been cancelled.' },
+  { pattern: /desafiou você para uma Batalha/gi, replacement: 'challenged you to a Battle.' },
+  { pattern: /desafiou sua loja para uma batalha/gi, replacement: 'challenged your shop to a battle.' },
+
+  // Spanish phrases
+  { pattern: /comenzó a seguirte(?:\.\s*Revisa su perfil)?/gi, replacement: 'started following you. Check out their profile.' },
+  { pattern: /dejó de seguirte/gi, replacement: 'unfollowed you.' },
+  { pattern: /le gustó tu publicación del círculo privado/gi, replacement: 'liked your private circle post.' },
+  { pattern: /le gustó tu publicación/gi, replacement: 'liked your post.' },
+  { pattern: /comentó en tu publicación:\s*"(.*)"/gi, replacement: 'commented on your post: "$1"' },
+  { pattern: /te mencionó en una publicación/gi, replacement: 'mentioned you in a post. Tap to see the context.' },
+  { pattern: /te etiquetó en una publicación/gi, replacement: 'tagged you in a post.' },
+  { pattern: /ha sido realizado con éxito/gi, replacement: 'has been placed successfully.' },
+  { pattern: /ha sido enviado/gi, replacement: 'has been shipped.' },
+  { pattern: /ha sido entregado/gi, replacement: 'has been delivered.' },
+  { pattern: /ha sido cancelado/gi, replacement: 'has been cancelled.' },
+  { pattern: /te desafió a una Batalla/gi, replacement: 'challenged you to a Battle.' },
+
+  // French phrases
+  { pattern: /a commencé à vous suivre/gi, replacement: 'started following you. Check out their profile.' },
+  { pattern: /ne vous suit plus/gi, replacement: 'unfollowed you.' },
+  { pattern: /a aimé votre publication/gi, replacement: 'liked your post.' },
+  { pattern: /a commenté votre publication\s*:\s*"(.*)"/gi, replacement: 'commented on your post: "$1"' },
+  { pattern: /vous a mentionné dans une publication/gi, replacement: 'mentioned you in a post. Tap to see the context.' },
+  { pattern: /a été passée avec succès/gi, replacement: 'has been placed successfully.' },
+  { pattern: /a été expédiée/gi, replacement: 'has been shipped.' },
+  { pattern: /a été livrée/gi, replacement: 'has been delivered.' },
+  { pattern: /a été annulée/gi, replacement: 'has been cancelled.' },
+  { pattern: /vous a défié pour une? Batalla/gi, replacement: 'challenged you to a Battle.' },
+
+  // Italian phrases
+  { pattern: /ha iniziato a seguirti/gi, replacement: 'started following you. Check out their profile.' },
+  { pattern: /ha smesso di seguirti/gi, replacement: 'unfollowed you.' },
+  { pattern: /piace il tuo post/gi, replacement: 'liked your post.' },
+  { pattern: /ha commentato il tuo post:\s*"(.*)"/gi, replacement: 'commented on your post: "$1"' },
+  { pattern: /ti ha menzionato in un post/gi, replacement: 'mentioned you in a post. Tap to see the context.' },
+  { pattern: /è stato effettuato con successo/gi, replacement: 'has been placed successfully.' },
+  { pattern: /è stato spedito/gi, replacement: 'has been shipped.' },
+  { pattern: /è stato consegnato/gi, replacement: 'has been delivered.' },
+  { pattern: /è stato annullato/gi, replacement: 'has been cancelled.' },
+  { pattern: /ti ha sfidato a una Battaglia/gi, replacement: 'challenged you to a Battle.' },
+];
+
+function applyCommonPhraseReplacements(text: string): string {
+  let result = text;
+  for (const { pattern, replacement } of PHRASE_REPLACEMENTS) {
+    result = result.replace(pattern, replacement);
+  }
+  return result;
+}
+
+// ============================================================================
+// 8. FORWARD TRANSLATOR (English -> Target Language)
+// ============================================================================
 export function translateNotification(
   title: string,
   body: string,
-  targetLang?: string,
+  targetLang?: string | null,
   data?: Record<string, any>,
 ): TranslatedNotification {
   const lang = normalizeLanguage(targetLang);
@@ -2435,7 +3567,7 @@ export function translateNotification(
   const safeTitle = (title || '').trim();
   const safeBody = (body || '').trim();
 
-  // 1. Check pattern rules
+  // 1. Check PATTERN_RULES
   for (const rule of PATTERN_RULES) {
     const titleMatch = typeof rule.titlePattern === 'string'
       ? (safeTitle.toLowerCase() === rule.titlePattern.toLowerCase() ? [safeTitle] as unknown as RegExpMatchArray : null)
@@ -2459,22 +3591,28 @@ export function translateNotification(
     }
   }
 
-  // 2. Check title exact map
+  // 2. Check exact TITLE_MAP
   let translatedTitle = safeTitle;
   if (TITLE_MAP[safeTitle] && TITLE_MAP[safeTitle][lang]) {
     translatedTitle = TITLE_MAP[safeTitle][lang];
+  } else {
+    // Check case-insensitive
+    const lower = safeTitle.toLowerCase();
+    const foundEntry = Object.entries(TITLE_MAP).find(([k]) => k.toLowerCase() === lower);
+    if (foundEntry && foundEntry[1][lang]) {
+      translatedTitle = foundEntry[1][lang];
+    }
   }
 
-  // If title was translated but no body rule matched, return translated title with original body
   return {
     title: translatedTitle,
     body: safeBody,
   };
 }
 
-/**
- * Reverse translates any localized notification (pt, es, fr, it) back to canonical English.
- */
+// ============================================================================
+// 9. REVERSE TRANSLATOR (Any Language -> Canonical English)
+// ============================================================================
 export function reverseTranslateToEnglish(
   title: string,
   body: string,
@@ -2482,21 +3620,35 @@ export function reverseTranslateToEnglish(
 ): TranslatedNotification {
   const safeTitle = (title || '').trim();
   const safeBody = (body || '').trim();
-
-  // 1. Resolve Title to English
-  let enTitle = safeTitle;
   const lowerTitle = safeTitle.toLowerCase();
+  const lowerBody = safeBody.toLowerCase();
+
+  // 1. Resolve Title using Inverted Title Map
+  let enTitle = safeTitle;
   if (REVERSE_TITLE_MAP[lowerTitle]) {
     enTitle = REVERSE_TITLE_MAP[lowerTitle];
+  } else {
+    const noEmojiTitle = lowerTitle.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+    if (REVERSE_TITLE_MAP[noEmojiTitle]) {
+      enTitle = REVERSE_TITLE_MAP[noEmojiTitle];
+    }
   }
 
-  // 2. Resolve Body to English via Reverse Patterns
-  let enBody = safeBody;
+  // 2. Check Exact Static Body Map
+  if (REVERSE_STATIC_BODY_MAP[lowerBody]) {
+    const staticMatch = REVERSE_STATIC_BODY_MAP[lowerBody];
+    return {
+      title: staticMatch.title || enTitle,
+      body: staticMatch.body,
+    };
+  }
+
+  // 3. Check Dynamic Reverse Pattern Rules
   for (const rule of REVERSE_BODY_RULES) {
     for (const pattern of rule.bodyPatterns) {
       const match = safeBody.match(pattern);
       if (match) {
-        enBody = rule.toEnglishBody(match, data);
+        const enBody = rule.toEnglishBody(match, data);
         if (rule.defaultEnglishTitle && (!enTitle || enTitle === safeTitle)) {
           enTitle = rule.defaultEnglishTitle;
         }
@@ -2505,25 +3657,45 @@ export function reverseTranslateToEnglish(
     }
   }
 
-  return { title: enTitle, body: enBody };
+  // 4. Fallback: Reconstruct from metadata if data.type exists
+  const metaReconstruction = reconstructEnglishFromMetadata(data?.type, data);
+  if (metaReconstruction) {
+    return {
+      title: enTitle !== safeTitle ? enTitle : metaReconstruction.title,
+      body: metaReconstruction.body,
+    };
+  }
+
+  // 5. Fallback: Apply Phrase Replacements
+  const phraseReplacedBody = applyCommonPhraseReplacements(safeBody);
+  return {
+    title: enTitle,
+    body: phraseReplacedBody,
+  };
 }
 
-/**
- * Localizes any notification object (whether new with rawTitle/rawBody in data or legacy DB row)
- * into the requested target language (en, pt, es, fr, it).
- */
+// ============================================================================
+// 10. UNIVERSAL LOCALIZER (New, Old, Legacy, Computed DB Notifications)
+// ============================================================================
 export function localizeNotification<T extends { title: string; body: string; data?: any }>(
   notification: T,
-  targetLang?: string,
+  targetLang?: string | null,
 ): T {
   const lang = normalizeLanguage(targetLang);
-  const notifData = notification.data as Record<string, any> | null | undefined;
+  const notifData = (typeof notification.data === 'object' && notification.data !== null ? { ...(notification.data as any) } : {}) as Record<string, any>;
 
-  let canonicalEnglishTitle = notifData?.rawTitle as string | undefined;
-  let canonicalEnglishBody = notifData?.rawBody as string | undefined;
+  let canonicalEnglishTitle = notifData.rawTitle as string | undefined;
+  let canonicalEnglishBody = notifData.rawBody as string | undefined;
 
-  // If raw English template was preserved in data:
-  if (canonicalEnglishTitle && canonicalEnglishBody) {
+  // Check if preserved rawTitle / rawBody are indeed English or if they were accidentally saved in another language
+  const isRawEnglish = canonicalEnglishTitle && canonicalEnglishBody && (
+    // If rawTitle matches an English title key or doesn't match a foreign title in reverse map
+    Object.prototype.hasOwnProperty.call(TITLE_MAP, canonicalEnglishTitle) ||
+    !Object.prototype.hasOwnProperty.call(REVERSE_TITLE_MAP, canonicalEnglishTitle.toLowerCase().trim()) ||
+    REVERSE_TITLE_MAP[canonicalEnglishTitle.toLowerCase().trim()] === canonicalEnglishTitle
+  );
+
+  if (isRawEnglish && canonicalEnglishTitle && canonicalEnglishBody) {
     if (lang === 'en') {
       return {
         ...notification,
@@ -2531,7 +3703,7 @@ export function localizeNotification<T extends { title: string; body: string; da
         body: canonicalEnglishBody,
       };
     }
-    const translated = translateNotification(canonicalEnglishTitle, canonicalEnglishBody, lang, notifData || {});
+    const translated = translateNotification(canonicalEnglishTitle, canonicalEnglishBody, lang, notifData);
     return {
       ...notification,
       title: translated.title,
@@ -2539,8 +3711,8 @@ export function localizeNotification<T extends { title: string; body: string; da
     };
   }
 
-  // Legacy row without rawTitle/rawBody: reverse-translate to canonical English first
-  const reversed = reverseTranslateToEnglish(notification.title, notification.body, notifData || {});
+  // Legacy row without raw English template: reverse-translate to canonical English first
+  const reversed = reverseTranslateToEnglish(notification.title, notification.body, notifData);
   canonicalEnglishTitle = reversed.title;
   canonicalEnglishBody = reversed.body;
 
@@ -2552,13 +3724,10 @@ export function localizeNotification<T extends { title: string; body: string; da
     };
   }
 
-  const translated = translateNotification(canonicalEnglishTitle, canonicalEnglishBody, lang, notifData || {});
+  const translated = translateNotification(canonicalEnglishTitle, canonicalEnglishBody, lang, notifData);
   return {
     ...notification,
     title: translated.title,
     body: translated.body,
   };
 }
-
-
-
