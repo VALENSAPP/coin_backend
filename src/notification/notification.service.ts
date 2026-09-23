@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 import { PrismaService } from '../prisma/prisma.service';
 import { Notification, Prisma } from '@prisma/client';
 import { I18nService } from 'nestjs-i18n';
-import { translateNotification, reverseTranslateToEnglish, localizeNotification } from './notification.translator';
+import { translateNotification, reverseTranslateToEnglish, localizeNotification, normalizeLanguage } from './notification.translator';
 
 type NotificationPrismaClient = PrismaService | Prisma.TransactionClient;
 
@@ -24,8 +24,7 @@ export class NotificationService {
         where: { id: userId },
         select: { language: true } as any,
       });
-      const lang = (user as any)?.language;
-      return lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang) ? lang : 'en';
+      return normalizeLanguage((user as any)?.language);
     } catch {
       return 'en';
     }
@@ -566,8 +565,8 @@ export class NotificationService {
     const take = Math.min(limit, 200);
     const skip = (page - 1) * take;
 
-    const targetLang = options?.lang && ['en', 'pt', 'it', 'es', 'fr'].includes(options.lang.toLowerCase())
-      ? options.lang.toLowerCase()
+    const targetLang = options?.lang
+      ? normalizeLanguage(options.lang)
       : await this.getUserLanguage(userId);
 
     const notifications = await this.prisma.notification.findMany({
@@ -750,8 +749,8 @@ export class NotificationService {
 
   // Likes on the current user's posts (computed, not stored in Notification table)
   async getLikePostNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
-    const targetLang = lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang.toLowerCase())
-      ? lang.toLowerCase()
+    const targetLang = lang
+      ? normalizeLanguage(lang)
       : await this.getUserLanguage(userId);
 
     const likes = await this.prisma.postLike.findMany({
@@ -834,8 +833,8 @@ export class NotificationService {
 
   // Mission donations on the current user's posts (computed, not stored in Notification table)
   async getMissionDonationNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
-    const targetLang = lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang.toLowerCase())
-      ? lang.toLowerCase()
+    const targetLang = lang
+      ? normalizeLanguage(lang)
       : await this.getUserLanguage(userId);
 
     const donations = await this.prisma.donationData.findMany({
@@ -917,8 +916,8 @@ export class NotificationService {
 
   // Pay-following payments received by the current user
   async getPayFollowingNotifications(userId: string, limit: number = 100, lang?: string): Promise<any[]> {
-    const targetLang = lang && ['en', 'pt', 'it', 'es', 'fr'].includes(lang.toLowerCase())
-      ? lang.toLowerCase()
+    const targetLang = lang
+      ? normalizeLanguage(lang)
       : await this.getUserLanguage(userId);
 
     const payments = await this.prisma.payment.findMany({

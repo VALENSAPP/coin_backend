@@ -1956,54 +1956,19 @@ const PATTERN_RULES: PatternRule[] = [
     },
   },
 
-  // 47. Tokens Credited: "You have successfully received {amount} tokens."
-  {
-    titlePattern: /^Tokens Credited$/i,
-    bodyPattern: /^You have successfully received ([\d,.]+)\s+tokens\.?$/i,
-    translations: {
-      es: (_, b) => ({
-        title: 'Tokens Acreditados',
-        body: `Has recibido con éxito ${b?.[1] || '0'} tokens.`,
-      }),
-      fr: (_, b) => ({
-        title: 'Jetons Crédités',
-        body: `Vous avez reçu avec succès ${b?.[1] || '0'} jetons.`,
-      }),
-      it: (_, b) => ({
-        title: 'Token Accreditati',
-        body: `Hai ricevuto con successo ${b?.[1] || '0'} token.`,
-      }),
-      pt: (_, b) => ({
-        title: 'Tokens Creditados',
-        body: `Você recebeu com sucesso ${b?.[1] || '0'} tokens.`,
-      }),
-    },
-  },
-
-  // 48. Tokens Received: "You received {amount} tokens from {sender}."
-  {
-    titlePattern: /^Tokens Received$/i,
-    bodyPattern: /^You received ([\d,.]+)\s+tokens from (.*?)\.?$/i,
-    translations: {
-      es: (_, b) => ({
-        title: 'Tokens Recibidos',
-        body: `Recibiste ${b?.[1] || '0'} tokens de ${b?.[2] || 'alguien'}.`,
-      }),
-      fr: (_, b) => ({
-        title: 'Jetons Reçus',
-        body: `Vous avez reçu ${b?.[1] || '0'} jetons de ${b?.[2] || 'quelqu\'un'}.`,
-      }),
-      it: (_, b) => ({
-        title: 'Token Ricevuti',
-        body: `Hai ricevuto ${b?.[1] || '0'} token da ${b?.[2] || 'qualcuno'}.`,
-      }),
-      pt: (_, b) => ({
-        title: 'Tokens Recebidos',
-        body: `Você recebeu ${b?.[1] || '0'} tokens de ${b?.[2] || 'alguém'}.`,
-      }),
-    },
-  },
-];
+ /**
+ * Normalizes any language input (e.g. 'eng', 'en-US', 'pt-BR', 'por', 'spanish') to a SupportedLanguage ('en', 'es', 'fr', 'it', 'pt').
+ */
+export function normalizeLanguage(lang?: string): SupportedLanguage {
+  if (!lang) return 'en';
+  const clean = lang.toLowerCase().trim();
+  if (clean === 'en' || clean === 'eng' || clean === 'english' || clean.startsWith('en-') || clean.startsWith('en_')) return 'en';
+  if (clean === 'pt' || clean === 'por' || clean === 'portuguese' || clean.startsWith('pt-') || clean.startsWith('pt_')) return 'pt';
+  if (clean === 'es' || clean === 'spa' || clean === 'spanish' || clean.startsWith('es-') || clean.startsWith('es_')) return 'es';
+  if (clean === 'fr' || clean === 'fra' || clean === 'fre' || clean === 'french' || clean.startsWith('fr-') || clean.startsWith('fr_')) return 'fr';
+  if (clean === 'it' || clean === 'ita' || clean === 'italian' || clean.startsWith('it-') || clean.startsWith('it_')) return 'it';
+  return 'en';
+}
 
 // ---------------------------------------------------------------------------
 // Reverse Translation Engine (Multi-Language -> Canonical English)
@@ -2086,13 +2051,22 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
   {
     defaultEnglishTitle: '📢 You were mentioned!',
     bodyPatterns: [
+      /^(.*?)\s+mencionou você em uma publicação(?: de Batalha)?\.\s*Toque para ver o contexto\.?$/i,
+      /^(.*?)\s+te mencionó en una publicación(?: de Batalla)?\.\s*Toca para ver el contexto\.?$/i,
+      /^(.*?)\s+vous a mentionné dans (?:un post de Défi|une publication)\.\s*Appuyez pour voir le contexte\.?$/i,
+      /^(.*?)\s+ti ha menzionato in un post(?: di Battaglia)?\.\s*Tocca per vedere il contesto\.?$/i,
+      /^(.*?)\s+mentioned you in a (Battle post|post)\.\s*Tap to see the context\.?$/i,
       /^(.*?)\s+mencionou você em um comentário:\s*"(.*)"$/is,
       /^(.*?)\s+te mencionó en un comentario:\s*"(.*)"$/is,
       /^(.*?)\s+vous a mentionné dans un commentaire\s*:\s*"(.*)"$/is,
       /^(.*?)\s+ti ha menzionato in un commento:\s*"(.*)"$/is,
       /^(.*?)\s+mentioned you in a comment:\s*"(.*)"$/is,
     ],
-    toEnglishBody: (match) => `${match[1] || 'Someone'} mentioned you in a comment: "${match[2] || ''}"`,
+    toEnglishBody: (match) => {
+      if (match[2]) return `${match[1] || 'Someone'} mentioned you in a comment: "${match[2]}"`;
+      const isBattle = match[0]?.toLowerCase().includes('batalha') || match[0]?.toLowerCase().includes('batalla') || match[0]?.toLowerCase().includes('défi') || match[0]?.toLowerCase().includes('battaglia') || match[0]?.toLowerCase().includes('battle');
+      return `${match[1] || 'Someone'} mentioned you in a ${isBattle ? 'Battle post.' : 'post.'} Tap to see the context.`;
+    },
   },
 
   // 6. Tokens Received
@@ -2163,33 +2137,124 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     },
   },
 
-  // 11. Battle Invitation
+  // 11. Private Circle: Chosen / Added
+  {
+    defaultEnglishTitle: "You've Been Chosen",
+    bodyPatterns: [
+      /^(.*?)\s+adicionou você ao Círculo Privado dele\(a\)\.?$/i,
+      /^(.*?)\s+te añadió a su Círculo Privado\.?$/i,
+      /^(.*?)\s+vous a ajouté à son Cercle Privé\.?$/i,
+      /^(.*?)\s+ti ha aggiunto al suo Cerchio Privato\.?$/i,
+      /^(.*?)\s+added you to their Private Circle\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} added you to their Private Circle.`,
+  },
+
+  // 12. Private Circle: Growing
+  {
+    defaultEnglishTitle: '👥 Your Circle is growing!',
+    bodyPatterns: [
+      /^(.*?)\s+acabou de entrar no seu Círculo Privado\.\s*Você agora tem\s+(\d+)\s+membros\.?$/i,
+      /^(.*?)\s+se acaba de unir a tu Círculo Privado\.\s*Ahora tienes\s+(\d+)\s+miembros\.?$/i,
+      /^(.*?)\s+vient de rejoindre votre Cercle Privé\.\s*Vous avez maintenant\s+(\d+)\s+membres\.?$/i,
+      /^(.*?)\s+si è appena unito al tuo Cerchio Privato\.\s*Ora hai\s+(\d+)\s+membri\.?$/i,
+      /^(.*?)\s+just joined your Private Circle\.\s*You now have\s+(\d+)\s+members\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'A new member'} just joined your Private Circle. You now have ${match[2] || '0'} members.`,
+  },
+
+  // 13. Private Circle: Exclusive post
+  {
+    defaultEnglishTitle: '🔐 New exclusive post in your Circle!',
+    bodyPatterns: [
+      /^(.*?)\s+acabou de postar conteúdo exclusivo para seu Círculo Privado\.\s*Apenas você pode ver isso\.?$/i,
+      /^(.*?)\s+acaba de publicar contenido exclusivo para tu Círculo Privado\.\s*Solo tú puedes ver esto\.?$/i,
+      /^(.*?)\s+vient de publier du contenu exclusif pour votre Cercle Privé\.\s*Vous seul pouvez voir ceci\.?$/i,
+      /^(.*?)\s+ha appena pubblicato contenuti esclusivi per il tuo Cerchio Privato\.\s*Solo tu puoi vederlo\.?$/i,
+      /^(.*?)\s+just posted exclusive content for your Private Circle\.\s*Only you can see this\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'A creator'} just posted exclusive content for your Private Circle. Only you can see this.`,
+  },
+
+  // 14. Private Circle: Access removed
+  {
+    defaultEnglishTitle: '🔓 Private Circle access removed.',
+    bodyPatterns: [
+      /^Você foi removido do Círculo Privado de (.*?)\.\s*O conteúdo exclusivo não está mais acessível\.?$/i,
+      /^Has sido eliminado del Círculo Privado de (.*?)\.\s*El contenido exclusivo ya no está accesible\.?$/i,
+      /^Vous avez été retiré du Cercle Privé de (.*?)\.\s*Le contenu exclusif n'est plus accessible\.?$/i,
+      /^Sei stato rimosso dal Cerchio Privato di (.*?)\.\s*I contenuti esclusivi non sono più accessibili\.?$/i,
+      /^You have been removed from (.*?)'s Private Circle\.\s*Exclusive content is no longer accessible\.?$/i,
+    ],
+    toEnglishBody: (match) => `You have been removed from ${match[1] || 'the creator'}'s Private Circle. Exclusive content is no longer accessible.`,
+  },
+
+  // 15. Drop trending
+  {
+    defaultEnglishTitle: '🎬 Your Drop is trending!',
+    bodyPatterns: [
+      /^(.*?)\s+reagiu ao seu Drop Story\.\s*Está ganhando destaque!?$/i,
+      /^(.*?)\s+reaccionó a tu Historia Drop\.\s*¡Está ganando popularidad!?$/i,
+      /^(.*?)\s+a réagi à votre Drop Story\.\s*Il prend de l'ampleur !?$/i,
+      /^(.*?)\s+ha reagito alla tua Storia Drop\.\s*Sta guadagnando popolarità!?$/i,
+      /^(.*?)\s+reacted to your Drop Story\.\s*It's getting traction!?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} reacted to your Drop Story. It's getting traction!`,
+  },
+
+  // 16. Story views
+  {
+    defaultEnglishTitle: '👁 Your Story is Popular!',
+    bodyPatterns: [
+      /^(.*?)\s+visualizou seu Story na última hora\.?$/i,
+      /^(.*?)\s+vio tu Historia en la última hora\.?$/i,
+      /^(.*?)\s+a vu votre Histoire au cours de la dernière heure\.?$/i,
+      /^(.*?)\s+ha visualizzato la tua Storia nell'ultima ora\.?$/i,
+      /^(.*?)\s+viewed your Story in the last hour\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'A user'} viewed your Story in the last hour.`,
+  },
+
+  // 17. Post credit low
+  {
+    defaultEnglishTitle: '⚠️ 1 Post Credit Left',
+    bodyPatterns: [
+      /^Você tem 1 crédito de publicação restante\.\s*Faça upgrade para continuar postando\.?$/i,
+      /^Te queda 1 crédito de publicación\.\s*Actualiza tu plan para seguir publicando\.?$/i,
+      /^Il vous reste 1 crédit de publication\.\s*Passez à l'offre supérieure pour continuer à publier\.?$/i,
+      /^Ti è rimasto 1 credito di pubblicazione\.\s*Effettua l'upgrade per continuare a pubblicare\.?$/i,
+      /^You have 1 post credit remaining\.\s*Upgrade to keep posting\.?$/i,
+    ],
+    toEnglishBody: () => 'You have 1 post credit remaining. Upgrade to keep posting.',
+  },
+
+  // 18. Battle Invitation
   {
     defaultEnglishTitle: 'Battle Invitation',
     bodyPatterns: [
-      /^(.*?)\s+desafiou você para uma Batalha\.\s*Revise o lado e argumento dela\.?$/i,
-      /^(.*?)\s+te desafió a una Batalla\.\s*Revisa su postura y argumento\.?$/i,
-      /^(.*?)\s+vous a défié pour un Défi\.\s*Consultez son camp et son argument\.?$/i,
-      /^(.*?)\s+ti ha sfidato a una Battaglia\.\s*Controlla la sua fazione e tesi\.?$/i,
+      /^(.*?)\s+desafiou você para uma Batalha\.\s*(?:Veja|Revise) o lado e argumento dele\(a\)\.?$/i,
+      /^(.*?)\s+te desafió a una Batalla\.\s*Revisa su (?:posición|postura) y argumento\.?$/i,
+      /^(.*?)\s+vous a défié pour une? (?:Batalla|Défi)\.\s*(?:Examinez|Consultez) son camp et son argument\.?$/i,
+      /^(.*?)\s+ti ha sfidato a una Battaglia\.\s*(?:Esamina|Controlla) la sua (?:posizione|fazione) e (?:le sue argomentazioni|tesi)\.?$/i,
       /^(.*?)\s+challenged you to a Battle\.\s*Review their side and argument\.?$/i,
     ],
     toEnglishBody: (match) => `${match[1] || 'Someone'} challenged you to a Battle. Review their side and argument.`,
   },
 
-  // 12. Shop Battle Challenge
+  // 19. Shop Battle Challenge
   {
     defaultEnglishTitle: 'Shop Battle Challenge',
     bodyPatterns: [
       /^(.*?)\s+desafiou sua loja para uma batalha\.?$/i,
       /^(.*?)\s+desafió a tu tienda a una batalla\.?$/i,
-      /^(.*?)\s+a défié votre boutique pour un défi\.?$/i,
+      /^(.*?)\s+a défié votre boutique pour un(?:e)? (?:défi|bataille)\.?$/i,
       /^(.*?)\s+ha sfidato il tuo negozio a una battaglia\.?$/i,
       /^(.*?)\s+challenged your shop to a battle\.?$/i,
     ],
     toEnglishBody: (match) => `${match[1] || 'A shop'} challenged your shop to a battle.`,
   },
 
-  // 13. Orders: Placed
+  // 20. Orders: Placed
   {
     defaultEnglishTitle: 'Order Placed Successfully',
     bodyPatterns: [
@@ -2205,7 +2270,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     },
   },
 
-  // 14. Orders: New Order for seller
+  // 21. Orders: New Order for seller
   {
     defaultEnglishTitle: 'You have a new order',
     bodyPatterns: [
@@ -2221,7 +2286,23 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     },
   },
 
-  // 15. Orders: Shipped
+  // 22. Orders: Preparing
+  {
+    defaultEnglishTitle: 'Your Order is being prepared! 📦',
+    bodyPatterns: [
+      /^O vendedor está preparando seu pedido (?:#([^\s]+))?\.?$/i,
+      /^El vendedor está preparando tu pedido (?:#([^\s]+))?\.?$/i,
+      /^Le vendeur prépare votre commande (?:#([^\s]+))?\.?$/i,
+      /^Il venditore sta preparando il tuo ordine (?:#([^\s]+))?\.?$/i,
+      /^The seller is preparing your order (?:#([^\s]+))?\.?$/i,
+    ],
+    toEnglishBody: (match, data) => {
+      const orderId = match[1] || data?.orderId || '';
+      return orderId ? `The seller is preparing your order #${orderId}.` : 'The seller is preparing your order.';
+    },
+  },
+
+  // 23. Orders: Shipped
   {
     defaultEnglishTitle: 'Order Shipped',
     bodyPatterns: [
@@ -2237,7 +2318,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     },
   },
 
-  // 16. Orders: Delivered
+  // 24. Orders: Delivered
   {
     defaultEnglishTitle: 'Order Delivered',
     bodyPatterns: [
@@ -2253,7 +2334,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     },
   },
 
-  // 17. Orders: Cancelled
+  // 25. Orders: Cancelled
   {
     defaultEnglishTitle: 'Order Cancelled',
     bodyPatterns: [
@@ -2269,7 +2350,7 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
     },
   },
 
-  // 18. Badge unlocked
+  // 26. Badge unlocked
   {
     defaultEnglishTitle: '🥇 New Badge Unlocked!',
     bodyPatterns: [
@@ -2280,6 +2361,58 @@ const REVERSE_BODY_RULES: ReversePatternRule[] = [
       /^Congratulations!\s*You unlocked the "(.*?)" badge\.?$/i,
     ],
     toEnglishBody: (match) => `Congratulations! You unlocked the "${match[1] || ''}" badge.`,
+  },
+
+  // 27. Mission Backer
+  {
+    defaultEnglishTitle: '🏦 New Backer on your Mission!',
+    bodyPatterns: [
+      /^(.*?)\s+apoiou sua missão com \$?([\d,.]+)\.?$/i,
+      /^(.*?)\s+apoyó tu misión con \$?([\d,.]+)\.?$/i,
+      /^(.*?)\s+a soutenu votre mission avec \$?([\d,.]+)\.?$/i,
+      /^(.*?)\s+ha sostenuto la tua missione con \$?([\d,.]+)\.?$/i,
+      /^(.*?)\s+backed your mission with \$?([\d,.]+)\.?$/i,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'Someone'} backed your mission with $${match[2] || '0'}.`,
+  },
+
+  // 28. Mission Fully Funded
+  {
+    defaultEnglishTitle: '🎉 Your Mission is FULLY FUNDED!',
+    bodyPatterns: [
+      /^Parabéns!\s*Sua missão foi 100% financiada\.?$/i,
+      /^¡Felicitaciones!\s*Tu misión está financiada al 100%\.?$/i,
+      /^Félicitations !\s*Votre mission est financée à 100 %\.?$/i,
+      /^Congratulazioni!\s*La tua missione è finanziata al 100%\.?$/i,
+      /^Congratulations!\s*Your mission is 100% funded\.?$/i,
+    ],
+    toEnglishBody: () => 'Congratulations! Your mission is 100% funded.',
+  },
+
+  // 29. Subscription Price Increase
+  {
+    defaultEnglishTitle: 'Subscription Price Updated',
+    bodyPatterns: [
+      /^(.*?)\s+aumentou o preço da assinatura mensal de \$?([\d,.]+)\s+para \$?([\d,.]+)\.\s*Sua renovação automática foi cancelada\.?.*$/is,
+      /^(.*?)\s+aumentó el precio de suscripción mensual de \$?([\d,.]+)\s+a \$?([\d,.]+)\.\s*Tu renovación automática fue cancelada\.?.*$/is,
+      /^(.*?)\s+a augmenté le prix mensuel de \$?([\d,.]+)\s+à \$?([\d,.]+)\.\s*Votre renouvellement automatique a été annulé\.?.*$/is,
+      /^(.*?)\s+ha aumentato il prezzo dell'abbonamento mensile da \$?([\d,.]+)\s+a \$?([\d,.]+)\.\s*Il rinnovo automatico è stato annullato\.?.*$/is,
+      /^(.*?)\s+increased the monthly subscription price from \$?([\d,.]+)\s+to \$?([\d,.]+)\.\s*Your autopay has been cancelled\.?.*$/is,
+    ],
+    toEnglishBody: (match) => `${match[1] || 'A creator'} increased the monthly subscription price from $${match[2] || '0'} to $${match[3] || '0'}. Your autopay has been cancelled. Re-subscribe to continue receiving exclusive content.`,
+  },
+
+  // 30. Welcome to Valens
+  {
+    defaultEnglishTitle: 'Welcome to Valens!',
+    bodyPatterns: [
+      /^Bem-vindo ao Valens!\s*Explore recursos, conecte-se com criadores e aproveite a comunidade\.?$/i,
+      /^¡Bienvenido a Valens!\s*Explora funciones, conéctate con creadores y disfruta de la comunidad\.?$/i,
+      /^Bienvenue sur Valens !\s*Découvrez les fonctionnalités, connectez-vous avec des créateurs et profitez de la communauté\.?$/i,
+      /^Benvenuto su Valens!\s*Esplora le funzionalità, connettiti con i creator e goditi la community\.?$/i,
+      /^Welcome to Valens!\s*Explore features, connect with creators, and enjoy the community\.?$/i,
+    ],
+    toEnglishBody: () => 'Welcome to Valens! Explore features, connect with creators, and enjoy the community.',
   },
 ];
 
@@ -2292,9 +2425,9 @@ export function translateNotification(
   targetLang?: string,
   data?: Record<string, any>,
 ): TranslatedNotification {
-  const lang = (targetLang || 'en').toLowerCase().trim() as SupportedLanguage;
+  const lang = normalizeLanguage(targetLang);
 
-  if (lang === 'en' || !['es', 'fr', 'it', 'pt'].includes(lang)) {
+  if (lang === 'en') {
     return { title, body };
   }
 
@@ -2356,7 +2489,7 @@ export function reverseTranslateToEnglish(
     enTitle = REVERSE_TITLE_MAP[lowerTitle];
   }
 
-  // 2. Resolve Body to English
+  // 2. Resolve Body to English via Reverse Patterns
   let enBody = safeBody;
   for (const rule of REVERSE_BODY_RULES) {
     for (const pattern of rule.bodyPatterns) {
@@ -2382,7 +2515,7 @@ export function localizeNotification<T extends { title: string; body: string; da
   notification: T,
   targetLang?: string,
 ): T {
-  const lang = (targetLang || 'en').toLowerCase().trim();
+  const lang = normalizeLanguage(targetLang);
   const notifData = notification.data as Record<string, any> | null | undefined;
 
   let canonicalEnglishTitle = notifData?.rawTitle as string | undefined;
@@ -2425,4 +2558,6 @@ export function localizeNotification<T extends { title: string; body: string; da
     body: translated.body,
   };
 }
+
+
 

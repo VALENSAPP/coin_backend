@@ -21,6 +21,7 @@ import { TOTPUtil } from '../common/totp.util';
 import axios from 'axios';
 import { KycService } from '../kyc/kyc.service';
 import { NotificationService } from '../notification/notification.service';
+import { normalizeLanguage } from '../notification/notification.translator';
 import { MailService } from '../common/mail/mail.service';
 import Stripe from 'stripe';
 import { SendPlatformPointsDto, GetPointTransfersDto, PointTransferFilterType } from './dto/send-points.dto';
@@ -3582,11 +3583,10 @@ export class UserService {
 
   async updateLanguage(userId: string, language: string) {
     if (!userId) throw new BadRequestException('User ID required');
-    const validLanguages = ['en', 'pt', 'it', 'es', 'fr'];
-    const normalized = (language || '').toLowerCase().trim();
-    if (!validLanguages.includes(normalized)) {
-      throw new BadRequestException(`Invalid language. Supported languages: ${validLanguages.join(', ')}`);
+    if (!language || typeof language !== 'string' || !language.trim()) {
+      throw new BadRequestException('Language is required');
     }
+    const normalized = normalizeLanguage(language);
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
