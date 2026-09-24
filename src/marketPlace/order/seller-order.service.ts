@@ -10,6 +10,7 @@ import {
 import { CancellationStatus, CartItemShippingChoice, OrderStatus, PaymentStatus, Prisma, ShippingStatus, TransferStatus } from '@prisma/client';
 import * as sgMail from '@sendgrid/mail';
 import { MailService } from '../../common/mail/mail.service';
+import { formatPickupAvailableHours } from '../../common/pickup-hours.util';
 import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ClosetChatService } from '../closet-chat/closet-chat.service';
@@ -437,17 +438,22 @@ export class SellerOrderService {
 
             const firstItem = order.items?.[0];
             const pickupAddress = firstItem?.pickupAddress || firstItem?.product?.pickupAddress;
-            const pickupHours = firstItem?.pickupAvailableHours || firstItem?.product?.pickupAvailableHours;
+            const pickupHoursRaw = firstItem?.pickupAvailableHours || firstItem?.product?.pickupAvailableHours;
             const pickupCity = firstItem?.product?.pickUpCity;
 
             const pickupLocationDisplay = [pickupAddress, pickupCity].filter(Boolean).join(', ');
 
             const pickupAddressRow = pickupLocationDisplay
-                ? `<tr><td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Pickup Location:</td><td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${pickupLocationDisplay}</td></tr>`
+                ? `<tr><td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500; vertical-align: top;">Pickup Location:</td><td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${pickupLocationDisplay}</td></tr>`
                 : '';
 
-            const pickupHoursRow = pickupHours
-                ? `<tr><td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500;">Pickup Hours:</td><td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${pickupHours}</td></tr>`
+            const formattedPickupHours = formatPickupAvailableHours(pickupHoursRaw);
+            const formattedPickupHoursHtml = formattedPickupHours
+                ? formattedPickupHours.replace(/\n/g, '<br/>')
+                : '';
+
+            const pickupHoursRow = formattedPickupHoursHtml
+                ? `<tr><td style="padding: 5px 0; color: #6b7280; font-size: 14px; font-weight: 500; vertical-align: top;">Pickup Hours:</td><td style="padding: 5px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right; line-height: 1.4;">${formattedPickupHoursHtml}</td></tr>`
                 : '';
 
             const appBaseUrl = process.env.APP_BASE_URL || 'https://valensapp.com';
