@@ -3,7 +3,7 @@
  * Supported languages: 'en' (English), 'es' (Spanish), 'fr' (French), 'it' (Italian), 'pt' (Portuguese)
  */
 
-export type SupportedLanguage = 'en' | 'es' | 'fr' | 'it' | 'pt';
+export type SupportedLanguage = 'en' | 'es' | 'fr' | 'it' | 'pt' | 'hi' | string;
 
 export interface TranslatedNotification {
   title: string;
@@ -16,19 +16,19 @@ interface PatternRule {
   // Regex pattern matching the English body
   bodyPattern: RegExp | string;
   // Translators for each language (returning title and body)
-  translations: {
-    [key in 'es' | 'fr' | 'it' | 'pt']: (
+  translations: Partial<{
+    [key in 'es' | 'fr' | 'it' | 'pt' | 'hi' | string]: (
       titleMatch: RegExpMatchArray | null,
       bodyMatch: RegExpMatchArray | null,
       data?: Record<string, any>,
     ) => TranslatedNotification;
-  };
+  }>;
 }
 
 /**
- * Normalizes any language input (e.g. 'eng', 'en-US', 'pt-BR', 'por', 'spanish') to a SupportedLanguage ('en', 'es', 'fr', 'it', 'pt').
+ * Normalizes any language input (e.g. 'eng', 'en-US', 'pt-BR', 'por', 'spanish', 'hindi') to a standard code.
  */
-export function normalizeLanguage(lang?: string | null): SupportedLanguage {
+export function normalizeLanguage(lang?: string | null): string {
   if (!lang) return 'en';
   const clean = lang.toLowerCase().trim();
   if (clean === 'en' || clean === 'eng' || clean === 'english' || clean.startsWith('en-') || clean.startsWith('en_')) return 'en';
@@ -36,84 +36,97 @@ export function normalizeLanguage(lang?: string | null): SupportedLanguage {
   if (clean === 'es' || clean === 'spa' || clean === 'spanish' || clean.startsWith('es-') || clean.startsWith('es_')) return 'es';
   if (clean === 'fr' || clean === 'fra' || clean === 'fre' || clean === 'french' || clean.startsWith('fr-') || clean.startsWith('fr_')) return 'fr';
   if (clean === 'it' || clean === 'ita' || clean === 'italian' || clean.startsWith('it-') || clean.startsWith('it_')) return 'it';
-  return 'en';
+  if (clean === 'hi' || clean === 'hin' || clean === 'hindi' || clean.startsWith('hi-') || clean.startsWith('hi_')) return 'hi';
+  return clean || 'en';
 }
 
 // ============================================================================
 // 1. EXACT TITLE MAP (English -> Target Languages)
 // ============================================================================
-export const TITLE_MAP: Record<string, Record<'es' | 'fr' | 'it' | 'pt', string>> = {
+export const TITLE_MAP: Record<string, Partial<Record<string, string>>> = {
   'Welcome to Valens!': {
     es: '¡Bienvenido a Valens!',
     fr: 'Bienvenue sur Valens !',
     it: 'Benvenuto su Valens!',
     pt: 'Bem-vindo ao Valens!',
+    hi: 'वैलेन्स में आपका स्वागत है!',
   },
   'New Follower': {
     es: 'Nuevo Seguidor',
     fr: 'Nouveau Abonné',
     it: 'Nuovo Follower',
     pt: 'Novo Seguidor',
+    hi: 'नया फ़ॉलोअर',
   },
   '👤 New Follower!': {
     es: '👤 ¡Nuevo Seguidor!',
     fr: '👤 Nouveau Abonné !',
     it: '👤 Nuovo Follower!',
     pt: '👤 Novo Seguidor!',
+    hi: '👤 नया फ़ॉलोअर!',
   },
   'New Unfollower': {
     es: 'Nuevo no seguidor',
     fr: 'Nouvel utilisateur désabonné',
     it: 'Nuovo non follower',
     pt: 'Novo Deixou de Seguir',
+    hi: 'नया अनफ़ॉलो',
   },
   'Follower Unfollowed': {
     es: 'Seguidor te dejó de seguir',
     fr: 'Abonné désabonné',
     it: 'Non ti segue più',
     pt: 'Seguidor deixou de seguir',
+    hi: 'फ़ॉलोअर ने अनफ़ॉलो किया',
   },
   'Post Liked': {
     es: 'Publicación que te gusta',
     fr: 'Publication aimée',
     it: 'Mi piace al post',
     pt: 'Publicação Curtida',
+    hi: 'पोस्ट पसंद आई',
   },
   'Mission Donation': {
     es: 'Donación de Misión',
     fr: 'Don de Mission',
     it: 'Donazione per la Missione',
     pt: 'Doação para Missão',
+    hi: 'मिशन दान',
   },
   'Pay to Follow': {
     es: 'Pago para Seguir',
     fr: 'Paiement pour Suivre',
     it: 'Paga per Seguire',
     pt: 'Pagamento para Seguir',
+    hi: 'फ़ॉलो करने के लिए भुगतान',
   },
   'Following Payment': {
     es: 'Pago de Suscripción',
     fr: 'Paiement d\'Abonnement',
     it: 'Pagamento Abbonamento',
     pt: 'Pagamento de Assinatura',
+    hi: 'फ़ॉलोइंग भुगतान',
   },
   '💬 New Comment': {
     es: '💬 Nuevo Comentario',
     fr: '💬 Nouveau Commentaire',
     it: '💬 Nuovo Commento',
     pt: '💬 Novo Comentário',
+    hi: '💬 नई टिप्पणी',
   },
   'New Comment': {
     es: 'Nuevo Comentario',
     fr: 'Nouveau Commentaire',
     it: 'Nuovo Commento',
     pt: 'Novo Comentário',
+    hi: 'नई टिप्पणी',
   },
   '📢 You were mentioned!': {
     es: '📢 ¡Fuiste mencionado!',
     fr: '📢 Vous avez été mentionné !',
     it: '📢 Sei stato menzionato!',
     pt: '📢 Você foi mencionado!',
+    hi: '📢 आपको उल्लेखित किया गया!',
   },
   'Tagged in a post': {
     es: 'Etiquetado en una publicación',
@@ -604,6 +617,10 @@ export const PATTERN_RULES: PatternRule[] = [
         title: `🎯 ${t?.[1] || 'Um criador'} lançou uma Missão!`,
         body: 'Ele(a) precisa do seu apoio. Veja a meta e seja um dos primeiros apoiadores.',
       }),
+      hi: (t) => ({
+        title: `🎯 ${t?.[1] || 'एक क्रिएटर'} ने एक मिशन शुरू किया!`,
+        body: 'उन्हें आपके समर्थन की आवश्यकता है। लक्ष्य देखें और पहले समर्थकों में से एक बनें।',
+      }),
     },
   },
 
@@ -628,6 +645,10 @@ export const PATTERN_RULES: PatternRule[] = [
         title: '👤 Novo Seguidor!',
         body: `${b?.[1] || 'Alguém'} começou a seguir você. Confira o perfil.`,
       }),
+      hi: (_, b) => ({
+        title: '👤 नया फ़ॉलोअर!',
+        body: `${b?.[1] || 'किसी'} ने आपको फ़ॉलो करना शुरू किया। उनकी प्रोफ़ाइल देखें।`,
+      }),
     },
   },
 
@@ -651,6 +672,10 @@ export const PATTERN_RULES: PatternRule[] = [
       pt: (_, b) => ({
         title: 'Seguidor deixou de seguir',
         body: `${b?.[1] || 'Um usuário'} deixou de seguir você.`,
+      }),
+      hi: (_, b) => ({
+        title: 'फ़ॉलोअर ने अनफ़ॉलो किया',
+        body: `${b?.[1] || 'एक उपयोगकर्ता'} ने आपको अनफ़ॉलो कर दिया।`,
       }),
     },
   },
@@ -694,6 +719,15 @@ export const PATTERN_RULES: PatternRule[] = [
           body: isCircle
             ? `${b?.[1] || 'Alguém'} curtiu sua publicação do círculo privado.`
             : `${b?.[1] || 'Alguém'} curtiu sua publicação.`,
+        };
+      },
+      hi: (_, b) => {
+        const isCircle = b?.[2]?.includes('private circle');
+        return {
+          title: 'पोस्ट पसंद आई',
+          body: isCircle
+            ? `${b?.[1] || 'किसी'} ने आपकी प्राइवेट सर्कल पोस्ट को पसंद किया।`
+            : `${b?.[1] || 'किसी'} ने आपकी पोस्ट को पसंद किया।`,
         };
       },
     },
@@ -2334,8 +2368,12 @@ function registerReverseTitle(foreignTitle: string, canonicalEnglishTitle: strin
 
 for (const [enTitle, translations] of Object.entries(TITLE_MAP)) {
   registerReverseTitle(enTitle, enTitle);
-  for (const translated of Object.values(translations)) {
-    registerReverseTitle(translated, enTitle);
+  if (translations && typeof translations === 'object') {
+    for (const translated of Object.values(translations)) {
+      if (translated) {
+        registerReverseTitle(translated, enTitle);
+      }
+    }
   }
 }
 
@@ -3580,9 +3618,12 @@ export function translateNotification(
 
       if (bodyMatch) {
         try {
-          const result = rule.translations[lang](titleMatch, bodyMatch, data);
-          if (result && result.title && result.body) {
-            return result;
+          const translatorFn = rule.translations && (rule.translations as any)[lang];
+          if (typeof translatorFn === 'function') {
+            const result = translatorFn(titleMatch, bodyMatch, data);
+            if (result && result.title && result.body) {
+              return result;
+            }
           }
         } catch {
           // fallback to next matching rule
@@ -3593,14 +3634,14 @@ export function translateNotification(
 
   // 2. Check exact TITLE_MAP
   let translatedTitle = safeTitle;
-  if (TITLE_MAP[safeTitle] && TITLE_MAP[safeTitle][lang]) {
-    translatedTitle = TITLE_MAP[safeTitle][lang];
+  if (TITLE_MAP[safeTitle] && (TITLE_MAP[safeTitle] as any)[lang]) {
+    translatedTitle = (TITLE_MAP[safeTitle] as any)[lang];
   } else {
     // Check case-insensitive
     const lower = safeTitle.toLowerCase();
     const foundEntry = Object.entries(TITLE_MAP).find(([k]) => k.toLowerCase() === lower);
-    if (foundEntry && foundEntry[1][lang]) {
-      translatedTitle = foundEntry[1][lang];
+    if (foundEntry && (foundEntry[1] as any)[lang]) {
+      translatedTitle = (foundEntry[1] as any)[lang];
     }
   }
 

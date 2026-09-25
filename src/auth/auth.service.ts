@@ -9,6 +9,7 @@ import axios from 'axios';
 import { MailService } from '../common/mail/mail.service';
 import { resolvePaymentProviderFromOrigin } from '../common/payment-provider.util';
 import * as bcrypt from 'bcryptjs';
+import { normalizeLanguage } from '../notification/notification.translator';
 
 @Injectable()
 export class AuthService {
@@ -50,10 +51,13 @@ export class AuthService {
     return {
       userAgent: req?.headers?.['user-agent']?.toString(),
       ipAddress: this.getIpAddress(req),
-      deviceId: loginDto?.deviceId,
-      deviceName: loginDto?.deviceName,
-      deviceType: loginDto?.deviceType,
+      deviceId: loginDto?.deviceId || req?.headers?.['x-device-id'],
+      deviceName: loginDto?.deviceName || req?.headers?.['x-device-name'],
+      deviceType: loginDto?.deviceType || req?.headers?.['x-device-type'] || loginDto?.platform || req?.headers?.['x-platform'],
       location: loginDto?.location,
+      fcmToken: loginDto?.fcmToken || req?.headers?.['x-fcm-token'],
+      platform: loginDto?.platform || loginDto?.deviceType || req?.headers?.['x-platform'],
+      language: loginDto?.language || req?.headers?.['x-language'],
     };
   }
 
@@ -126,17 +130,32 @@ export class AuthService {
     });
   }
 
-  private async upsertDeviceAccount(userId: string, deviceId?: string) {
+  private async upsertDeviceAccount(
+    userId: string,
+    deviceId?: string,
+    meta?: { fcmToken?: string; platform?: string; deviceType?: string; language?: string },
+  ) {
     if (!deviceId) return;
 
     const existing = await this.prisma.deviceAccount.findFirst({
       where: { userId, deviceId },
     });
 
+    const fcmToken = meta?.fcmToken?.trim();
+    const platform = meta?.platform || meta?.deviceType;
+    const language = meta?.language ? normalizeLanguage(meta.language) : undefined;
+
     if (existing) {
       await this.prisma.deviceAccount.update({
         where: { id: existing.id },
-        data: { lastLoginAt: new Date(), removedAt: null },
+        data: {
+          lastLoginAt: new Date(),
+          removedAt: null,
+          isActive: true,
+          ...(fcmToken ? { fcmToken } : {}),
+          ...(platform ? { platform } : {}),
+          ...(language ? { language } : {}),
+        },
       });
       return;
     }
@@ -150,7 +169,11 @@ export class AuthService {
         userId,
         deviceId,
         isPrimary: activeCount === 0,
+        isActive: true,
         lastLoginAt: new Date(),
+        fcmToken: fcmToken || null,
+        platform: platform || null,
+        language: language || 'en',
       },
     });
   }
@@ -211,7 +234,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Invalid credentials');
     const meta = this.buildSessionMeta(req, loginDto);
     const tokens = await this.issueTokensForUser(user, meta);
-    await this.upsertDeviceAccount(user.id, meta?.deviceId);
+    await this.upsertDeviceAccount(user.id, meta?.deviceId, meta);
 
     // Save login history
     await this.prisma.loginHistory.create({
@@ -275,7 +298,7 @@ export class AuthService {
 
     const meta = this.buildSessionMeta(req, loginDto);
     const tokens = await this.issueTokensForUser(user, meta);
-    await this.upsertDeviceAccount(user.id, meta?.deviceId);
+    await this.upsertDeviceAccount(user.id, meta?.deviceId, meta);
 
     // Save login history
     await this.prisma.loginHistory.create({
@@ -439,7 +462,7 @@ export class AuthService {
 
         const meta = this.buildSessionMeta(req, loginDto);
         const tokens = await this.issueTokensForUser(existingUser, meta);
-        await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
+        await this.upsertDeviceAccount(existingUser.id, meta?.deviceId, meta);
 
         // Save login history
         await this.prisma.loginHistory.create({
@@ -483,7 +506,7 @@ export class AuthService {
 
         const meta = this.buildSessionMeta(req, loginDto);
         const tokens = await this.issueTokensForUser(newUser, meta);
-        await this.upsertDeviceAccount(newUser.id, meta?.deviceId);
+        await this.upsertDeviceAccount(newUser.id, meta?.deviceId, meta);
         await this.userService.sendWelcomeOnboardingNotification(newUser.id);
 
         // Save login history
@@ -683,7 +706,7 @@ export class AuthService {
 
       const meta = this.buildSessionMeta(req, loginDto);
       const tokens = await this.issueTokensForUser(existingUser, meta);
-      await this.upsertDeviceAccount(existingUser.id, meta?.deviceId);
+      await this.upsertDeviceAccount(existingUser.id, meta?.deviceId, meta);
 
       // Save login history
       await this.prisma.loginHistory.create({
@@ -749,19 +772,47 @@ export class AuthService {
     if (!sessionId) {
       throw new BadRequestException('Session id not found in token');
     }
+    const session = await this.prisma.userSession.findUnique({
+      where: { id: sessionId },
+    });
     await this.prisma.userSession.updateMany({
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    if (session?.deviceId) {
+      const remainingActive = await this.prisma.userSession.count({
+        where: { userId, deviceId: session.deviceId, revokedAt: null, refreshTokenExpiresAt: { gt: new Date() } },
+      });
+      if (remainingActive === 0) {
+        await this.prisma.deviceAccount.updateMany({
+          where: { userId, deviceId: session.deviceId },
+          data: { isActive: false, fcmToken: null },
+        });
+      }
+    }
     await this.clearFcmTokenForUser(userId);
     return { message: 'Logged out from current session' };
   }
 
   async logoutSession(userId: string, sessionId: string) {
+    const session = await this.prisma.userSession.findUnique({
+      where: { id: sessionId },
+    });
     await this.prisma.userSession.updateMany({
       where: { id: sessionId, userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    if (session?.deviceId) {
+      const remainingActive = await this.prisma.userSession.count({
+        where: { userId, deviceId: session.deviceId, revokedAt: null, refreshTokenExpiresAt: { gt: new Date() } },
+      });
+      if (remainingActive === 0) {
+        await this.prisma.deviceAccount.updateMany({
+          where: { userId, deviceId: session.deviceId },
+          data: { isActive: false, fcmToken: null },
+        });
+      }
+    }
     await this.clearFcmTokenForUser(userId);
     return { message: 'Session logged out successfully' };
   }
@@ -770,6 +821,10 @@ export class AuthService {
     await this.prisma.userSession.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
+    });
+    await this.prisma.deviceAccount.updateMany({
+      where: { userId },
+      data: { isActive: false, fcmToken: null },
     });
     await this.clearFcmTokenForUser(userId);
     return { message: 'All sessions logged out successfully' };
@@ -865,7 +920,7 @@ export class AuthService {
 
     await this.prisma.deviceAccount.update({
       where: { id: targetDeviceAccount.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), isActive: true, removedAt: null },
     });
 
     return tokens;
@@ -891,7 +946,7 @@ export class AuthService {
 
     await this.prisma.deviceAccount.update({
       where: { id: existing.id },
-      data: { removedAt: new Date(), isPrimary: false },
+      data: { removedAt: new Date(), isPrimary: false, isActive: false, fcmToken: null },
     });
 
     await this.prisma.userSession.updateMany({

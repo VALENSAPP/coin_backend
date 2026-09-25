@@ -991,31 +991,68 @@ export class UserController {
   @Post('update-fcm-token')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update FCM token for push notifications' })
-  @ApiBody({ schema: { type: 'object', properties: { fcmToken: { type: 'string' } } } })
-  async updateFcmToken(@Req() req: Request, @Body() dto: { fcmToken: string }) {
-    const userId = (req.user as any).userId;
-    return this.userService.updateFcmToken(userId, dto.fcmToken);
+  @ApiOperation({ summary: 'Update FCM token for push notifications per device' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        fcmToken: { type: 'string' },
+        deviceId: { type: 'string' },
+        platform: { type: 'string' },
+        language: { type: 'string' },
+      },
+      required: ['fcmToken'],
+    },
+  })
+  async updateFcmToken(
+    @Req() req: Request,
+    @Body() dto: { fcmToken: string; deviceId?: string; platform?: string; language?: string },
+  ) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    const deviceId = dto.deviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    const platform = dto.platform || (req?.headers as any)?.['x-platform'] || undefined;
+    const language = dto.language || (req?.headers as any)?.['x-language'] || undefined;
+    return this.userService.updateFcmToken(userId, dto.fcmToken, { deviceId, platform, language });
   }
 
   @Post('update-language')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update preferred language for notifications and responses (en, pt, it, es, fr)' })
-  @ApiBody({ schema: { type: 'object', properties: { language: { type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'] } } } })
-  async updateLanguage(@Req() req: Request, @Body() dto: { language: string }) {
-    const userId = (req.user as any).userId;
-    return this.userService.updateLanguage(userId, dto.language);
+  @ApiOperation({ summary: 'Update preferred language for notifications and responses (per device or user fallback)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        language: { type: 'string' },
+        deviceId: { type: 'string' },
+      },
+      required: ['language'],
+    },
+  })
+  async updateLanguage(@Req() req: Request, @Body() dto: { language: string; deviceId?: string }) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    const deviceId = dto.deviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.userService.updateLanguage(userId, dto.language, deviceId);
   }
 
   @Patch('language')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update preferred language (en, pt, it, es, fr)' })
-  @ApiBody({ schema: { type: 'object', properties: { language: { type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'] } } } })
-  async patchLanguage(@Req() req: Request, @Body() dto: { language: string }) {
-    const userId = (req.user as any).userId;
-    return this.userService.updateLanguage(userId, dto.language);
+  @ApiOperation({ summary: 'Update preferred language (per device or user fallback)' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        language: { type: 'string' },
+        deviceId: { type: 'string' },
+      },
+      required: ['language'],
+    },
+  })
+  async patchLanguage(@Req() req: Request, @Body() dto: { language: string; deviceId?: string }) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    const deviceId = dto.deviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.userService.updateLanguage(userId, dto.language, deviceId);
   }
 
   @Patch('updateWalletAddress')

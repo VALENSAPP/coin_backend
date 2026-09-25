@@ -274,7 +274,11 @@ export class UserService {
     };
   }
 
-  private async upsertDeviceAccount(userId: string, deviceId?: string) {
+  private async upsertDeviceAccount(
+    userId: string,
+    deviceId?: string,
+    extra?: { fcmToken?: string; platform?: string; language?: string },
+  ) {
     if (!deviceId) return;
 
     const existing = await this.prisma.deviceAccount.findFirst({
@@ -284,7 +288,14 @@ export class UserService {
     if (existing) {
       await this.prisma.deviceAccount.update({
         where: { id: existing.id },
-        data: { lastLoginAt: new Date(), removedAt: null },
+        data: {
+          lastLoginAt: new Date(),
+          removedAt: null,
+          isActive: true,
+          ...(extra?.fcmToken ? { fcmToken: extra.fcmToken } : {}),
+          ...(extra?.platform ? { platform: extra.platform } : {}),
+          ...(extra?.language ? { language: normalizeLanguage(extra.language) } : {}),
+        },
       });
       return;
     }
@@ -298,7 +309,11 @@ export class UserService {
         userId,
         deviceId,
         isPrimary: activeCount === 0,
+        isActive: true,
         lastLoginAt: new Date(),
+        fcmToken: extra?.fcmToken,
+        platform: extra?.platform,
+        language: extra?.language ? normalizeLanguage(extra.language) : 'en',
       },
     });
   }
@@ -3566,22 +3581,70 @@ export class UserService {
     return TOTPUtil.verifyTOTP(user.twoFactorSecret, token);
   }
 
-  async updateFcmToken(userId: string, fcmToken: string) {
+  async updateFcmToken(
+    userId: string,
+    fcmToken: string,
+    meta?: { deviceId?: string; platform?: string; language?: string },
+  ) {
     if (!userId) throw new BadRequestException('User ID required');
-    if (!fcmToken) throw new BadRequestException('FCM token required');
+    if (!fcmToken || typeof fcmToken !== 'string' || !fcmToken.trim()) {
+      throw new BadRequestException('FCM token required');
+    }
 
+    const trimmedToken = fcmToken.trim();
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
+    if (meta?.deviceId?.trim()) {
+      const deviceId = meta.deviceId.trim();
+      const existing = await this.prisma.deviceAccount.findFirst({
+        where: { userId, deviceId },
+      });
+
+      if (existing) {
+        await this.prisma.deviceAccount.update({
+          where: { id: existing.id },
+          data: {
+            fcmToken: trimmedToken,
+            platform: meta.platform || existing.platform,
+            language: meta.language ? normalizeLanguage(meta.language) : existing.language,
+            isActive: true,
+            removedAt: null,
+            lastLoginAt: new Date(),
+          },
+        });
+      } else {
+        const activeCount = await this.prisma.deviceAccount.count({
+          where: { deviceId, removedAt: null },
+        });
+        await this.prisma.deviceAccount.create({
+          data: {
+            userId,
+            deviceId,
+            fcmToken: trimmedToken,
+            platform: meta.platform,
+            language: meta.language ? normalizeLanguage(meta.language) : 'en',
+            isActive: true,
+            isPrimary: activeCount === 0,
+            lastLoginAt: new Date(),
+          },
+        });
+      }
+    }
+
+    // Keep User.fcmToken in sync for fallback
     await this.prisma.user.update({
       where: { id: userId },
-      data: { fcmToken } as any,
+      data: { fcmToken: trimmedToken } as any,
     });
 
-    return { message: 'FCM token updated successfully' };
+    return {
+      message: 'FCM token updated successfully',
+      ...(meta?.deviceId ? { deviceId: meta.deviceId.trim() } : {}),
+    };
   }
 
-  async updateLanguage(userId: string, language: string) {
+  async updateLanguage(userId: string, language: string, deviceId?: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!language || typeof language !== 'string' || !language.trim()) {
       throw new BadRequestException('Language is required');
@@ -3591,12 +3654,49 @@ export class UserService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
 
+    if (deviceId?.trim()) {
+      const trimmedDeviceId = deviceId.trim();
+      const existing = await this.prisma.deviceAccount.findFirst({
+        where: { userId, deviceId: trimmedDeviceId },
+      });
+
+      if (existing) {
+        await this.prisma.deviceAccount.update({
+          where: { id: existing.id },
+          data: {
+            language: normalized,
+            isActive: true,
+            removedAt: null,
+          },
+        });
+      } else {
+        const activeCount = await this.prisma.deviceAccount.count({
+          where: { deviceId: trimmedDeviceId, removedAt: null },
+        });
+        await this.prisma.deviceAccount.create({
+          data: {
+            userId,
+            deviceId: trimmedDeviceId,
+            language: normalized,
+            isActive: true,
+            isPrimary: activeCount === 0,
+            lastLoginAt: new Date(),
+          },
+        });
+      }
+    }
+
+    // Also update User.language as fallback default
     await this.prisma.user.update({
       where: { id: userId },
       data: { language: normalized } as any,
     });
 
-    return { message: 'Language preference updated successfully', language: normalized };
+    return {
+      message: 'Language preference updated successfully',
+      language: normalized,
+      ...(deviceId?.trim() ? { deviceId: deviceId.trim() } : {}),
+    };
   }
 
   async updateWalletAddress(userId: string, walletAddress: string) {

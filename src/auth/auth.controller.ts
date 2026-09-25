@@ -119,6 +119,21 @@ export class LoginDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @ApiProperty({ required: false, description: 'FCM push notification token for this device' })
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
+
+  @ApiProperty({ required: false, description: 'Client platform (e.g. ios, android, web)' })
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @ApiProperty({ required: false, description: 'Device language code (e.g. en, pt, hi, fr, es, it)' })
+  @IsOptional()
+  @IsString()
+  language?: string;
 }
 
 export class AdminLoginDto {
@@ -151,6 +166,21 @@ export class AdminLoginDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @ApiProperty({ required: false, description: 'FCM push notification token for this device' })
+  @IsOptional()
+  @IsString()
+  fcmToken?: string;
+
+  @ApiProperty({ required: false, description: 'Client platform (e.g. ios, android, web)' })
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @ApiProperty({ required: false, description: 'Device language code (e.g. en, pt, hi, fr, es, it)' })
+  @IsOptional()
+  @IsString()
+  language?: string;
 }
 
 

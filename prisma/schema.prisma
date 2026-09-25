@@ -1392,16 +1392,23 @@ model DeviceAccount {
   id          String    @id @default(uuid())
   userId      String
   deviceId    String
+  fcmToken    String?
+  language    String    @default("en")
+  platform    String?
+  isActive    Boolean   @default(true)
   isPrimary   Boolean   @default(false)
   addedAt     DateTime  @default(now())
   lastLoginAt DateTime  @default(now())
   removedAt   DateTime?
+  updatedAt   DateTime  @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([deviceId, userId])
   @@index([deviceId])
   @@index([userId])
+  @@index([fcmToken])
+  @@index([isActive])
   @@index([removedAt])
 }
 

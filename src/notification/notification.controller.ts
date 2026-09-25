@@ -15,17 +15,20 @@ export class NotificationController {
   @ApiQuery({ name: 'limit', required: false, type: 'number' })
   @ApiQuery({ name: 'page', required: false, type: 'number' })
   @ApiQuery({ name: 'isRead', required: false, type: 'string', enum: ['true', 'false'] })
-  @ApiQuery({ name: 'lang', required: false, type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'], description: 'Override preferred language' })
+  @ApiQuery({ name: 'lang', required: false, type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr', 'hi'], description: 'Override preferred language' })
+  @ApiQuery({ name: 'deviceId', required: false, type: 'string', description: 'Device ID for device-level language preference' })
   async getNotifications(
     @Req() req: any,
     @Query('limit') limit?: string,
     @Query('page') page?: string,
     @Query('isRead') isRead?: string,
     @Query('lang') lang?: string,
+    @Query('deviceId') queryDeviceId?: string,
   ) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
 
+    const deviceId = queryDeviceId || (req?.headers?.['x-device-id'] as string) || undefined;
     const parsedLimit = limit ? Number(limit) : undefined;
     const parsedPage = page ? Number(page) : undefined;
     const parsedIsRead =
@@ -46,10 +49,12 @@ export class NotificationController {
       page: Number.isFinite(parsedPage) ? parsedPage : undefined,
       isRead: parsedIsRead,
       lang,
+      deviceId,
     });
-    const likePostNotifications = await this.notificationService.getLikePostNotifications(userId, undefined, lang);
-    const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId, undefined, lang);
-    const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId, undefined, lang);
+    const effectiveLang = lang || (await this.notificationService.getUserLanguage(userId, deviceId));
+    const likePostNotifications = await this.notificationService.getLikePostNotifications(userId, undefined, effectiveLang);
+    const missionDonationNotifications = await this.notificationService.getMissionDonationNotifications(userId, undefined, effectiveLang);
+    const payFollowingNotifications = await this.notificationService.getPayFollowingNotifications(userId, undefined, effectiveLang);
 
     // Prefer computed like notifications and remove duplicate like rows by actor+post.
     const filteredStoredNotifications = notifications.filter(
@@ -77,15 +82,23 @@ export class NotificationController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiQuery({ name: 'limit', required: false, type: 'number' })
-  @ApiQuery({ name: 'lang', required: false, type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr'], description: 'Override preferred language' })
-  async getBattleNotifications(@Req() req: any, @Query('limit') limit?: string, @Query('lang') lang?: string) {
+  @ApiQuery({ name: 'lang', required: false, type: 'string', enum: ['en', 'pt', 'it', 'es', 'fr', 'hi'], description: 'Override preferred language' })
+  @ApiQuery({ name: 'deviceId', required: false, type: 'string', description: 'Device ID for device-level language preference' })
+  async getBattleNotifications(
+    @Req() req: any,
+    @Query('limit') limit?: string,
+    @Query('lang') lang?: string,
+    @Query('deviceId') queryDeviceId?: string,
+  ) {
     const userId = (req.user as any)?.userId || (req.user as any)?.sub;
     if (!userId) throw new BadRequestException('User not authenticated');
+    const deviceId = queryDeviceId || (req?.headers?.['x-device-id'] as string) || undefined;
     const parsedLimit = limit ? Number(limit) : undefined;
+    const effectiveLang = lang || (await this.notificationService.getUserLanguage(userId, deviceId));
     const notifications = await this.notificationService.getBattleNotifications(
       userId,
       Number.isFinite(parsedLimit) ? parsedLimit : undefined,
-      lang,
+      effectiveLang,
     );
     return { notifications };
   }
