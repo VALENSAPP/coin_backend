@@ -15,11 +15,20 @@ export class NotificationService {
   ) { }
 
   /**
-   * Retrieves the preferred language for a given user (defaults to 'en').
+   * Retrieves the preferred language for a given user or specific device (defaults to 'en').
    */
-  async getUserLanguage(userId?: string): Promise<string> {
+  async getUserLanguage(userId?: string, deviceId?: string): Promise<string> {
     if (!userId) return 'en';
     try {
+      if (deviceId) {
+        const device = await this.prisma.deviceAccount.findFirst({
+          where: { userId, deviceId, isActive: true, removedAt: null },
+          select: { language: true },
+        });
+        if (device?.language) {
+          return normalizeLanguage(device.language);
+        }
+      }
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
         select: { language: true } as any,
@@ -243,8 +252,8 @@ export class NotificationService {
     body: string,
     data?: Record<string, any>,
   ): Promise<void> {
-    const lang = await this.getUserLanguage(userId);
-    const translated = translateNotification(title, body, lang, data);
+    const userFallbackLang = await this.getUserLanguage(userId);
+    const translated = translateNotification(title, body, userFallbackLang, data);
     const finalTitle = translated.title;
     const finalBody = translated.body;
 
@@ -262,17 +271,93 @@ export class NotificationService {
       },
     });
 
+    // Fetch all active devices for this user
+    const activeDevices = await this.prisma.deviceAccount.findMany({
+      where: {
+        userId,
+        isActive: true,
+        removedAt: null,
+        fcmToken: { not: null },
+      },
+      select: {
+        id: true,
+        deviceId: true,
+        fcmToken: true,
+        language: true,
+        platform: true,
+      },
+    });
+
+    const validDevices = activeDevices.filter(
+      (d) => d.fcmToken && typeof d.fcmToken === 'string' && d.fcmToken.trim().length > 0,
+    );
+
+    const notificationCategory = this.getNotificationCategory(data);
+
+    if (validDevices.length > 0) {
+      // Group devices by language so we translate accurately per device language
+      const languageGroups = new Map<string, string[]>();
+      for (const dev of validDevices) {
+        const lang = normalizeLanguage(dev.language || userFallbackLang || 'en');
+        if (!languageGroups.has(lang)) {
+          languageGroups.set(lang, []);
+        }
+        languageGroups.get(lang)!.push(dev.fcmToken!.trim());
+      }
+
+      for (const [lang, tokens] of languageGroups.entries()) {
+        const devTranslated = translateNotification(title, body, lang, data);
+        const devTitle = devTranslated.title;
+        const devBody = devTranslated.body;
+        const payloadData = this.sanitizeDataForFcm(data, devTitle, devBody);
+
+        for (const token of tokens) {
+          const message = {
+            token,
+            data: payloadData,
+            apns: {
+              headers: {
+                'apns-push-type': 'alert',
+                'apns-priority': '10',
+              },
+              payload: {
+                aps: {
+                  sound: 'default',
+                  mutableContent: true,
+                  contentAvailable: true,
+                  ...(notificationCategory ? { category: notificationCategory } : {}),
+                },
+              },
+            },
+            android: {
+              priority: 'high' as const,
+              notification: {
+                sound: 'default',
+                ...(notificationCategory ? { clickAction: notificationCategory } : {}),
+              },
+            },
+          };
+
+          try {
+            await admin.messaging().send(message);
+          } catch (error) {
+            console.error(`Error sending message to token ${token}:`, error);
+          }
+        }
+      }
+      return;
+    }
+
+    // Fallback: Check user table for single/legacy FCM token if no active device records exist
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { fcmToken: true },
     });
 
     if (!(user as any)?.fcmToken) {
-      // console.log(`No FCM token found for user ${userId}`);
       return;
     }
 
-    const notificationCategory = this.getNotificationCategory(data);
     const payloadData = this.sanitizeDataForFcm(data, finalTitle, finalBody);
     const message = {
       token: (user as any).fcmToken,
@@ -301,9 +386,9 @@ export class NotificationService {
     };
 
     try {
-      const response = await admin.messaging().send(message);
+      await admin.messaging().send(message);
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error sending fallback message:', error);
     }
   }
 
@@ -313,6 +398,84 @@ export class NotificationService {
     body: string,
     data?: Record<string, any>,
   ): Promise<void> {
+    const userFallbackLang = await this.getUserLanguage(userId);
+
+    const activeDevices = await this.prisma.deviceAccount.findMany({
+      where: {
+        userId,
+        isActive: true,
+        removedAt: null,
+        fcmToken: { not: null },
+      },
+      select: {
+        id: true,
+        deviceId: true,
+        fcmToken: true,
+        language: true,
+        platform: true,
+      },
+    });
+
+    const validDevices = activeDevices.filter(
+      (d) => d.fcmToken && typeof d.fcmToken === 'string' && d.fcmToken.trim().length > 0,
+    );
+
+    const notificationCategory = this.getNotificationCategory(data);
+
+    if (validDevices.length > 0) {
+      const languageGroups = new Map<string, string[]>();
+      for (const dev of validDevices) {
+        const lang = normalizeLanguage(dev.language || userFallbackLang || 'en');
+        if (!languageGroups.has(lang)) {
+          languageGroups.set(lang, []);
+        }
+        languageGroups.get(lang)!.push(dev.fcmToken!.trim());
+      }
+
+      for (const [lang, tokens] of languageGroups.entries()) {
+        const devTranslated = translateNotification(title, body, lang, data);
+        const devTitle = devTranslated.title;
+        const devBody = devTranslated.body;
+        const payloadData = this.sanitizeDataForFcm(data, devTitle, devBody);
+
+        for (const token of tokens) {
+          const message = {
+            token,
+            data: payloadData,
+            apns: {
+              headers: {
+                'apns-push-type': 'alert',
+                'apns-priority': '10',
+              },
+              payload: {
+                aps: {
+                  sound: 'default',
+                  mutableContent: true,
+                  contentAvailable: true,
+                  ...(notificationCategory ? { category: notificationCategory } : {}),
+                },
+              },
+            },
+            android: {
+              priority: 'high' as const,
+              notification: {
+                sound: 'default',
+                ...(notificationCategory ? { clickAction: notificationCategory } : {}),
+              },
+            },
+          };
+
+          try {
+            await admin.messaging().send(message);
+          } catch (error) {
+            console.error('Error sending push-only message:', error);
+          }
+        }
+      }
+      return;
+    }
+
+    // Fallback: Check user table for single/legacy FCM token
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { fcmToken: true, language: true } as any,
@@ -326,8 +489,6 @@ export class NotificationService {
     const translated = translateNotification(title, body, lang, data);
     const finalTitle = translated.title;
     const finalBody = translated.body;
-
-    const notificationCategory = this.getNotificationCategory(data);
     const payloadData = this.sanitizeDataForFcm(data, finalTitle, finalBody);
 
     const message = {
@@ -357,7 +518,7 @@ export class NotificationService {
     };
 
     try {
-      const response = await admin.messaging().send(message);
+      await admin.messaging().send(message);
     } catch (error) {
       console.error('Error sending push-only message:', error);
     }
@@ -371,19 +532,43 @@ export class NotificationService {
   ): Promise<void> {
     if (!userIds || userIds.length === 0) return;
 
-    // Fetch user preferences and tokens in a single query
+    // 1. Fetch all active device records for all target users
+    const devices = await this.prisma.deviceAccount.findMany({
+      where: {
+        userId: { in: userIds },
+        isActive: true,
+        removedAt: null,
+        fcmToken: { not: null },
+      },
+      select: {
+        userId: true,
+        deviceId: true,
+        fcmToken: true,
+        language: true,
+      },
+    });
+
+    const validDevices = devices.filter(
+      (d) => d.fcmToken && typeof d.fcmToken === 'string' && d.fcmToken.trim().length > 0,
+    );
+    const usersWithActiveDevices = new Set(validDevices.map((d) => d.userId));
+
+    // 2. Fetch user preferences (for users with missing device records or DB notifications)
     const users: Array<{ id: string; language?: string | null; fcmToken?: string | null }> =
       (await this.prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true, language: true, fcmToken: true } as any,
       })) as any;
 
-    // Group users by language so we translate accurately and batch push/db operations
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    // 3. Group push tokens by language
     const languageGroups = new Map<string, { userIds: string[]; tokens: string[]; finalTitle: string; finalBody: string }>();
 
-    for (const user of users) {
-      const lang = normalizeLanguage(user.language);
-
+    // Add device tokens
+    for (const dev of validDevices) {
+      const user = userMap.get(dev.userId);
+      const lang = normalizeLanguage(dev.language || user?.language || 'en');
       if (!languageGroups.has(lang)) {
         const translated = translateNotification(title, body, lang, data);
         languageGroups.set(lang, {
@@ -393,15 +578,29 @@ export class NotificationService {
           finalBody: translated.body,
         });
       }
+      languageGroups.get(lang)!.tokens.push(dev.fcmToken!.trim());
+    }
 
+    // Add legacy user tokens for users without active device records
+    for (const user of users) {
+      const lang = normalizeLanguage(user.language);
+      if (!languageGroups.has(lang)) {
+        const translated = translateNotification(title, body, lang, data);
+        languageGroups.set(lang, {
+          userIds: [],
+          tokens: [],
+          finalTitle: translated.title,
+          finalBody: translated.body,
+        });
+      }
       const group = languageGroups.get(lang)!;
       group.userIds.push(user.id);
-      if (user.fcmToken) {
-        group.tokens.push(user.fcmToken);
+      if (!usersWithActiveDevices.has(user.id) && user.fcmToken && user.fcmToken.trim().length > 0) {
+        group.tokens.push(user.fcmToken.trim());
       }
     }
 
-    // Handle any userIds not found in DB (fallback to en)
+    // Handle any userIds not found in DB
     const foundUserIds = new Set(users.map((u) => u.id));
     const missingUserIds = userIds.filter((id) => !foundUserIds.has(id));
     if (missingUserIds.length > 0) {
@@ -417,7 +616,7 @@ export class NotificationService {
       languageGroups.get('en')!.userIds.push(...missingUserIds);
     }
 
-    // Save notifications to database with translated title and body per language group
+    // Save notifications to database per user
     const notificationCreateData: Prisma.NotificationCreateManyInput[] = [];
     for (const group of languageGroups.values()) {
       for (const userId of group.userIds) {
@@ -549,6 +748,7 @@ export class NotificationService {
       page?: number;
       isRead?: boolean;
       lang?: string;
+      deviceId?: string;
     },
   ): Promise<Notification[]> {
     const page = options?.page && options.page > 0 ? options.page : 1;
@@ -558,7 +758,7 @@ export class NotificationService {
 
     const targetLang = options?.lang
       ? normalizeLanguage(options.lang)
-      : await this.getUserLanguage(userId);
+      : await this.getUserLanguage(userId, options?.deviceId);
 
     const notifications = await this.prisma.notification.findMany({
       where: {
