@@ -1055,6 +1055,30 @@ export class UserController {
     return this.userService.updateLanguage(userId, dto.language, deviceId);
   }
 
+  @Get('language')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get preferred language for authenticated user (matched by deviceId and userId from token)' })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Unique device identifier' })
+  @ApiResponse({ status: 200, description: 'Returns preferred language preference' })
+  async getLanguage(@Req() req: Request, @Query('deviceId') queryDeviceId?: string) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.userService.getLanguage(userId, deviceId);
+  }
+
+  @Get('get-language')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Alias to get preferred language (matched by deviceId and userId from token)' })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Unique device identifier' })
+  @ApiResponse({ status: 200, description: 'Returns preferred language preference' })
+  async getLanguageAlias(@Req() req: Request, @Query('deviceId') queryDeviceId?: string) {
+    const userId = (req.user as any)?.userId || (req.user as any)?.sub;
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.userService.getLanguage(userId, deviceId);
+  }
+
   @Patch('updateWalletAddress')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()

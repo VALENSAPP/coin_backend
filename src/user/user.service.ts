@@ -3699,6 +3699,43 @@ export class UserService {
     };
   }
 
+  async getLanguage(userId: string, deviceId?: string) {
+    if (!userId) throw new BadRequestException('User ID required');
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, language: true },
+    });
+    if (!user) throw new BadRequestException('User not found');
+
+    if (deviceId?.trim()) {
+      const trimmedDeviceId = deviceId.trim();
+      const deviceAccount = await this.prisma.deviceAccount.findFirst({
+        where: {
+          userId,
+          deviceId: trimmedDeviceId,
+          removedAt: null,
+        },
+        select: { language: true },
+      });
+
+      if (deviceAccount?.language) {
+        return {
+          language: normalizeLanguage(deviceAccount.language),
+          deviceId: trimmedDeviceId,
+          source: 'device',
+        };
+      }
+    }
+
+    const fallbackLang = user.language ? normalizeLanguage(user.language) : 'en';
+    return {
+      language: fallbackLang,
+      ...(deviceId?.trim() ? { deviceId: deviceId.trim() } : {}),
+      source: user.language ? 'user' : 'default',
+    };
+  }
+
   async updateWalletAddress(userId: string, walletAddress: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!walletAddress?.trim()) throw new BadRequestException('Wallet address is required');
