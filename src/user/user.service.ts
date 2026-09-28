@@ -3722,7 +3722,7 @@ export class UserService {
       if (deviceAccount?.language) {
         return {
           language: normalizeLanguage(deviceAccount.language),
-          deviceId: trimmedDeviceId,
+          deviceId: deviceId,
           source: 'device',
         };
       }
