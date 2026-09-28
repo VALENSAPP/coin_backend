@@ -866,26 +866,6 @@ export class UserController {
     return this.userService.reactivateAccount(dto);
   }
 
-  @Get(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get user by ID' })
-  @ApiParam({ name: 'id', type: 'string', description: 'User ID (UUID format)' })
-  async getUserById(@Param('id', new ParseUUIDPipe()) id: string) {
-    const user = await this.userService.getUserById(id);
-    return { user };
-  }
-
-  @Delete(':id')
-  @UseGuards(AuthGuard('jwt'))
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Soft delete user by ID' })
-  @ApiParam({ name: 'id', type: String })
-  async softDeleteUser(@Param('id') id: string) {
-    await this.userService.softDeleteUser(id);
-    return { message: 'User soft deleted' };
-  }
-
   // UserSubscription CRUD Endpoints
 
   @Post('subscription')
@@ -1088,5 +1068,26 @@ export class UserController {
   async updateWalletAddress(@Req() req: Request, @Body() dto: UpdateWalletAddressDto) {
     const userId = (req.user as any).userId;
     return this.userService.updateWalletAddress(userId, dto.walletAddress);
+  }
+
+  // Dynamic parameterized routes (placed at the bottom to avoid shadowing static routes)
+  @Get(':id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiParam({ name: 'id', type: 'string', description: 'User ID (UUID format)' })
+  async getUserById(@Param('id', new ParseUUIDPipe()) id: string) {
+    const user = await this.userService.getUserById(id);
+    return { user };
+  }
+
+  @Delete(':id')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Soft delete user by ID' })
+  @ApiParam({ name: 'id', type: String })
+  async softDeleteUser(@Param('id') id: string) {
+    await this.userService.softDeleteUser(id);
+    return { message: 'User soft deleted' };
   }
 }
