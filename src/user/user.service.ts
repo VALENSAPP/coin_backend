@@ -3659,7 +3659,7 @@ export class UserService {
       const existing = await this.prisma.deviceAccount.findFirst({
         where: { userId, deviceId: trimmedDeviceId },
       });
-
+      console.log("test12121212", deviceId);
       if (existing) {
         await this.prisma.deviceAccount.update({
           where: { id: existing.id },
@@ -3708,7 +3708,7 @@ export class UserService {
     });
     if (!user) throw new BadRequestException('User not found');
 
-    if (deviceId?.trim()) {
+    if (deviceId) {
       // const trimmedDeviceId = deviceId.trim();
       const deviceAccount = await this.prisma.deviceAccount.findFirst({
         where: {
@@ -3718,7 +3718,7 @@ export class UserService {
         },
         select: { language: true },
       });
-
+      console.log("deviceAccount", deviceAccount);
       if (deviceAccount?.language) {
         return {
           language: normalizeLanguage(deviceAccount.language),
