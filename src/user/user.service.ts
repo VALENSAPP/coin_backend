@@ -3701,7 +3701,7 @@ export class UserService {
 
   async getLanguage(userId: string, deviceId?: string) {
     if (!userId) throw new BadRequestException('User ID required');
-
+    console.log("teststsstts", userId, deviceId);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, language: true },
@@ -3709,11 +3709,11 @@ export class UserService {
     if (!user) throw new BadRequestException('User not found');
 
     if (deviceId?.trim()) {
-      const trimmedDeviceId = deviceId.trim();
+      // const trimmedDeviceId = deviceId.trim();
       const deviceAccount = await this.prisma.deviceAccount.findFirst({
         where: {
           userId,
-          deviceId: trimmedDeviceId,
+          deviceId: deviceId,
           removedAt: null,
         },
         select: { language: true },
