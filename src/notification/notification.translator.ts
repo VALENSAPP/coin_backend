@@ -306,7 +306,7 @@ export const TITLE_MAP: Record<string, Partial<Record<string, string>>> = {
     es: 'Batalla Cerrada',
     fr: 'Défi Clôturé',
     it: 'Battaglia Chiusa',
-    pt: 'Batalha Encerrada',
+    pt: 'Batalha Terminada',
   },
   'Victory! Your side won!': {
     es: '¡Victoria! ¡Tu lado ganó!',
@@ -1471,7 +1471,7 @@ export const PATTERN_RULES: PatternRule[] = [
         body: 'Una battaglia che segui è terminata. Controlla i risultati.',
       }),
       pt: () => ({
-        title: 'Batalha Encerrada',
+        title: 'Batalha Terminada',
         body: 'Uma batalha que você segue terminou. Confira os resultados.',
       }),
     },
