@@ -269,16 +269,18 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
     const details = await this.billingService.getSubscriptionDetails(userId, deviceId);
-    return { subscription: details, isCancel: details.isCancel };
+    return { subscription: details, isCancel: details.isCancel, forPayment: details.forPayment };
   }
 
   @Get('get-latest-transactions')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get latest transactions for the user' })
-  async getLatestTransactions(@Req() req: Request) {
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
+  async getLatestTransactions(@Req() req: Request, @Query('deviceId') queryDeviceId?: string) {
     const userId = (req.user as any).userId;
-    const transactions = await this.billingService.getLatestTransactions(userId);
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    const transactions = await this.billingService.getLatestTransactions(userId, 50, deviceId);
     return { transactions };
   }
 
@@ -288,13 +290,16 @@ export class BillingController {
   @ApiOperation({ summary: 'Get details for a payment by payment ID or provider transaction ID' })
   @ApiQuery({ name: 'paymentId', required: false, description: 'Internal Payment.id' })
   @ApiQuery({ name: 'transactionId', required: false, description: 'Stripe PaymentIntent ID or PagBank order ID' })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
   async getTransactionDetails(
     @Req() req: Request,
     @Query('paymentId') paymentId?: string,
     @Query('transactionId') transactionId?: string,
+    @Query('deviceId') queryDeviceId?: string,
   ) {
     const userId = (req.user as any).userId;
-    return this.billingService.getTransactionDetails(userId, paymentId, transactionId);
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.billingService.getTransactionDetails(userId, paymentId, transactionId, deviceId);
   }
 
   @Get('getfanSubscriptionStatus/:id')
@@ -632,16 +637,19 @@ export class BillingController {
     example: 'subscriptions',
     description: 'Filter transactions by type: subscriptions (or subscription, payFollowing), tip, donation, usdt. Leave empty or pass all to return all transactions.',
   })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
   async getReceivedTransactions(
     @Req() req: Request,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('paymentType') paymentType?: string,
+    @Query('deviceId') queryDeviceId?: string,
   ) {
     const userId = (req.user as any).userId;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNum = Math.min(Math.max(1, parseInt(limit || '10', 10) || 10), 50);
     const filterPaymentType = paymentType || (req.query as any)?.paymenttype || (req.query as any)?.payment_type;
-    return this.billingService.getReceivedTransactions(userId, pageNum, limitNum, filterPaymentType);
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.billingService.getReceivedTransactions(userId, pageNum, limitNum, filterPaymentType, deviceId);
   }
 }

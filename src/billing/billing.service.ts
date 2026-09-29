@@ -1477,24 +1477,61 @@ export class BillingService {
     return sub;
   }
 
+  /**
+   * Helper to localize forPayment and status fields for Portuguese (pt) users
+   */
+  private localizePaymentFields(isPt: boolean, forPayment?: string | null, status?: string | null) {
+    let localizedForPayment = forPayment ?? null;
+    if (isPt && forPayment?.toUpperCase() === 'TIP') {
+      localizedForPayment = 'Gorjeta';
+    }
+
+    let localizedStatus = status ?? null;
+    if (isPt && status) {
+      const raw = status.toLowerCase();
+      if (raw === 'succeed' || raw === 'succeeded') {
+        localizedStatus = 'Confirmada';
+      } else if (raw === 'inactive') {
+        localizedStatus = 'INATIVA';
+      } else if (raw === 'active') {
+        localizedStatus = 'ATIVA';
+      }
+    }
+
+    return { forPayment: localizedForPayment, status: localizedStatus };
+  }
+
   async getSubscriptionDetails(userId: string, deviceId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     const lang = await this.notificationService.getUserLanguage(userId, deviceId);
     const isPt = normalizeLanguage(lang) === 'pt';
-    let status: string | null = user.subscriptionStatus;
-    if (isPt && status?.toUpperCase() === 'INACTIVE') {
-      status = 'INATIVA';
-    } else if (isPt && status?.toUpperCase() === 'ACTIVE') {
-      status = 'ATIVA';
+
+    const latestPayment = await this.prisma.payment.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let rawStatus: string | null = user.subscriptionStatus;
+    if (latestPayment?.status && (!rawStatus || rawStatus.toUpperCase() === 'INACTIVE')) {
+      const paymentStatus = latestPayment.status.toLowerCase();
+      if (paymentStatus === 'succeed' || paymentStatus === 'succeeded') {
+        rawStatus = latestPayment.status;
+      }
     }
 
-    let isCancel: boolean | string = 'pending';
-    const rawStatus = (user.subscriptionStatus || '').toUpperCase();
+    const { forPayment, status } = this.localizePaymentFields(
+      isPt,
+      latestPayment?.forPayment ?? null,
+      rawStatus,
+    );
 
-    if (rawStatus === 'CANCELED' || rawStatus === 'CANCELLED') {
+    let isCancel: boolean | string = 'pending';
+    const normalizedRawStatus = (user.subscriptionStatus || '').toUpperCase();
+
+    if (normalizedRawStatus === 'CANCELED' || normalizedRawStatus === 'CANCELLED') {
       isCancel = true;
-    } else if (rawStatus === 'ACTIVE' || rawStatus === 'PAST_DUE') {
+    } else if (normalizedRawStatus === 'ACTIVE' || normalizedRawStatus === 'PAST_DUE') {
       isCancel = 'no';
     } else if (
       !user.subscriptionStart &&
@@ -1509,6 +1546,7 @@ export class BillingService {
 
     return {
       status,
+      forPayment,
       start: user.subscriptionStart,
       end: user.subscriptionEnd,
       currentPeriodEnd: user.currentPeriodEnd,
@@ -2335,20 +2373,36 @@ export class BillingService {
     });
   }
 
-  async getLatestTransactions(userId: string, limit: number = 50) {
-    return this.prisma.payment.findMany({
+  async getLatestTransactions(userId: string, limit: number = 50, deviceId?: string) {
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const isPt = normalizeLanguage(lang) === 'pt';
+    const transactions = await this.prisma.payment.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(1, limit), 100),
     });
+
+    if (!isPt) return transactions;
+
+    return transactions.map((p) => {
+      const localized = this.localizePaymentFields(isPt, p.forPayment, p.status);
+      return {
+        ...p,
+        forPayment: localized.forPayment,
+        status: localized.status,
+      };
+    });
   }
 
-  async getTransactionDetails(userId: string, paymentId?: string, transactionId?: string) {
+  async getTransactionDetails(userId: string, paymentId?: string, transactionId?: string, deviceId?: string) {
     const normalizedPaymentId = paymentId?.trim();
     const normalizedTransactionId = transactionId?.trim();
     if (!normalizedPaymentId && !normalizedTransactionId) {
       throw new BadRequestException('paymentId or transactionId is required');
     }
+
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const isPt = normalizeLanguage(lang) === 'pt';
 
     const identifiers = [
       ...(normalizedPaymentId ? [{ id: normalizedPaymentId }] : []),
@@ -2382,12 +2436,13 @@ export class BillingService {
           select: { postId: true, note: true },
         })
         : null;
+      const localized = this.localizePaymentFields(isPt, payment.forPayment, payment.status);
       return {
         paymentId: payment.id,
         transactionId: payment.stripePaymentIntentId,
-        source: payment.forPayment === 'missionDonation' ? 'MISSION_DONATION' : payment.forPayment,
-        status: payment.status,
-        type: payment.forPayment,
+        source: payment.forPayment === 'missionDonation' ? 'MISSION_DONATION' : localized.forPayment,
+        status: localized.status,
+        type: localized.forPayment,
         currency: payment.currency,
         amount: payment.amount,
         fee: payment.platformFee || 0,
@@ -5229,7 +5284,10 @@ export class BillingService {
     page: number = 1,
     limit: number = 10,
     paymentType?: string,
+    deviceId?: string,
   ) {
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const isPt = normalizeLanguage(lang) === 'pt';
     const safePage = Math.max(1, page || 1);
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
     const takePerSource = safePage * safeLimit;
@@ -5401,8 +5459,18 @@ export class BillingService {
 
       const start = (safePage - 1) * safeLimit;
       const end = start + safeLimit;
-      const transactions = combined.slice(start, end);
+      const rawTransactions = combined.slice(start, end);
       const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+      const transactions = isPt
+        ? rawTransactions.map((t: any) => {
+          const localized = this.localizePaymentFields(isPt, t.forPayment, t.status);
+          return {
+            ...t,
+            ...(t.forPayment !== undefined ? { forPayment: localized.forPayment } : {}),
+            ...(t.status !== undefined ? { status: localized.status } : {}),
+          };
+        })
+        : rawTransactions;
 
       return {
         page: safePage,
@@ -5559,7 +5627,7 @@ export class BillingService {
 
     const start = (safePage - 1) * safeLimit;
     const end = start + safeLimit;
-    const transactions = combined.slice(start, end);
+    const rawTransactions = combined.slice(start, end);
 
     const totalItems =
       totalFollowingPaymentsCredit
@@ -5571,6 +5639,16 @@ export class BillingService {
       + totalUsdtTransfersCredit
       + totalUsdtTransfersDebit;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
+    const transactions = isPt
+      ? rawTransactions.map((t: any) => {
+        const localized = this.localizePaymentFields(isPt, t.forPayment, t.status);
+        return {
+          ...t,
+          ...(t.forPayment !== undefined ? { forPayment: localized.forPayment } : {}),
+          ...(t.status !== undefined ? { status: localized.status } : {}),
+        };
+      })
+      : rawTransactions;
 
     return {
       page: safePage,
