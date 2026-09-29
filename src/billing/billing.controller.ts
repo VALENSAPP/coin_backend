@@ -264,9 +264,11 @@ export class BillingController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user subscription details' })
-  async getMySubscription(@Req() req: Request) {
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
+  async getMySubscription(@Req() req: Request, @Query('deviceId') queryDeviceId?: string) {
     const userId = (req.user as any).userId;
-    const details = await this.billingService.getSubscriptionDetails(userId);
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    const details = await this.billingService.getSubscriptionDetails(userId, deviceId);
     return { subscription: details };
   }
 
@@ -300,9 +302,15 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get fan subscription status for current user and given receiver (creator) id' })
   @ApiParam({ name: 'id', description: 'Receiver (creator) user id' })
-  async getFanSubscriptionStatus(@Req() req: Request, @Param('id') id: string) {
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
+  async getFanSubscriptionStatus(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Query('deviceId') queryDeviceId?: string,
+  ) {
     const userId = (req.user as any).userId;
-    return this.billingService.getFanSubscriptionStatus(userId, id);
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.billingService.getFanSubscriptionStatus(userId, id, deviceId);
   }
 
   // Valens: withdrawals/redemptions excluded. Revenue from software services (Stripe subscriptions) only.

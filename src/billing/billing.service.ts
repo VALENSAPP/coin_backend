@@ -7,6 +7,7 @@ import { RespondPriceChangeDto, PriceChangeResponseAction } from './dto/respond-
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { normalizeLanguage } from '../notification/notification.translator';
 import { WalletService } from '../wallet/wallet.service';
 import { PagBankService } from '../pagbank/pagbank.service';
 import { PaymentProviderResolver } from '../marketPlace/payment/payment-provider.resolver';
@@ -1476,11 +1477,19 @@ export class BillingService {
     return sub;
   }
 
-  async getSubscriptionDetails(userId: string) {
+  async getSubscriptionDetails(userId: string, deviceId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const isPt = normalizeLanguage(lang) === 'pt';
+    let status: string | null = user.subscriptionStatus;
+    if (isPt && status?.toUpperCase() === 'INACTIVE') {
+      status = 'INATIVA';
+    } else if (isPt && status?.toUpperCase() === 'ACTIVE') {
+      status = 'ATIVA';
+    }
     return {
-      status: user.subscriptionStatus,
+      status,
       start: user.subscriptionStart,
       end: user.subscriptionEnd,
       currentPeriodEnd: user.currentPeriodEnd,
@@ -3168,7 +3177,10 @@ export class BillingService {
    * Get fan subscription status: whether the current user (payer) has an active pay-following
    * to the given receiver (creator). Uses latest succeeded payment and periodEnd.
    */
-  async getFanSubscriptionStatus(userId: string, receiverId: string): Promise<{ status: 'Active' | 'Inactive' }> {
+  async getFanSubscriptionStatus(userId: string, receiverId: string, deviceId?: string): Promise<{ status: string }> {
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const isPt = normalizeLanguage(lang) === 'pt';
+
     const latest = await this.prisma.payment.findFirst({
       where: {
         userId,
@@ -3179,10 +3191,10 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
     });
     if (!latest || !latest.periodEnd) {
-      return { status: 'Inactive' };
+      return { status: isPt ? 'INATIVA' : 'INACTIVE' };
     }
     const now = new Date();
-    return { status: latest.periodEnd > now ? 'Active' : 'Inactive' };
+    return { status: latest.periodEnd > now ? (isPt ? 'ATIVA' : 'ACTIVE') : (isPt ? 'INATIVA' : 'INACTIVE') };
   }
 
   /**
