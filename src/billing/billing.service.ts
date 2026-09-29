@@ -1488,11 +1488,31 @@ export class BillingService {
     } else if (isPt && status?.toUpperCase() === 'ACTIVE') {
       status = 'ATIVA';
     }
+
+    let isCancel: boolean | string = 'pending';
+    const rawStatus = (user.subscriptionStatus || '').toUpperCase();
+
+    if (rawStatus === 'CANCELED' || rawStatus === 'CANCELLED') {
+      isCancel = true;
+    } else if (rawStatus === 'ACTIVE' || rawStatus === 'PAST_DUE') {
+      isCancel = 'no';
+    } else if (
+      !user.subscriptionStart &&
+      !user.stripeSubscriptionId &&
+      !user.currentPeriodEnd &&
+      !user.subscriptionEnd
+    ) {
+      isCancel = 'pending';
+    } else {
+      isCancel = true;
+    }
+
     return {
       status,
       start: user.subscriptionStart,
       end: user.subscriptionEnd,
       currentPeriodEnd: user.currentPeriodEnd,
+      isCancel,
     };
   }
 

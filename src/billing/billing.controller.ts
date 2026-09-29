@@ -269,7 +269,7 @@ export class BillingController {
     const userId = (req.user as any).userId;
     const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
     const details = await this.billingService.getSubscriptionDetails(userId, deviceId);
-    return { subscription: details };
+    return { subscription: details, isCancel: details.isCancel };
   }
 
   @Get('get-latest-transactions')
