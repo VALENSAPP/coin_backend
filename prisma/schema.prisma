@@ -69,6 +69,9 @@ model User {
   language              String                    @default("en")
   canAccessPlatform     String                    @default("false")
   bannedUntil           DateTime?
+  isBlocked             Boolean                   @default(false)
+  blockedReason         String?
+  blockedAt             DateTime?
   screenshotAttempts    Int                       @default(0)
   referCode             String?
   referPoints           Float                     @default(1000)

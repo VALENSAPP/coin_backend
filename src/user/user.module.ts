@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
+import { AdminUserController } from './admin-user.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
 import { KycModule } from '../kyc/kyc.module';
@@ -18,7 +19,7 @@ import { MailModule } from '../common/mail/mail.module';
     NotificationModule,
     MailModule,
   ],
-  controllers: [UserController],
+  controllers: [UserController, AdminUserController],
   providers: [UserService],
   exports: [UserService],
 })

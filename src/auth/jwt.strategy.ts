@@ -28,6 +28,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if ((user as any).isBlocked) {
+      throw new UnauthorizedException(
+        `Account has been blocked by administrator${(user as any).blockedReason ? ': ' + (user as any).blockedReason : '.'}`,
+      );
+    }
+
     if (user.bannedUntil && user.bannedUntil > new Date()) {
       const remainingMs = user.bannedUntil.getTime() - Date.now();
       const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));

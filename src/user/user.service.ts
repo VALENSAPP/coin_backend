@@ -25,6 +25,7 @@ import { normalizeLanguage } from '../notification/notification.translator';
 import { MailService } from '../common/mail/mail.service';
 import Stripe from 'stripe';
 import { SendPlatformPointsDto, GetPointTransfersDto, PointTransferFilterType } from './dto/send-points.dto';
+import { AdminBlockUserDto, AdminUnblockUserDto, GetBlockedUsersAdminDto } from './dto/admin-block-user.dto';
 
 // ✅ Use environment variables for Firebase config (more secure)
 // Prevent re-initializing Firebase if already initialized
@@ -1600,6 +1601,259 @@ export class UserService {
       where: { blockerId },
       include: { blocked: true },
     });
+  }
+
+  /**
+   * Block a user (Admin only)
+   */
+  async adminBlockUser(adminUserId: string, dto: AdminBlockUserDto) {
+    if (!dto.userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    if (adminUserId === dto.userId) {
+      throw new BadRequestException('Administrator cannot block their own account');
+    }
+
+    const targetUser = await (this.prisma as any).user.findUnique({
+      where: { id: dto.userId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (targetUser.isDeleted === 1 || targetUser.deletedAt !== null) {
+      throw new BadRequestException('Cannot block a deleted user');
+    }
+
+    if (targetUser.profile && targetUser.profile.trim().toLowerCase() === 'admin') {
+      throw new BadRequestException('Cannot block another administrator user');
+    }
+
+    const isAlreadyBlocked = Boolean(
+      targetUser.isBlocked || (targetUser.bannedUntil && new Date(targetUser.bannedUntil) > new Date())
+    );
+
+    if (isAlreadyBlocked) {
+      throw new BadRequestException('User is already blocked');
+    }
+
+    const blockReason = dto.reason?.trim() || 'Blocked by administrator';
+    const now = new Date();
+    // Permanent ban timestamp to trigger all legacy ban guards as well
+    const permanentBanDate = new Date('9999-12-31T23:59:59.999Z');
+
+    const updatedUser = await (this.prisma as any).user.update({
+      where: { id: dto.userId },
+      data: {
+        isBlocked: true,
+        blockedReason: blockReason,
+        blockedAt: now,
+        bannedUntil: permanentBanDate,
+        refreshToken: null,
+        refreshTokenExpiresAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        userName: true,
+        displayName: true,
+        image: true,
+        phoneNumber: true,
+        profile: true,
+        isBlocked: true,
+        blockedReason: true,
+        blockedAt: true,
+        bannedUntil: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Terminate all active sessions for the blocked user
+    try {
+      await (this.prisma as any).userSession.deleteMany({
+        where: { userId: dto.userId },
+      });
+    } catch (sessionErr) {
+      // ignore if userSession table or record is absent
+    }
+
+    return {
+      message: 'User blocked successfully by administrator',
+      user: updatedUser,
+    };
+  }
+
+  /**
+   * Unblock a user (Admin only)
+   */
+  async adminUnblockUser(adminUserId: string, dto: AdminUnblockUserDto) {
+    if (!dto.userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const targetUser = await (this.prisma as any).user.findUnique({
+      where: { id: dto.userId },
+    });
+
+    if (!targetUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isCurrentlyBlocked = Boolean(
+      targetUser.isBlocked || (targetUser.bannedUntil && new Date(targetUser.bannedUntil) > new Date())
+    );
+
+    if (!isCurrentlyBlocked) {
+      throw new BadRequestException('User is not currently blocked');
+    }
+
+    const updatedUser = await (this.prisma as any).user.update({
+      where: { id: dto.userId },
+      data: {
+        isBlocked: false,
+        blockedReason: null,
+        blockedAt: null,
+        bannedUntil: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        userName: true,
+        displayName: true,
+        image: true,
+        phoneNumber: true,
+        profile: true,
+        isBlocked: true,
+        blockedReason: true,
+        blockedAt: true,
+        bannedUntil: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      message: 'User unblocked successfully by administrator',
+      user: updatedUser,
+    };
+  }
+
+  /**
+   * Get all blocked users with pagination and search (Admin only)
+   */
+  async adminGetBlockedUsers(dto: GetBlockedUsersAdminDto) {
+    const page = Math.max(Number(dto?.page) || 1, 1);
+    const limit = Math.min(Math.max(Number(dto?.limit) || 20, 1), 100);
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {
+      isDeleted: 0,
+      deletedAt: null,
+      OR: [
+        { isBlocked: true },
+        { bannedUntil: { gt: new Date() } },
+      ],
+    };
+
+    if (dto?.search && dto.search.trim()) {
+      const search = dto.search.trim();
+      whereClause.AND = [
+        {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' } },
+            { userName: { contains: search, mode: 'insensitive' } },
+            { displayName: { contains: search, mode: 'insensitive' } },
+            { phoneNumber: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    const [total, blockedUsers] = await Promise.all([
+      (this.prisma as any).user.count({ where: whereClause }),
+      (this.prisma as any).user.findMany({
+        where: whereClause,
+        skip,
+        take: limit,
+        orderBy: [
+          { blockedAt: 'desc' },
+          { updatedAt: 'desc' },
+        ],
+        select: {
+          id: true,
+          email: true,
+          userName: true,
+          displayName: true,
+          image: true,
+          phoneNumber: true,
+          profile: true,
+          profileStatus: true,
+          isBlocked: true,
+          blockedReason: true,
+          blockedAt: true,
+          bannedUntil: true,
+          registrationType: true,
+          kyc: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      blockedUsers,
+    };
+  }
+
+  /**
+   * Get block status for a specific user (Admin only)
+   */
+  async adminGetUserBlockStatus(userId: string) {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    const user = await (this.prisma as any).user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        userName: true,
+        displayName: true,
+        image: true,
+        phoneNumber: true,
+        profile: true,
+        profileStatus: true,
+        isBlocked: true,
+        blockedReason: true,
+        blockedAt: true,
+        bannedUntil: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isBlocked = Boolean(
+      user.isBlocked || (user.bannedUntil && new Date(user.bannedUntil) > new Date())
+    );
+
+    return {
+      isBlocked,
+      blockedReason: user.blockedReason,
+      blockedAt: user.blockedAt,
+      bannedUntil: user.bannedUntil,
+      user,
+    };
   }
 
   // Get all display names of all users (exclude soft-deleted)
