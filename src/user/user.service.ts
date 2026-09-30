@@ -1185,6 +1185,10 @@ export class UserService {
         marketplaceBattlePoints: true,
         shopPlatformPoints: true,
         walletAddress: true,
+        isBlocked: true,
+        blockedReason: true,
+        blockedAt: true,
+        bannedUntil: true,
         mycloset: {
           select: {
             id: true,
@@ -1238,6 +1242,7 @@ export class UserService {
     twitterId?: string;
     phoneNumber?: string;
     displayName?: string;
+    isBlocked?: boolean | string;
   }) {
 
     const userSelect = {
@@ -1274,6 +1279,10 @@ export class UserService {
       marketplaceBattlePoints: true,
       shopPlatformPoints: true,
       walletAddress: true,
+      isBlocked: true,
+      blockedReason: true,
+      blockedAt: true,
+      bannedUntil: true,
     };
     const where: any = { deletedAt: null };
 
@@ -1300,6 +1309,11 @@ export class UserService {
       }
       if (orConditions.length > 0) {
         where.OR = orConditions;
+      }
+
+      if (query.isBlocked !== undefined && query.isBlocked !== '') {
+        const isBlockedBool = query.isBlocked === true || query.isBlocked === 'true';
+        where.isBlocked = isBlockedBool;
       }
     }
 

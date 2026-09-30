@@ -347,6 +347,14 @@ export class GetAllUsersDto {
   @IsOptional()
   @IsString()
   displayName?: string;
+
+  @ApiProperty({
+    description: 'Filter by blocked status (true or false)',
+    required: false,
+    example: false,
+  })
+  @IsOptional()
+  isBlocked?: boolean | string;
 }
 
 export class ProfileStatusSetDto {
@@ -629,6 +637,7 @@ export class UserController {
   @ApiQuery({ name: 'twitterId', type: String, required: false, description: 'Search by twitterId' })
   @ApiQuery({ name: 'phoneNumber', type: String, required: false, description: 'Search by phoneNumber' })
   @ApiQuery({ name: 'displayName', type: String, required: false, description: 'Search by displayName' })
+  @ApiQuery({ name: 'isBlocked', type: Boolean, required: false, description: 'Filter by blocked status (true / false)' })
   async getAllUsers(@Query() query: GetAllUsersDto) {
     const users = await this.userService.getAllUsers(query);
     return { users };
