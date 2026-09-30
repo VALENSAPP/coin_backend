@@ -7,6 +7,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiBody, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { AdminAuthGuard } from '../common/guards/admin-auth.guard';
 import { FollowPersonDto, UnfollowDto, BlockUserDto, UnblockUserDto } from './dto/follow.dto';
 import { RecentActivitiesDto } from './dto/recent-activities.dto';
 import { AddSearchHistoryDto, GetSearchHistoryDto } from './dto/search-history.dto';
@@ -653,6 +654,32 @@ export class UserController {
   async getDisplayNames() {
     const users = await this.userService.getDisplayNames();
     return { users };
+  }
+
+  @Get('stats/count')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get user statistics count (Admin)',
+    description:
+      'Returns aggregate counts of total users, active users, temporary banned users, and blocked users.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns aggregated user status counts',
+    schema: {
+      type: 'object',
+      properties: {
+        totalUsers: { type: 'number', example: 1250 },
+        activeUsers: { type: 'number', example: 1200 },
+        temporaryBannedUsers: { type: 'number', example: 15 },
+        blockedUsers: { type: 'number', example: 35 },
+      },
+    },
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin privileges required' })
+  async getUserStatsCount() {
+    return this.userService.getUserStatsCount();
   }
 
   @Post('check-display-name')

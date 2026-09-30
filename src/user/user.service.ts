@@ -1870,6 +1870,62 @@ export class UserService {
     };
   }
 
+  /**
+   * Get aggregate user status statistics count (Admin)
+   * Returns total users, active users, temporary banned users, and blocked users counts.
+   */
+  async getUserStatsCount() {
+    const now = new Date();
+
+    const [totalUsers, blockedUsers, temporaryBannedUsers, activeUsers] = await Promise.all([
+      // Total non-deleted users
+      (this.prisma as any).user.count({
+        where: {
+          isDeleted: 0,
+          deletedAt: null,
+        },
+      }),
+      // Blocked users (permanently blocked by admin or isBlocked flag set to true)
+      (this.prisma as any).user.count({
+        where: {
+          isDeleted: 0,
+          deletedAt: null,
+          isBlocked: true,
+        },
+      }),
+      // Temporary banned users (temporary suspension where bannedUntil > now and isBlocked is false)
+      (this.prisma as any).user.count({
+        where: {
+          isDeleted: 0,
+          deletedAt: null,
+          isBlocked: false,
+          bannedUntil: {
+            gt: now,
+          },
+        },
+      }),
+      // Active users (not blocked, not deleted, and ban expired or never banned)
+      (this.prisma as any).user.count({
+        where: {
+          isDeleted: 0,
+          deletedAt: null,
+          isBlocked: false,
+          OR: [
+            { bannedUntil: null },
+            { bannedUntil: { lte: now } },
+          ],
+        },
+      }),
+    ]);
+
+    return {
+      totalUsers,
+      activeUsers,
+      temporaryBannedUsers,
+      blockedUsers,
+    };
+  }
+
   // Get all display names of all users (exclude soft-deleted)
   async getDisplayNames() {
     const users = await this.prisma.user.findMany({

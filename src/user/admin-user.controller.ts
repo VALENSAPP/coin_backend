@@ -101,4 +101,29 @@ export class AdminUserController {
   async getBlockStatus(@Param('userId', new ParseUUIDPipe()) userId: string) {
     return this.userService.adminGetUserBlockStatus(userId);
   }
+
+  @Get('stats/count')
+  @ApiOperation({
+    summary: 'Get user statistics count (Admin)',
+    description:
+      'Returns the aggregate counts of total users, active users, temporary banned users, and blocked users.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns user status statistics count',
+    schema: {
+      type: 'object',
+      properties: {
+        totalUsers: { type: 'number', example: 1250 },
+        activeUsers: { type: 'number', example: 1200 },
+        temporaryBannedUsers: { type: 'number', example: 15 },
+        blockedUsers: { type: 'number', example: 35 },
+      },
+    },
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden - Admin privileges required' })
+  async getUserStatsCount() {
+    return this.userService.getUserStatsCount();
+  }
 }
+
