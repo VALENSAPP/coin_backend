@@ -29,7 +29,7 @@ import {
 } from './dto/admin-block-user.dto';
 
 @ApiTags('Admin User Management')
-@Controller(['admin/users', 'admin/user'])
+@Controller('admin/users')
 @UseGuards(AdminAuthGuard)
 @ApiBearerAuth()
 export class AdminUserController {
