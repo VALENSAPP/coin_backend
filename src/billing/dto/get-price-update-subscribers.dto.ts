@@ -45,16 +45,52 @@ export class GetPriceUpdateSubscribersQueryDto {
     if (typeof value === 'string') {
       const v = value.toUpperCase().trim();
       if (v === 'ACCEPT' || v === 'ACCEPTED') return PriceUpdateResponseStatusFilter.ACCEPTED;
-      if (v === 'DECLINE' || v === 'DECLINED' || v === 'CANCEL' || v === 'CANCELED' || v === 'CANCELLED' || v === 'STOP') {
+      if (
+        v === 'DECLINE' ||
+        v === 'DECLINED' ||
+        v === 'CANCEL' ||
+        v === 'CANCELED' ||
+        v === 'CANCELLED' ||
+        v === 'STOP'
+      ) {
         return PriceUpdateResponseStatusFilter.DECLINED;
       }
       if (v === 'PENDING') return PriceUpdateResponseStatusFilter.PENDING;
+      if (v === 'ALL') return PriceUpdateResponseStatusFilter.ALL;
     }
     return value;
   })
   @IsEnum(PriceUpdateResponseStatusFilter)
   @IsOptional()
   status?: PriceUpdateResponseStatusFilter = PriceUpdateResponseStatusFilter.ALL;
+
+  @ApiPropertyOptional({
+    description: 'Filter parameter: ALL, ACCEPTED, DECLINED, PENDING',
+    enum: PriceUpdateResponseStatusFilter,
+    required: false,
+  })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const v = value.toUpperCase().trim();
+      if (v === 'ACCEPT' || v === 'ACCEPTED') return PriceUpdateResponseStatusFilter.ACCEPTED;
+      if (
+        v === 'DECLINE' ||
+        v === 'DECLINED' ||
+        v === 'CANCEL' ||
+        v === 'CANCELED' ||
+        v === 'CANCELLED' ||
+        v === 'STOP'
+      ) {
+        return PriceUpdateResponseStatusFilter.DECLINED;
+      }
+      if (v === 'PENDING') return PriceUpdateResponseStatusFilter.PENDING;
+      if (v === 'ALL') return PriceUpdateResponseStatusFilter.ALL;
+    }
+    return value;
+  })
+  @IsEnum(PriceUpdateResponseStatusFilter)
+  @IsOptional()
+  filter?: PriceUpdateResponseStatusFilter;
 
   @ApiPropertyOptional({
     description: 'Alternative parameter for status: ALL, ACCEPTED, DECLINED, PENDING',
@@ -65,10 +101,18 @@ export class GetPriceUpdateSubscribersQueryDto {
     if (typeof value === 'string') {
       const v = value.toUpperCase().trim();
       if (v === 'ACCEPT' || v === 'ACCEPTED') return PriceUpdateResponseStatusFilter.ACCEPTED;
-      if (v === 'DECLINE' || v === 'DECLINED' || v === 'CANCEL' || v === 'CANCELED' || v === 'CANCELLED' || v === 'STOP') {
+      if (
+        v === 'DECLINE' ||
+        v === 'DECLINED' ||
+        v === 'CANCEL' ||
+        v === 'CANCELED' ||
+        v === 'CANCELLED' ||
+        v === 'STOP'
+      ) {
         return PriceUpdateResponseStatusFilter.DECLINED;
       }
       if (v === 'PENDING') return PriceUpdateResponseStatusFilter.PENDING;
+      if (v === 'ALL') return PriceUpdateResponseStatusFilter.ALL;
     }
     return value;
   })
@@ -77,12 +121,30 @@ export class GetPriceUpdateSubscribersQueryDto {
   responseStatus?: PriceUpdateResponseStatusFilter;
 
   @ApiPropertyOptional({
-    description: 'Search subscriber by username, display name, or email',
+    description: 'Search subscriber by username, display name, email, or ID',
     example: 'alex',
   })
   @IsString()
   @IsOptional()
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Search by name / username (alias for search)',
+    example: 'alex',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @ApiPropertyOptional({
+    description: 'Search query string (alias for search)',
+    example: 'alex',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  q?: string;
 
   @ApiPropertyOptional({
     description: 'Sort order for subscriber list',

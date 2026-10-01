@@ -3571,9 +3571,9 @@ export class UserService {
       effective: 'On next renewal',
       date: formatDate(priceCreatedAt),
       dateIso: priceCreatedAt.toISOString(),
-      responses: {
+      counts: {
         accepted: acceptedCount,
-        canceled: canceledCount,
+        declined: canceledCount,
         pending: pendingCount,
         total: totalSubscribers,
       },
@@ -3597,10 +3597,8 @@ export class UserService {
       return {
         hasSubscription: false,
         message: 'No active pay-following subscription plan found for this creator',
-        counts: { accepted: 0, declined: 0, canceled: 0, pending: 0, total: 0 },
-        responses: { accepted: 0, declined: 0, canceled: 0, pending: 0, total: 0 },
-        meta: { total: 0, filteredTotal: 0, page: 1, limit: 10, totalPages: 0, filter: 'ALL' },
-        users: [],
+        counts: { accepted: 0, declined: 0, pending: 0, total: 0 },
+        meta: { total: 0, totalSubscribers: 0, page: 1, limit: 10, totalPages: 0, filter: 'ALL' },
         subscribers: [],
       };
     }
@@ -3753,7 +3751,6 @@ export class UserService {
         paymentsCount: paymentStats.paymentsCount,
         createdAt: sub.createdAt,
         updatedAt: sub.updatedAt,
-        user: userInfo,
         subscriber: userInfo,
       };
 
@@ -3763,12 +3760,25 @@ export class UserService {
     const totalSubscribers = acceptedCount + declinedCount + pendingCount;
     const statusBadge = pendingCount === 0 ? 'Completed' : 'In Progress';
 
-    // Normalize filter
-    const rawFilter = (query.status || query.responseStatus || 'ALL').toString().toUpperCase().trim();
+    // Resolve filter
+    const rawFilter = (
+      query.filter ||
+      query.status ||
+      query.responseStatus ||
+      'ALL'
+    ).toString().toUpperCase().trim();
+
     let normalizedFilter: 'ALL' | 'ACCEPTED' | 'DECLINED' | 'PENDING' = 'ALL';
     if (rawFilter === 'ACCEPTED' || rawFilter === 'ACCEPT') {
       normalizedFilter = 'ACCEPTED';
-    } else if (rawFilter === 'DECLINED' || rawFilter === 'DECLINE' || rawFilter === 'CANCELED' || rawFilter === 'CANCEL' || rawFilter === 'CANCELLED' || rawFilter === 'STOP') {
+    } else if (
+      rawFilter === 'DECLINED' ||
+      rawFilter === 'DECLINE' ||
+      rawFilter === 'CANCELED' ||
+      rawFilter === 'CANCEL' ||
+      rawFilter === 'CANCELLED' ||
+      rawFilter === 'STOP'
+    ) {
       normalizedFilter = 'DECLINED';
     } else if (rawFilter === 'PENDING') {
       normalizedFilter = 'PENDING';
@@ -3779,14 +3789,22 @@ export class UserService {
       filtered = filtered.filter((item) => item.responseStatus === normalizedFilter);
     }
 
-    if (query.search && query.search.trim()) {
-      const term = query.search.trim().toLowerCase();
+    // Search by name, username, display name, email, or user ID
+    const searchTerm = (query.search || query.name || query.q || '').toString().trim().toLowerCase();
+    if (searchTerm) {
       filtered = filtered.filter((item) => {
-        const u = item.user;
+        const u = item.subscriber;
+        if (!u) return false;
+        const userName = (u.userName || '').toLowerCase();
+        const displayName = (u.displayName || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        const fanUserId = (item.fanUserId || '').toLowerCase();
+
         return (
-          (u.userName && u.userName.toLowerCase().includes(term)) ||
-          (u.displayName && u.displayName.toLowerCase().includes(term)) ||
-          (u.email && u.email.toLowerCase().includes(term))
+          userName.includes(searchTerm) ||
+          displayName.includes(searchTerm) ||
+          email.includes(searchTerm) ||
+          fanUserId.includes(searchTerm)
         );
       });
     }
@@ -3802,12 +3820,12 @@ export class UserService {
       } else if (sortBy === PriceUpdateSubscriberSortBy.EXPIRY_SOON) {
         return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
       } else if (sortBy === PriceUpdateSubscriberSortBy.NAME_ASC) {
-        const nameA = (a.user.displayName || a.user.userName || '').toLowerCase();
-        const nameB = (b.user.displayName || b.user.userName || '').toLowerCase();
+        const nameA = (a.subscriber?.displayName || a.subscriber?.userName || '').toLowerCase();
+        const nameB = (b.subscriber?.displayName || b.subscriber?.userName || '').toLowerCase();
         return nameA.localeCompare(nameB);
       } else if (sortBy === PriceUpdateSubscriberSortBy.NAME_DESC) {
-        const nameA = (a.user.displayName || a.user.userName || '').toLowerCase();
-        const nameB = (b.user.displayName || b.user.userName || '').toLowerCase();
+        const nameA = (a.subscriber?.displayName || a.subscriber?.userName || '').toLowerCase();
+        const nameB = (b.subscriber?.displayName || b.subscriber?.userName || '').toLowerCase();
         return nameB.localeCompare(nameA);
       } else {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -3821,9 +3839,10 @@ export class UserService {
 
     return {
       pricingPolicy: subscription.pricingPolicy,
-      title: subscription.pricingPolicy === 'GRANDFATHER_EXISTING'
-        ? 'Existing subscribers keep current price'
-        : 'Price update to all subscribers',
+      title:
+        subscription.pricingPolicy === 'GRANDFATHER_EXISTING'
+          ? 'Existing subscribers keep current price'
+          : 'Price update to all subscribers',
       status: statusBadge,
       from: formatCurrency(previousAmount),
       to: formatCurrency(currentAmount),
@@ -3839,26 +3858,17 @@ export class UserService {
       counts: {
         accepted: acceptedCount,
         declined: declinedCount,
-        canceled: declinedCount,
-        pending: pendingCount,
-        total: totalSubscribers,
-      },
-      responses: {
-        accepted: acceptedCount,
-        declined: declinedCount,
-        canceled: declinedCount,
         pending: pendingCount,
         total: totalSubscribers,
       },
       meta: {
-        total: totalSubscribers,
-        filteredTotal: filtered.length,
+        total: filtered.length,
+        totalSubscribers,
         page,
         limit,
         totalPages: Math.ceil(filtered.length / limit) || 1,
         filter: normalizedFilter,
       },
-      users: paginatedItems,
       subscribers: paginatedItems,
     };
   }
