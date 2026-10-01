@@ -264,7 +264,7 @@ export class DeepLinkController {
 
     const shareUrl = `${baseUrl}/${route}/${encodedId}${querySuffix}`;
 
-    const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
+    const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share-og.png`;
 
     const deepLinkUrl = `com.valens.app://${route}/${encodedId}${querySuffix}`;
 
@@ -284,11 +284,11 @@ export class DeepLinkController {
 
           <meta charset="utf-8">
 
-          <title>Valens</title>
+          <title>Valens App · Reputation Earned. Value Built.</title>
 
           <meta name="viewport" content="width=device-width, initial-scale=1">
 
-          <meta name="description" content="Join Valens and discover stories, profiles, and content shared with you.">
+          <meta name="description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
 
 
 
@@ -296,9 +296,9 @@ export class DeepLinkController {
 
           <meta property="og:site_name" content="Valens">
 
-          <meta property="og:title" content="Valens">
+          <meta property="og:title" content="Valens App">
 
-          <meta property="og:description" content="Join Valens and discover stories, profiles, and content shared with you.">
+          <meta property="og:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
 
           <meta property="og:url" content="${safeShareUrl}">
 
@@ -312,15 +312,15 @@ export class DeepLinkController {
 
           <meta property="og:image:height" content="630">
 
-          <meta property="og:image:alt" content="Valens App Logo">
+          <meta property="og:image:alt" content="Valens App">
 
 
 
           <meta name="twitter:card" content="summary_large_image">
 
-          <meta name="twitter:title" content="Valens">
+          <meta name="twitter:title" content="Valens App">
 
-          <meta name="twitter:description" content="Join Valens and discover stories, profiles, and content shared with you.">
+          <meta name="twitter:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
 
           <meta name="twitter:image" content="${safeOgImage}">
 
@@ -362,7 +362,7 @@ export class DeepLinkController {
 
     const shareUrl = `${baseUrl}/callback`;
 
-    const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share.png`;
+    const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share-og.png`;
 
     const deepLinkUrl = configuredHomeDeepLink || 'com.valens://callback';
 
@@ -382,11 +382,11 @@ export class DeepLinkController {
 
           <meta charset="utf-8">
 
-          <title>Valens</title>
+          <title>Valens App · Reputation Earned. Value Built.</title>
 
           <meta name="viewport" content="width=device-width, initial-scale=1">
 
-          <meta name="description" content="Join Valens and discover stories, profiles, and content shared with you.">
+          <meta name="description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
 
 
 
@@ -394,9 +394,9 @@ export class DeepLinkController {
 
           <meta property="og:site_name" content="Valens">
 
-          <meta property="og:title" content="Valens">
+          <meta property="og:title" content="Valens App">
 
-          <meta property="og:description" content="Join Valens and discover stories, profiles, and content shared with you.">
+          <meta property="og:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
 
           <meta property="og:url" content="${safeShareUrl}">
 
@@ -410,15 +410,15 @@ export class DeepLinkController {
 
           <meta property="og:image:height" content="630">
 
-          <meta property="og:image:alt" content="Valens App Logo">
+          <meta property="og:image:alt" content="Valens App">
 
 
 
           <meta name="twitter:card" content="summary_large_image">
 
-          <meta name="twitter:title" content="Valens">
+          <meta name="twitter:title" content="Valens App">
 
-          <meta name="twitter:description" content="Join Valens and discover stories, profiles, and content shared with you.">
+          <meta name="twitter:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
 
           <meta name="twitter:image" content="${safeOgImage}">
 

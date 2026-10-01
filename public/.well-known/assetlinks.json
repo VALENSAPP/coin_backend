@@ -1,0 +1,22 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.valens.app",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7C:0F:86:02:AE:82:E6:E6:46:46:32:4F:7B:0F:51:CF:38:61:EC:4A:26:4F:4A:70:1B:51:30:7A:1D"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.valens",
+      "sha256_cert_fingerprints": [
+        "14:6D:E9:7C:0F:86:02:AE:82:E6:E6:46:46:32:4F:7B:0F:51:CF:38:61:EC:4A:26:4F:4A:70:1B:51:30:7A:1D"
+      ]
+    }
+  }
+]

@@ -3,7 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Opening Valens...</title>
+  <title>Valens App · Reputation Earned. Value Built.</title>
+  <meta name="description" content="Reputation Earned. Value Built. Social media just got an upgrade." />
+
+  <!-- Open Graph / Facebook / WhatsApp / iMessage -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Valens" />
+  <meta property="og:title" content="Valens App" />
+  <meta property="og:description" content="Reputation Earned. Value Built. Social media just got an upgrade." />
+  <meta property="og:image" content="/share-assets/valens-share-og.png" />
+  <meta property="og:image:secure_url" content="/share-assets/valens-share-og.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Valens App" />
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Valens App" />
+  <meta name="twitter:description" content="Reputation Earned. Value Built. Social media just got an upgrade." />
+  <meta name="twitter:image" content="/share-assets/valens-share-og.png" />
+
+  <link rel="icon" type="image/png" href="/logo.png" />
+
   <style>
     * {
       box-sizing: border-box;
@@ -122,7 +144,7 @@
 <body>
   <div class="card">
     <div class="logo-container">
-      <img src="https://valens-s3-2026.s3.us-west-1.amazonaws.com/assets/valens-logo.png" alt="Valens" class="logo" />
+      <img src="/share-assets/valens-share-og.png" alt="Valens" class="logo" onerror="this.src='/logo.png'" />
     </div>
 
     <div id="loading-state">
@@ -164,12 +186,10 @@
 
       // Determine deep link path
       const path = customPath ? customPath.replace(/^\//, '') : 'home';
-      const APP_STORE_URL = 'https://apps.apple.com/app/valens/id6740683058';
-      const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.valens.app';
-      const WEB_URL = 'https://valensapp.com';
 
-      const ua = navigator.userAgent || navigator.vendor || window.opera;
-      const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+      const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
+      const isCrawler = /whatsapp|facebookexternalhit|twitterbot|telegrambot|applebot|discordbot|slackbot|linkedinbot/i.test(ua);
+      const isIOS = /ipad|iphone|ipod/.test(ua) && !window.MSStream;
       const isAndroid = /android/i.test(ua);
 
       const btnOpenApp = document.getElementById('btn-open-app');
@@ -177,7 +197,7 @@
       const btnPlayStore = document.getElementById('btn-play-store');
       const btnWeb = document.getElementById('btn-web');
 
-      const customSchemeUrl = directUrl || `valens://${path}`;
+      const customSchemeUrl = directUrl || `com.valens.app://${path}`;
       btnOpenApp.href = customSchemeUrl;
 
       if (isIOS) {
@@ -190,6 +210,13 @@
         btnWeb.style.display = 'flex';
         btnAppStore.style.display = 'flex';
         btnPlayStore.style.display = 'flex';
+      }
+
+      // If crawler, do not auto-redirect so preview card parses cleanly
+      if (isCrawler) {
+        const spinner = document.querySelector('.spinner');
+        if (spinner) spinner.style.display = 'none';
+        return;
       }
 
       // Track if app opened
@@ -206,7 +233,7 @@
       if (isAndroid) {
         // Android Intent automatically opens app if installed, or falls back to Play Store
         const fallbackUrl = encodeURIComponent(PLAY_STORE_URL);
-        const androidIntent = `intent://${path}#Intent;scheme=valens;package=com.valens.app;S.browser_fallback_url=${fallbackUrl};end`;
+        const androidIntent = `intent://${path}#Intent;scheme=com.valens;package=com.valens.app;S.browser_fallback_url=${fallbackUrl};end`;
         window.location.href = androidIntent;
       } else if (isIOS) {
         // iOS: attempt custom scheme and fallback to App Store
@@ -221,6 +248,8 @@
         // Desktop / Laptop
         const statusTitle = document.getElementById('status-title');
         const statusDesc = document.getElementById('status-desc');
+        const spinner = document.querySelector('.spinner');
+        if (spinner) spinner.style.display = 'none';
         if (statusTitle) statusTitle.textContent = 'Welcome to Valens';
         if (statusDesc) statusDesc.textContent = 'Get the Valens mobile app on your phone:';
       }
