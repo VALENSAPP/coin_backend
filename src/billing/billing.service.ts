@@ -4,6 +4,7 @@ import { GetSubscribersQueryDto, SubscriberSortBy, SubscriberStatusFilter } from
 import { GetMySubscriptionsQueryDto, SubscriptionSortBy, SubscriptionStatusFilter } from './dto/get-my-subscriptions-query.dto';
 import { CancelPayFollowingSubscriptionDto } from './dto/cancel-pay-following-subscription.dto';
 import { RespondPriceChangeDto, PriceChangeResponseAction } from './dto/respond-price-change.dto';
+import { GetPriceUpdateSubscribersQueryDto, PriceUpdateResponseStatusFilter, PriceUpdateSubscriberSortBy } from './dto/get-price-update-subscribers.dto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
@@ -3008,6 +3009,285 @@ export class BillingService {
       renewalDateFormatted: formatDate(renewalDate),
       daysUntilNextUpdate,
       canUpdatePrice,
+    };
+  }
+
+  async getPayFollowingPriceUpdateSubscribers(
+    creatorId: string,
+    query: GetPriceUpdateSubscribersQueryDto,
+  ) {
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: { userId: creatorId, isDelete: 0 },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!subscription) {
+      return {
+        hasSubscription: false,
+        message: 'No active pay-following subscription plan found for this creator',
+        counts: { accepted: 0, declined: 0, canceled: 0, pending: 0, total: 0 },
+        responses: { accepted: 0, declined: 0, canceled: 0, pending: 0, total: 0 },
+        meta: { total: 0, filteredTotal: 0, page: 1, limit: 10, totalPages: 0, filter: 'ALL' },
+        users: [],
+        subscribers: [],
+      };
+    }
+
+    const currentAmount = Number(subscription.subscriptionAmount);
+    const previousAmount =
+      subscription.previousAmount !== null && subscription.previousAmount !== undefined
+        ? Number(subscription.previousAmount)
+        : currentAmount;
+
+    const priceCreatedAt = subscription.priceUpdatedAt || subscription.createdAt || new Date();
+    const renewalDate =
+      subscription.nextPriceUpdateAvailableAt ||
+      new Date(priceCreatedAt.getTime() + 180 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const diffMs = renewalDate.getTime() - now.getTime();
+    const daysUntilNextUpdate = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    const canUpdatePrice = daysUntilNextUpdate === 0;
+
+    const formatCurrency = (val: number) => `$${Number(val).toFixed(2)} / month`;
+    const formatDate = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const subscriberRecords = await this.prisma.fansSubscriptionBuyData.findMany({
+      where: {
+        buyUserId: creatorId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      include: {
+        fanUser: {
+          select: {
+            id: true,
+            userName: true,
+            displayName: true,
+            email: true,
+            image: true,
+            country: true,
+            kyc: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    // Deduplicate by fanUserId to get current status per subscriber
+    const uniqueFansMap = new Map<string, (typeof subscriberRecords)[0]>();
+    for (const sub of subscriberRecords) {
+      if (!uniqueFansMap.has(sub.fanUserId)) {
+        uniqueFansMap.set(sub.fanUserId, sub);
+      }
+    }
+
+    const fanUserIds = Array.from(uniqueFansMap.keys());
+    const paymentsAggregates = fanUserIds.length > 0
+      ? await this.prisma.payment.groupBy({
+        by: ['userId'],
+        where: {
+          receiverId: creatorId,
+          userId: { in: fanUserIds },
+          forPayment: 'following',
+          status: 'succeeded',
+        },
+        _sum: { amount: true, totalAmount: true },
+        _count: { id: true },
+      })
+      : [];
+
+    const paymentMap = new Map<string, { totalPaidAmount: number; totalEarnedAmount: number; paymentsCount: number }>();
+    for (const agg of paymentsAggregates) {
+      paymentMap.set(agg.userId, {
+        totalPaidAmount: agg._sum?.totalAmount || 0,
+        totalEarnedAmount: agg._sum?.amount || 0,
+        paymentsCount: agg._count?.id || 0,
+      });
+    }
+
+    let acceptedCount = 0;
+    let declinedCount = 0;
+    let pendingCount = 0;
+
+    const processedList: any[] = [];
+
+    for (const sub of uniqueFansMap.values()) {
+      const isExpired = new Date(sub.endDate) <= now;
+      const isPriceUpdatedSubscriber =
+        sub.priceAtSubscription !== null &&
+        sub.priceAtSubscription !== undefined &&
+        Number(sub.priceAtSubscription) >= currentAmount;
+      const isUpdatedAfterPriceChange = new Date(sub.updatedAt) >= priceCreatedAt;
+
+      let responseStatus: 'ACCEPTED' | 'DECLINED' | 'PENDING';
+
+      if (subscription.pricingPolicy === 'GRANDFATHER_EXISTING') {
+        responseStatus = 'ACCEPTED';
+      } else if (sub.status === 'STOP' || (sub.cancelAtPeriodEnd && isExpired)) {
+        responseStatus = 'DECLINED';
+      } else if (sub.status === 'ACTIVE' && (isPriceUpdatedSubscriber || isUpdatedAfterPriceChange)) {
+        responseStatus = 'ACCEPTED';
+      } else if (sub.status === 'ACTIVE' && !isExpired) {
+        responseStatus = 'PENDING';
+      } else {
+        responseStatus = 'DECLINED';
+      }
+
+      if (responseStatus === 'ACCEPTED') acceptedCount++;
+      else if (responseStatus === 'DECLINED') declinedCount++;
+      else if (responseStatus === 'PENDING') pendingCount++;
+
+      const userInfo = sub.fanUser || {
+        id: sub.fanUserId,
+        userName: null,
+        displayName: null,
+        email: null,
+        image: null,
+        country: null,
+        kyc: null,
+        createdAt: sub.createdAt,
+      };
+
+      const paymentStats = paymentMap.get(sub.fanUserId) || {
+        totalPaidAmount: 0,
+        totalEarnedAmount: 0,
+        paymentsCount: 0,
+      };
+
+      const isCurrentlyActive = sub.status === 'ACTIVE' && new Date(sub.endDate) > now;
+
+      const item = {
+        subscriptionId: sub.id,
+        fanUserId: sub.fanUserId,
+        responseStatus,
+        responseStatusFormatted: responseStatus === 'ACCEPTED' ? 'Accepted' : responseStatus === 'DECLINED' ? 'Declined' : 'Pending',
+        priceAtSubscription: sub.priceAtSubscription !== null && sub.priceAtSubscription !== undefined ? Number(sub.priceAtSubscription) : null,
+        currentPrice: currentAmount,
+        previousPrice: previousAmount,
+        status: sub.status,
+        isActive: isCurrentlyActive,
+        isEnded: !isCurrentlyActive,
+        isCancelled: sub.cancelAtPeriodEnd || !sub.autoRenew,
+        startDate: sub.startDate,
+        endDate: sub.endDate,
+        autoRenew: sub.autoRenew,
+        cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+        paymentProvider: sub.paymentProvider,
+        stripeSubscriptionId: sub.stripeSubscriptionId,
+        totalEarnedFromSubscriber: paymentStats.totalEarnedAmount,
+        totalPaidBySubscriber: paymentStats.totalPaidAmount,
+        paymentsCount: paymentStats.paymentsCount,
+        createdAt: sub.createdAt,
+        updatedAt: sub.updatedAt,
+        user: userInfo,
+        subscriber: userInfo,
+      };
+
+      processedList.push(item);
+    }
+
+    const totalSubscribers = acceptedCount + declinedCount + pendingCount;
+    const statusBadge = pendingCount === 0 ? 'Completed' : 'In Progress';
+
+    // Normalize filter
+    const rawFilter = (query.status || query.responseStatus || 'ALL').toString().toUpperCase().trim();
+    let normalizedFilter: 'ALL' | 'ACCEPTED' | 'DECLINED' | 'PENDING' = 'ALL';
+    if (rawFilter === 'ACCEPTED' || rawFilter === 'ACCEPT') {
+      normalizedFilter = 'ACCEPTED';
+    } else if (rawFilter === 'DECLINED' || rawFilter === 'DECLINE' || rawFilter === 'CANCELED' || rawFilter === 'CANCEL' || rawFilter === 'CANCELLED' || rawFilter === 'STOP') {
+      normalizedFilter = 'DECLINED';
+    } else if (rawFilter === 'PENDING') {
+      normalizedFilter = 'PENDING';
+    }
+
+    let filtered = processedList;
+    if (normalizedFilter !== 'ALL') {
+      filtered = filtered.filter((item) => item.responseStatus === normalizedFilter);
+    }
+
+    if (query.search && query.search.trim()) {
+      const term = query.search.trim().toLowerCase();
+      filtered = filtered.filter((item) => {
+        const u = item.user;
+        return (
+          (u.userName && u.userName.toLowerCase().includes(term)) ||
+          (u.displayName && u.displayName.toLowerCase().includes(term)) ||
+          (u.email && u.email.toLowerCase().includes(term))
+        );
+      });
+    }
+
+    const sortBy = query.sortBy || PriceUpdateSubscriberSortBy.NEWEST;
+    filtered.sort((a, b) => {
+      if (sortBy === PriceUpdateSubscriberSortBy.OLDEST) {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortBy === PriceUpdateSubscriberSortBy.PRICE_HIGH) {
+        return (Number(b.priceAtSubscription) || 0) - (Number(a.priceAtSubscription) || 0);
+      } else if (sortBy === PriceUpdateSubscriberSortBy.PRICE_LOW) {
+        return (Number(a.priceAtSubscription) || 0) - (Number(b.priceAtSubscription) || 0);
+      } else if (sortBy === PriceUpdateSubscriberSortBy.EXPIRY_SOON) {
+        return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+      } else if (sortBy === PriceUpdateSubscriberSortBy.NAME_ASC) {
+        const nameA = (a.user.displayName || a.user.userName || '').toLowerCase();
+        const nameB = (b.user.displayName || b.user.userName || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      } else if (sortBy === PriceUpdateSubscriberSortBy.NAME_DESC) {
+        const nameA = (a.user.displayName || a.user.userName || '').toLowerCase();
+        const nameB = (b.user.displayName || b.user.userName || '').toLowerCase();
+        return nameB.localeCompare(nameA);
+      } else {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const skip = (page - 1) * limit;
+    const paginatedItems = filtered.slice(skip, skip + limit);
+
+    return {
+      pricingPolicy: subscription.pricingPolicy,
+      title: subscription.pricingPolicy === 'GRANDFATHER_EXISTING'
+        ? 'Existing subscribers keep current price'
+        : 'Price update to all subscribers',
+      status: statusBadge,
+      from: formatCurrency(previousAmount),
+      to: formatCurrency(currentAmount),
+      fromPrice: previousAmount,
+      toPrice: currentAmount,
+      effective: 'On next renewal',
+      date: formatDate(priceCreatedAt),
+      dateIso: priceCreatedAt.toISOString(),
+      renewalDate: renewalDate.toISOString(),
+      renewalDateFormatted: formatDate(renewalDate),
+      daysUntilNextUpdate,
+      canUpdatePrice,
+      counts: {
+        accepted: acceptedCount,
+        declined: declinedCount,
+        canceled: declinedCount,
+        pending: pendingCount,
+        total: totalSubscribers,
+      },
+      responses: {
+        accepted: acceptedCount,
+        declined: declinedCount,
+        canceled: declinedCount,
+        pending: pendingCount,
+        total: totalSubscribers,
+      },
+      meta: {
+        total: totalSubscribers,
+        filteredTotal: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit) || 1,
+        filter: normalizedFilter,
+      },
+      users: paginatedItems,
+      subscribers: paginatedItems,
     };
   }
 

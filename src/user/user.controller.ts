@@ -13,6 +13,7 @@ import { RecentActivitiesDto } from './dto/recent-activities.dto';
 import { AddSearchHistoryDto, GetSearchHistoryDto } from './dto/search-history.dto';
 import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto, UserSubscriptionStatus } from './dto/user-subscription.dto';
 import { SendPlatformPointsDto, GetPointTransfersDto } from './dto/send-points.dto';
+import { GetPriceUpdateSubscribersQueryDto } from './dto/get-price-update-subscribers.dto';
 
 export enum RegistrationType {
   NORMAL = 'NORMAL',
@@ -937,6 +938,32 @@ export class UserController {
   async getSubscriptionPriceUpdateSummary(@Req() req: Request) {
     const creatorId = (req.user as any).userId;
     return this.userService.getSubscriptionPriceUpdateSummary(creatorId);
+  }
+
+  @Get('subscription/price-update-subscribers')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of users who accepted, declined, or are pending for creator subscription price update' })
+  @ApiResponse({ status: 200, description: 'Price update subscribers retrieved successfully' })
+  async getSubscriptionPriceUpdateSubscribers(
+    @Req() req: Request,
+    @Query() query: GetPriceUpdateSubscribersQueryDto,
+  ) {
+    const creatorId = (req.user as any).userId;
+    return this.userService.getSubscriptionPriceUpdateSubscribers(creatorId, query);
+  }
+
+  @Get('subscription/price-update-users')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of users who accepted, declined, or are pending for creator subscription price update (alias)' })
+  @ApiResponse({ status: 200, description: 'Price update users retrieved successfully' })
+  async getSubscriptionPriceUpdateUsers(
+    @Req() req: Request,
+    @Query() query: GetPriceUpdateSubscribersQueryDto,
+  ) {
+    const creatorId = (req.user as any).userId;
+    return this.userService.getSubscriptionPriceUpdateSubscribers(creatorId, query);
   }
 
   @Get('getSubscriptionByUserID/:userId')

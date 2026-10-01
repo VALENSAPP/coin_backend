@@ -11,6 +11,7 @@ import { PayFollowingDto } from './dto/pay-following.dto';
 import { CancelPayFollowingSubscriptionDto } from './dto/cancel-pay-following-subscription.dto';
 import { RespondPriceChangeDto } from './dto/respond-price-change.dto';
 import { GetSubscribersQueryDto } from './dto/get-subscribers-query.dto';
+import { GetPriceUpdateSubscribersQueryDto } from './dto/get-price-update-subscribers.dto';
 import { GetMySubscriptionsQueryDto } from './dto/get-my-subscriptions-query.dto';
 import { SendTipDto } from './dto/send-tip.dto';
 import { CreateEbookPaymentDto } from './dto/create-ebook-payment.dto';
@@ -214,6 +215,20 @@ export class BillingController {
     const creatorId = (req.user as any).userId;
     return this.billingService.getPayFollowingPriceUpdateSummary(creatorId);
   }
+
+  @Get('pay-following/price-update-subscribers')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of users who accepted, declined, or are pending for creator pay-following price update' })
+  @ApiResponse({ status: 200, description: 'Pay-following price update subscribers retrieved successfully' })
+  async getPayFollowingPriceUpdateSubscribers(
+    @Req() req: Request,
+    @Query() query: GetPriceUpdateSubscribersQueryDto,
+  ) {
+    const creatorId = (req.user as any).userId;
+    return this.billingService.getPayFollowingPriceUpdateSubscribers(creatorId, query);
+  }
+
 
   @Get('pay-following/subscribers')
   @UseGuards(AuthGuard('jwt'))
