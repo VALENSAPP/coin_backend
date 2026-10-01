@@ -4060,6 +4060,109 @@ export class UserService {
     };
   }
 
+  async updateDeviceLanguage(deviceId: string, language: string) {
+    if (!deviceId || typeof deviceId !== 'string' || !deviceId.trim()) {
+      throw new BadRequestException('Device ID is required');
+    }
+    if (!language || typeof language !== 'string' || !language.trim()) {
+      throw new BadRequestException('Language is required');
+    }
+
+    const trimmedDeviceId = deviceId.trim();
+    const normalized = normalizeLanguage(language);
+
+    // Find all device accounts associated with this deviceId
+    const deviceAccounts = await this.prisma.deviceAccount.findMany({
+      where: { deviceId: trimmedDeviceId },
+      select: { id: true, userId: true },
+    });
+
+    if (deviceAccounts.length > 0) {
+      // Update all device accounts for this deviceId
+      await this.prisma.deviceAccount.updateMany({
+        where: { deviceId: trimmedDeviceId },
+        data: {
+          language: normalized,
+        },
+      });
+
+      // Also update the associated user profiles with this language
+      const userIds = Array.from(new Set(deviceAccounts.map((da) => da.userId).filter(Boolean)));
+      if (userIds.length > 0) {
+        await this.prisma.user.updateMany({
+          where: { id: { in: userIds } },
+          data: { language: normalized } as any,
+        });
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Device language updated successfully',
+      deviceId: trimmedDeviceId,
+      language: normalized,
+      updatedAccountsCount: deviceAccounts.length,
+    };
+  }
+
+  async getDeviceLanguage(deviceId?: string) {
+    if (!deviceId || typeof deviceId !== 'string' || !deviceId.trim()) {
+      return {
+        success: true,
+        deviceId: undefined,
+        language: 'en',
+        source: 'default',
+      };
+    }
+
+    const trimmedDeviceId = deviceId.trim();
+
+    // Look for active device account first (most recently used)
+    const activeDeviceAccount = await this.prisma.deviceAccount.findFirst({
+      where: {
+        deviceId: trimmedDeviceId,
+        removedAt: null,
+      },
+      orderBy: [
+        { lastLoginAt: 'desc' },
+        { updatedAt: 'desc' },
+      ],
+      select: { language: true },
+    });
+
+    if (activeDeviceAccount?.language) {
+      return {
+        success: true,
+        deviceId: trimmedDeviceId,
+        language: normalizeLanguage(activeDeviceAccount.language),
+        source: 'device',
+      };
+    }
+
+    // Fallback: check any record for this deviceId
+    const anyDeviceAccount = await this.prisma.deviceAccount.findFirst({
+      where: { deviceId: trimmedDeviceId },
+      orderBy: { updatedAt: 'desc' },
+      select: { language: true },
+    });
+
+    if (anyDeviceAccount?.language) {
+      return {
+        success: true,
+        deviceId: trimmedDeviceId,
+        language: normalizeLanguage(anyDeviceAccount.language),
+        source: 'device',
+      };
+    }
+
+    return {
+      success: true,
+      deviceId: trimmedDeviceId,
+      language: 'en',
+      source: 'default',
+    };
+  }
+
   async updateWalletAddress(userId: string, walletAddress: string) {
     if (!userId) throw new BadRequestException('User ID required');
     if (!walletAddress?.trim()) throw new BadRequestException('Wallet address is required');

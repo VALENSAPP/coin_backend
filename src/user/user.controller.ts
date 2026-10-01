@@ -406,6 +406,18 @@ export class ReactivateAccountDto {
   fcmToken?: string;
 }
 
+export class DeviceLanguageUpdateDto {
+  @ApiProperty({ required: true, description: 'Unique device identifier', example: 'd3b07384d113edec49eaa6238ad5ff00' })
+  @IsString()
+  @IsNotEmpty()
+  deviceId: string;
+
+  @ApiProperty({ required: true, description: 'Language code (e.g. en, pt, es, fr, de, zh, etc.)', example: 'en' })
+  @IsString()
+  @IsNotEmpty()
+  language: string;
+}
+
 @ApiTags('user')
 @Controller('user')
 export class UserController {
@@ -1094,6 +1106,27 @@ export class UserController {
     const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
     return this.userService.getLanguage(userId, deviceId);
   }
+
+  @Post('deviceLanguageUpdate')
+  @ApiOperation({ summary: 'Update preferred language for all accounts associated with a device ID (Public)' })
+  @ApiBody({ type: DeviceLanguageUpdateDto })
+  @ApiResponse({ status: 200, description: 'Device language updated successfully' })
+  async deviceLanguageUpdate(@Req() req: Request, @Body() dto: DeviceLanguageUpdateDto) {
+    const deviceId = dto.deviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.userService.updateDeviceLanguage(deviceId, dto.language);
+  }
+
+
+  @Get('deviceLanguage')
+  @ApiOperation({ summary: 'Get preferred language for a device ID (Public)' })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Unique device identifier' })
+  @ApiResponse({ status: 200, description: 'Returns preferred language preference for the device' })
+  async getDeviceLanguage(@Req() req: Request, @Query('deviceId') queryDeviceId?: string) {
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.userService.getDeviceLanguage(deviceId);
+  }
+
+
 
   @Patch('updateWalletAddress')
   @UseGuards(AuthGuard('jwt'))
