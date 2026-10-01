@@ -7,7 +7,12 @@ import { RespondPriceChangeDto, PriceChangeResponseAction } from './dto/respond-
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
-import { normalizeLanguage } from '../notification/notification.translator';
+import {
+  normalizeLanguage,
+  translatePaymentType,
+  translatePaymentStatus,
+  translateTypeTransaction,
+} from './payment.translator';
 import { WalletService } from '../wallet/wallet.service';
 import { PagBankService } from '../pagbank/pagbank.service';
 import { PaymentProviderResolver } from '../marketPlace/payment/payment-provider.resolver';
@@ -1478,34 +1483,28 @@ export class BillingService {
   }
 
   /**
-   * Helper to localize forPayment and status fields for Portuguese (pt) users
+   * Helper to localize forPayment and status fields according to user language preference
    */
-  private localizePaymentFields(isPt: boolean, forPayment?: string | null, status?: string | null) {
-    let localizedForPayment = forPayment ?? null;
-    if (isPt && forPayment?.toUpperCase() === 'TIP') {
-      localizedForPayment = 'Gorjeta';
+  private localizePaymentFields(lang: string | boolean, forPayment?: string | null, status?: string | null) {
+    const normalizedLang = typeof lang === 'boolean' ? (lang ? 'pt' : 'en') : normalizeLanguage(lang);
+    if (normalizedLang === 'en') {
+      return {
+        forPayment: forPayment ?? null,
+        status: status ?? null,
+      };
     }
 
-    let localizedStatus = status ?? null;
-    if (isPt && status) {
-      const raw = status.toLowerCase();
-      if (raw === 'succeed' || raw === 'succeeded') {
-        localizedStatus = 'Confirmada';
-      } else if (raw === 'inactive') {
-        localizedStatus = 'inactive';
-      } else if (raw === 'active') {
-        localizedStatus = 'active';
-      }
-    }
-
-    return { forPayment: localizedForPayment, status: localizedStatus };
+    return {
+      forPayment: translatePaymentType(forPayment, normalizedLang),
+      status: translatePaymentStatus(status, normalizedLang),
+    };
   }
 
   async getSubscriptionDetails(userId: string, deviceId?: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     const lang = await this.notificationService.getUserLanguage(userId, deviceId);
-    const isPt = normalizeLanguage(lang) === 'pt';
+    const normalizedLang = normalizeLanguage(lang);
 
     const latestPayment = await this.prisma.payment.findFirst({
       where: { userId },
@@ -1521,7 +1520,7 @@ export class BillingService {
     }
 
     const { forPayment, status } = this.localizePaymentFields(
-      isPt,
+      normalizedLang,
       latestPayment?.forPayment ?? null,
       rawStatus,
     );
@@ -2375,17 +2374,17 @@ export class BillingService {
 
   async getLatestTransactions(userId: string, limit: number = 50, deviceId?: string) {
     const lang = await this.notificationService.getUserLanguage(userId, deviceId);
-    const isPt = normalizeLanguage(lang) === 'pt';
+    const normalizedLang = normalizeLanguage(lang);
     const transactions = await this.prisma.payment.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: Math.min(Math.max(1, limit), 100),
     });
 
-    if (!isPt) return transactions;
+    if (normalizedLang === 'en') return transactions;
 
     return transactions.map((p) => {
-      const localized = this.localizePaymentFields(isPt, p.forPayment, p.status);
+      const localized = this.localizePaymentFields(normalizedLang, p.forPayment, p.status);
       return {
         ...p,
         forPayment: localized.forPayment,
@@ -2402,7 +2401,7 @@ export class BillingService {
     }
 
     const lang = await this.notificationService.getUserLanguage(userId, deviceId);
-    const isPt = normalizeLanguage(lang) === 'pt';
+    const normalizedLang = normalizeLanguage(lang);
 
     const identifiers = [
       ...(normalizedPaymentId ? [{ id: normalizedPaymentId }] : []),
@@ -2436,11 +2435,14 @@ export class BillingService {
           select: { postId: true, note: true },
         })
         : null;
-      const localized = this.localizePaymentFields(isPt, payment.forPayment, payment.status);
+      const localized = this.localizePaymentFields(normalizedLang, payment.forPayment, payment.status);
+      const localizedSource = payment.forPayment === 'missionDonation'
+        ? (normalizedLang === 'en' ? 'MISSION_DONATION' : translatePaymentType('missionDonation', normalizedLang))
+        : localized.forPayment;
       return {
         paymentId: payment.id,
         transactionId: payment.stripePaymentIntentId,
-        source: payment.forPayment === 'missionDonation' ? 'MISSION_DONATION' : localized.forPayment,
+        source: localizedSource,
         status: localized.status,
         type: localized.forPayment,
         currency: payment.currency,
@@ -2520,12 +2522,15 @@ export class BillingService {
           ? this.prisma.user.findUnique({ where: { id: mission.vendorId }, select: profileSelect })
           : Promise.resolve(null),
       ]);
+      const localizedSource = normalizedLang === 'en' ? 'MISSION_DONATION' : translatePaymentType('missionDonation', normalizedLang);
+      const localizedStatus = normalizedLang === 'en' ? mission.status : translatePaymentStatus(mission.status, normalizedLang);
+      const localizedType = normalizedLang === 'en' ? 'missionDonation' : translatePaymentType('missionDonation', normalizedLang);
       return {
         paymentId: mission.id,
         transactionId: mission.stripePaymentIntentId || mission.stripeCheckoutSessionId,
-        source: 'MISSION_DONATION',
-        status: mission.status,
-        type: 'missionDonation',
+        source: localizedSource,
+        status: localizedStatus,
+        type: localizedType,
         currency: mission.currency,
         amount: mission.amount,
         fee: mission.platformFees || 0,
@@ -2542,12 +2547,16 @@ export class BillingService {
 
     if (ebook || shopEbook) {
       const record = ebook || shopEbook;
+      const rawType = ebook ? 'ebook' : 'shopEbook';
+      const localizedSource = normalizedLang === 'en' ? (ebook ? 'EBOOK' : 'SHOP_EBOOK') : translatePaymentType(rawType, normalizedLang);
+      const localizedStatus = normalizedLang === 'en' ? record.status : translatePaymentStatus(record.status, normalizedLang);
+      const localizedType = normalizedLang === 'en' ? rawType : translatePaymentType(rawType, normalizedLang);
       return {
         paymentId: record.id,
         transactionId: record.paymentIntentId || record.checkoutSessionId,
-        source: ebook ? 'EBOOK' : 'SHOP_EBOOK',
-        status: record.status,
-        type: ebook ? 'ebook' : 'shopEbook',
+        source: localizedSource,
+        status: localizedStatus,
+        type: localizedType,
         currency: record.currency,
         amount: record.sellerAmount / 100,
         fee: record.platformFee / 100,
@@ -2566,12 +2575,15 @@ export class BillingService {
       const order = marketplace.orders?.find((item: any) => item.buyer?.id === userId || item.seller?.id === userId) || marketplace.orders?.[0];
       const from = order?.buyer || null;
       const to = order?.seller || null;
+      const localizedSource = normalizedLang === 'en' ? 'SHOP' : translatePaymentType('shop', normalizedLang);
+      const localizedStatus = normalizedLang === 'en' ? marketplace.status : translatePaymentStatus(marketplace.status, normalizedLang);
+      const localizedType = normalizedLang === 'en' ? 'shop' : translatePaymentType('shop', normalizedLang);
       return {
         paymentId: marketplace.id,
         transactionId: marketplace.transactionId || marketplace.paymentIntentId || marketplace.orderId,
-        source: 'SHOP',
-        status: marketplace.status,
-        type: 'shop',
+        source: localizedSource,
+        status: localizedStatus,
+        type: localizedType,
         currency: marketplace.currency,
         amount: marketplace.amount / 100,
         fee: null,
@@ -4339,8 +4351,24 @@ export class BillingService {
     });
   }
 
-  async userTransactionHistory(userId: string, transactionType: string, limit: number = 50) {
+  async userTransactionHistory(userId: string, transactionType: string, limit: number = 50, deviceId?: string) {
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const normalizedLang = normalizeLanguage(lang);
     const take = Math.min(Math.max(1, limit), 100);
+
+    const localizeRecord = (tx: any) => {
+      if (normalizedLang === 'en') return tx;
+      const localizedTypeTransaction = tx.typeTransaction ? translateTypeTransaction(tx.typeTransaction, normalizedLang) : tx.typeTransaction;
+      const localizedStatus = tx.status ? translatePaymentStatus(tx.status, normalizedLang) : tx.status;
+      const localizedForPayment = tx.forPayment ? translatePaymentType(tx.forPayment, normalizedLang) : tx.forPayment;
+      return {
+        ...tx,
+        ...(tx.typeTransaction !== undefined ? { typeTransaction: localizedTypeTransaction } : {}),
+        ...(tx.status !== undefined ? { status: localizedStatus } : {}),
+        ...(tx.forPayment !== undefined ? { forPayment: localizedForPayment } : {}),
+      };
+    };
+
     if (transactionType === 'all') {
       const [withdrawals, tokenSales, tokenPurchases, payments, marketplace] = await Promise.all([
         this.prisma.withdrawalRecord.findMany({
@@ -4405,35 +4433,44 @@ export class BillingService {
         }),
       ];
 
-      return allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const sorted = allTransactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return sorted.map(localizeRecord);
     } else {
       switch (transactionType) {
-        case 'withdrawal':
-          return this.prisma.withdrawalRecord.findMany({
+        case 'withdrawal': {
+          const records = await this.prisma.withdrawalRecord.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
             take,
           });
-        case 'tokenSale':
-          return this.prisma.tokenSale.findMany({
+          return records.map((r) => localizeRecord({ ...r, typeTransaction: 'withdrawal' }));
+        }
+        case 'tokenSale': {
+          const records = await this.prisma.tokenSale.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
             take,
           });
-        case 'tokenPurchase':
-          return this.prisma.tokenPurchase.findMany({
+          return records.map((r) => localizeRecord({ ...r, typeTransaction: 'tokenSale' }));
+        }
+        case 'tokenPurchase': {
+          const records = await this.prisma.tokenPurchase.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
             take,
           });
-        case 'payment':
-          return this.prisma.payment.findMany({
+          return records.map((r) => localizeRecord({ ...r, typeTransaction: 'tokenPurchase' }));
+        }
+        case 'payment': {
+          const records = await this.prisma.payment.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
             take,
           });
+          return records.map((r) => localizeRecord({ ...r, typeTransaction: 'payment' }));
+        }
         case 'marketplace':
-        case 'shop':
+        case 'shop': {
           const mpRecords = await this.prisma.marketPlacePayments.findMany({
             where: {
               OR: [{ userId }, { orders: { some: { OR: [{ buyerId: userId }, { sellerId: userId }] } } }],
@@ -4457,7 +4494,7 @@ export class BillingService {
           });
           return mpRecords.map((mp) => {
             const firstOrder = mp.orders[0];
-            return {
+            return localizeRecord({
               ...mp,
               typeTransaction: 'marketplace',
               amount: mp.amount / 100,
@@ -4465,8 +4502,9 @@ export class BillingService {
               refundId: firstOrder?.refundId || null,
               refundedAt: firstOrder?.refundedAt || null,
               cancellationReason: firstOrder?.cancellationReason || null,
-            };
+            });
           });
+        }
         default:
           throw new BadRequestException('Invalid transaction type');
       }
@@ -5105,7 +5143,14 @@ export class BillingService {
     };
   }
 
-  async getReceivedTotalsTransactions(userId: string, page: number = 1, limit: number = 10) {
+  async getReceivedTotalsTransactions(
+    userId: string,
+    page: number = 1,
+    limit: number = 10,
+    deviceId?: string,
+  ) {
+    const lang = await this.notificationService.getUserLanguage(userId, deviceId);
+    const normalizedLang = normalizeLanguage(lang);
     const safePage = Math.max(1, page || 1);
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
     const takePerSource = safePage * safeLimit;
@@ -5231,7 +5276,7 @@ export class BillingService {
 
     const start = (safePage - 1) * safeLimit;
     const end = start + safeLimit;
-    const transactions = combined.slice(start, end);
+    const rawTransactions = combined.slice(start, end);
 
     const totalItems =
       totalFollowingPayments
@@ -5267,6 +5312,19 @@ export class BillingService {
     const platformFee = payFollowingPlatformFee + tipPlatformFee + donationPlatformFee;
     const totalAmount = payFollowingTotalAmount + tipTotalAmount + donationTotalAmount + usdtTotalAmount;
 
+    const transactions = normalizedLang !== 'en'
+      ? rawTransactions.map((t: any) => {
+        const localized = this.localizePaymentFields(normalizedLang, t.forPayment, t.status);
+        const localizedTypeTransaction = translateTypeTransaction(t.typeTransaction, normalizedLang);
+        return {
+          ...t,
+          ...(t.forPayment !== undefined ? { forPayment: localized.forPayment } : {}),
+          ...(t.typeTransaction !== undefined ? { typeTransaction: localizedTypeTransaction } : {}),
+          ...(t.status !== undefined ? { status: localized.status } : {}),
+        };
+      })
+      : rawTransactions;
+
     return {
       totalAmount,
       userReceived,
@@ -5287,7 +5345,7 @@ export class BillingService {
     deviceId?: string,
   ) {
     const lang = await this.notificationService.getUserLanguage(userId, deviceId);
-    const isPt = normalizeLanguage(lang) === 'pt';
+    const normalizedLang = normalizeLanguage(lang);
     const safePage = Math.max(1, page || 1);
     const safeLimit = Math.min(Math.max(1, limit || 10), 50);
     const takePerSource = safePage * safeLimit;
@@ -5461,12 +5519,14 @@ export class BillingService {
       const end = start + safeLimit;
       const rawTransactions = combined.slice(start, end);
       const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
-      const transactions = isPt
+      const transactions = normalizedLang !== 'en'
         ? rawTransactions.map((t: any) => {
-          const localized = this.localizePaymentFields(isPt, t.forPayment, t.status);
+          const localized = this.localizePaymentFields(normalizedLang, t.forPayment, t.status);
+          const localizedTypeTransaction = translateTypeTransaction(t.typeTransaction, normalizedLang);
           return {
             ...t,
             ...(t.forPayment !== undefined ? { forPayment: localized.forPayment } : {}),
+            ...(t.typeTransaction !== undefined ? { typeTransaction: localizedTypeTransaction } : {}),
             ...(t.status !== undefined ? { status: localized.status } : {}),
           };
         })
@@ -5639,12 +5699,14 @@ export class BillingService {
       + totalUsdtTransfersCredit
       + totalUsdtTransfersDebit;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
-    const transactions = isPt
+    const transactions = normalizedLang !== 'en'
       ? rawTransactions.map((t: any) => {
-        const localized = this.localizePaymentFields(isPt, t.forPayment, t.status);
+        const localized = this.localizePaymentFields(normalizedLang, t.forPayment, t.status);
+        const localizedTypeTransaction = translateTypeTransaction(t.typeTransaction, normalizedLang);
         return {
           ...t,
           ...(t.forPayment !== undefined ? { forPayment: localized.forPayment } : {}),
+          ...(t.typeTransaction !== undefined ? { typeTransaction: localizedTypeTransaction } : {}),
           ...(t.status !== undefined ? { status: localized.status } : {}),
         };
       })
