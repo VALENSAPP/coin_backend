@@ -1492,9 +1492,9 @@ export class BillingService {
       if (raw === 'succeed' || raw === 'succeeded') {
         localizedStatus = 'Confirmada';
       } else if (raw === 'inactive') {
-        localizedStatus = 'INATIVA';
+        localizedStatus = 'inactive';
       } else if (raw === 'active') {
-        localizedStatus = 'ATIVA';
+        localizedStatus = 'active';
       }
     }
 
@@ -3266,10 +3266,10 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
     });
     if (!latest || !latest.periodEnd) {
-      return { status: isPt ? 'INATIVA' : 'INACTIVE' };
+      return { status: isPt ? 'INACTIVE' : 'INACTIVE' };
     }
     const now = new Date();
-    return { status: latest.periodEnd > now ? (isPt ? 'ATIVA' : 'ACTIVE') : (isPt ? 'INATIVA' : 'INACTIVE') };
+    return { status: latest.periodEnd > now ? (isPt ? 'ACTIVE' : 'ACTIVE') : (isPt ? 'INACTIVE' : 'INACTIVE') };
   }
 
   /**
