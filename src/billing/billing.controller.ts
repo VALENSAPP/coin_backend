@@ -490,8 +490,17 @@ export class BillingController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user transaction history by type or all types combined' })
-  async userTransactionHistory(@Query('userId') userId: string, @Query('transactionType') transactionType: string) {
-    const transactions = await this.billingService.userTransactionHistory(userId, transactionType);
+  @ApiQuery({ name: 'userId', required: true, example: 'user_123' })
+  @ApiQuery({ name: 'transactionType', required: true, example: 'all' })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
+  async userTransactionHistory(
+    @Req() req: Request,
+    @Query('userId') userId: string,
+    @Query('transactionType') transactionType: string,
+    @Query('deviceId') queryDeviceId?: string,
+  ) {
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    const transactions = await this.billingService.userTransactionHistory(userId, transactionType, 50, deviceId);
     return { transactions };
   }
 
@@ -614,15 +623,18 @@ export class BillingController {
   @ApiOperation({ summary: 'Get transactions included in received-totals calculation' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
   async getReceivedTotalsTransactions(
     @Req() req: Request,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('deviceId') queryDeviceId?: string,
   ) {
     const userId = (req.user as any).userId;
     const pageNum = Math.max(1, parseInt(page || '1', 10) || 1);
     const limitNum = Math.min(Math.max(1, parseInt(limit || '10', 10) || 10), 50);
-    return this.billingService.getReceivedTotalsTransactions(userId, pageNum, limitNum);
+    const deviceId = queryDeviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    return this.billingService.getReceivedTotalsTransactions(userId, pageNum, limitNum, deviceId);
   }
 
   @Get('received-transactions')
