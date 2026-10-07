@@ -56,7 +56,7 @@ export class MarketplaceWinnerPromotionController {
         return this.marketplaceWinnerPromotionService.getActivePromotionPackages();
     }
 
-    @Post(['marketplace-battles/:battleId/winner-promotions', 'marketplace-battles/:battleId/winner-promotion'])
+    @Post('marketplace-battles/:battleId/winner-promotion')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
     @ApiOperation({ summary: 'Create marketplace winner promotion intent (PENDING_PAYMENT)' })
@@ -99,26 +99,26 @@ export class MarketplaceWinnerPromotionController {
         return this.marketplaceWinnerPromotionService.createOrReusePromotionPayment(userId, promotionId);
     }
 
-    @Get('marketplace-winner-promotions/me')
-    @UseGuards(AuthGuard('jwt'))
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get authenticated seller marketplace winner promotion history' })
-    @ApiQuery({ name: 'page', required: false, example: 1 })
-    @ApiQuery({ name: 'limit', required: false, example: 10 })
-    @ApiQuery({ name: 'status', required: false, enum: ['PENDING_PAYMENT', 'ACTIVE', 'EXPIRED', 'CANCELLED', 'FAILED'] })
-    @ApiQuery({ name: 'battleId', required: false })
-    @ApiQuery({ name: 'sortBy', required: false, enum: ['createdAt', 'startAt', 'endAt', 'activatedAt'] })
-    @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
-    async getMyPromotions(
-        @Req() req: Request,
-        @Query(
-            new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-        )
-        query: MarketplaceWinnerPromotionListQueryDto,
-    ) {
-        const userId = (req.user as any)?.userId;
-        return this.marketplaceWinnerPromotionService.getMyPromotions(userId, query);
-    }
+    // @Get('marketplace-winner-promotions/me')
+    // @UseGuards(AuthGuard('jwt'))
+    // @ApiBearerAuth()
+    // @ApiOperation({ summary: 'Get authenticated seller marketplace winner promotion history' })
+    // @ApiQuery({ name: 'page', required: false, example: 1 })
+    // @ApiQuery({ name: 'limit', required: false, example: 10 })
+    // @ApiQuery({ name: 'status', required: false, enum: ['PENDING_PAYMENT', 'ACTIVE', 'EXPIRED', 'CANCELLED', 'FAILED'] })
+    // @ApiQuery({ name: 'battleId', required: false })
+    // @ApiQuery({ name: 'sortBy', required: false, enum: ['createdAt', 'startAt', 'endAt', 'activatedAt'] })
+    // @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc', 'desc'] })
+    // async getMyPromotions(
+    //     @Req() req: Request,
+    //     @Query(
+    //         new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    //     )
+    //     query: MarketplaceWinnerPromotionListQueryDto,
+    // ) {
+    //     const userId = (req.user as any)?.userId;
+    //     return this.marketplaceWinnerPromotionService.getMyPromotions(userId, query);
+    // }
 
     @Get('marketplace-winner-promotions/:promotionId')
     @UseGuards(AuthGuard('jwt'))
@@ -133,16 +133,16 @@ export class MarketplaceWinnerPromotionController {
         return this.marketplaceWinnerPromotionService.getMyPromotionById(userId, promotionId);
     }
 
-    @Get('marketplace-winner-promotions/active')
-    @ApiOperation({ summary: 'Get active public marketplace winner promotions' })
-    @ApiQuery({ name: 'page', required: false, example: 1 })
-    @ApiQuery({ name: 'limit', required: false, example: 10 })
-    async getPublicActivePromotions(
-        @Query(
-            new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
-        )
-        query: MarketplaceWinnerPromotionActiveQueryDto,
-    ) {
-        return this.marketplaceWinnerPromotionService.getActivePromotionsPublic(query);
-    }
+    // @Get('marketplace-winner-promotions/active')
+    // @ApiOperation({ summary: 'Get active public marketplace winner promotions' })
+    // @ApiQuery({ name: 'page', required: false, example: 1 })
+    // @ApiQuery({ name: 'limit', required: false, example: 10 })
+    // async getPublicActivePromotions(
+    //     @Query(
+    //         new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    //     )
+    //     query: MarketplaceWinnerPromotionActiveQueryDto,
+    // ) {
+    //     return this.marketplaceWinnerPromotionService.getActivePromotionsPublic(query);
+    // }
 }
