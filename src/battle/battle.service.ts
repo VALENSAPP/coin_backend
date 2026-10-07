@@ -2596,6 +2596,13 @@ export class BattleService {
 
     return battles.map((battle) => ({
       ...battle,
+      profileType: battle.creator?.profile ?? null,
+      creator: battle.creator
+        ? {
+            ...battle.creator,
+            profileType: battle.creator.profile ?? null,
+          }
+        : null,
       matchResult: this.buildMatchResult(battle),
     }));
   }
