@@ -278,8 +278,8 @@ export class MarketplaceWinnerPromotionService {
                 let discountPercent: number | null = null;
                 if (isDiscount) {
                     discountPercent = dto.discount ?? WINNER_PROMOTION_DISCOUNT_PERCENT;
-                    if (!Number.isFinite(discountPercent) || discountPercent < 1 || discountPercent > 90) {
-                        throw new BadRequestException('discount must be between 1 and 90');
+                    if (!Number.isFinite(discountPercent) || discountPercent < 10 || discountPercent > 90) {
+                        throw new BadRequestException('discount must be between 10 and 90');
                     }
                 }
 

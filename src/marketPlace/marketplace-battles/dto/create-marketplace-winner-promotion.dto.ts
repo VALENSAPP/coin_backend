@@ -56,13 +56,13 @@ export class CreateMarketplaceWinnerPromotionDto {
     message?: string;
 
     @ApiPropertyOptional({
-        description: 'Discount percentage for DISCOUNT promotions (e.g. 10, 15, 25). Defaults to 10.',
-        example: '10',
+        description: 'Discount percentage for DISCOUNT promotions (minimum 10%, up to 90%). Defaults to 10.',
+        example: 10,
     })
     @IsOptional()
     @Transform(({ value }) => parseDiscountPercent(value))
     @IsNumber()
-    @Min(1)
+    @Min(10)
     @Max(90)
     discount?: number;
 
