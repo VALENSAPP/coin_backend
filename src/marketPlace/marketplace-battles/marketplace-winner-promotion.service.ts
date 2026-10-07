@@ -29,16 +29,15 @@ const WINNER_PROMOTION_DISCOUNT_PERCENT = 10;
 
 const MARKETPLACE_BATTLE_LIST_PRODUCT_SELECT = {
     id: true,
-    title: true,
+    name: true,
     description: true,
+    category: true,
     price: true,
     shippingFee: true,
     condition: true,
     images: true,
-    size: true,
     brand: true,
     quantity: true,
-    itemType: true,
     isActive: true,
     isDeleted: true,
     closet: {
