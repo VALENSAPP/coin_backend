@@ -10,6 +10,8 @@ import { MarketplaceBattleLifecycleService } from './marketplace-battle-lifecycl
 import { MarketplaceBattlesPublicController } from './marketplace-battles-public.controller';
 import { MarketplaceBattlesController } from './marketplace-battles.controller';
 import { MarketplaceBattlesService } from './marketplace-battles.service';
+import { MarketplaceWinnerPromotionController } from './marketplace-winner-promotion.controller';
+import { MarketplaceWinnerPromotionService } from './marketplace-winner-promotion.service';
 
 @Module({
     imports: [
@@ -22,13 +24,19 @@ import { MarketplaceBattlesService } from './marketplace-battles.service';
         MarketplaceBattlesPublicController,
         MarketplaceBattlesController,
         MarketplaceBattleBoostController,
+        MarketplaceWinnerPromotionController,
     ],
     providers: [
         MarketplaceBattlesService,
         MarketplaceBattleLifecycleService,
         MarketplaceBattleBoostService,
         MarketplaceBattleBoostLifecycleService,
+        MarketplaceWinnerPromotionService,
     ],
-    exports: [MarketplaceBattlesService, MarketplaceBattleBoostService],
+    exports: [
+        MarketplaceBattlesService,
+        MarketplaceBattleBoostService,
+        MarketplaceWinnerPromotionService,
+    ],
 })
 export class MarketplaceBattlesModule { }

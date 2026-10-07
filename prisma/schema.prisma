@@ -821,6 +821,7 @@ model MarketPlacePayments {
   updatedAt       DateTime @updatedAt
   orders          Order[]
   battleBoosts    MarketplaceBattleBoost[]
+  winnerPromotions MarketplaceWinnerPromotion[]
 
   @@index([userId])
   @@index([cartId])
@@ -1964,6 +1965,22 @@ model ShopRewardPointsAward {
   @@index([awardedAt])
 }
 
+model MarketplaceWinnerPromotionPackage {
+  id            String                  @id @default(uuid())
+  name          String
+  description   String?                 @db.Text
+  price         Decimal                 @db.Decimal(12, 2)
+  currency      String
+  durationHours Int
+  isActive      Boolean                 @default(true)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  promotions MarketplaceWinnerPromotion[]
+
+  @@index([isActive])
+}
+
 model MarketplaceWinnerPromotion {
   id            String                          @id @default(uuid())
   sellerId      String
@@ -1971,6 +1988,8 @@ model MarketplaceWinnerPromotion {
   battleId      String
   participantId String
   productId     String
+  packageId     String?
+  paymentId     String?
   promoType     MarketplaceWinnerPromotionType?
   message       String?
   discountPercent Int?
@@ -1979,9 +1998,16 @@ model MarketplaceWinnerPromotion {
   promoPrice    Float?
   originalShippingFee Float?
   promoShippingFee Float?
-  status        MarketplaceWinnerPromotionStatus @default(ACTIVE)
-  startAt       DateTime
-  endAt         DateTime
+  amount        Decimal?                        @db.Decimal(12, 2)
+  currency      String?
+  paymentProvider String?
+  status        MarketplaceWinnerPromotionStatus @default(PENDING_PAYMENT)
+  startAt       DateTime?
+  endAt         DateTime?
+  activatedAt   DateTime?
+  expiredAt     DateTime?
+  cancelledAt   DateTime?
+  failedAt      DateTime?
   createdAt     DateTime                        @default(now())
   updatedAt     DateTime                        @updatedAt
 
@@ -1990,11 +2016,15 @@ model MarketplaceWinnerPromotion {
   battle      MarketplaceBattle          @relation(fields: [battleId], references: [id], onDelete: Restrict)
   participant MarketplaceBattleParticipant @relation(fields: [participantId], references: [id], onDelete: Restrict)
   product     ClosetItems                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  package     MarketplaceWinnerPromotionPackage? @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  payment     MarketPlacePayments?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@index([sellerId])
   @@index([closetId])
   @@index([battleId])
   @@index([productId])
+  @@index([packageId])
+  @@index([paymentId])
   @@index([status, startAt])
   @@index([status, endAt])
 }
@@ -2236,9 +2266,11 @@ enum MarketplaceBattleOutcome {
 }
 
 enum MarketplaceWinnerPromotionStatus {
+  PENDING_PAYMENT
   ACTIVE
   EXPIRED
   CANCELLED
+  FAILED
 }
 
 enum MarketplaceWinnerPromotionType {

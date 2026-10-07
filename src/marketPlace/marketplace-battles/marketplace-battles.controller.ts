@@ -32,7 +32,6 @@ import { CreateCrossShopChallengeDto } from './dto/create-cross-shop-challenge.d
 import { CreateMarketplaceBattleDto } from './dto/create-marketplace-battle.dto';
 import { CreateMarketplaceBattleCommentDto } from './dto/create-marketplace-battle-comment.dto';
 import { ReactMarketplaceBattleCommentDto } from './dto/react-marketplace-battle-comment.dto';
-import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
 import { MarketplaceBattleChallengeListQueryDto } from './dto/marketplace-battle-challenge-list-query.dto';
 import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comments-query.dto';
 import { MarketplaceBattleListQueryDto } from './dto/marketplace-battle-list-query.dto';
@@ -801,42 +800,6 @@ export class MarketplaceBattlesController {
         return this.marketplaceBattlesService.getMarketplaceBattleInsights(
             req.user.userId,
             battleId,
-        );
-    }
-
-    @UseGuards(AuthGuard('jwt'))
-    @Post(':battleId/winner-promotion')
-    @ApiBearerAuth()
-    @ApiOperation({
-        summary: 'Create a winner promotion for a completed marketplace battle',
-        description:
-            'Seller-only action for completed battles with a winning product. Supports multiple active promotion types at once, such as 10% off for 24 hours and free shipping.',
-    })
-    @ApiParam({ name: 'battleId', description: 'Marketplace battle UUID' })
-    @ApiCreatedResponse({
-        description: 'Winner promotion created successfully',
-    })
-    @ApiUnauthorizedResponse({ description: 'Unauthorized' })
-    @ApiForbiddenResponse({ description: 'Forbidden: battle not owned by seller' })
-    @ApiNotFoundResponse({ description: 'Marketplace battle not found' })
-    @ApiBadRequestResponse({ description: 'already promoted, or battle/product not eligible for promotion' })
-    @ApiConflictResponse({ description: 'already promoted' })
-    async createWinnerPromotion(
-        @Req() req: any,
-        @Param('battleId', new ParseUUIDPipe({ version: '4' })) battleId: string,
-        @Body(
-            new ValidationPipe({
-                whitelist: true,
-                forbidNonWhitelisted: true,
-                transform: true,
-            }),
-        )
-        dto: CreateMarketplaceWinnerPromotionDto,
-    ) {
-        return this.marketplaceBattlesService.createWinnerPromotion(
-            req.user.userId,
-            battleId,
-            dto,
         );
     }
 }

@@ -530,6 +530,14 @@ export class PagBankService {
         );
     }
 
+    private isPromotionMarketplacePayment(mp: { metadata?: any }): boolean {
+        const metadata = (mp.metadata || {}) as Record<string, unknown>;
+        return (
+            metadata?.type === 'marketplace_winner_promotion' ||
+            metadata?.domain === 'MARKETPLACE_WINNER_PROMOTION'
+        );
+    }
+
     private async grantSubscriptionHits(userId: string, hitCount: number, periodEnd: Date) {
         if (!userId || hitCount <= 0) return;
         const existingPostHit = await this.prisma.postHit.findFirst({ where: { userId } });
@@ -598,7 +606,7 @@ export class PagBankService {
         const orderId = order.id as string;
         const referenceId = String(order.reference_id || '');
 
-        // Marketplace payment (cart checkout OR battle boost)
+        // Marketplace payment (cart checkout, battle boost, or winner promotion)
         const mp = await this.prisma.marketPlacePayments.findFirst({
             where: {
                 OR: [{ id: referenceId }, { paymentIntentId: orderId }, { transactionId: orderId }],
@@ -606,10 +614,17 @@ export class PagBankService {
         });
         if (mp) {
             const isBoost = this.isBoostMarketplacePayment(mp);
+            const isPromotion = this.isPromotionMarketplacePayment(mp);
+            const paymentType = isBoost
+                ? 'marketplace_battle_boost'
+                : isPromotion
+                ? 'marketplace_winner_promotion'
+                : 'marketplace';
+
             if (mp.status === 'PAID') {
                 return {
                     processed: true,
-                    type: isBoost ? 'marketplace_battle_boost' : 'marketplace',
+                    type: paymentType,
                     paymentId: mp.id,
                     skipped: true,
                 };
@@ -625,7 +640,7 @@ export class PagBankService {
             });
             return {
                 processed: true,
-                type: isBoost ? 'marketplace_battle_boost' : 'marketplace',
+                type: paymentType,
                 paymentId: mp.id,
                 orderId,
             };

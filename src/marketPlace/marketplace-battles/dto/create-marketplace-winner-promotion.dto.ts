@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MarketplaceWinnerPromotionType } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 function parseDurationHours(value: unknown): number | undefined {
     if (value === null || value === undefined || value === '') return undefined;
@@ -31,6 +31,13 @@ function parseDiscountPercent(value: unknown): number | undefined {
 
 export class CreateMarketplaceWinnerPromotionDto {
     @ApiProperty({
+        description: 'Marketplace winner promotion package id',
+        example: '1a2b3c4d-8d27-4ebf-8f49-c6448b14c801',
+    })
+    @IsUUID('4')
+    packageId!: string;
+
+    @ApiProperty({
         enum: MarketplaceWinnerPromotionType,
         description: 'Winner promotion selected by the seller',
         example: MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H,
@@ -59,7 +66,7 @@ export class CreateMarketplaceWinnerPromotionDto {
     discount?: number;
 
     @ApiPropertyOptional({
-        description: 'Promotion duration in hours. Accepts 24 or "24 HOURS". Defaults to 24.',
+        description: 'Promotion duration in hours. (Package duration takes precedence if package is selected).',
         example: '24 HOURS',
     })
     @IsOptional()

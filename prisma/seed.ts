@@ -130,6 +130,77 @@ async function main() {
     });
   }
 
+  const devPromoPackages = [
+    {
+      id: '1a2b3c4d-8d27-4ebf-8f49-c6448b14c801',
+      name: 'Starter',
+      description: 'Estimated reach: 5K - 10K views',
+      price: '4.99',
+      currency: 'USD',
+      durationHours: 72,
+      isActive: true,
+    },
+    {
+      id: '2a2b3c4d-d8cb-4c1c-8f6d-7f77ec7fe102',
+      name: 'Growth',
+      description: 'Estimated reach: 15K - 30K views',
+      price: '8.99',
+      currency: 'USD',
+      durationHours: 168,
+      isActive: true,
+    },
+    {
+      id: '3a2b3c4d-e799-4237-b2b7-1574f7a9f403',
+      name: 'Promo+',
+      description: 'Estimated reach: 40K - 60K views',
+      price: '19.99',
+      currency: 'USD',
+      durationHours: 336,
+      isActive: true,
+    },
+    {
+      id: '4a2b3c4d-45dc-4fb6-8abf-4b7f2ab9f104',
+      name: 'DEV Promo 6h',
+      description: 'Development/test package. Configure price via env for non-production usage.',
+      price: process.env.DEV_MARKETPLACE_PROMO_PRICE_6H || '4.99',
+      currency: (process.env.DEV_MARKETPLACE_PROMO_CURRENCY || 'USD').toUpperCase(),
+      durationHours: 6,
+      isActive: true,
+    },
+    {
+      id: '5a2b3c4d-c53d-4f31-ab70-7690d1212105',
+      name: 'DEV Promo 24h',
+      description: 'Development/test package. Configure price via env for non-production usage.',
+      price: process.env.DEV_MARKETPLACE_PROMO_PRICE_24H || '12.99',
+      currency: (process.env.DEV_MARKETPLACE_PROMO_CURRENCY || 'USD').toUpperCase(),
+      durationHours: 24,
+      isActive: true,
+    },
+  ];
+
+  for (const pkg of devPromoPackages) {
+    await (prisma as any).marketplaceWinnerPromotionPackage.upsert({
+      where: { id: pkg.id },
+      update: {
+        name: pkg.name,
+        description: pkg.description,
+        price: pkg.price,
+        currency: pkg.currency,
+        durationHours: pkg.durationHours,
+        isActive: pkg.isActive,
+      },
+      create: {
+        id: pkg.id,
+        name: pkg.name,
+        description: pkg.description,
+        price: pkg.price,
+        currency: pkg.currency,
+        durationHours: pkg.durationHours,
+        isActive: pkg.isActive,
+      },
+    });
+  }
+
   // console.log('Seeding complete: 20 users (5 profile "company", 15 profile "user"), images uploaded to S3.');
 }
 

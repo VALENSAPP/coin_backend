@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { OrderService } from '../marketPlace/order/order.service';
 import { MarketplaceBattleBoostService } from '../marketPlace/marketplace-battles/marketplace-battle-boost.service';
+import { MarketplaceWinnerPromotionService } from '../marketPlace/marketplace-battles/marketplace-winner-promotion.service';
 import { PagBankService } from './pagbank.service';
 
 @ApiTags('billing')
@@ -14,6 +15,8 @@ export class PagBankWebhookController {
         private readonly orderService: OrderService,
         @Inject(forwardRef(() => MarketplaceBattleBoostService))
         private readonly marketplaceBattleBoostService: MarketplaceBattleBoostService,
+        @Inject(forwardRef(() => MarketplaceWinnerPromotionService))
+        private readonly marketplaceWinnerPromotionService: MarketplaceWinnerPromotionService,
     ) { }
 
     @Post('webhook')
@@ -94,6 +97,15 @@ export class PagBankWebhookController {
                 await this.marketplaceBattleBoostService.handlePagBankBoostPaid(result.paymentId);
             } catch (error: any) {
                 console.error('PagBank battle boost activate failed:', error?.message || error);
+            }
+        }
+
+        // Marketplace winner promotion
+        if (result.type === 'marketplace_winner_promotion' && result.paymentId && !result.skipped) {
+            try {
+                await this.marketplaceWinnerPromotionService.handlePagBankPromotionPaid(result.paymentId);
+            } catch (error: any) {
+                console.error('PagBank winner promotion activate failed:', error?.message || error);
             }
         }
 

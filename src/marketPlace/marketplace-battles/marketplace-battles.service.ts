@@ -47,7 +47,6 @@ import { MarketplaceBattleCommentsQueryDto } from './dto/marketplace-battle-comm
 import { MarketplaceBattleVotersQueryDto } from './dto/marketplace-battle-voters-query.dto';
 import { ReactMarketplaceBattleCommentDto } from './dto/react-marketplace-battle-comment.dto';
 import { VoteMarketplaceBattleDto } from './dto/vote-marketplace-battle.dto';
-import { CreateMarketplaceWinnerPromotionDto } from './dto/create-marketplace-winner-promotion.dto';
 import { EditMarketplaceBattleQuestionDto } from './dto/edit-marketplace-battle-question.dto';
 
 type PrismaTx = PrismaService | Prisma.TransactionClient;
@@ -1504,166 +1503,6 @@ export class MarketplaceBattlesService {
             voteDifference,
             winningMarginPercentagePoints,
         };
-    }
-
-    async createWinnerPromotion(
-        userId: string,
-        battleId: string,
-        dto: CreateMarketplaceWinnerPromotionDto,
-    ) {
-        const sellerId = this.assertSellerUserId(userId);
-        const normalizedMessage = dto.message?.trim() || null;
-        const now = new Date();
-
-        const isDiscount = dto.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
-        const isFreeShipping = dto.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING;
-
-        const durationHours =
-            dto.durationHours ?? dto.duration ?? WINNER_PROMOTION_DURATION_HOURS;
-        if (!Number.isFinite(durationHours) || durationHours < 1) {
-            throw new BadRequestException('duration must be at least 1 hour');
-        }
-
-        let discountPercent: number | null = null;
-        if (isDiscount) {
-            discountPercent = dto.discount ?? WINNER_PROMOTION_DISCOUNT_PERCENT;
-            if (!Number.isFinite(discountPercent) || discountPercent < 1 || discountPercent > 90) {
-                throw new BadRequestException('discount must be between 1 and 90');
-            }
-        }
-
-        const endAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-
-        return this.prisma.$transaction(
-            async (tx) => {
-                await tx.$queryRaw`
-                    SELECT id
-                    FROM "MarketplaceBattle"
-                    WHERE id = ${battleId}
-                    FOR UPDATE
-                `;
-
-                const battle = await tx.marketplaceBattle.findUnique({
-                    where: { id: battleId },
-                    select: {
-                        id: true,
-                        sellerId: true,
-                        opponentSellerId: true,
-                        closetId: true,
-                        status: true,
-                        outcome: true,
-                        winnerParticipantId: true,
-                    },
-                });
-
-                if (!battle) {
-                    throw new NotFoundException('Marketplace battle not found');
-                }
-
-                if (battle.sellerId !== sellerId && battle.opponentSellerId !== sellerId) {
-                    throw new ForbiddenException('Forbidden: you are not a participant in this marketplace battle');
-                }
-
-                if (
-                    battle.status !== MarketplaceBattleStatus.COMPLETED ||
-                    battle.outcome !== MarketplaceBattleOutcome.WINNER ||
-                    !battle.winnerParticipantId
-                ) {
-                    throw new BadRequestException('Winner promotion requires a completed marketplace battle with a winner');
-                }
-
-                const winnerParticipant = await tx.marketplaceBattleParticipant.findUnique({
-                    where: { id: battle.winnerParticipantId },
-                    select: {
-                        id: true,
-                        battleId: true,
-                        productId: true,
-                        isWinner: true,
-                        product: {
-                            select: {
-                                id: true,
-                                userId: true,
-                                closetId: true,
-                                price: true,
-                                shippingFee: true,
-                                isActive: true,
-                                isDeleted: true,
-                                quantity: true,
-                            },
-                        },
-                    },
-                });
-
-                if (
-                    !winnerParticipant ||
-                    winnerParticipant.battleId !== battle.id ||
-                    !winnerParticipant.isWinner ||
-                    !winnerParticipant.product
-                ) {
-                    throw new BadRequestException('Winning product is not available for promotion');
-                }
-
-                if (winnerParticipant.product.userId !== sellerId) {
-                    throw new BadRequestException('Only the winning product seller can create a winner promotion');
-                }
-
-                if (
-                    !winnerParticipant.product.isActive ||
-                    winnerParticipant.product.isDeleted
-                ) {
-                    throw new BadRequestException('Winning product is not eligible for promotion');
-                }
-
-                const existingActivePromotion = await tx.marketplaceWinnerPromotion.findFirst({
-                    where: {
-                        battleId: battle.id,
-                        status: MarketplaceWinnerPromotionStatus.ACTIVE,
-                        startAt: { lte: now },
-                        endAt: { gt: now },
-                    },
-                    select: { id: true, promoType: true },
-                });
-
-                if (existingActivePromotion) {
-                    throw new BadRequestException('already promoted');
-                }
-
-                const originalPrice = Number(winnerParticipant.product.price);
-                const originalShippingFee = winnerParticipant.product.shippingFee ?? 0;
-                const promoPrice =
-                    isDiscount && discountPercent
-                        ? Number((originalPrice * (1 - discountPercent / 100)).toFixed(2))
-                        : originalPrice;
-                const promoShippingFee = isFreeShipping ? 0 : originalShippingFee;
-
-                return tx.marketplaceWinnerPromotion.create({
-                    data: {
-                        sellerId,
-                        closetId: winnerParticipant.product.closetId,
-                        battleId: battle.id,
-                        participantId: winnerParticipant.id,
-                        productId: winnerParticipant.productId,
-                        promoType: dto.promoType,
-                        message: normalizedMessage,
-                        discountPercent: isDiscount ? discountPercent : null,
-                        freeShipping: isFreeShipping,
-                        originalPrice,
-                        promoPrice,
-                        originalShippingFee,
-                        promoShippingFee,
-                        status: MarketplaceWinnerPromotionStatus.ACTIVE,
-                        startAt: now,
-                        endAt,
-                    },
-                    include: {
-                        product: {
-                            select: MARKETPLACE_BATTLE_LIST_PRODUCT_SELECT,
-                        },
-                    },
-                });
-            },
-            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-        );
     }
 
     private ensureOwnership(battle: { sellerId: string }, sellerId: string) {
@@ -4124,8 +3963,8 @@ export class MarketplaceBattlesService {
                     promoPrice: number | null;
                     originalShippingFee: number | null;
                     promoShippingFee: number | null;
-                    startAt: Date;
-                    endAt: Date;
+                    startAt: Date | null;
+                    endAt: Date | null;
                     remainingSeconds: number;
                 }>;
             }
@@ -4220,10 +4059,9 @@ export class MarketplaceBattlesService {
                 promoShippingFee: promotion.promoShippingFee,
                 startAt: promotion.startAt,
                 endAt: promotion.endAt,
-                remainingSeconds: Math.max(
-                    0,
-                    Math.floor((promotion.endAt.getTime() - now.getTime()) / 1000),
-                ),
+                remainingSeconds: promotion.endAt
+                    ? Math.max(0, Math.floor((promotion.endAt.getTime() - now.getTime()) / 1000))
+                    : 0,
             });
 
             featureByBattle.set(promotion.battleId, current);
