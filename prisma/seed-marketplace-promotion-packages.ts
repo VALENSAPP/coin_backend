@@ -6,19 +6,19 @@ const promotionPackages = [
     {
         id: '1a2b3c4d-8d27-4ebf-8f49-c6448b14c801',
         name: 'Starter',
-        description: 'Estimated reach: 5K - 10K views',
+        description: 'DISCOUNT_10_PERCENT_24H',
         price: '4.99',
         currency: 'USD',
-        durationHours: 72,
+        durationHours: 24,
         isActive: true,
     },
     {
         id: '2a2b3c4d-d8cb-4c1c-8f6d-7f77ec7fe102',
         name: 'Growth',
-        description: 'Estimated reach: 15K - 30K views',
+        description: 'DISCOUNT_10_PERCENT_72H',
         price: '8.99',
         currency: 'USD',
-        durationHours: 168,
+        durationHours: 72,
         isActive: true,
     },
     {
@@ -27,7 +27,7 @@ const promotionPackages = [
         description: 'Estimated reach: 40K - 60K views',
         price: '19.99',
         currency: 'USD',
-        durationHours: 336,
+        durationHours: 168,
         isActive: true,
     },
 ] as const;

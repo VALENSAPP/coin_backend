@@ -184,6 +184,7 @@ const MARKETPLACE_BATTLE_PUBLIC_SELECT = {
             displayName: true,
             userName: true,
             image: true,
+            profile: true,
         },
     },
     closet: {
@@ -641,6 +642,7 @@ export class MarketplaceBattlesService {
                 displayName: string | null;
                 userName: string | null;
                 image: string | null;
+                profile?: string | null;
             };
             closet: {
                 id: string;
@@ -776,7 +778,10 @@ export class MarketplaceBattlesService {
                 id: battle.seller.id,
                 name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
                 profileImage: battle.seller.image,
+                profile: (battle.seller as any)?.profile ?? null,
+                profileType: (battle.seller as any)?.profile ?? null,
             },
+            profileType: (battle.seller as any)?.profile ?? null,
             closet: {
                 id: battle.closet.id,
                 shopName: battle.closet.shopName,

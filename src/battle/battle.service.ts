@@ -2133,6 +2133,13 @@ export class BattleService {
 
     return (await this.formatBattleListItems(battles)).map((battle) => ({
       ...battle,
+      profileType: battle.creator?.profile ?? null,
+      creator: battle.creator
+        ? {
+            ...battle.creator,
+            profileType: battle.creator.profile ?? null,
+          }
+        : null,
       typeByBattle: 'normal' as const,
       feedItemType: 'normal_battle' as const,
     }));
@@ -2204,6 +2211,7 @@ export class BattleService {
             displayName: true,
             userName: true,
             image: true,
+            profile: true,
           },
         },
         closet: {
@@ -2321,6 +2329,7 @@ export class BattleService {
         displayName: string | null;
         userName: string | null;
         image: string | null;
+        profile?: string | null;
       };
       closet: {
         id: string;
@@ -2458,7 +2467,10 @@ export class BattleService {
         id: battle.seller.id,
         name: battle.seller.displayName || battle.seller.userName || 'Unknown Seller',
         profileImage: battle.seller.image,
+        profile: (battle.seller as any)?.profile ?? null,
+        profileType: (battle.seller as any)?.profile ?? null,
       },
+      profileType: (battle.seller as any)?.profile ?? null,
       closet: {
         id: battle.closet.id,
         shopName: battle.closet.shopName,
