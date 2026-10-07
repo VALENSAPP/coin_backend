@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 const promotionPackages = [
     {
         id: '1a2b3c4d-8d27-4ebf-8f49-c6448b14c801',
-        name: 'Starter',
-        description: 'DISCOUNT_10_PERCENT_24H',
+        name: '10% Off for 24 Hours',
+        description: '10% discount on the winning product for 24 hours',
         price: '4.99',
         currency: 'USD',
         durationHours: 24,
@@ -14,31 +14,48 @@ const promotionPackages = [
     },
     {
         id: '2a2b3c4d-d8cb-4c1c-8f6d-7f77ec7fe102',
-        name: 'Growth',
-        description: 'DISCOUNT_10_PERCENT_72H',
+        name: 'Free Shipping',
+        description: 'Free shipping on the winning product',
         price: '8.99',
         currency: 'USD',
-        durationHours: 72,
-        isActive: true,
-    },
-    {
-        id: '3a2b3c4d-e799-4237-b2b7-1574f7a9f403',
-        name: 'Promo+',
-        description: 'Estimated reach: 40K - 60K views',
-        price: '19.99',
-        currency: 'USD',
-        durationHours: 168,
+        durationHours: 24,
         isActive: true,
     },
 ] as const;
 
 async function main() {
-    const result = await (prisma as any).marketplaceWinnerPromotionPackage.createMany({
-        data: promotionPackages,
-        skipDuplicates: true,
+    for (const pkg of promotionPackages) {
+        await (prisma as any).marketplaceWinnerPromotionPackage.upsert({
+            where: { id: pkg.id },
+            update: {
+                name: pkg.name,
+                description: pkg.description,
+                price: pkg.price,
+                currency: pkg.currency,
+                durationHours: pkg.durationHours,
+                isActive: pkg.isActive,
+            },
+            create: {
+                id: pkg.id,
+                name: pkg.name,
+                description: pkg.description,
+                price: pkg.price,
+                currency: pkg.currency,
+                durationHours: pkg.durationHours,
+                isActive: pkg.isActive,
+            },
+        });
+    }
+
+    // Deactivate any other legacy packages
+    await (prisma as any).marketplaceWinnerPromotionPackage.updateMany({
+        where: {
+            id: { notIn: promotionPackages.map((p) => p.id) },
+        },
+        data: { isActive: false },
     });
 
-    console.log(`Marketplace winner promotion packages inserted: ${result.count}`);
+    console.log(`Marketplace winner promotion packages synced: ${promotionPackages.length}`);
 }
 
 main()

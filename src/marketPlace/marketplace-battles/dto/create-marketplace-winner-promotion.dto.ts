@@ -37,13 +37,14 @@ export class CreateMarketplaceWinnerPromotionDto {
     @IsUUID('4')
     packageId!: string;
 
-    @ApiProperty({
+    @ApiPropertyOptional({
         enum: MarketplaceWinnerPromotionType,
-        description: 'Winner promotion selected by the seller',
+        description: 'Winner promotion type (DISCOUNT_10_PERCENT_24H or FREE_SHIPPING). Inferred from package if omitted.',
         example: MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H,
     })
+    @IsOptional()
     @IsEnum(MarketplaceWinnerPromotionType)
-    promoType!: MarketplaceWinnerPromotionType;
+    promoType?: MarketplaceWinnerPromotionType;
 
     @ApiPropertyOptional({
         description: 'Optional message to display with winner promotion',

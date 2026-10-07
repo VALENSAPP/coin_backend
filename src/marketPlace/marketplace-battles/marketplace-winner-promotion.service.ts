@@ -141,17 +141,6 @@ export class MarketplaceWinnerPromotionService {
         const normalizedMessage = dto.message?.trim() || null;
         const now = new Date();
 
-        const isDiscount = dto.promoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
-        const isFreeShipping = dto.promoType === MarketplaceWinnerPromotionType.FREE_SHIPPING;
-
-        let discountPercent: number | null = null;
-        if (isDiscount) {
-            discountPercent = dto.discount ?? WINNER_PROMOTION_DISCOUNT_PERCENT;
-            if (!Number.isFinite(discountPercent) || discountPercent < 1 || discountPercent > 90) {
-                throw new BadRequestException('discount must be between 1 and 90');
-            }
-        }
-
         return this.prisma.$transaction(
             async (tx) => {
                 await tx.$queryRaw`
@@ -237,6 +226,8 @@ export class MarketplaceWinnerPromotionService {
                         where: { id: dto.packageId },
                         select: {
                             id: true,
+                            name: true,
+                            description: true,
                             isActive: true,
                             price: true,
                             currency: true,
@@ -248,6 +239,8 @@ export class MarketplaceWinnerPromotionService {
                         orderBy: [{ createdAt: 'asc' }],
                         select: {
                             id: true,
+                            name: true,
+                            description: true,
                             isActive: true,
                             price: true,
                             currency: true,
@@ -266,6 +259,28 @@ export class MarketplaceWinnerPromotionService {
                 const normalizedCurrency = this.normalizeCurrency(promoPackage.currency);
                 if (!normalizedCurrency) {
                     throw new BadRequestException('Invalid promotion package currency');
+                }
+
+                const isFreeShippingPkg =
+                    Boolean(promoPackage.description?.toUpperCase().includes('FREE_SHIPPING')) ||
+                    Boolean(promoPackage.description?.toUpperCase().includes('FREE SHIPPING')) ||
+                    Boolean(promoPackage.name?.toUpperCase().includes('FREE SHIPPING'));
+
+                const effectivePromoType: MarketplaceWinnerPromotionType =
+                    dto.promoType ||
+                    (isFreeShippingPkg
+                        ? MarketplaceWinnerPromotionType.FREE_SHIPPING
+                        : MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H);
+
+                const isDiscount = effectivePromoType === MarketplaceWinnerPromotionType.DISCOUNT_10_PERCENT_24H;
+                const isFreeShipping = effectivePromoType === MarketplaceWinnerPromotionType.FREE_SHIPPING;
+
+                let discountPercent: number | null = null;
+                if (isDiscount) {
+                    discountPercent = dto.discount ?? WINNER_PROMOTION_DISCOUNT_PERCENT;
+                    if (!Number.isFinite(discountPercent) || discountPercent < 1 || discountPercent > 90) {
+                        throw new BadRequestException('discount must be between 1 and 90');
+                    }
                 }
 
                 // Clear unpaid intents so seller can start a fresh promotion checkout
@@ -333,7 +348,7 @@ export class MarketplaceWinnerPromotionService {
                         participantId: winnerParticipant.id,
                         productId: winnerParticipant.productId,
                         packageId: promoPackage.id,
-                        promoType: dto.promoType,
+                        promoType: effectivePromoType,
                         message: normalizedMessage,
                         discountPercent: isDiscount ? discountPercent : null,
                         freeShipping: isFreeShipping,
