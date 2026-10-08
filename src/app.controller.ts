@@ -14,21 +14,42 @@ export class AppController {
   }
 
   @Get('logo.png')
+  @Get('apple-touch-icon.png')
+  @Get('apple-touch-icon-precomposed.png')
   @Header('Content-Type', 'image/png')
+  @Header('Cache-Control', 'public, max-age=86400')
   getLogo(@Res() res: Response) {
     const candidatePaths = [
       path.join(process.cwd(), 'public', 'logo.png'),
       path.join(process.cwd(), 'coin_backend', 'public', 'logo.png'),
       path.join(__dirname, '..', 'public', 'logo.png'),
-      path.join(process.cwd(), 'public', 'share-assets', 'valens-share-og.png'),
-      path.join(process.cwd(), 'public', 'share-assets', 'valens-share.png'),
-      path.join(__dirname, '..', 'public', 'share-assets', 'valens-share.png'),
+      path.join(process.cwd(), 'public', 'images', 'logo.png'),
     ];
     const filePath = candidatePaths.find((p) => fs.existsSync(p));
     if (filePath) {
       return res.sendFile(filePath);
     }
     return res.status(404).send('Logo not found');
+  }
+
+  @Get('share-assets/valens-share-og.png')
+  @Get('share-assets/valens-welcome-banner.png')
+  @Header('Content-Type', 'image/png')
+  @Header('Cache-Control', 'public, max-age=86400')
+  getShareBanner(@Res() res: Response) {
+    const candidatePaths = [
+      path.join(process.cwd(), 'public', 'share-assets', 'valens-share-og.png'),
+      path.join(process.cwd(), 'coin_backend', 'public', 'share-assets', 'valens-share-og.png'),
+      path.join(__dirname, '..', 'public', 'share-assets', 'valens-share-og.png'),
+      path.join(process.cwd(), 'public', 'share-assets', 'valens-welcome-banner.png'),
+      path.join(process.cwd(), 'coin_backend', 'public', 'share-assets', 'valens-welcome-banner.png'),
+      path.join(__dirname, '..', 'public', 'share-assets', 'valens-welcome-banner.png'),
+    ];
+    const filePath = candidatePaths.find((p) => fs.existsSync(p));
+    if (filePath) {
+      return res.sendFile(filePath);
+    }
+    return res.status(404).send('Banner not found');
   }
 
   @Get('.well-known/apple-app-site-association')
@@ -132,7 +153,7 @@ export class AppController {
     const shareUrl = `${baseUrl}/app${rawPath && rawPath !== 'home' ? `?path=${encodeURIComponent(rawPath)}` : ''}`;
 
     const title = 'Valens App';
-    const description = 'Reputation Earned. Value Built. Social media just got an upgrade.';
+    const description = 'Reputation Earned. Value Built';
 
     const safeTitle = this.escapeHtml(title);
     const safeDesc = this.escapeHtml(description);
@@ -149,7 +170,7 @@ export class AppController {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${safeTitle} · Reputation Earned. Value Built.</title>
+  <title>${safeTitle} · Reputation Earned. Value Built</title>
   <meta name="description" content="${safeDesc}">
 
   <!-- Open Graph / WhatsApp / iMessage / Facebook -->
@@ -161,8 +182,8 @@ export class AppController {
   <meta property="og:image" content="${safeOgImage}">
   <meta property="og:image:secure_url" content="${safeOgImage}">
   <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <meta property="og:image:width" content="473">
+  <meta property="og:image:height" content="1024">
   <meta property="og:image:alt" content="Valens App">
 
   <!-- Twitter / X -->
@@ -173,6 +194,7 @@ export class AppController {
 
   <link rel="icon" type="image/png" href="${baseUrl}/logo.png">
   <link rel="apple-touch-icon" href="${baseUrl}/logo.png">
+  <link rel="apple-touch-icon-precomposed" href="${baseUrl}/logo.png">
   <link rel="canonical" href="${safeShareUrl}">
 
   <style>

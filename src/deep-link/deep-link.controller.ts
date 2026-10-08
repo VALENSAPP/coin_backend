@@ -275,169 +275,93 @@ export class DeepLinkController {
 
 
     return `
-
       <!DOCTYPE html>
-
       <html>
-
         <head>
-
           <meta charset="utf-8">
-
-          <title>Valens App · Reputation Earned. Value Built.</title>
-
+          <title>Valens App · Reputation Earned. Value Built</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
-
-          <meta name="description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
-
-
+          <meta name="description" content="Reputation Earned. Value Built">
 
           <meta property="og:type" content="website">
-
           <meta property="og:site_name" content="Valens">
-
           <meta property="og:title" content="Valens App">
-
-          <meta property="og:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
-
+          <meta property="og:description" content="Reputation Earned. Value Built">
           <meta property="og:url" content="${safeShareUrl}">
-
           <meta property="og:image" content="${safeOgImage}">
-
           <meta property="og:image:secure_url" content="${safeOgImage}">
-
           <meta property="og:image:type" content="image/png">
-
-          <meta property="og:image:width" content="1200">
-
-          <meta property="og:image:height" content="630">
-
+          <meta property="og:image:width" content="473">
+          <meta property="og:image:height" content="1024">
           <meta property="og:image:alt" content="Valens App">
 
-
-
           <meta name="twitter:card" content="summary_large_image">
-
           <meta name="twitter:title" content="Valens App">
-
-          <meta name="twitter:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
-
+          <meta name="twitter:description" content="Reputation Earned. Value Built">
           <meta name="twitter:image" content="${safeOgImage}">
 
-
-
+          <link rel="icon" type="image/png" href="${baseUrl}/logo.png">
+          <link rel="apple-touch-icon" href="${baseUrl}/logo.png">
+          <link rel="apple-touch-icon-precomposed" href="${baseUrl}/logo.png">
           <link rel="canonical" href="${safeShareUrl}">
-
         </head>
-
         <body>
-
           <p></p>
-
           ${this.openAppThenStoreScript(deepLinkUrl)}
-
         </body>
-
       </html>
-
     `;
-
   }
 
-
-
   private callbackFallbackHtml(req: Request) {
-
     const configuredBaseUrl = process.env.BASE_URL;
-
     const configuredOgImageUrl = process.env.OG_IMAGE_URL;
-
     const configuredHomeDeepLink = process.env.HOME_DEEP_LINK_URL;
-
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol;
-
     const host = req.get('host');
-
     const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
-
     const shareUrl = `${baseUrl}/callback`;
-
     const ogImage = configuredOgImageUrl || `${baseUrl}/share-assets/valens-share-og.png`;
-
     const deepLinkUrl = configuredHomeDeepLink || 'com.valens://callback';
-
     const safeShareUrl = this.escapeHtml(shareUrl);
-
     const safeOgImage = this.escapeHtml(ogImage);
 
-
-
     return `
-
       <!DOCTYPE html>
-
       <html>
-
         <head>
-
           <meta charset="utf-8">
-
-          <title>Valens App · Reputation Earned. Value Built.</title>
-
+          <title>Valens App · Reputation Earned. Value Built</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
-
-          <meta name="description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
-
-
+          <meta name="description" content="Reputation Earned. Value Built">
 
           <meta property="og:type" content="website">
-
           <meta property="og:site_name" content="Valens">
-
           <meta property="og:title" content="Valens App">
-
-          <meta property="og:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
-
+          <meta property="og:description" content="Reputation Earned. Value Built">
           <meta property="og:url" content="${safeShareUrl}">
-
           <meta property="og:image" content="${safeOgImage}">
-
           <meta property="og:image:secure_url" content="${safeOgImage}">
-
           <meta property="og:image:type" content="image/png">
-
-          <meta property="og:image:width" content="1200">
-
-          <meta property="og:image:height" content="630">
-
+          <meta property="og:image:width" content="473">
+          <meta property="og:image:height" content="1024">
           <meta property="og:image:alt" content="Valens App">
 
-
-
           <meta name="twitter:card" content="summary_large_image">
-
           <meta name="twitter:title" content="Valens App">
-
-          <meta name="twitter:description" content="Reputation Earned. Value Built. Social media just got an upgrade.">
-
+          <meta name="twitter:description" content="Reputation Earned. Value Built">
           <meta name="twitter:image" content="${safeOgImage}">
 
-
-
+          <link rel="icon" type="image/png" href="${baseUrl}/logo.png">
+          <link rel="apple-touch-icon" href="${baseUrl}/logo.png">
+          <link rel="apple-touch-icon-precomposed" href="${baseUrl}/logo.png">
           <link rel="canonical" href="${safeShareUrl}">
-
         </head>
-
         <body>
-
           <p></p>
-
           ${this.openAppThenStoreScript(deepLinkUrl)}
-
         </body>
-
       </html>
-
     `;
 
   }
