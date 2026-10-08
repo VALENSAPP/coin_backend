@@ -33,6 +33,7 @@ export class AppController {
   }
 
   @Get('share-assets/valens-share-og.png')
+  @Get('share-assets/valens-share.png')
   @Get('share-assets/valens-welcome-banner.png')
   @Header('Content-Type', 'image/png')
   @Header('Cache-Control', 'public, max-age=86400')
@@ -41,6 +42,9 @@ export class AppController {
       path.join(process.cwd(), 'public', 'share-assets', 'valens-share-og.png'),
       path.join(process.cwd(), 'coin_backend', 'public', 'share-assets', 'valens-share-og.png'),
       path.join(__dirname, '..', 'public', 'share-assets', 'valens-share-og.png'),
+      path.join(process.cwd(), 'public', 'share-assets', 'valens-share.png'),
+      path.join(process.cwd(), 'coin_backend', 'public', 'share-assets', 'valens-share.png'),
+      path.join(__dirname, '..', 'public', 'share-assets', 'valens-share.png'),
       path.join(process.cwd(), 'public', 'share-assets', 'valens-welcome-banner.png'),
       path.join(process.cwd(), 'coin_backend', 'public', 'share-assets', 'valens-welcome-banner.png'),
       path.join(__dirname, '..', 'public', 'share-assets', 'valens-welcome-banner.png'),
