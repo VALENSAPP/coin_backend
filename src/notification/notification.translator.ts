@@ -1472,7 +1472,7 @@ export const PATTERN_RULES: PatternRule[] = [
       }),
       pt: () => ({
         title: 'Batalha Terminada',
-        body: 'Uma batalha que você segue terminou. Confira os resultados.',
+        body: 'Uma batalha que você segue terminou. Vega os resultados.',
       }),
     },
   },
@@ -2580,7 +2580,7 @@ export const REVERSE_STATIC_BODY_MAP: Record<string, { title?: string; body: str
     title: 'Battle Result',
     body: 'Your battle has ended. Check the results.',
   },
-  'uma batalha que você segue terminou. confira os resultados.': {
+  'uma batalha que você segue terminou. Vega os resultados.': {
     title: 'Battle Closed',
     body: 'A battle you follow has ended. Check the results.',
   },
