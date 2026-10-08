@@ -110,7 +110,7 @@ export class NotificationService {
     if (data && typeof data === 'object') {
       for (const [key, value] of Object.entries(data)) {
         if (value !== undefined && value !== null) {
-          sanitized[key] = typeof value === 'string' ? value : String(value);
+          sanitized[key] = typeof value === 'object' ? JSON.stringify(value) : String(value);
         }
       }
     }
@@ -786,7 +786,15 @@ export class NotificationService {
       ),
     );
 
-    const [orders, posts] = await Promise.all([
+    const battleIds = Array.from(
+      new Set(
+        notifications
+          .map((n) => (n.data as any)?.battleId)
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    );
+
+    const [orders, posts, battles] = await Promise.all([
       orderIds.length > 0
         ? this.prisma.order.findMany({
           where: { id: { in: orderIds } },
@@ -805,10 +813,41 @@ export class NotificationService {
           select: { id: true, isTrustPost: true, type: true },
         })
         : Promise.resolve([]),
+      battleIds.length > 0
+        ? this.prisma.battle.findMany({
+          where: { id: { in: battleIds } },
+          include: {
+            creator: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            winner: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            _count: {
+              select: {
+                participants: true,
+                votes: true,
+                comments: true,
+              },
+            },
+          },
+        })
+        : Promise.resolve([]),
     ]);
 
     const orderMap = new Map(orders.map((o) => [o.id, o]));
     const postMap = new Map(posts.map((p) => [p.id, p]));
+    const battleMap = new Map(battles.map((b) => [b.id, b]));
 
     for (const n of notifications) {
       const notifData = (typeof n.data === 'object' && n.data !== null ? { ...(n.data as any) } : {}) as Record<string, any>;
@@ -867,6 +906,67 @@ export class NotificationService {
         (n as any).isCancellationDeclined = notifData.isCancellationDeclined;
       }
 
+      if (notifData.battleId && battleMap.has(notifData.battleId)) {
+        const battle = battleMap.get(notifData.battleId)!;
+        const winningSide = battle.winningSide || battle.correctSide || null;
+        const winningSideLabel = winningSide === 'A'
+          ? battle.options?.[0] || 'Agree with Forecast'
+          : winningSide === 'B'
+            ? battle.options?.[1] || 'Challenge Forecast'
+            : winningSide;
+
+        const battleDetails = {
+          id: battle.id,
+          question: battle.question,
+          format: battle.format,
+          battleType: battle.battleType,
+          status: battle.status,
+          options: battle.options,
+          optionImages: battle.optionImages,
+          winningSide,
+          winningSideLabel,
+          correctSide: battle.correctSide,
+          winnerUserId: battle.winnerUserId,
+          winner: battle.winner
+            ? {
+                id: battle.winner.id,
+                displayName: battle.winner.displayName,
+                userName: battle.winner.userName,
+                image: battle.winner.image,
+              }
+            : null,
+          creator: battle.creator
+            ? {
+                id: battle.creator.id,
+                displayName: battle.creator.displayName,
+                userName: battle.creator.userName,
+                image: battle.creator.image,
+              }
+            : null,
+          stakeAmount: battle.stakeAmount,
+          image: battle.image,
+          startTime: battle.startTime ? battle.startTime.toISOString() : null,
+          endTime: battle.endTime ? battle.endTime.toISOString() : null,
+          closedAt: battle.closedAt ? battle.closedAt.toISOString() : null,
+          resolvedAt: battle.resolvedAt ? battle.resolvedAt.toISOString() : null,
+          totalParticipants: battle._count?.participants || 0,
+          totalVotes: battle._count?.votes || 0,
+          totalComments: battle._count?.comments || 0,
+        };
+
+        if (!notifData.battle) {
+          notifData.battle = battleDetails;
+        }
+        if (!notifData.question && battle.question) notifData.question = battle.question;
+        if (!notifData.format && battle.format) notifData.format = battle.format;
+        if (!notifData.status && battle.status) notifData.status = battle.status;
+        if (!notifData.winningSide && winningSide) notifData.winningSide = winningSide;
+        if (!notifData.winningSideLabel && winningSideLabel) notifData.winningSideLabel = winningSideLabel;
+        if (!notifData.deepLink) notifData.deepLink = `valens://battle/${battle.id}`;
+
+        (n as any).battle = notifData.battle;
+      }
+
       const post = notifData.postId ? postMap.get(notifData.postId) : undefined;
       const isMissionOrTrust =
         (typeof notifData.type === 'string' && notifData.type.startsWith('mission_')) ||
@@ -898,43 +998,9 @@ export class NotificationService {
       return typeof type === 'string' && type.startsWith('battle_');
     });
 
-    const battleIds = Array.from(
-      new Set(
-        battleNotifs
-          .map((n) => (n as any)?.data?.battleId as string | undefined)
-          .filter(Boolean),
-      ),
-    ) as string[];
-
-    const battles = battleIds.length
-      ? await this.prisma.battle.findMany({
-        where: { id: { in: battleIds } },
-        select: {
-          id: true,
-          question: true,
-          format: true,
-          status: true,
-          options: true,
-          optionImages: true,
-          startTime: true,
-          endTime: true,
-          isPublic: true,
-          creatorId: true,
-          liveAt: true,
-          closedAt: true,
-          resolvedAt: true,
-          winningSide: true,
-          correctSide: true,
-          winnerUserId: true,
-        },
-      })
-      : [];
-
-    const battleMap = new Map(battles.map((b) => [b.id, b]));
-
     return battleNotifs.map((n) => ({
       ...n,
-      battle: battleMap.get((n as any)?.data?.battleId),
+      battle: (n as any)?.data?.battle || (n as any)?.battle || null,
     }));
   }
 
@@ -2902,11 +2968,23 @@ export class NotificationService {
 
   async sendBattleResult(userIds: string[], battleId: string): Promise<void> {
     if (userIds.length === 0) return;
+    const battleDetails = await this.getBattleNotificationDetails(battleId);
     return this.sendNotificationToMultipleUsers(
       userIds,
       'Battle Result',
       'Your battle has ended. Check the results.',
-      { type: 'battle_result', battleId },
+      {
+        type: 'battle_result',
+        battleId,
+        notificationCategory: 'BATTLE_RESULT',
+        deepLink: `valens://battle/${battleId}`,
+        question: battleDetails?.question || '',
+        format: battleDetails?.format || '',
+        status: battleDetails?.status || '',
+        winningSide: battleDetails?.winningSide || '',
+        winningSideLabel: battleDetails?.winningSideLabel || '',
+        battle: battleDetails,
+      },
     );
   }
 
@@ -3122,13 +3200,104 @@ export class NotificationService {
     );
   }
 
+  private async getBattleNotificationDetails(battleId: string) {
+    const battle = await this.prisma.battle.findUnique({
+      where: { id: battleId },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+          },
+        },
+        winner: {
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+          },
+        },
+        _count: {
+          select: {
+            participants: true,
+            votes: true,
+            comments: true,
+          },
+        },
+      },
+    });
+
+    if (!battle) return null;
+
+    const winningSide = battle.winningSide || battle.correctSide || null;
+    const winningSideLabel = winningSide === 'A'
+      ? battle.options?.[0] || 'Agree with Forecast'
+      : winningSide === 'B'
+        ? battle.options?.[1] || 'Challenge Forecast'
+        : winningSide;
+
+    return {
+      id: battle.id,
+      question: battle.question,
+      format: battle.format,
+      battleType: battle.battleType,
+      status: battle.status,
+      options: battle.options,
+      optionImages: battle.optionImages,
+      winningSide,
+      winningSideLabel,
+      correctSide: battle.correctSide,
+      winnerUserId: battle.winnerUserId,
+      winner: battle.winner
+        ? {
+            id: battle.winner.id,
+            displayName: battle.winner.displayName,
+            userName: battle.winner.userName,
+            image: battle.winner.image,
+          }
+        : null,
+      creator: battle.creator
+        ? {
+            id: battle.creator.id,
+            displayName: battle.creator.displayName,
+            userName: battle.creator.userName,
+            image: battle.creator.image,
+          }
+        : null,
+      stakeAmount: battle.stakeAmount,
+      image: battle.image,
+      startTime: battle.startTime ? battle.startTime.toISOString() : null,
+      endTime: battle.endTime ? battle.endTime.toISOString() : null,
+      closedAt: battle.closedAt ? battle.closedAt.toISOString() : null,
+      resolvedAt: battle.resolvedAt ? battle.resolvedAt.toISOString() : null,
+      totalParticipants: battle._count?.participants || 0,
+      totalVotes: battle._count?.votes || 0,
+      totalComments: battle._count?.comments || 0,
+    };
+  }
+
   async sendBattleClosedToFollowers(userIds: string[], battleId: string): Promise<void> {
     if (userIds.length === 0) return;
+    const battleDetails = await this.getBattleNotificationDetails(battleId);
     return this.sendNotificationToMultipleUsers(
       userIds,
       'Battle Closed',
       'A battle you follow has ended. Check the results.',
-      { type: 'battle_closed', battleId },
+      {
+        type: 'battle_closed',
+        battleId,
+        notificationCategory: 'BATTLE_CLOSED',
+        deepLink: `valens://battle/${battleId}`,
+        question: battleDetails?.question || '',
+        format: battleDetails?.format || '',
+        status: battleDetails?.status || '',
+        winningSide: battleDetails?.winningSide || '',
+        winningSideLabel: battleDetails?.winningSideLabel || '',
+        battle: battleDetails,
+      },
     );
   }
 
