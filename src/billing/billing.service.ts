@@ -5484,14 +5484,20 @@ export class BillingService {
       tipPayments,
       missionDonations,
       usdtTransfers,
+      paidOrders,
+      shopEbookPayments,
       totalFollowingPayments,
       totalTipPayments,
       totalMissionDonations,
       totalUsdtTransfers,
+      totalPaidOrders,
+      totalShopEbookPayments,
       followingPaymentsSummary,
       tipPaymentsSummary,
       missionDonationsSummary,
       usdtTransfersSummary,
+      paidOrdersSummary,
+      shopEbookSummary,
     ] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
@@ -5525,6 +5531,46 @@ export class BillingService {
         orderBy: { createdAt: 'desc' },
         take: takePerSource,
       }),
+      this.prisma.order.findMany({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+        include: {
+          buyer: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              productName: true,
+              productImage: true,
+              quantity: true,
+              price: true,
+              subtotal: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      (this.prisma as any).shopEbookPayments.findMany({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
+        include: {
+          buyer: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+          post: {
+            select: { id: true, description: true, file: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
       this.prisma.payment.count({
         where: {
           receiverId: userId,
@@ -5548,6 +5594,18 @@ export class BillingService {
       }),
       this.prisma.digital_transaction.count({
         where: { receiverId: userId },
+      }),
+      this.prisma.order.count({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.count({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
       }),
       this.prisma.payment.aggregate({
         where: {
@@ -5589,13 +5647,55 @@ export class BillingService {
         where: { receiverId: userId },
         _sum: { amount: true },
       }),
+      this.prisma.order.aggregate({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+        _sum: {
+          total: true,
+          serviceFee: true,
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.aggregate({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
+        _sum: {
+          amount: true,
+          platformFee: true,
+          sellerAmount: true,
+        },
+      }),
     ]);
 
     const combined = [
-      ...followingPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing' })),
-      ...tipPayments.map((p) => ({ ...p, typeTransaction: 'tip' })),
-      ...missionDonations.map((d) => ({ ...d, typeTransaction: 'donation' })),
-      ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt' })),
+      ...followingPayments.map((p) => ({ ...p, typeTransaction: 'payFollowing', type: 'credit' })),
+      ...tipPayments.map((p) => ({ ...p, typeTransaction: 'tip', type: 'credit' })),
+      ...missionDonations.map((d) => ({ ...d, typeTransaction: 'donation', type: 'credit' })),
+      ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'credit' })),
+      ...paidOrders.map((o) => {
+        const sellerEarnings = o.sellerAmountMinor != null
+          ? o.sellerAmountMinor / 100
+          : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+        return {
+          ...o,
+          amount: sellerEarnings,
+          forPayment: 'marketplace',
+          typeTransaction: 'marketplace',
+          type: 'credit',
+          status: o.paymentStatus,
+        };
+      }),
+      ...shopEbookPayments.map((e: any) => ({
+        ...e,
+        amount: Number(((e.sellerAmount || 0) / 100).toFixed(2)),
+        forPayment: 'shopEbook',
+        typeTransaction: 'shopEbook',
+        type: 'credit',
+        status: e.status,
+      })),
     ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const start = (safePage - 1) * safeLimit;
@@ -5606,17 +5706,25 @@ export class BillingService {
       totalFollowingPayments
       + totalTipPayments
       + totalMissionDonations
-      + totalUsdtTransfers;
+      + totalUsdtTransfers
+      + totalPaidOrders
+      + totalShopEbookPayments;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
 
     const payFollowingUserReceived = Number(followingPaymentsSummary._sum.amount ?? 0);
     const tipUserReceived = Number(tipPaymentsSummary._sum.amount ?? 0);
     const donationUserReceived = Number(missionDonationsSummary._sum.amount ?? 0);
     const usdtUserReceived = Number(usdtTransfersSummary._sum.amount ?? 0);
+    const paidOrdersUserReceived = Number(
+      (Number(paidOrdersSummary._sum.total || 0) - Number(paidOrdersSummary._sum.serviceFee || 0)).toFixed(2),
+    );
+    const shopEbookUserReceived = Number((Number(shopEbookSummary._sum.sellerAmount || 0) / 100).toFixed(2));
 
     const payFollowingPlatformFee = Number(followingPaymentsSummary._sum.platformFee ?? 0);
     const tipPlatformFee = Number(tipPaymentsSummary._sum.platformFee ?? 0);
     const donationPlatformFee = Number(missionDonationsSummary._sum.platformFees ?? 0);
+    const paidOrdersPlatformFee = Number(paidOrdersSummary._sum.serviceFee || 0);
+    const shopEbookPlatformFee = Number((Number(shopEbookSummary._sum.platformFee || 0) / 100).toFixed(2));
 
     const payFollowingTotalAmount = Number(
       followingPaymentsSummary._sum.totalAmount
@@ -5631,10 +5739,38 @@ export class BillingService {
       ?? (donationUserReceived + donationPlatformFee),
     );
     const usdtTotalAmount = usdtUserReceived;
+    const paidOrdersTotalAmount = Number(paidOrdersSummary._sum.total || 0);
+    const shopEbookTotalAmount = Number((Number(shopEbookSummary._sum.amount || 0) / 100).toFixed(2));
 
-    const userReceived = payFollowingUserReceived + tipUserReceived + donationUserReceived + usdtUserReceived;
-    const platformFee = payFollowingPlatformFee + tipPlatformFee + donationPlatformFee;
-    const totalAmount = payFollowingTotalAmount + tipTotalAmount + donationTotalAmount + usdtTotalAmount;
+    const userReceived = Number(
+      (
+        payFollowingUserReceived
+        + tipUserReceived
+        + donationUserReceived
+        + usdtUserReceived
+        + paidOrdersUserReceived
+        + shopEbookUserReceived
+      ).toFixed(2),
+    );
+    const platformFee = Number(
+      (
+        payFollowingPlatformFee
+        + tipPlatformFee
+        + donationPlatformFee
+        + paidOrdersPlatformFee
+        + shopEbookPlatformFee
+      ).toFixed(2),
+    );
+    const totalAmount = Number(
+      (
+        payFollowingTotalAmount
+        + tipTotalAmount
+        + donationTotalAmount
+        + usdtTotalAmount
+        + paidOrdersTotalAmount
+        + shopEbookTotalAmount
+      ).toFixed(2),
+    );
 
     const transactions = normalizedLang !== 'en'
       ? rawTransactions.map((t: any) => {
@@ -5677,9 +5813,11 @@ export class BillingService {
 
     const isSubscriptions = ['subscriptions', 'subscription', 'payfollowing', 'following', 'fansubscriptionbuy'].includes(normalizedType);
     const isTip = ['tip', 'tips'].includes(normalizedType);
-    const isDonation = ['donation', 'donations', 'missiondonation'].includes(normalizedType);
+    const isDonation = ['donation', 'donations', 'missiondonation', 'donate'].includes(normalizedType);
     const isUsdt = ['usdt', 'crypto', 'digital_transaction'].includes(normalizedType);
-    const isFiltered = isSubscriptions || isTip || isDonation || isUsdt;
+    const isMarketplace = ['marketplace', 'product', 'products', 'order', 'orders', 'shop', 'closet', 'closetitem', 'closetitems'].includes(normalizedType);
+    const isEbook = ['ebook', 'ebooks', 'shopebook', 'shopebooks'].includes(normalizedType);
+    const isFiltered = isSubscriptions || isTip || isDonation || isUsdt || isMarketplace || isEbook;
 
     if (isFiltered) {
       let combined: any[] = [];
@@ -5837,6 +5975,163 @@ export class BillingService {
         ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         totalItems = totalCredit + totalDebit;
+      } else if (isMarketplace) {
+        const [creditOrders, debitOrders, totalCredit, totalDebit] = await Promise.all([
+          this.prisma.order.findMany({
+            where: {
+              sellerId: userId,
+              paymentStatus: 'PAID',
+            },
+            include: {
+              buyer: {
+                select: { id: true, userName: true, displayName: true, image: true },
+              },
+              items: {
+                select: {
+                  id: true,
+                  productId: true,
+                  productName: true,
+                  productImage: true,
+                  quantity: true,
+                  price: true,
+                  subtotal: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.order.findMany({
+            where: {
+              buyerId: userId,
+              paymentStatus: 'PAID',
+            },
+            include: {
+              seller: {
+                select: { id: true, userName: true, displayName: true, image: true },
+              },
+              items: {
+                select: {
+                  id: true,
+                  productId: true,
+                  productName: true,
+                  productImage: true,
+                  quantity: true,
+                  price: true,
+                  subtotal: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          this.prisma.order.count({
+            where: {
+              sellerId: userId,
+              paymentStatus: 'PAID',
+            },
+          }),
+          this.prisma.order.count({
+            where: {
+              buyerId: userId,
+              paymentStatus: 'PAID',
+            },
+          }),
+        ]);
+
+        combined = [
+          ...creditOrders.map((o) => {
+            const sellerEarnings = o.sellerAmountMinor != null
+              ? o.sellerAmountMinor / 100
+              : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+            return {
+              ...o,
+              amount: sellerEarnings,
+              forPayment: 'marketplace',
+              typeTransaction: 'marketplace',
+              type: 'credit',
+              status: o.paymentStatus,
+            };
+          }),
+          ...debitOrders.map((o) => ({
+            ...o,
+            amount: o.total,
+            forPayment: 'marketplace',
+            typeTransaction: 'marketplace',
+            type: 'debit',
+            status: o.paymentStatus,
+          })),
+        ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        totalItems = totalCredit + totalDebit;
+      } else if (isEbook) {
+        const [creditShopEbooks, debitShopEbooks, totalCredit, totalDebit] = await Promise.all([
+          (this.prisma as any).shopEbookPayments.findMany({
+            where: {
+              sellerId: userId,
+              status: 'SUCCEEDED',
+            },
+            include: {
+              buyer: {
+                select: { id: true, userName: true, displayName: true, image: true },
+              },
+              post: {
+                select: { id: true, description: true, file: true },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          (this.prisma as any).shopEbookPayments.findMany({
+            where: {
+              buyerId: userId,
+              status: 'SUCCEEDED',
+            },
+            include: {
+              seller: {
+                select: { id: true, userName: true, displayName: true, image: true },
+              },
+              post: {
+                select: { id: true, description: true, file: true },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: takePerSource,
+          }),
+          (this.prisma as any).shopEbookPayments.count({
+            where: {
+              sellerId: userId,
+              status: 'SUCCEEDED',
+            },
+          }),
+          (this.prisma as any).shopEbookPayments.count({
+            where: {
+              buyerId: userId,
+              status: 'SUCCEEDED',
+            },
+          }),
+        ]);
+
+        combined = [
+          ...creditShopEbooks.map((e: any) => ({
+            ...e,
+            amount: Number(((e.sellerAmount || 0) / 100).toFixed(2)),
+            forPayment: 'shopEbook',
+            typeTransaction: 'shopEbook',
+            type: 'credit',
+            status: e.status,
+          })),
+          ...debitShopEbooks.map((e: any) => ({
+            ...e,
+            amount: Number(((e.amount || 0) / 100).toFixed(2)),
+            forPayment: 'shopEbook',
+            typeTransaction: 'shopEbook',
+            type: 'debit',
+            status: e.status,
+          })),
+        ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        totalItems = totalCredit + totalDebit;
       }
 
       const start = (safePage - 1) * safeLimit;
@@ -5875,6 +6170,10 @@ export class BillingService {
       donationsDebit,
       usdtTransfersCredit,
       usdtTransfersDebit,
+      marketplaceOrdersCredit,
+      marketplaceOrdersDebit,
+      shopEbooksCredit,
+      shopEbooksDebit,
       totalFollowingPaymentsCredit,
       totalFollowingPaymentsDebit,
       totalTipPaymentsCredit,
@@ -5883,6 +6182,10 @@ export class BillingService {
       totalDonationsDebit,
       totalUsdtTransfersCredit,
       totalUsdtTransfersDebit,
+      totalMarketplaceOrdersCredit,
+      totalMarketplaceOrdersDebit,
+      totalShopEbooksCredit,
+      totalShopEbooksDebit,
     ] = await Promise.all([
       this.prisma.payment.findMany({
         where: {
@@ -5948,6 +6251,86 @@ export class BillingService {
         orderBy: { createdAt: 'desc' },
         take: takePerSource,
       }),
+      this.prisma.order.findMany({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+        include: {
+          buyer: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              productName: true,
+              productImage: true,
+              quantity: true,
+              price: true,
+              subtotal: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      this.prisma.order.findMany({
+        where: {
+          buyerId: userId,
+          paymentStatus: 'PAID',
+        },
+        include: {
+          seller: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+          items: {
+            select: {
+              id: true,
+              productId: true,
+              productName: true,
+              productImage: true,
+              quantity: true,
+              price: true,
+              subtotal: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      (this.prisma as any).shopEbookPayments.findMany({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
+        include: {
+          buyer: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+          post: {
+            select: { id: true, description: true, file: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
+      (this.prisma as any).shopEbookPayments.findMany({
+        where: {
+          buyerId: userId,
+          status: 'SUCCEEDED',
+        },
+        include: {
+          seller: {
+            select: { id: true, userName: true, displayName: true, image: true },
+          },
+          post: {
+            select: { id: true, description: true, file: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: takePerSource,
+      }),
       this.prisma.payment.count({
         where: {
           receiverId: userId,
@@ -5996,6 +6379,30 @@ export class BillingService {
       this.prisma.digital_transaction.count({
         where: { senderId: userId },
       }),
+      this.prisma.order.count({
+        where: {
+          sellerId: userId,
+          paymentStatus: 'PAID',
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          buyerId: userId,
+          paymentStatus: 'PAID',
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.count({
+        where: {
+          sellerId: userId,
+          status: 'SUCCEEDED',
+        },
+      }),
+      (this.prisma as any).shopEbookPayments.count({
+        where: {
+          buyerId: userId,
+          status: 'SUCCEEDED',
+        },
+      }),
     ]);
 
     const combined = [
@@ -6007,6 +6414,43 @@ export class BillingService {
       ...donationsDebit.map((d) => ({ ...d, typeTransaction: 'donation', type: 'debit' })),
       ...usdtTransfersCredit.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'credit' })),
       ...usdtTransfersDebit.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'debit' })),
+      ...marketplaceOrdersCredit.map((o) => {
+        const sellerEarnings = o.sellerAmountMinor != null
+          ? o.sellerAmountMinor / 100
+          : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+        return {
+          ...o,
+          amount: sellerEarnings,
+          forPayment: 'marketplace',
+          typeTransaction: 'marketplace',
+          type: 'credit',
+          status: o.paymentStatus,
+        };
+      }),
+      ...marketplaceOrdersDebit.map((o) => ({
+        ...o,
+        amount: o.total,
+        forPayment: 'marketplace',
+        typeTransaction: 'marketplace',
+        type: 'debit',
+        status: o.paymentStatus,
+      })),
+      ...shopEbooksCredit.map((e: any) => ({
+        ...e,
+        amount: Number(((e.sellerAmount || 0) / 100).toFixed(2)),
+        forPayment: 'shopEbook',
+        typeTransaction: 'shopEbook',
+        type: 'credit',
+        status: e.status,
+      })),
+      ...shopEbooksDebit.map((e: any) => ({
+        ...e,
+        amount: Number(((e.amount || 0) / 100).toFixed(2)),
+        forPayment: 'shopEbook',
+        typeTransaction: 'shopEbook',
+        type: 'debit',
+        status: e.status,
+      })),
     ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const start = (safePage - 1) * safeLimit;
@@ -6021,7 +6465,11 @@ export class BillingService {
       + totalDonationsCredit
       + totalDonationsDebit
       + totalUsdtTransfersCredit
-      + totalUsdtTransfersDebit;
+      + totalUsdtTransfersDebit
+      + totalMarketplaceOrdersCredit
+      + totalMarketplaceOrdersDebit
+      + totalShopEbooksCredit
+      + totalShopEbooksDebit;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeLimit);
     const transactions = normalizedLang !== 'en'
       ? rawTransactions.map((t: any) => {

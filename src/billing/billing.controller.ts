@@ -662,7 +662,7 @@ export class BillingController {
     name: 'paymentType',
     required: false,
     example: 'subscriptions',
-    description: 'Filter transactions by type: subscriptions (or subscription, payFollowing), tip, donation, usdt. Leave empty or pass all to return all transactions.',
+    description: 'Filter transactions by type: subscriptions (or subscription, payFollowing), tip, donation, usdt, marketplace (or product, order, shop), ebook (or shopEbook). Leave empty or pass all to return all transactions.',
   })
   @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
   async getReceivedTransactions(

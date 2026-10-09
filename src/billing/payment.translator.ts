@@ -214,6 +214,14 @@ export const PAYMENT_TYPE_MAP: Record<string, Record<string, string>> = {
  * Multi-language payment status translations.
  */
 export const PAYMENT_STATUS_MAP: Record<string, Record<string, string>> = {
+  paid: {
+    en: 'Paid',
+    es: 'Pagado',
+    fr: 'Payé',
+    it: 'Pagato',
+    pt: 'Pago',
+    hi: 'भुगतान किया गया',
+  },
   succeeded: {
     en: 'Confirmed',
     es: 'Confirmado',
