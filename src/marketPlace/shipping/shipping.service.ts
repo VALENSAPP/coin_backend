@@ -111,7 +111,7 @@ export class ShippingService {
                 'Unable to validate tracking with EasyPost';
             this.logger.warn(`EasyPost tracker create failed for order ${params.orderId}: ${message}`);
             throw new BadRequestException(
-                `Tracking validation failed: ${message}. Check carrier and tracking number, or use a valid tracking code.`,
+                `Tracking validation failed. Check carrier and tracking number.`,
             );
         }
     }

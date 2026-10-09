@@ -794,7 +794,19 @@ export class NotificationService {
       ),
     );
 
-    const [orders, posts, battles] = await Promise.all([
+    const priceChangedCreatorIds = Array.from(
+      new Set(
+        notifications
+          .filter(
+            (n) =>
+              (n.data as any)?.type === 'subscription_price_changed' &&
+              (n.data as any)?.creatorId,
+          )
+          .map((n) => (n.data as any).creatorId as string),
+      ),
+    );
+
+    const [orders, posts, battles, fanSubscriptions] = await Promise.all([
       orderIds.length > 0
         ? this.prisma.order.findMany({
           where: { id: { in: orderIds } },
@@ -843,11 +855,26 @@ export class NotificationService {
           },
         })
         : Promise.resolve([]),
+      priceChangedCreatorIds.length > 0
+        ? this.prisma.fansSubscriptionBuyData.findMany({
+          where: {
+            fanUserId: userId,
+            buyUserId: { in: priceChangedCreatorIds },
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+        : Promise.resolve([]),
     ]);
 
     const orderMap = new Map(orders.map((o) => [o.id, o]));
     const postMap = new Map(posts.map((p) => [p.id, p]));
     const battleMap = new Map(battles.map((b) => [b.id, b]));
+    const fanSubscriptionMap = new Map<string, typeof fanSubscriptions[0]>();
+    for (const sub of fanSubscriptions) {
+      if (!fanSubscriptionMap.has(sub.buyUserId)) {
+        fanSubscriptionMap.set(sub.buyUserId, sub);
+      }
+    }
 
     for (const n of notifications) {
       const notifData = (typeof n.data === 'object' && n.data !== null ? { ...(n.data as any) } : {}) as Record<string, any>;
@@ -978,6 +1005,51 @@ export class NotificationService {
       if (isMissionOrTrust) {
         notifData.isTrustPost = true;
         (n as any).isTrustPost = true;
+      }
+
+      if (notifData.type === 'subscription_price_changed') {
+        const creatorId = notifData.creatorId;
+        const sub = creatorId ? fanSubscriptionMap.get(creatorId) : undefined;
+        const rawStatus = String(notifData.status || notifData.priceUpdateStatus || '').toUpperCase();
+
+        let isAccepted =
+          rawStatus === 'ACCEPTED' ||
+          notifData.isAccepted === true ||
+          notifData.isAccepted === 'true';
+        let isDeclined =
+          rawStatus === 'CANCELLED' ||
+          rawStatus === 'DECLINED' ||
+          notifData.isDeclined === true ||
+          notifData.isDeclined === 'true';
+        let isPending = !isAccepted && !isDeclined;
+
+        if (sub && sub.status === 'ACTIVE' && new Date(sub.endDate) > new Date()) {
+          if (sub.autoRenew && !sub.cancelAtPeriodEnd) {
+            isAccepted = true;
+            isDeclined = false;
+            isPending = false;
+          } else if (sub.cancelAtPeriodEnd && !isAccepted) {
+            isAccepted = false;
+            isDeclined = true;
+            isPending = false;
+          }
+        }
+
+        const priceUpdateStatus = isAccepted ? 'ACCEPTED' : (isDeclined ? 'DECLINED' : 'PENDING');
+
+        notifData.status = priceUpdateStatus;
+        notifData.priceUpdateStatus = priceUpdateStatus;
+        notifData.isAccepted = isAccepted;
+        notifData.isDeclined = isDeclined;
+        notifData.isPending = isPending;
+        notifData.hasPurchasedNewPrice = isAccepted;
+
+        (n as any).status = priceUpdateStatus;
+        (n as any).priceUpdateStatus = priceUpdateStatus;
+        (n as any).isAccepted = isAccepted;
+        (n as any).isDeclined = isDeclined;
+        (n as any).isPending = isPending;
+        (n as any).hasPurchasedNewPrice = isAccepted;
       }
 
       n.data = notifData;

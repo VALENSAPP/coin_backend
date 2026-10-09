@@ -804,7 +804,12 @@ export class BillingService {
       );
       return {
         success: true,
-        action: 'CANCELLED',
+        action: 'DECLINED',
+        priceUpdateStatus: 'DECLINED',
+        isAccepted: false,
+        isDeclined: true,
+        isPending: false,
+        hasPurchasedNewPrice: false,
         message: 'You have declined the new price. Auto-renew has been cancelled and access will expire at period end.',
         subscription: cancelResult.subscription,
       };
@@ -861,6 +866,11 @@ export class BillingService {
       return {
         success: true,
         action: 'ACCEPTED',
+        priceUpdateStatus: 'ACCEPTED',
+        isAccepted: true,
+        isDeclined: false,
+        isPending: false,
+        hasPurchasedNewPrice: true,
         message: `You have accepted the price change for @${creatorName}. Auto-renew is now active.`,
         subscription: {
           id: updatedSub.id,
@@ -883,10 +893,10 @@ export class BillingService {
     throw new BadRequestException('Invalid action. Must be ACCEPT or CANCEL.');
   }
 
-  private async updatePriceChangeNotificationStatus(
+  async updatePriceChangeNotificationStatus(
     fanUserId: string,
     creatorId: string,
-    status: 'ACCEPTED' | 'CANCELLED',
+    status: 'ACCEPTED' | 'CANCELLED' | 'DECLINED' | 'PENDING',
     autoRenew: boolean,
     notificationId?: string,
   ) {
@@ -903,15 +913,25 @@ export class BillingService {
           data.type === 'subscription_price_changed' &&
           (notificationId || data.creatorId === creatorId)
         ) {
+          const isAccepted = status === 'ACCEPTED';
+          const isDeclined = status === 'CANCELLED' || status === 'DECLINED';
+          const isPending = status === 'PENDING';
+          const priceUpdateStatus = isAccepted ? 'ACCEPTED' : (isDeclined ? 'DECLINED' : 'PENDING');
+
           await this.prisma.notification.update({
             where: { id: notif.id },
             data: {
               data: {
                 ...data,
-                status,
-                isCancelled: status === 'CANCELLED' ? 'true' : 'false',
+                status: priceUpdateStatus,
+                priceUpdateStatus,
+                isAccepted,
+                isDeclined,
+                isPending,
+                hasPurchasedNewPrice: isAccepted,
+                isCancelled: isDeclined ? 'true' : 'false',
                 autoRenew: autoRenew ? 'true' : 'false',
-                cancelAtPeriodEnd: status === 'CANCELLED' ? 'true' : 'false',
+                cancelAtPeriodEnd: isDeclined ? 'true' : 'false',
               },
             },
           });
@@ -1964,6 +1984,13 @@ export class BillingService {
           },
         });
       }
+
+      await this.updatePriceChangeNotificationStatus(
+        user.id,
+        contentUserId,
+        'ACCEPTED',
+        false,
+      );
 
       const receiverAmountCents =
         Number(paymentIntent.metadata?.receiverAmountCents) ||
@@ -4254,6 +4281,13 @@ export class BillingService {
         status: 'ACTIVE',
       },
     });
+
+    await this.updatePriceChangeNotificationStatus(
+      fanUserId,
+      buyUserId,
+      'ACCEPTED',
+      true,
+    );
 
     const amountCents = session.amount_total || Number(session.metadata?.amount || 0) * 100;
     const receiverAmountCents =

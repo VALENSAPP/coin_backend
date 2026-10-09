@@ -4693,6 +4693,150 @@ export class PostService {
     return conversation;
   }
 
+  private async getSubscriptionRenewalDetailsForConversations(
+    conversations: Array<{ id: string; senderId: string; receiverId: string; content?: string | null; chatType?: string | null }>,
+  ) {
+    const renewalConversations = conversations.filter(
+      (c) => (c as any).chatType === 'subscription_renewal',
+    );
+
+    const renewalDataMap = new Map<string, Record<string, any>>();
+    if (renewalConversations.length === 0) {
+      return renewalDataMap;
+    }
+
+    const renewalPairs = renewalConversations.map((c) => ({
+      fanUserId: c.receiverId,
+      buyUserId: c.senderId,
+    }));
+
+    const fanUserIds = Array.from(new Set(renewalPairs.map((p) => p.fanUserId)));
+    const creatorIds = Array.from(new Set(renewalPairs.map((p) => p.buyUserId)));
+
+    const [fanSubs, notifications, creators, userSubs] = await Promise.all([
+      this.prisma.fansSubscriptionBuyData.findMany({
+        where: {
+          fanUserId: { in: fanUserIds },
+          buyUserId: { in: creatorIds },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.notification.findMany({
+        where: {
+          userId: { in: fanUserIds },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.findMany({
+        where: {
+          id: { in: creatorIds },
+        },
+        select: {
+          id: true,
+          displayName: true,
+          userName: true,
+          image: true,
+        },
+      }),
+      this.prisma.userSubscription.findMany({
+        where: {
+          userId: { in: creatorIds },
+          isDelete: 0,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    const fanSubMap = new Map<string, (typeof fanSubs)[0]>();
+    for (const sub of fanSubs) {
+      const key = `${sub.fanUserId}_${sub.buyUserId}`;
+      if (!fanSubMap.has(key)) {
+        fanSubMap.set(key, sub);
+      }
+    }
+
+    const priceChangeNotifMap = new Map<string, Record<string, any>>();
+    for (const notif of notifications) {
+      const data = notif.data as any;
+      if (data && data.type === 'subscription_price_changed' && data.creatorId) {
+        const key = `${notif.userId}_${data.creatorId}`;
+        if (!priceChangeNotifMap.has(key)) {
+          priceChangeNotifMap.set(key, data);
+        }
+      }
+    }
+
+    const creatorMap = new Map(creators.map((c) => [c.id, c]));
+    const userSubMap = new Map<string, (typeof userSubs)[0]>();
+    for (const us of userSubs) {
+      if (!userSubMap.has(us.userId)) {
+        userSubMap.set(us.userId, us);
+      }
+    }
+
+    for (const conv of renewalConversations) {
+      const creatorId = conv.senderId;
+      const fanUserId = conv.receiverId;
+      const pairKey = `${fanUserId}_${creatorId}`;
+      const sub = fanSubMap.get(pairKey);
+      const notifData = priceChangeNotifMap.get(pairKey);
+      const creator = creatorMap.get(creatorId);
+      const creatorSub = userSubMap.get(creatorId);
+
+      const priceMatch = conv.content?.match(/from\s+\$([0-9.]+)\s+to\s+\$([0-9.]+)/i);
+      const extractedOldPrice = priceMatch ? Number(priceMatch[1]) : (creatorSub?.previousAmount ?? null);
+      const extractedNewPrice = priceMatch ? Number(priceMatch[2]) : (creatorSub?.subscriptionAmount ?? null);
+      const dateMatch = conv.content?.match(/until\s+([^.]+)\./i);
+      const extractedEndDate = dateMatch ? dateMatch[1].trim() : null;
+
+      const notifStatus = String(notifData?.status || notifData?.priceUpdateStatus || '').toUpperCase();
+      let isAccepted =
+        notifStatus === 'ACCEPTED' ||
+        notifData?.isAccepted === true ||
+        notifData?.isAccepted === 'true';
+      let isDeclined =
+        notifStatus === 'CANCELLED' ||
+        notifStatus === 'DECLINED' ||
+        notifData?.isDeclined === true ||
+        notifData?.isDeclined === 'true';
+      let isPending = !isAccepted && !isDeclined;
+
+      if (sub && sub.status === 'ACTIVE' && new Date(sub.endDate) > new Date()) {
+        if (sub.autoRenew && !sub.cancelAtPeriodEnd) {
+          isAccepted = true;
+          isDeclined = false;
+          isPending = false;
+        } else if (sub.cancelAtPeriodEnd && !isAccepted) {
+          isAccepted = false;
+          isDeclined = true;
+          isPending = false;
+        }
+      }
+
+      const priceUpdateStatus = isAccepted ? 'ACCEPTED' : (isDeclined ? 'DECLINED' : 'PENDING');
+
+      const data = {
+        creatorId,
+        creatorName: creator?.displayName || creator?.userName || '',
+        creatorImage: creator?.image || null,
+        oldPrice: notifData?.oldPrice ? Number(notifData.oldPrice) : extractedOldPrice,
+        newPrice: notifData?.newPrice ? Number(notifData.newPrice) : (extractedNewPrice ?? creatorSub?.subscriptionAmount ?? null),
+        subscriptionId: sub?.id || notifData?.subscriptionId || null,
+        endDate: sub?.endDate ? sub.endDate.toISOString() : (notifData?.endDate || extractedEndDate),
+        priceUpdateStatus,
+        isAccepted,
+        isDeclined,
+        isPending,
+        hasPurchasedNewPrice: isAccepted,
+        status: priceUpdateStatus,
+      };
+
+      renewalDataMap.set(conv.id, data);
+    }
+
+    return renewalDataMap;
+  }
+
   async getConversations(userId: string) {
     if (!userId) throw new BadRequestException('User ID required');
 
@@ -4710,19 +4854,42 @@ export class PostService {
       },
     });
 
-    return conversations.map(conv => ({
-      id: conv.id,
-      type: conv.type,
-      chatType: (conv as any).chatType,
-      typeOfChat: (conv as any).chatType,
-      content: conv.content,
-      createdAt: conv.createdAt,
-      sender: conv.sender,
-      receiver: conv.receiver,
-      post: null,
-      story: null,
-      highlight: null,
-    }));
+    const renewalDataMap = await this.getSubscriptionRenewalDetailsForConversations(conversations);
+
+    return conversations.map(conv => {
+      const renewalData = renewalDataMap.get(conv.id);
+      return {
+        id: conv.id,
+        type: conv.type,
+        chatType: (conv as any).chatType,
+        typeOfChat: (conv as any).chatType,
+        content: conv.content,
+        createdAt: conv.createdAt,
+        sender: conv.sender,
+        receiver: conv.receiver,
+        post: null,
+        story: null,
+        highlight: null,
+        ...(renewalData
+          ? {
+              creatorId: renewalData.creatorId,
+              creatorName: renewalData.creatorName,
+              creatorImage: renewalData.creatorImage,
+              oldPrice: renewalData.oldPrice,
+              newPrice: renewalData.newPrice,
+              subscriptionId: renewalData.subscriptionId,
+              endDate: renewalData.endDate,
+              priceUpdateStatus: renewalData.priceUpdateStatus,
+              isAccepted: renewalData.isAccepted,
+              isDeclined: renewalData.isDeclined,
+              isPending: renewalData.isPending,
+              hasPurchasedNewPrice: renewalData.hasPurchasedNewPrice,
+              status: renewalData.status,
+              subscriptionRenewalData: renewalData,
+            }
+          : {}),
+      };
+    });
   }
 
   async getUserChatBox(userId: string) {
@@ -4916,10 +5083,13 @@ export class PostService {
     const storyMap = new Map(stories.map(s => [s.id, s]));
     const highlightMap = new Map(highlights.map(h => [h.id, h]));
 
+    const renewalDataMap = await this.getSubscriptionRenewalDetailsForConversations(conversations);
+
     return conversations.map(conv => {
       let post = null;
       let story = null;
       let highlight = null;
+      const renewalData = renewalDataMap.get(conv.id);
 
       if (conv.type === 'MEDIA' && conv.mediaId) {
         if (conv.mediaType === 'POST' || conv.mediaType === 'REEL') {
@@ -5012,6 +5182,24 @@ export class PostService {
         post,
         story,
         highlight,
+        ...(renewalData
+          ? {
+              creatorId: renewalData.creatorId,
+              creatorName: renewalData.creatorName,
+              creatorImage: renewalData.creatorImage,
+              oldPrice: renewalData.oldPrice,
+              newPrice: renewalData.newPrice,
+              subscriptionId: renewalData.subscriptionId,
+              endDate: renewalData.endDate,
+              priceUpdateStatus: renewalData.priceUpdateStatus,
+              isAccepted: renewalData.isAccepted,
+              isDeclined: renewalData.isDeclined,
+              isPending: renewalData.isPending,
+              hasPurchasedNewPrice: renewalData.hasPurchasedNewPrice,
+              status: renewalData.status,
+              subscriptionRenewalData: renewalData,
+            }
+          : {}),
       };
     });
   }

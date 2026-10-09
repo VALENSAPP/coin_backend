@@ -813,6 +813,36 @@ export class PagBankService {
                             },
                         });
                     }
+
+                    try {
+                        const notifs = await this.prisma.notification.findMany({
+                            where: { userId: fanUserId },
+                        });
+                        for (const notif of notifs) {
+                            const data = notif.data as any;
+                            if (data && data.type === 'subscription_price_changed' && data.creatorId === receiverId) {
+                                await this.prisma.notification.update({
+                                    where: { id: notif.id },
+                                    data: {
+                                        data: {
+                                            ...data,
+                                            status: 'ACCEPTED',
+                                            priceUpdateStatus: 'ACCEPTED',
+                                            isAccepted: true,
+                                            isDeclined: false,
+                                            isPending: false,
+                                            hasPurchasedNewPrice: true,
+                                            isCancelled: 'false',
+                                            autoRenew: 'true',
+                                            cancelAtPeriodEnd: 'false',
+                                        },
+                                    },
+                                });
+                            }
+                        }
+                    } catch (err: any) {
+                        this.logger.error(`PagBank failed to update price change notification status: ${err?.message || err}`);
+                    }
                 } else {
                     this.logger.warn(
                         `PagBank fanSubscriptionBuy ${payment.id} missing fanUserId (stripeInvoiceId)`,
