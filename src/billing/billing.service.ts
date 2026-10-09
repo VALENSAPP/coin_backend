@@ -5564,8 +5564,8 @@ export class BillingService {
           buyer: {
             select: { id: true, userName: true, displayName: true, image: true },
           },
-          post: {
-            select: { id: true, description: true, file: true },
+          ebook: {
+            select: { id: true, caption: true, text: true, images: true, ebookpdf: true, amount: true },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -6075,8 +6075,8 @@ export class BillingService {
               buyer: {
                 select: { id: true, userName: true, displayName: true, image: true },
               },
-              post: {
-                select: { id: true, description: true, file: true },
+              ebook: {
+                select: { id: true, caption: true, text: true, images: true, ebookpdf: true, amount: true },
               },
             },
             orderBy: { createdAt: 'desc' },
@@ -6091,8 +6091,8 @@ export class BillingService {
               seller: {
                 select: { id: true, userName: true, displayName: true, image: true },
               },
-              post: {
-                select: { id: true, description: true, file: true },
+              ebook: {
+                select: { id: true, caption: true, text: true, images: true, ebookpdf: true, amount: true },
               },
             },
             orderBy: { createdAt: 'desc' },
@@ -6308,8 +6308,8 @@ export class BillingService {
           buyer: {
             select: { id: true, userName: true, displayName: true, image: true },
           },
-          post: {
-            select: { id: true, description: true, file: true },
+          ebook: {
+            select: { id: true, caption: true, text: true, images: true, ebookpdf: true, amount: true },
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -6324,8 +6324,8 @@ export class BillingService {
           seller: {
             select: { id: true, userName: true, displayName: true, image: true },
           },
-          post: {
-            select: { id: true, description: true, file: true },
+          ebook: {
+            select: { id: true, caption: true, text: true, images: true, ebookpdf: true, amount: true },
           },
         },
         orderBy: { createdAt: 'desc' },
