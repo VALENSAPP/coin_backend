@@ -5791,25 +5791,39 @@ export class BillingService {
       ...usdtTransfers.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'credit' })),
       ...paidOrders.map((o) => {
         const sellerEarnings = o.sellerAmountMinor != null
-          ? o.sellerAmountMinor / 100
+          ? Number((o.sellerAmountMinor / 100).toFixed(2))
           : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+        const platformFee = o.platformFeeMinor != null
+          ? Number((o.platformFeeMinor / 100).toFixed(2))
+          : Number((o.serviceFee || 0).toFixed(2));
         return {
           ...o,
           amount: sellerEarnings,
+          totalAmount: o.total,
+          sellerAmount: sellerEarnings,
+          platformFee,
           forPayment: 'marketplace',
           typeTransaction: 'marketplace',
           type: 'credit',
           status: o.paymentStatus,
         };
       }),
-      ...shopEbookPayments.map((e: any) => ({
-        ...e,
-        amount: Number(((e.sellerAmount || 0) / 100).toFixed(2)),
-        forPayment: 'shopEbook',
-        typeTransaction: 'shopEbook',
-        type: 'credit',
-        status: e.status,
-      })),
+      ...shopEbookPayments.map((e: any) => {
+        const totalAmount = Number(((e.amount || 0) / 100).toFixed(2));
+        const sellerAmount = Number(((e.sellerAmount || 0) / 100).toFixed(2));
+        const platformFee = Number(((e.platformFee || 0) / 100).toFixed(2));
+        return {
+          ...e,
+          amount: sellerAmount,
+          totalAmount,
+          sellerAmount,
+          platformFee,
+          forPayment: 'shopEbook',
+          typeTransaction: 'shopEbook',
+          type: 'credit',
+          status: e.status,
+        };
+      }),
     ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const start = (safePage - 1) * safeLimit;
@@ -6156,25 +6170,42 @@ export class BillingService {
         combined = [
           ...creditOrders.map((o) => {
             const sellerEarnings = o.sellerAmountMinor != null
-              ? o.sellerAmountMinor / 100
+              ? Number((o.sellerAmountMinor / 100).toFixed(2))
               : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+            const platformFee = o.platformFeeMinor != null
+              ? Number((o.platformFeeMinor / 100).toFixed(2))
+              : Number((o.serviceFee || 0).toFixed(2));
             return {
               ...o,
               amount: sellerEarnings,
+              totalAmount: o.total,
+              sellerAmount: sellerEarnings,
+              platformFee,
               forPayment: 'marketplace',
               typeTransaction: 'marketplace',
               type: 'credit',
               status: o.paymentStatus,
             };
           }),
-          ...debitOrders.map((o) => ({
-            ...o,
-            amount: o.total,
-            forPayment: 'marketplace',
-            typeTransaction: 'marketplace',
-            type: 'debit',
-            status: o.paymentStatus,
-          })),
+          ...debitOrders.map((o) => {
+            const sellerEarnings = o.sellerAmountMinor != null
+              ? Number((o.sellerAmountMinor / 100).toFixed(2))
+              : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+            const platformFee = o.platformFeeMinor != null
+              ? Number((o.platformFeeMinor / 100).toFixed(2))
+              : Number((o.serviceFee || 0).toFixed(2));
+            return {
+              ...o,
+              amount: o.total,
+              totalAmount: o.total,
+              sellerAmount: sellerEarnings,
+              platformFee,
+              forPayment: 'marketplace',
+              typeTransaction: 'marketplace',
+              type: 'debit',
+              status: o.paymentStatus,
+            };
+          }),
         ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         totalItems = totalCredit + totalDebit;
@@ -6227,22 +6258,38 @@ export class BillingService {
         ]);
 
         combined = [
-          ...creditShopEbooks.map((e: any) => ({
-            ...e,
-            amount: Number(((e.sellerAmount || 0) / 100).toFixed(2)),
-            forPayment: 'shopEbook',
-            typeTransaction: 'shopEbook',
-            type: 'credit',
-            status: e.status,
-          })),
-          ...debitShopEbooks.map((e: any) => ({
-            ...e,
-            amount: Number(((e.amount || 0) / 100).toFixed(2)),
-            forPayment: 'shopEbook',
-            typeTransaction: 'shopEbook',
-            type: 'debit',
-            status: e.status,
-          })),
+          ...creditShopEbooks.map((e: any) => {
+            const totalAmount = Number(((e.amount || 0) / 100).toFixed(2));
+            const sellerAmount = Number(((e.sellerAmount || 0) / 100).toFixed(2));
+            const platformFee = Number(((e.platformFee || 0) / 100).toFixed(2));
+            return {
+              ...e,
+              amount: sellerAmount,
+              totalAmount,
+              sellerAmount,
+              platformFee,
+              forPayment: 'shopEbook',
+              typeTransaction: 'shopEbook',
+              type: 'credit',
+              status: e.status,
+            };
+          }),
+          ...debitShopEbooks.map((e: any) => {
+            const totalAmount = Number(((e.amount || 0) / 100).toFixed(2));
+            const sellerAmount = Number(((e.sellerAmount || 0) / 100).toFixed(2));
+            const platformFee = Number(((e.platformFee || 0) / 100).toFixed(2));
+            return {
+              ...e,
+              amount: totalAmount,
+              totalAmount,
+              sellerAmount,
+              platformFee,
+              forPayment: 'shopEbook',
+              typeTransaction: 'shopEbook',
+              type: 'debit',
+              status: e.status,
+            };
+          }),
         ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         totalItems = totalCredit + totalDebit;
@@ -6530,41 +6577,74 @@ export class BillingService {
       ...usdtTransfersDebit.map((t) => ({ ...t, typeTransaction: 'usdt', type: 'debit' })),
       ...marketplaceOrdersCredit.map((o) => {
         const sellerEarnings = o.sellerAmountMinor != null
-          ? o.sellerAmountMinor / 100
+          ? Number((o.sellerAmountMinor / 100).toFixed(2))
           : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+        const platformFee = o.platformFeeMinor != null
+          ? Number((o.platformFeeMinor / 100).toFixed(2))
+          : Number((o.serviceFee || 0).toFixed(2));
         return {
           ...o,
           amount: sellerEarnings,
+          totalAmount: o.total,
+          sellerAmount: sellerEarnings,
+          platformFee,
           forPayment: 'marketplace',
           typeTransaction: 'marketplace',
           type: 'credit',
           status: o.paymentStatus,
         };
       }),
-      ...marketplaceOrdersDebit.map((o) => ({
-        ...o,
-        amount: o.total,
-        forPayment: 'marketplace',
-        typeTransaction: 'marketplace',
-        type: 'debit',
-        status: o.paymentStatus,
-      })),
-      ...shopEbooksCredit.map((e: any) => ({
-        ...e,
-        amount: Number(((e.sellerAmount || 0) / 100).toFixed(2)),
-        forPayment: 'shopEbook',
-        typeTransaction: 'shopEbook',
-        type: 'credit',
-        status: e.status,
-      })),
-      ...shopEbooksDebit.map((e: any) => ({
-        ...e,
-        amount: Number(((e.amount || 0) / 100).toFixed(2)),
-        forPayment: 'shopEbook',
-        typeTransaction: 'shopEbook',
-        type: 'debit',
-        status: e.status,
-      })),
+      ...marketplaceOrdersDebit.map((o) => {
+        const sellerEarnings = o.sellerAmountMinor != null
+          ? Number((o.sellerAmountMinor / 100).toFixed(2))
+          : Number(((o.total || 0) - (o.serviceFee || 0)).toFixed(2));
+        const platformFee = o.platformFeeMinor != null
+          ? Number((o.platformFeeMinor / 100).toFixed(2))
+          : Number((o.serviceFee || 0).toFixed(2));
+        return {
+          ...o,
+          amount: o.total,
+          totalAmount: o.total,
+          sellerAmount: sellerEarnings,
+          platformFee,
+          forPayment: 'marketplace',
+          typeTransaction: 'marketplace',
+          type: 'debit',
+          status: o.paymentStatus,
+        };
+      }),
+      ...shopEbooksCredit.map((e: any) => {
+        const totalAmount = Number(((e.amount || 0) / 100).toFixed(2));
+        const sellerAmount = Number(((e.sellerAmount || 0) / 100).toFixed(2));
+        const platformFee = Number(((e.platformFee || 0) / 100).toFixed(2));
+        return {
+          ...e,
+          amount: sellerAmount,
+          totalAmount,
+          sellerAmount,
+          platformFee,
+          forPayment: 'shopEbook',
+          typeTransaction: 'shopEbook',
+          type: 'credit',
+          status: e.status,
+        };
+      }),
+      ...shopEbooksDebit.map((e: any) => {
+        const totalAmount = Number(((e.amount || 0) / 100).toFixed(2));
+        const sellerAmount = Number(((e.sellerAmount || 0) / 100).toFixed(2));
+        const platformFee = Number(((e.platformFee || 0) / 100).toFixed(2));
+        return {
+          ...e,
+          amount: totalAmount,
+          totalAmount,
+          sellerAmount,
+          platformFee,
+          forPayment: 'shopEbook',
+          typeTransaction: 'shopEbook',
+          type: 'debit',
+          status: e.status,
+        };
+      }),
     ].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const start = (safePage - 1) * safeLimit;
