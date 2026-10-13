@@ -238,7 +238,7 @@ export class MarketplaceBattlesController {
     @Post(':battleId/view')
     @UseGuards(AuthGuard('jwt'))
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Track one unique marketplace battle view per authenticated user' })
+    @ApiOperation({ summary: 'Track marketplace battle view per visit (excludes battle creator)' })
     @ApiParam({ name: 'battleId', description: 'Marketplace battle id' })
     @ApiUnauthorizedResponse({ description: 'Unauthorized' })
     @ApiNotFoundResponse({ description: 'Marketplace battle not found or not publicly visible' })

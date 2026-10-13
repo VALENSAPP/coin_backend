@@ -1910,7 +1910,6 @@ model MarketplaceBattleView {
   battle MarketplaceBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
   viewer User             @relation(fields: [viewerId], references: [id], onDelete: Cascade)
 
-  @@unique([battleId, viewerId])
   @@index([battleId])
   @@index([viewerId])
 }

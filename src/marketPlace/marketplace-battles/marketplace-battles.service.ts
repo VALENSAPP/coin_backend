@@ -2831,32 +2831,20 @@ export class MarketplaceBattlesService {
                 };
             }
 
-            const existingView = await tx.marketplaceBattleView.findUnique({
-                where: {
-                    battleId_viewerId: {
-                        battleId,
-                        viewerId,
-                    },
+            await tx.marketplaceBattleView.create({
+                data: {
+                    battleId,
+                    viewerId,
                 },
-                select: { id: true },
             });
-
-            if (!existingView) {
-                await tx.marketplaceBattleView.create({
-                    data: {
-                        battleId,
-                        viewerId,
-                    },
-                });
-            }
 
             const viewCount = await tx.marketplaceBattleView.count({
                 where: { battleId },
             });
 
             return {
-                tracked: !existingView,
-                reason: existingView ? 'ALREADY_VIEWED' : 'VIEW_TRACKED',
+                tracked: true,
+                reason: 'VIEW_TRACKED',
                 battleId,
                 viewCount,
             };
