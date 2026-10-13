@@ -2634,7 +2634,25 @@ export class BillingService {
         where: {
           AND: [
             { OR: [{ userId }, { orders: { some: { OR: [{ buyerId: userId }, { sellerId: userId }] } } }] },
-            { OR: identifiers.filter((item) => 'id' in item || 'paymentIntentId' in item || 'transactionId' in item) },
+            {
+              OR: [
+                ...identifiers.filter((item) => 'id' in item || 'paymentIntentId' in item || 'transactionId' in item),
+                ...(normalizedPaymentId
+                  ? [
+                    { orderId: normalizedPaymentId },
+                    { orders: { some: { id: normalizedPaymentId } } },
+                    { orders: { some: { orderNumber: normalizedPaymentId } } },
+                  ]
+                  : []),
+                ...(normalizedTransactionId
+                  ? [
+                    { orderId: normalizedTransactionId },
+                    { orders: { some: { id: normalizedTransactionId } } },
+                    { orders: { some: { orderNumber: normalizedTransactionId } } },
+                  ]
+                  : []),
+              ],
+            },
           ],
         },
         include: {
@@ -2644,6 +2662,12 @@ export class BillingService {
               orderNumber: true,
               orderStatus: true,
               paymentStatus: true,
+              subtotal: true,
+              shippingCost: true,
+              serviceFee: true,
+              total: true,
+              platformFeeMinor: true,
+              sellerAmountMinor: true,
               refundId: true,
               refundAmount: true,
               refundedAt: true,
@@ -2651,6 +2675,17 @@ export class BillingService {
               cancelledBy: true,
               buyer: { select: profileSelect },
               seller: { select: profileSelect },
+              items: {
+                select: {
+                  id: true,
+                  productId: true,
+                  productName: true,
+                  productImage: true,
+                  quantity: true,
+                  price: true,
+                  subtotal: true,
+                },
+              },
             },
           },
         },
@@ -2667,6 +2702,8 @@ export class BillingService {
       const localizedSource = normalizedLang === 'en' ? 'MISSION_DONATION' : translatePaymentType('missionDonation', normalizedLang);
       const localizedStatus = normalizedLang === 'en' ? mission.status : translatePaymentStatus(mission.status, normalizedLang);
       const localizedType = normalizedLang === 'en' ? 'missionDonation' : translatePaymentType('missionDonation', normalizedLang);
+      const fee = mission.platformFees || 0;
+      const total = mission.totalAmount ?? mission.amount + fee;
       return {
         paymentId: mission.id,
         transactionId: mission.stripePaymentIntentId || mission.stripeCheckoutSessionId,
@@ -2675,8 +2712,12 @@ export class BillingService {
         type: localizedType,
         currency: mission.currency,
         amount: mission.amount,
-        fee: mission.platformFees || 0,
-        total: mission.totalAmount ?? mission.amount + (mission.platformFees || 0),
+        fee,
+        total,
+        platformFee: fee,
+        platformFees: fee,
+        sellerAmount: mission.amount,
+        totalAmount: total,
         paymentMethod: mission.currency.toUpperCase() === 'BRL' ? 'PAGBANK' : 'STRIPE',
         createdAt: mission.createdAt,
         note: mission.note,
@@ -2693,6 +2734,9 @@ export class BillingService {
       const localizedSource = normalizedLang === 'en' ? (ebook ? 'EBOOK' : 'SHOP_EBOOK') : translatePaymentType(rawType, normalizedLang);
       const localizedStatus = normalizedLang === 'en' ? record.status : translatePaymentStatus(record.status, normalizedLang);
       const localizedType = normalizedLang === 'en' ? rawType : translatePaymentType(rawType, normalizedLang);
+      const sellerAmount = Number(((record.sellerAmount || 0) / 100).toFixed(2));
+      const platformFee = Number(((record.platformFee || 0) / 100).toFixed(2));
+      const totalAmount = Number(((record.amount || 0) / 100).toFixed(2));
       return {
         paymentId: record.id,
         transactionId: record.paymentIntentId || record.checkoutSessionId,
@@ -2700,9 +2744,13 @@ export class BillingService {
         status: localizedStatus,
         type: localizedType,
         currency: record.currency,
-        amount: record.sellerAmount / 100,
-        fee: record.platformFee / 100,
-        total: record.amount / 100,
+        amount: sellerAmount,
+        fee: platformFee,
+        total: totalAmount,
+        platformFee,
+        platformFees: platformFee,
+        sellerAmount,
+        totalAmount,
         paymentMethod: record.provider,
         createdAt: record.createdAt,
         note: null,
@@ -2717,6 +2765,30 @@ export class BillingService {
       const order = marketplace.orders?.find((item: any) => item.buyer?.id === userId || item.seller?.id === userId) || marketplace.orders?.[0];
       const from = order?.buyer || null;
       const to = order?.seller || null;
+      const metadata = marketplace.metadata as Record<string, any> | null;
+
+      const platformFee = order?.platformFeeMinor != null
+        ? Number((order.platformFeeMinor / 100).toFixed(2))
+        : order?.serviceFee != null
+          ? Number(order.serviceFee.toFixed(2))
+          : metadata?.platformFeeMinor != null
+            ? Number((metadata.platformFeeMinor / 100).toFixed(2))
+            : 0;
+
+      const sellerAmount = order?.sellerAmountMinor != null
+        ? Number((order.sellerAmountMinor / 100).toFixed(2))
+        : order?.total != null
+          ? Number(((order.total || 0) - (order.serviceFee || 0)).toFixed(2))
+          : metadata?.sellerAmountMinor != null
+            ? Number((metadata.sellerAmountMinor / 100).toFixed(2))
+            : Number(((marketplace.amount / 100) - platformFee).toFixed(2));
+
+      const totalAmount = order?.total != null
+        ? Number(order.total.toFixed(2))
+        : metadata?.grandTotalMinor != null
+          ? Number((metadata.grandTotalMinor / 100).toFixed(2))
+          : Number((marketplace.amount / 100).toFixed(2));
+
       const localizedSource = normalizedLang === 'en' ? 'SHOP' : translatePaymentType('shop', normalizedLang);
       const localizedStatus = normalizedLang === 'en' ? marketplace.status : translatePaymentStatus(marketplace.status, normalizedLang);
       const localizedType = normalizedLang === 'en' ? 'shop' : translatePaymentType('shop', normalizedLang);
@@ -2727,9 +2799,15 @@ export class BillingService {
         status: localizedStatus,
         type: localizedType,
         currency: marketplace.currency,
-        amount: marketplace.amount / 100,
-        fee: null,
-        total: marketplace.amount / 100,
+        amount: sellerAmount,
+        fee: platformFee,
+        total: totalAmount,
+        platformFee,
+        platformFees: platformFee,
+        sellerAmount,
+        totalAmount,
+        subtotal: order?.subtotal ?? (metadata?.subtotalMinor ? Number((metadata.subtotalMinor / 100).toFixed(2)) : null),
+        shippingCost: order?.shippingCost ?? (metadata?.shippingMinor ? Number((metadata.shippingMinor / 100).toFixed(2)) : null),
         paymentMethod: marketplace.provider,
         createdAt: marketplace.createdAt,
         note: order?.cancellationReason || null,
@@ -2739,11 +2817,90 @@ export class BillingService {
         orderId: marketplace.orderId || order?.id,
         orderNumber: order?.orderNumber || null,
         cartId: marketplace.cartId,
+        items: order?.items || [],
         refundId: order?.refundId || null,
         refundAmount: order?.refundAmount != null ? order.refundAmount : (marketplace.status === 'REFUNDED' ? marketplace.amount / 100 : null),
         refundedAt: order?.refundedAt || null,
         cancellationReason: order?.cancellationReason || null,
         cancelledBy: order?.cancelledBy || null,
+      };
+    }
+
+    const orderDirect = await this.prisma.order.findFirst({
+      where: {
+        AND: [
+          { OR: [{ buyerId: userId }, { sellerId: userId }] },
+          {
+            OR: [
+              ...(normalizedPaymentId ? [{ id: normalizedPaymentId }, { paymentId: normalizedPaymentId }, { orderNumber: normalizedPaymentId }] : []),
+              ...(normalizedTransactionId ? [{ id: normalizedTransactionId }, { stripeChargeId: normalizedTransactionId }, { orderNumber: normalizedTransactionId }] : []),
+            ],
+          },
+        ],
+      },
+      include: {
+        buyer: { select: profileSelect },
+        seller: { select: profileSelect },
+        payment: true,
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            productName: true,
+            productImage: true,
+            quantity: true,
+            price: true,
+            subtotal: true,
+          },
+        },
+      },
+    });
+
+    if (orderDirect) {
+      const from = orderDirect.buyer || null;
+      const to = orderDirect.seller || null;
+      const platformFee = orderDirect.platformFeeMinor != null
+        ? Number((orderDirect.platformFeeMinor / 100).toFixed(2))
+        : Number((orderDirect.serviceFee || 0).toFixed(2));
+      const sellerAmount = orderDirect.sellerAmountMinor != null
+        ? Number((orderDirect.sellerAmountMinor / 100).toFixed(2))
+        : Number(((orderDirect.total || 0) - (orderDirect.serviceFee || 0)).toFixed(2));
+      const totalAmount = Number((orderDirect.total || 0).toFixed(2));
+      const localizedSource = normalizedLang === 'en' ? 'SHOP' : translatePaymentType('shop', normalizedLang);
+      const localizedStatus = normalizedLang === 'en' ? orderDirect.paymentStatus : translatePaymentStatus(orderDirect.paymentStatus, normalizedLang);
+      const localizedType = normalizedLang === 'en' ? 'shop' : translatePaymentType('shop', normalizedLang);
+
+      return {
+        paymentId: orderDirect.paymentId || orderDirect.id,
+        transactionId: orderDirect.payment?.transactionId || orderDirect.stripeChargeId || orderDirect.id,
+        source: localizedSource,
+        status: localizedStatus,
+        type: localizedType,
+        currency: orderDirect.payment?.currency || 'usd',
+        amount: sellerAmount,
+        fee: platformFee,
+        total: totalAmount,
+        platformFee,
+        platformFees: platformFee,
+        sellerAmount,
+        totalAmount,
+        subtotal: orderDirect.subtotal,
+        shippingCost: orderDirect.shippingCost,
+        paymentMethod: orderDirect.paymentMethod || orderDirect.payment?.provider || 'STRIPE',
+        createdAt: orderDirect.createdAt,
+        note: orderDirect.cancellationReason || null,
+        from,
+        to,
+        direction: orderDirect.buyerId === userId ? 'SENT' : 'RECEIVED',
+        orderId: orderDirect.id,
+        orderNumber: orderDirect.orderNumber,
+        cartId: orderDirect.payment?.cartId || null,
+        items: orderDirect.items || [],
+        refundId: orderDirect.refundId || null,
+        refundAmount: orderDirect.refundAmount != null ? orderDirect.refundAmount : null,
+        refundedAt: orderDirect.refundedAt || null,
+        cancellationReason: orderDirect.cancellationReason || null,
+        cancelledBy: orderDirect.cancelledBy || null,
       };
     }
 
