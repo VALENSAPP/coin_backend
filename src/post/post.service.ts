@@ -4790,20 +4790,12 @@ export class PostService {
       const extractedEndDate = dateMatch ? dateMatch[1].trim() : null;
 
       const notifStatus = String(notifData?.status || notifData?.priceUpdateStatus || '').toUpperCase();
-      const isExplicitlyPending =
-        notifStatus === 'PENDING' ||
-        notifData?.isPending === true ||
-        notifData?.isPending === 'true' ||
-        notifData?.autoRenew === 'pending' ||
-        notifData?.isCancelled === 'pending';
-
       let isAccepted =
         notifStatus === 'ACCEPTED' ||
         notifData?.isAccepted === true ||
         notifData?.isAccepted === 'true';
       let isDeclined =
         !isAccepted &&
-        !isExplicitlyPending &&
         (notifStatus === 'CANCELLED' ||
           notifStatus === 'DECLINED' ||
           notifData?.isDeclined === true ||

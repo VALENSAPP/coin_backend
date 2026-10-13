@@ -1012,20 +1012,13 @@ export class NotificationService {
         const sub = creatorId ? fanSubscriptionMap.get(creatorId) : undefined;
         const rawStatus = String(notifData.status || notifData.priceUpdateStatus || '').toUpperCase();
 
-        const isExplicitlyPending =
-          rawStatus === 'PENDING' ||
-          notifData.isPending === true ||
-          notifData.isPending === 'true' ||
-          notifData.autoRenew === 'pending' ||
-          notifData.isCancelled === 'pending';
-
         let isAccepted =
           rawStatus === 'ACCEPTED' ||
           notifData.isAccepted === true ||
           notifData.isAccepted === 'true';
+
         let isDeclined =
           !isAccepted &&
-          !isExplicitlyPending &&
           (rawStatus === 'CANCELLED' ||
             rawStatus === 'DECLINED' ||
             notifData.isDeclined === true ||

@@ -99,7 +99,7 @@ export class BillingController {
     @Req() req: Request,
     @Body() dto: CancelPayFollowingSubscriptionDto,
   ) {
-    const fanUserId = (req.user as any).userId;
+    const fanUserId = (req.user as any)?.userId || (req.user as any)?.sub || (req.user as any)?.id;
     return this.billingService.cancelPayFollowingSubscription(fanUserId, dto);
   }
 
@@ -112,7 +112,7 @@ export class BillingController {
     @Req() req: Request,
     @Body() dto: RespondPriceChangeDto,
   ) {
-    const fanUserId = (req.user as any).userId;
+    const fanUserId = (req.user as any)?.userId || (req.user as any)?.sub || (req.user as any)?.id;
     return this.billingService.respondToPriceChange(fanUserId, dto);
   }
 

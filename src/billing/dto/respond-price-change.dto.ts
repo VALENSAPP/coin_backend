@@ -4,11 +4,13 @@ import { IsEnum, IsOptional, IsString } from 'class-validator';
 export enum PriceChangeResponseAction {
   ACCEPT = 'ACCEPT',
   CANCEL = 'CANCEL',
+  DECLINE = 'DECLINE',
+  DECLINED = 'DECLINED',
 }
 
 export class RespondPriceChangeDto {
   @ApiProperty({
-    description: 'Action to take on the price change: ACCEPT (accept new price and renew) or CANCEL (cancel autopay)',
+    description: 'Action to take on the price change: ACCEPT (accept new price and renew) or CANCEL / DECLINE (decline and stop auto-renew)',
     enum: PriceChangeResponseAction,
     example: PriceChangeResponseAction.ACCEPT,
   })

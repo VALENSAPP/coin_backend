@@ -662,7 +662,36 @@ export class BillingService {
 
     // Check if autopay is already cancelled
     if (sub.cancelAtPeriodEnd && !sub.autoRenew) {
-      throw new BadRequestException('Autopay has already been cancelled for this subscription');
+      await this.updatePriceChangeNotificationStatus(
+        sub.fanUserId,
+        sub.buyUserId,
+        'CANCELLED',
+        false,
+        undefined,
+        sub.id,
+      );
+      const creatorName = sub.buyUser?.displayName || sub.buyUser?.userName || 'creator';
+      return {
+        success: true,
+        message: `Autopay is already cancelled. You will have access to @${creatorName} until ${sub.endDate.toISOString()}.`,
+        subscription: {
+          id: sub.id,
+          fanUserId: sub.fanUserId,
+          creatorId: sub.buyUserId,
+          creatorName,
+          creatorImage: sub.buyUser?.image || null,
+          startDate: sub.startDate,
+          endDate: sub.endDate,
+          status: sub.status,
+          isActive: true,
+          isEnded: false,
+          isCancelled: true,
+          autoRenew: sub.autoRenew,
+          cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
+          stripeSubscriptionId: sub.stripeSubscriptionId,
+          paymentProvider: sub.paymentProvider,
+        },
+      };
     }
 
     // If there is a Stripe subscription associated, update Stripe to cancel at period end
@@ -779,18 +808,43 @@ export class BillingService {
     let creatorId = dto.creatorId;
     let subscriptionId = dto.subscriptionId;
 
-    if (dto.notificationId && (!creatorId || !subscriptionId)) {
+    if (dto.notificationId) {
       const notif = await this.prisma.notification.findUnique({
         where: { id: dto.notificationId },
       });
-      if (notif && notif.userId === fanUserId) {
-        const notifData = notif.data as any;
+      if (notif) {
+        let notifData = notif.data as any;
+        if (typeof notifData === 'string') {
+          try { notifData = JSON.parse(notifData); } catch {}
+        }
         if (notifData?.creatorId && !creatorId) creatorId = notifData.creatorId;
         if (notifData?.subscriptionId && !subscriptionId) subscriptionId = notifData.subscriptionId;
       }
     }
 
-    if (dto.action === PriceChangeResponseAction.CANCEL) {
+    if (subscriptionId && !creatorId) {
+      const sub = await this.prisma.fansSubscriptionBuyData.findUnique({
+        where: { id: subscriptionId },
+      });
+      if (sub) {
+        creatorId = sub.buyUserId;
+      }
+    }
+
+    const isCancelAction =
+      dto.action === PriceChangeResponseAction.CANCEL ||
+      dto.action === PriceChangeResponseAction.DECLINE ||
+      dto.action === PriceChangeResponseAction.DECLINED ||
+      (dto.action as any) === 'CANCEL' ||
+      (dto.action as any) === 'DECLINE' ||
+      (dto.action as any) === 'DECLINED';
+
+    const isAcceptAction =
+      dto.action === PriceChangeResponseAction.ACCEPT ||
+      (dto.action as any) === 'ACCEPT' ||
+      (dto.action as any) === 'ACCEPTED';
+
+    if (isCancelAction) {
       let cancelSub: any = null;
       try {
         const cancelResult = await this.cancelPayFollowingSubscription(fanUserId, {
@@ -843,6 +897,7 @@ export class BillingService {
         'CANCELLED',
         false,
         dto.notificationId,
+        subscriptionId || cancelSub?.id,
       );
       return {
         success: true,
@@ -857,7 +912,7 @@ export class BillingService {
       };
     }
 
-    if (dto.action === PriceChangeResponseAction.ACCEPT) {
+    if (isAcceptAction) {
       const sub = await this.prisma.fansSubscriptionBuyData.findFirst({
         where: {
           fanUserId,
@@ -901,6 +956,7 @@ export class BillingService {
         'ACCEPTED',
         true,
         dto.notificationId,
+        sub.id,
       );
 
       const creatorName = updatedSub.buyUser?.displayName || updatedSub.buyUser?.userName || 'creator';
@@ -932,15 +988,16 @@ export class BillingService {
       };
     }
 
-    throw new BadRequestException('Invalid action. Must be ACCEPT or CANCEL.');
+    throw new BadRequestException('Invalid action. Must be ACCEPT, CANCEL, or DECLINE.');
   }
 
   async updatePriceChangeNotificationStatus(
     fanUserId: string,
-    creatorId: string,
-    status: 'ACCEPTED' | 'CANCELLED' | 'DECLINED' | 'PENDING',
-    autoRenew: boolean,
+    creatorId?: string,
+    status: 'ACCEPTED' | 'CANCELLED' | 'DECLINED' | 'PENDING' = 'CANCELLED',
+    autoRenew: boolean = false,
     notificationId?: string,
+    subscriptionId?: string,
   ) {
     try {
       const where: Prisma.NotificationWhereInput = {
@@ -949,35 +1006,50 @@ export class BillingService {
       };
       const notifs = await this.prisma.notification.findMany({ where });
       for (const notif of notifs) {
-        const data = notif.data as any;
-        if (
-          data &&
-          data.type === 'subscription_price_changed' &&
-          (notificationId || data.creatorId === creatorId)
-        ) {
-          const isAccepted = status === 'ACCEPTED';
-          const isDeclined = status === 'CANCELLED' || status === 'DECLINED';
-          const isPending = status === 'PENDING';
-          const priceUpdateStatus = isAccepted ? 'ACCEPTED' : (isDeclined ? 'DECLINED' : 'PENDING');
-
-          await this.prisma.notification.update({
-            where: { id: notif.id },
-            data: {
-              data: {
-                ...data,
-                status: priceUpdateStatus,
-                priceUpdateStatus,
-                isAccepted,
-                isDeclined,
-                isPending,
-                hasPurchasedNewPrice: isAccepted,
-                isCancelled: isDeclined ? 'true' : 'false',
-                autoRenew: autoRenew ? 'true' : 'false',
-                cancelAtPeriodEnd: isDeclined ? 'true' : 'false',
-              },
-            },
-          });
+        let data = notif.data as any;
+        if (typeof data === 'string') {
+          try {
+            data = JSON.parse(data);
+          } catch {
+            data = {};
+          }
         }
+        if (!data || data.type !== 'subscription_price_changed') {
+          continue;
+        }
+
+        const isMatch =
+          Boolean(notificationId && notif.id === notificationId) ||
+          Boolean(creatorId && data.creatorId === creatorId) ||
+          Boolean(subscriptionId && data.subscriptionId === subscriptionId) ||
+          (!notificationId && !creatorId && !subscriptionId);
+
+        if (!isMatch) {
+          continue;
+        }
+
+        const isAccepted = status === 'ACCEPTED';
+        const isDeclined = status === 'CANCELLED' || status === 'DECLINED';
+        const isPending = status === 'PENDING';
+        const priceUpdateStatus = isAccepted ? 'ACCEPTED' : (isDeclined ? 'DECLINED' : 'PENDING');
+
+        await this.prisma.notification.update({
+          where: { id: notif.id },
+          data: {
+            data: {
+              ...data,
+              status: priceUpdateStatus,
+              priceUpdateStatus,
+              isAccepted,
+              isDeclined,
+              isPending,
+              hasPurchasedNewPrice: isAccepted,
+              isCancelled: isDeclined ? 'true' : 'false',
+              autoRenew: autoRenew ? 'true' : 'false',
+              cancelAtPeriodEnd: isDeclined ? 'true' : 'false',
+            },
+          },
+        });
       }
     } catch (err: any) {
       console.error('[BillingService] Failed to update price change notification status:', err?.message || err);
