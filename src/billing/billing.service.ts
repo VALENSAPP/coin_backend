@@ -791,13 +791,55 @@ export class BillingService {
     }
 
     if (dto.action === PriceChangeResponseAction.CANCEL) {
-      const cancelResult = await this.cancelPayFollowingSubscription(fanUserId, {
-        creatorId,
-        subscriptionId,
-      });
+      let cancelSub: any = null;
+      try {
+        const cancelResult = await this.cancelPayFollowingSubscription(fanUserId, {
+          creatorId,
+          subscriptionId,
+        });
+        cancelSub = cancelResult.subscription;
+      } catch (err: any) {
+        // If autopay was already paused (e.g. paused upon creator price update), retrieve existing subscription record
+        const existingSub = await this.prisma.fansSubscriptionBuyData.findFirst({
+          where: {
+            fanUserId,
+            ...(subscriptionId ? { id: subscriptionId } : {}),
+            ...(creatorId ? { buyUserId: creatorId } : {}),
+          },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            buyUser: {
+              select: { id: true, userName: true, displayName: true, image: true },
+            },
+          },
+        });
+        if (existingSub) {
+          const creatorName = existingSub.buyUser?.displayName || existingSub.buyUser?.userName || 'creator';
+          cancelSub = {
+            id: existingSub.id,
+            fanUserId: existingSub.fanUserId,
+            creatorId: existingSub.buyUserId,
+            creatorName,
+            creatorImage: existingSub.buyUser?.image || null,
+            startDate: existingSub.startDate,
+            endDate: existingSub.endDate,
+            status: existingSub.status,
+            isActive: existingSub.status === 'ACTIVE',
+            isEnded: false,
+            isCancelled: true,
+            autoRenew: false,
+            cancelAtPeriodEnd: true,
+            stripeSubscriptionId: existingSub.stripeSubscriptionId,
+            paymentProvider: existingSub.paymentProvider,
+          };
+        } else {
+          throw err;
+        }
+      }
+
       await this.updatePriceChangeNotificationStatus(
         fanUserId,
-        creatorId || cancelResult.subscription.creatorId,
+        creatorId || cancelSub?.creatorId,
         'CANCELLED',
         false,
         dto.notificationId,
@@ -811,7 +853,7 @@ export class BillingService {
         isPending: false,
         hasPurchasedNewPrice: false,
         message: 'You have declined the new price. Auto-renew has been cancelled and access will expire at period end.',
-        subscription: cancelResult.subscription,
+        subscription: cancelSub,
       };
     }
 

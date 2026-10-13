@@ -1012,28 +1012,35 @@ export class NotificationService {
         const sub = creatorId ? fanSubscriptionMap.get(creatorId) : undefined;
         const rawStatus = String(notifData.status || notifData.priceUpdateStatus || '').toUpperCase();
 
+        const isExplicitlyPending =
+          rawStatus === 'PENDING' ||
+          notifData.isPending === true ||
+          notifData.isPending === 'true' ||
+          notifData.autoRenew === 'pending' ||
+          notifData.isCancelled === 'pending';
+
         let isAccepted =
           rawStatus === 'ACCEPTED' ||
           notifData.isAccepted === true ||
           notifData.isAccepted === 'true';
         let isDeclined =
-          rawStatus === 'CANCELLED' ||
-          rawStatus === 'DECLINED' ||
-          notifData.isDeclined === true ||
-          notifData.isDeclined === 'true';
-        let isPending = !isAccepted && !isDeclined;
+          !isAccepted &&
+          !isExplicitlyPending &&
+          (rawStatus === 'CANCELLED' ||
+            rawStatus === 'DECLINED' ||
+            notifData.isDeclined === true ||
+            notifData.isDeclined === 'true' ||
+            notifData.isCancelled === true ||
+            notifData.isCancelled === 'true');
 
         if (sub && sub.status === 'ACTIVE' && new Date(sub.endDate) > new Date()) {
           if (sub.autoRenew && !sub.cancelAtPeriodEnd) {
             isAccepted = true;
             isDeclined = false;
-            isPending = false;
-          } else if (sub.cancelAtPeriodEnd && !isAccepted) {
-            isAccepted = false;
-            isDeclined = true;
-            isPending = false;
           }
         }
+
+        const isPending = !isAccepted && !isDeclined;
 
         const priceUpdateStatus = isAccepted ? 'ACCEPTED' : (isDeclined ? 'DECLINED' : 'PENDING');
 
