@@ -7,6 +7,8 @@ import { NotificationService } from '../notification/notification.service';
 import { WalletService } from '../wallet/wallet.service';
 import { PagBankService } from '../pagbank/pagbank.service';
 import { PaymentProviderResolver } from '../marketPlace/payment/payment-provider.resolver';
+import { CurrencyConverterService } from '../common/currency/currency-converter.service';
+import { normalizeCountryCode } from '../common/payment-provider.util';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 import { timingSafeEqual } from 'crypto';
@@ -113,29 +115,54 @@ export class TokenPurchaseService {
       throw new BadRequestException('Mission is closed because deadline has passed');
     }
 
+    // Vendor (recipient of 95%) must exist; Connect onboarding is only required to withdraw.
+    await this.ensureVendorExists(dto.vendorId);
+
+    const payerProvider = await this.paymentProviderResolver.resolveProviderForUser(userId);
+    const isPagBank = payerProvider === 'PAGBANK';
+
+    const vendorUser = await this.prisma.user.findUnique({
+      where: { id: dto.vendorId },
+      select: { paymentProvider: true, country: true },
+    });
+    const vendorIsPagBank =
+      (vendorUser?.paymentProvider || '').toUpperCase() === 'PAGBANK' ||
+      (vendorUser?.country && normalizeCountryCode(vendorUser.country) === 'BR');
+
+    const vendorCurrency = vendorIsPagBank ? 'BRL' : 'USD';
+    const payerCurrency = isPagBank ? 'BRL' : 'USD';
+
+    // Calculate donation in vendor currency for goal comparison & donationData
+    let amountInVendorCurrency = dto.amount;
+    if (payerCurrency !== vendorCurrency) {
+      amountInVendorCurrency = await this.currencyConverter.convertMajor(
+        dto.amount,
+        payerCurrency,
+        vendorCurrency,
+      );
+    }
+
     const goalAmount = Number(missionPost.raiseAmount || 0);
     if (goalAmount > 0) {
       const raisedAmount = await this.getCompletedMissionRaisedAmount(dto.postId);
       const raisedCents = Math.round(raisedAmount * 100);
       const goalCents = Math.round(goalAmount * 100);
-      const amountCents = Math.round(dto.amount * 100);
+      const amountVendorCents = Math.round(amountInVendorCurrency * 100);
       const remainingCents = Math.max(0, goalCents - raisedCents);
 
       if (remainingCents <= 0) {
         throw new BadRequestException('Mission goal has already been achieved');
       }
-      if (amountCents > remainingCents) {
+      if (amountVendorCents > remainingCents) {
+        const symbol = vendorCurrency === 'BRL' ? 'R$' : '$';
         throw new BadRequestException(
-          `Donation exceeds remaining goal amount of $${(remainingCents / 100).toFixed(2)}`,
+          `Donation exceeds remaining goal amount of ${symbol}${(remainingCents / 100).toFixed(2)}`,
         );
       }
     }
 
-    // Vendor (recipient of 95%) must exist; Connect onboarding is only required to withdraw.
-    await this.ensureVendorExists(dto.vendorId);
-
     const productName = 'Mission Donation';
-    const productDescription = `Donate $${dto.amount} to mission`;
+    const productDescription = `Donate ${payerCurrency === 'BRL' ? 'R$' : '$'}${dto.amount} to mission`;
     const metadataType = 'MissionDonation';
     const amountCents = Math.round(dto.amount * 100);
     const applicationFeeCents = Math.round(amountCents * this.PLATFORM_FEE_PERCENT);
@@ -144,11 +171,13 @@ export class TokenPurchaseService {
     const platformFees = this.roundCurrency(applicationFeeCents / 100);
     const receiverAmount = this.roundCurrency(receiverAmountCents / 100);
 
-    const payerProvider = await this.paymentProviderResolver.resolveProviderForUser(userId);
-    const isPagBank = payerProvider === 'PAGBANK';
+    // Vendor currency splits for donationData (mission progress)
+    const vendorReceiverAmount = this.roundCurrency(amountInVendorCurrency * (1 - this.PLATFORM_FEE_PERCENT));
+    const vendorPlatformFees = this.roundCurrency(amountInVendorCurrency * this.PLATFORM_FEE_PERCENT);
+    const vendorTotalAmount = this.roundCurrency(amountInVendorCurrency);
 
     this.logger.log(
-      `Creating mission donation for user ${userId}: $${dto.amount} (5% platform, 95% to vendor wallet ${dto.vendorId}) [source=${donorSource}, provider=${payerProvider}]`,
+      `Creating mission donation for user ${userId}: ${payerCurrency} ${dto.amount} (5% platform, 95% to vendor wallet ${dto.vendorId}) [source=${donorSource}, provider=${payerProvider}, vendorCurrency=${vendorCurrency}]`,
     );
 
     if (isPagBank) {
@@ -184,9 +213,10 @@ export class TokenPurchaseService {
           userId,
           vendorId: dto.vendorId,
           postId: dto.postId,
-          amount: receiverAmount,
-          totalAmount,
-          platformFees,
+          amount: vendorReceiverAmount,
+          totalAmount: vendorTotalAmount,
+          platformFees: vendorPlatformFees,
+          currency: vendorCurrency,
           stripeCheckoutSessionId: checkout.orderId,
           stripePaymentIntentId: checkout.orderId,
           status: 'pending',
@@ -198,8 +228,8 @@ export class TokenPurchaseService {
       return {
         id: donationRecord.id,
         amount: donationRecord.amount,
-        totalAmount: donationRecord.totalAmount ?? totalAmount,
-        platformFees: donationRecord.platformFees ?? platformFees,
+        totalAmount: donationRecord.totalAmount ?? vendorTotalAmount,
+        platformFees: donationRecord.platformFees ?? vendorPlatformFees,
         status: donationRecord.status,
         sessionUrl: checkout.checkoutUrl || checkout.pixCopyPaste || checkout.orderId,
         ...(checkout as any),
@@ -270,9 +300,10 @@ export class TokenPurchaseService {
       userId,
       vendorId: dto.vendorId,
       postId: dto.postId,
-      amount: receiverAmount,
-      totalAmount,
-      platformFees,
+      amount: vendorReceiverAmount,
+      totalAmount: vendorTotalAmount,
+      platformFees: vendorPlatformFees,
+      currency: vendorCurrency,
       stripeCheckoutSessionId: session.id,
       status: 'pending',
       action: 'missionDonation',
@@ -286,8 +317,8 @@ export class TokenPurchaseService {
     return {
       id: donationRecord.id,
       amount: donationRecord.amount,
-      totalAmount: donationRecord.totalAmount ?? totalAmount,
-      platformFees: donationRecord.platformFees ?? platformFees,
+      totalAmount: donationRecord.totalAmount ?? vendorTotalAmount,
+      platformFees: donationRecord.platformFees ?? vendorPlatformFees,
       status: donationRecord.status,
       sessionUrl: session.url!,
     };
@@ -301,6 +332,7 @@ export class TokenPurchaseService {
     private readonly walletService: WalletService,
     private readonly pagBankService: PagBankService,
     private readonly paymentProviderResolver: PaymentProviderResolver,
+    private readonly currencyConverter: CurrencyConverterService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -921,19 +953,28 @@ export class TokenPurchaseService {
         if (receiverAmountCents > 0) {
           const seller = await this.prisma.user.findUnique({
             where: { id: completedDonation.vendorId },
-            select: { paymentProvider: true },
+            select: { paymentProvider: true, country: true },
           });
-          const provider =
-            (seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE';
+          const isPagBank =
+            (seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ||
+            (seller?.country && normalizeCountryCode(seller.country) === 'BR');
+          const provider: 'PAGBANK' | 'STRIPE' = isPagBank ? 'PAGBANK' : 'STRIPE';
+          const targetCurrency = provider === 'PAGBANK' ? 'brl' : 'usd';
+
+          const finalMinor =
+            targetCurrency === 'brl'
+              ? await this.currencyConverter.convertMinor(receiverAmountCents, 'usd', 'brl')
+              : receiverAmountCents;
+
           await this.walletService.creditAvailable({
             userId: completedDonation.vendorId,
-            amountMinor: receiverAmountCents,
-            currency: provider === 'PAGBANK' ? 'brl' : 'usd',
+            amountMinor: finalMinor,
+            currency: targetCurrency,
             provider,
             source: 'MISSION_DONATION',
             refType: 'PAYMENT',
             refId: session.id,
-            note: `Mission donation ${completedDonation.id}`,
+            note: `Mission donation ${completedDonation.id}${targetCurrency === 'brl' ? ` (converted from ${receiverAmountCents} USD cents)` : ''}`,
           });
         }
       }

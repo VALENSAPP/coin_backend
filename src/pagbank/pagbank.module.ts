@@ -4,6 +4,7 @@ import { WalletModule } from '../wallet/wallet.module';
 import { NotificationModule } from '../notification/notification.module';
 import { OrderModule } from '../marketPlace/order/order.module';
 import { MarketplaceBattlesModule } from '../marketPlace/marketplace-battles/marketplace-battles.module';
+import { CurrencyModule } from '../common/currency/currency.module';
 import { PagBankClient } from './pagbank.client';
 import { PagBankService } from './pagbank.service';
 import { PagBankWebhookController } from './pagbank.webhook.controller';
@@ -15,6 +16,7 @@ import { PagBankWebhookController } from './pagbank.webhook.controller';
         NotificationModule,
         forwardRef(() => OrderModule),
         forwardRef(() => MarketplaceBattlesModule),
+        CurrencyModule,
     ],
     controllers: [PagBankWebhookController],
     providers: [PagBankClient, PagBankService],

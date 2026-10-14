@@ -8,6 +8,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { PagBankModule } from '../pagbank/pagbank.module';
 import { PaymentModule } from '../marketPlace/payment/payment.module';
+import { CurrencyModule } from '../common/currency/currency.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { PaymentModule } from '../marketPlace/payment/payment.module';
     WalletModule,
     forwardRef(() => PagBankModule),
     PaymentModule,
+    CurrencyModule,
   ],
   controllers: [TokenPurchaseController],
   providers: [TokenPurchaseService],

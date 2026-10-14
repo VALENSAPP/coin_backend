@@ -7,6 +7,8 @@ import { NotificationService } from '../../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { PagBankService } from '../../pagbank/pagbank.service';
+import { CurrencyConverterService } from '../../common/currency/currency-converter.service';
+import { normalizeCountryCode } from '../../common/payment-provider.util';
 import { BuyerOrderListQueryDto } from './dto/buyer-order-list-query.dto';
 import { OrderPayoutService } from './order-payout.service';
 
@@ -24,6 +26,7 @@ export class OrderService {
         private readonly walletService: WalletService,
         @Inject(forwardRef(() => PagBankService))
         private readonly pagBankService: PagBankService,
+        private readonly currencyConverter: CurrencyConverterService,
     ) {
         this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
             apiVersion: '2024-06-20',
@@ -282,20 +285,34 @@ export class OrderService {
                 if (sellerAmountMinor > 0) {
                     const seller = await tx.user.findUnique({
                         where: { id: item.sellerId },
-                        select: { paymentProvider: true },
+                        select: { paymentProvider: true, country: true },
                     });
-                    const provider =
-                        (seller?.paymentProvider || '').toUpperCase() === 'PAGBANK' ? 'PAGBANK' : 'STRIPE';
+                    const isStripe =
+                        (seller?.paymentProvider || '').toUpperCase() === 'STRIPE' ||
+                        (seller?.country && normalizeCountryCode(seller.country) !== 'BR');
+                    const provider: 'PAGBANK' | 'STRIPE' = isStripe ? 'STRIPE' : 'PAGBANK';
+                    const targetCurrency = provider === 'PAGBANK' ? 'brl' : 'usd';
+                    const sourceCurrency = (paymentRecord.currency || targetCurrency).toLowerCase();
+
+                    let finalSellerAmountMinor = Math.round(sellerAmountMinor);
+                    if (sourceCurrency !== targetCurrency) {
+                        finalSellerAmountMinor = await this.currencyConverter.convertMinor(
+                            sellerAmountMinor,
+                            sourceCurrency,
+                            targetCurrency,
+                        );
+                    }
+
                     await this.walletService.creditPending(
                         {
                             userId: item.sellerId,
-                            amountMinor: sellerAmountMinor,
-                            currency: paymentRecord.currency || (provider === 'PAGBANK' ? 'brl' : 'usd'),
+                            amountMinor: finalSellerAmountMinor,
+                            currency: targetCurrency,
                             provider,
                             source: 'MARKETPLACE',
                             refType: 'ORDER',
                             refId: order.id,
-                            note: `Marketplace order ${order.orderNumber}`,
+                            note: `Marketplace order ${order.orderNumber}${sourceCurrency !== targetCurrency ? ` (converted from ${sellerAmountMinor} ${sourceCurrency.toUpperCase()})` : ''}`,
                         },
                         tx,
                     );

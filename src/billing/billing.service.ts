@@ -17,6 +17,7 @@ import {
 import { WalletService } from '../wallet/wallet.service';
 import { PagBankService } from '../pagbank/pagbank.service';
 import { PaymentProviderResolver } from '../marketPlace/payment/payment-provider.resolver';
+import { CurrencyConverterService } from '../common/currency/currency-converter.service';
 import Stripe from 'stripe';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
@@ -38,6 +39,7 @@ export class BillingService {
     private readonly walletService: WalletService,
     private readonly pagBankService: PagBankService,
     private readonly paymentProviderResolver: PaymentProviderResolver,
+    private readonly currencyConverter: CurrencyConverterService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
       apiVersion: '2024-06-20',
@@ -433,7 +435,7 @@ export class BillingService {
     if (!user) throw new BadRequestException('User not found');
   }
 
-  /** Credit seller available wallet (idempotent via payment ref). Uses seller paymentProvider. */
+  /** Credit seller available wallet (idempotent via payment ref). Uses seller paymentProvider and handles FX conversion if currency differs. */
   private async creditSellerAvailableWallet(params: {
     sellerUserId: string;
     amountMinor: number;
@@ -444,15 +446,27 @@ export class BillingService {
   }) {
     if (!params.sellerUserId || params.amountMinor <= 0) return;
     const provider = await this.paymentProviderResolver.resolveProviderForUser(params.sellerUserId);
+    const targetCurrency = provider === 'PAGBANK' ? 'brl' : 'usd';
+    const sourceCurrency = (params.currency || targetCurrency).toLowerCase();
+
+    let amountMinor = Math.round(params.amountMinor);
+    if (sourceCurrency !== targetCurrency) {
+      amountMinor = await this.currencyConverter.convertMinor(
+        amountMinor,
+        sourceCurrency,
+        targetCurrency,
+      );
+    }
+
     await this.walletService.creditAvailable({
       userId: params.sellerUserId,
-      amountMinor: params.amountMinor,
-      currency: params.currency || (provider === 'PAGBANK' ? 'brl' : 'usd'),
+      amountMinor,
+      currency: targetCurrency,
       provider,
       source: params.source,
       refType: 'PAYMENT',
       refId: params.refId,
-      note: params.note,
+      note: `${params.note || 'Seller payment'}${sourceCurrency !== targetCurrency ? ` (converted from ${params.amountMinor} ${sourceCurrency.toUpperCase()})` : ''}`,
     });
   }
 

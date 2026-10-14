@@ -11,6 +11,7 @@ import { PaymentModule } from '../marketPlace/payment/payment.module';
 import { WalletModule } from '../wallet/wallet.module';
 import { PagBankModule } from '../pagbank/pagbank.module';
 import { MailModule } from '../common/mail/mail.module';
+import { CurrencyModule } from '../common/currency/currency.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { MailModule } from '../common/mail/mail.module';
     WalletModule,
     PagBankModule,
     MailModule,
+    CurrencyModule,
   ],
   controllers: [BillingController, BillingWebhookController, WithdrawalPagesController],
   providers: [BillingService],

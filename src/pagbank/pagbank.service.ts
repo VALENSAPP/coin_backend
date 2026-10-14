@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { NotificationService } from '../notification/notification.service';
 import { PagBankClient } from './pagbank.client';
+import { CurrencyConverterService } from '../common/currency/currency-converter.service';
+import { normalizeCountryCode } from '../common/payment-provider.util';
 
 export type PagBankCheckoutResult = {
     provider: 'PAGBANK';
@@ -26,6 +28,7 @@ export class PagBankService {
         private readonly client: PagBankClient,
         private readonly walletService: WalletService,
         private readonly notificationService: NotificationService,
+        private readonly currencyConverter: CurrencyConverterService,
     ) { }
 
     isConfigured(): boolean {
@@ -595,6 +598,41 @@ export class PagBankService {
         }
     }
 
+    private async creditPagBankReceivedAvailableWallet(params: {
+        userId: string;
+        amountMinorBrl: number;
+        source: 'TIP' | 'FOLLOWING' | 'FAN_SUBSCRIPTION' | 'MISSION_DONATION' | 'EBOOK' | 'SHOP_EBOOK' | 'OTHER';
+        refId: string;
+        note?: string;
+    }) {
+        if (!params.userId || params.amountMinorBrl <= 0) return;
+        const receiver = await this.prisma.user.findUnique({
+            where: { id: params.userId },
+            select: { paymentProvider: true, country: true },
+        });
+        const isStripe =
+            (receiver?.paymentProvider || '').toUpperCase() === 'STRIPE' ||
+            (receiver?.country && normalizeCountryCode(receiver.country) !== 'BR');
+        const provider: 'PAGBANK' | 'STRIPE' = isStripe ? 'STRIPE' : 'PAGBANK';
+        const targetCurrency = provider === 'PAGBANK' ? 'brl' : 'usd';
+
+        let finalMinor = Math.round(params.amountMinorBrl);
+        if (targetCurrency === 'usd') {
+            finalMinor = await this.currencyConverter.convertMinor(finalMinor, 'brl', 'usd');
+        }
+
+        await this.walletService.creditAvailable({
+            userId: params.userId,
+            amountMinor: finalMinor,
+            currency: targetCurrency,
+            provider,
+            source: params.source as any,
+            refType: 'PAYMENT',
+            refId: params.refId,
+            note: `${params.note || 'PagBank payment'}${targetCurrency === 'usd' ? ` (converted from ${params.amountMinorBrl} BRL centavos)` : ''}`,
+        });
+    }
+
     /**
      * Process paid order: credit seller wallet / complete pending payment rows.
      */
@@ -689,20 +727,57 @@ export class PagBankService {
                                 ? 'FAN_SUBSCRIPTION'
                                 : payment.forPayment === 'missionDonation'
                                     ? 'MISSION_DONATION'
-                                    : payment.forPayment === 'donation'
-                                        ? 'OTHER'
-                                        : 'OTHER';
+                                    : 'OTHER';
 
-                await this.walletService.creditAvailable({
+                await this.creditPagBankReceivedAvailableWallet({
                     userId: receiverId,
-                    amountMinor: creditMinor,
-                    currency: 'brl',
-                    provider: 'PAGBANK',
-                    source: source as any,
-                    refType: 'PAYMENT',
+                    amountMinorBrl: creditMinor,
+                    source,
                     refId: orderId,
                     note: `PagBank ${payment.forPayment} ${payment.id}`,
                 });
+            }
+
+            if (payment.forPayment === 'following' && payment.userId && receiverId) {
+                const periodStart = payment.periodStart || new Date();
+                const periodEnd =
+                    payment.periodEnd ||
+                    (() => {
+                        const d = new Date(periodStart);
+                        d.setMonth(d.getMonth() + 1);
+                        return d;
+                    })();
+
+                const existingFanSub = await this.prisma.fansSubscriptionBuyData.findFirst({
+                    where: {
+                        fanUserId: payment.userId,
+                        buyUserId: receiverId,
+                    },
+                });
+                if (existingFanSub) {
+                    await this.prisma.fansSubscriptionBuyData.update({
+                        where: { id: existingFanSub.id },
+                        data: {
+                            startDate: periodStart,
+                            endDate: periodEnd,
+                            status: 'ACTIVE',
+                            priceAtSubscription: payment.totalAmount || payment.amount,
+                            paymentProvider: 'PAGBANK',
+                        },
+                    });
+                } else {
+                    await this.prisma.fansSubscriptionBuyData.create({
+                        data: {
+                            fanUserId: payment.userId,
+                            buyUserId: receiverId,
+                            startDate: periodStart,
+                            endDate: periodEnd,
+                            status: 'ACTIVE',
+                            priceAtSubscription: payment.totalAmount || payment.amount,
+                            paymentProvider: 'PAGBANK',
+                        },
+                    });
+                }
             }
 
             if (payment.forPayment === 'buyHit') {
@@ -866,13 +941,10 @@ export class PagBankService {
                 data: { status: 'SUCCEEDED', paymentIntentId: orderId, provider: 'PAGBANK' },
             });
             if (ebook.sellerAmount > 0) {
-                await this.walletService.creditAvailable({
+                await this.creditPagBankReceivedAvailableWallet({
                     userId: ebook.sellerId,
-                    amountMinor: ebook.sellerAmount,
-                    currency: 'brl',
-                    provider: 'PAGBANK',
+                    amountMinorBrl: ebook.sellerAmount,
                     source: 'EBOOK',
-                    refType: 'PAYMENT',
                     refId: ebook.id,
                     note: `PagBank ebook ${ebook.id}`,
                 });
@@ -892,13 +964,10 @@ export class PagBankService {
                 data: { status: 'SUCCEEDED', paymentIntentId: orderId, provider: 'PAGBANK' },
             });
             if (shopEbook.sellerAmount > 0) {
-                await this.walletService.creditAvailable({
+                await this.creditPagBankReceivedAvailableWallet({
                     userId: shopEbook.sellerId,
-                    amountMinor: shopEbook.sellerAmount,
-                    currency: 'brl',
-                    provider: 'PAGBANK',
+                    amountMinorBrl: shopEbook.sellerAmount,
                     source: 'SHOP_EBOOK',
-                    refType: 'PAYMENT',
                     refId: shopEbook.id,
                     note: `PagBank shop ebook ${shopEbook.id}`,
                 });
