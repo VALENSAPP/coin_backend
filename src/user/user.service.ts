@@ -2118,11 +2118,18 @@ export class UserService {
       select: { profile: true },
     });
 
+    const maxPurchasedHits = 5;
+    const canBuyHits = purchasedHitsLeft < maxPurchasedHits;
+    const maxHitsUserCanBuy = Math.max(0, maxPurchasedHits - purchasedHitsLeft);
+
     return {
       hitLeft,
       subscriptionHitsLeft,
       subscriptionHitsExpiresAt,
       purchasedHitsLeft,
+      maxPurchasedHits,
+      canBuyHits,
+      maxHitsUserCanBuy,
       postCount,
       profile: user?.profile || null,
     };

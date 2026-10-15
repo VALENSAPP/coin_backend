@@ -24,6 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 const PLATFORM_POINTS_HIT_COST = 1000;
 const PLATFORM_POINTS_HIT_COUNT = 1;
+export const MAX_PURCHASED_HITS = 5;
 const MIN_WITHDRAWAL_MAJOR = 10;
 
 @Injectable()
@@ -4322,6 +4323,26 @@ export class BillingService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new BadRequestException('User not found');
     if (!hitCount || hitCount <= 0) throw new BadRequestException('hitCount must be greater than 0');
+    if (hitCount > MAX_PURCHASED_HITS) {
+      throw new BadRequestException(`You cannot buy more than ${MAX_PURCHASED_HITS} hits at a time`);
+    }
+
+    const postHit = await this.prisma.postHit.findFirst({ where: { userId } });
+    const currentPurchasedHits = postHit?.purchasedHitsLeft || 0;
+
+    if (currentPurchasedHits >= MAX_PURCHASED_HITS) {
+      throw new BadRequestException(
+        `You have already reached the maximum limit of ${MAX_PURCHASED_HITS} purchased hits. Please use your existing hits before buying more.`
+      );
+    }
+
+    if (currentPurchasedHits + hitCount > MAX_PURCHASED_HITS) {
+      const allowedHits = MAX_PURCHASED_HITS - currentPurchasedHits;
+      throw new BadRequestException(
+        `You currently have ${currentPurchasedHits} purchased hit(s). You can only buy up to ${allowedHits} more hit(s) to stay within the maximum limit of ${MAX_PURCHASED_HITS}.`
+      );
+    }
+
     const amount = Math.round(hitCount * (Number(process.env.CREDIT_PRICE) * 100));
     const provider = await this.paymentProviderResolver.resolveProviderForUser(userId);
 
@@ -4762,6 +4783,18 @@ export class BillingService {
             );
           }
 
+          const existingPostHit = await tx.postHit.findFirst({
+            where: { userId },
+            select: { id: true, hitLeft: true, purchasedHitsLeft: true, subscriptionHitsLeft: true, subscriptionHitsExpiresAt: true },
+          });
+
+          const currentPurchasedHits = existingPostHit?.purchasedHitsLeft || 0;
+          if (currentPurchasedHits >= MAX_PURCHASED_HITS) {
+            throw new BadRequestException(
+              `You have already reached the maximum limit of ${MAX_PURCHASED_HITS} purchased hits. Please use your existing hits before redeeming more.`
+            );
+          }
+
           const updatedUser = await tx.user.update({
             where: { id: userId },
             data: {
@@ -4770,11 +4803,6 @@ export class BillingService {
             select: {
               totalPlatformPoints: true,
             },
-          });
-
-          const existingPostHit = await tx.postHit.findFirst({
-            where: { userId },
-            select: { id: true, hitLeft: true, purchasedHitsLeft: true, subscriptionHitsLeft: true, subscriptionHitsExpiresAt: true },
           });
 
           let hitLeft: number;
@@ -4787,12 +4815,15 @@ export class BillingService {
               existingPostHit.subscriptionHitsExpiresAt > now;
             const activeSubHits = isSubActive ? (existingPostHit.subscriptionHitsLeft || 0) : 0;
             subscriptionHitsLeft = activeSubHits;
-            const newPurchasedHits = (existingPostHit.purchasedHitsLeft || 0) + PLATFORM_POINTS_HIT_COUNT;
+            const newPurchasedHits = Math.min(
+              MAX_PURCHASED_HITS,
+              (existingPostHit.purchasedHitsLeft || 0) + PLATFORM_POINTS_HIT_COUNT,
+            );
             const newTotalHitLeft = activeSubHits + newPurchasedHits;
             const updatedPostHit = await tx.postHit.update({
               where: { id: existingPostHit.id },
               data: {
-                purchasedHitsLeft: { increment: PLATFORM_POINTS_HIT_COUNT },
+                purchasedHitsLeft: newPurchasedHits,
                 hitLeft: newTotalHitLeft,
               },
               select: { hitLeft: true, purchasedHitsLeft: true },
@@ -4800,13 +4831,14 @@ export class BillingService {
             hitLeft = updatedPostHit.hitLeft;
             purchasedHitsLeft = updatedPostHit.purchasedHitsLeft;
           } else {
+            const newPurchasedHits = Math.min(MAX_PURCHASED_HITS, PLATFORM_POINTS_HIT_COUNT);
             const createdPostHit = await tx.postHit.create({
               data: {
                 userId,
-                purchasedHitsLeft: PLATFORM_POINTS_HIT_COUNT,
+                purchasedHitsLeft: newPurchasedHits,
                 subscriptionHitsLeft: 0,
                 subscriptionHitsExpiresAt: null,
-                hitLeft: PLATFORM_POINTS_HIT_COUNT,
+                hitLeft: newPurchasedHits,
               },
               select: { hitLeft: true, purchasedHitsLeft: true },
             });
@@ -4898,25 +4930,25 @@ export class BillingService {
         existingPostHit.subscriptionHitsExpiresAt &&
         existingPostHit.subscriptionHitsExpiresAt > now;
       const activeSubHits = isSubActive ? (existingPostHit.subscriptionHitsLeft || 0) : 0;
-      const newPurchasedHits = (existingPostHit.purchasedHitsLeft || 0) + hitCount;
+      const currentPurchased = existingPostHit.purchasedHitsLeft || 0;
+      const newPurchasedHits = Math.min(MAX_PURCHASED_HITS, currentPurchased + hitCount);
       const newTotalHitLeft = activeSubHits + newPurchasedHits;
       await this.prisma.postHit.update({
         where: { id: existingPostHit.id },
         data: {
-          purchasedHitsLeft: {
-            increment: hitCount,
-          },
+          purchasedHitsLeft: newPurchasedHits,
           hitLeft: newTotalHitLeft,
         },
       });
     } else {
+      const newPurchasedHits = Math.min(MAX_PURCHASED_HITS, hitCount);
       await this.prisma.postHit.create({
         data: {
           userId: userId,
-          purchasedHitsLeft: hitCount,
+          purchasedHitsLeft: newPurchasedHits,
           subscriptionHitsLeft: 0,
           subscriptionHitsExpiresAt: null,
-          hitLeft: hitCount,
+          hitLeft: newPurchasedHits,
         },
       });
     }

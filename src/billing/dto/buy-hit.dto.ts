@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumber, IsPositive, IsUUID } from 'class-validator';
+import { IsNumber, IsPositive, IsUUID, Max, Min } from 'class-validator';
 
 export class BuyHitDto {
   @ApiProperty({
@@ -13,12 +13,14 @@ export class BuyHitDto {
   amount: number;
 
   @ApiProperty({
-    description: 'Number of hits to purchase',
-    example: 10,
+    description: 'Number of hits to purchase (maximum 5 hits)',
+    example: 5,
     type: Number
   })
   @IsNumber()
   @IsPositive()
+  @Min(1)
+  @Max(5)
   hitCount: number;
 
   @ApiProperty({
