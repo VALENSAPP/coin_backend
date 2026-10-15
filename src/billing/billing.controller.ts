@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException, Query, Param } from '@nestjs/common';
+import { Controller, Get, Post, Req, UseGuards, Body, BadRequestException, Query, Param, ValidationPipe } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiBody, ApiQuery, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -76,7 +76,10 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session for recurring or one-time creator following subscription' })
   @ApiBody({ type: PayFollowingDto })
-  async createOneTimePayment(@Req() req: Request, @Body() dto: PayFollowingDto) {
+  async createOneTimePayment(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: PayFollowingDto,
+  ) {
     const payerUserId = (req.user as any).userId;
     if (dto.contentUserId === payerUserId) {
       throw new BadRequestException('You cannot pay yourself');
@@ -97,7 +100,7 @@ export class BillingController {
   @ApiBody({ type: CancelPayFollowingSubscriptionDto })
   async cancelPayFollowingSubscription(
     @Req() req: Request,
-    @Body() dto: CancelPayFollowingSubscriptionDto,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: CancelPayFollowingSubscriptionDto,
   ) {
     const fanUserId = (req.user as any)?.userId || (req.user as any)?.sub || (req.user as any)?.id;
     return this.billingService.cancelPayFollowingSubscription(fanUserId, dto);
@@ -110,7 +113,7 @@ export class BillingController {
   @ApiBody({ type: RespondPriceChangeDto })
   async respondToPriceChange(
     @Req() req: Request,
-    @Body() dto: RespondPriceChangeDto,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: RespondPriceChangeDto,
   ) {
     const fanUserId = (req.user as any)?.userId || (req.user as any)?.sub || (req.user as any)?.id;
     return this.billingService.respondToPriceChange(fanUserId, dto);
@@ -121,7 +124,10 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session to send a tip (100% to receiver)' })
   @ApiBody({ type: SendTipDto })
-  async sendTip(@Req() req: Request, @Body() dto: SendTipDto) {
+  async sendTip(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: SendTipDto,
+  ) {
     const senderUserId = (req.user as any).userId;
     if (dto.receiverUserId === senderUserId) {
       throw new BadRequestException('You cannot tip yourself');
@@ -139,7 +145,10 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session for ebook payment (10% platform, 90% seller)' })
   @ApiBody({ type: CreateEbookPaymentDto })
-  async createEbookPayment(@Req() req: Request, @Body() dto: CreateEbookPaymentDto) {
+  async createEbookPayment(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: CreateEbookPaymentDto,
+  ) {
     const buyerUserId = (req.user as any).userId;
     if (dto.targetUserId === buyerUserId) {
       throw new BadRequestException('You cannot buy your own ebook');
@@ -158,7 +167,10 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session for shop ebook payment (10% platform, 90% seller)' })
   @ApiBody({ type: CreateShopEbookPaymentDto })
-  async createShopEbookPayment(@Req() req: Request, @Body() dto: CreateShopEbookPaymentDto) {
+  async createShopEbookPayment(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: CreateShopEbookPaymentDto,
+  ) {
     const buyerUserId = (req.user as any).userId;
     const session = await this.billingService.createShopEbookCheckoutSession(
       buyerUserId,
@@ -418,7 +430,10 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session for buying hits' })
   @ApiBody({ type: BuyHitDto })
-  async buyHit(@Req() req: Request, @Body() dto: BuyHitDto) {
+  async buyHit(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: BuyHitDto,
+  ) {
     const userId = (req.user as any).userId;
 
     // Validate that the userId in the request matches the authenticated user
@@ -460,7 +475,10 @@ export class BillingController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create Stripe Checkout Session for buying fan subscription' })
   @ApiBody({ type: BuyFanSubscriptionDto })
-  async buyFanSubscription(@Req() req: Request, @Body() dto: BuyFanSubscriptionDto) {
+  async buyFanSubscription(
+    @Req() req: Request,
+    @Body(new ValidationPipe({ whitelist: true, transform: true })) dto: BuyFanSubscriptionDto,
+  ) {
     const userId = (req.user as any).userId;
 
     if (!userId) {

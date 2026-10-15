@@ -786,9 +786,9 @@ model Payment {
   id                    String    @id @default(uuid())
   userId                String
   receiverId            String?
-  amount                Int
-  platformFee           Int?
-  totalAmount           Int?
+  amount                Float
+  platformFee           Float?
+  totalAmount           Float?
   currency              String
   status                String
   forPayment            String    @default("subscription") // "subscription" or "following"
