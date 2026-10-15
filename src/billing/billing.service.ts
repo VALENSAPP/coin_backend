@@ -215,11 +215,11 @@ export class BillingService {
   }
 
   private getPayFollowingAmountSplit(amountCents: number) {
-    const totalAmount = Math.round(amountCents / 100);
+    const totalAmount = Number((amountCents / 100).toFixed(2));
     const platformFeeCents = Math.round(amountCents * this.PAY_FOLLOWING_PLATFORM_FEE_PERCENT);
     const receiverAmountCents = Math.max(0, amountCents - platformFeeCents);
-    const platformFee = Math.round(platformFeeCents / 100);
-    const receiverAmount = Math.max(0, totalAmount - platformFee);
+    const platformFee = Number((platformFeeCents / 100).toFixed(2));
+    const receiverAmount = Number((receiverAmountCents / 100).toFixed(2));
 
     return {
       totalAmount,
@@ -231,11 +231,11 @@ export class BillingService {
   }
 
   private getTipAmountSplit(amountCents: number) {
-    const totalAmount = Math.round(amountCents / 100);
+    const totalAmount = Number((amountCents / 100).toFixed(2));
     const platformFeeCents = 0;
     const receiverAmountCents = Math.max(0, amountCents - platformFeeCents);
     const platformFee = 0;
-    const receiverAmount = Math.max(0, totalAmount - platformFee);
+    const receiverAmount = totalAmount;
 
     return {
       totalAmount,
@@ -1259,6 +1259,7 @@ export class BillingService {
         format: true,
         deletedAt: true,
         isDelete: true,
+        amount: true,
       },
     });
 
@@ -1274,7 +1275,15 @@ export class BillingService {
       throw new BadRequestException('targetUserId does not own this ebook post');
     }
 
-    const amountCents = Math.round(amount * 100);
+    const resolvedAmount = (amount !== undefined && amount !== null && !isNaN(Number(amount)) && Number(amount) > 0)
+      ? Number(amount)
+      : (post.amount ? Number(post.amount) : null);
+
+    if (!resolvedAmount || resolvedAmount <= 0 || isNaN(resolvedAmount)) {
+      throw new BadRequestException('Valid payment amount is required');
+    }
+
+    const amountCents = Math.round(resolvedAmount * 100);
     const {
       platformFeeCents,
       receiverAmountCents,
@@ -1298,7 +1307,7 @@ export class BillingService {
           buyerUserId,
           targetUserId,
           postId,
-          amount,
+          amount: resolvedAmount,
           totalAmount,
           platformFee,
           receiverAmount,
@@ -4418,8 +4427,8 @@ export class BillingService {
       const payment = await this.prisma.payment.create({
         data: {
           userId,
-          amount: Math.round(amount / 100),
-          totalAmount: Math.round(amount / 100),
+          amount: Number((amount / 100).toFixed(2)),
+          totalAmount: Number((amount / 100).toFixed(2)),
           currency: 'BRL',
           status: 'pending',
           forPayment: 'fanSubscription',
