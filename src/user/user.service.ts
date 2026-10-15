@@ -21,7 +21,7 @@ import { TOTPUtil } from '../common/totp.util';
 import axios from 'axios';
 import { KycService } from '../kyc/kyc.service';
 import { NotificationService } from '../notification/notification.service';
-import { normalizeLanguage } from '../notification/notification.translator';
+import { normalizeLanguage, translateActivity } from '../notification/notification.translator';
 import { MailService } from '../common/mail/mail.service';
 import Stripe from 'stripe';
 import { SendPlatformPointsDto, GetPointTransfersDto, PointTransferFilterType } from './dto/send-points.dto';
@@ -2281,7 +2281,13 @@ export class UserService {
   async recentActivities(
     userId: string,
     type?: 'all' | 'following' | 'unfollowing' | 'drops' | 'flips' | 'purchase' | 'sell',
+    lang?: string,
+    deviceId?: string,
   ) {
+    const targetLang = lang
+      ? normalizeLanguage(lang)
+      : await this.notificationService.getUserLanguage(userId, deviceId);
+
     const normalizedType = !type || type === 'purchase' || type === 'sell' ? 'all' : type;
     const includeFollowing = normalizedType === 'all' || normalizedType === 'following';
     const includeUnfollowing = normalizedType === 'all' || normalizedType === 'unfollowing';
@@ -2290,6 +2296,7 @@ export class UserService {
 
     const result: any = {
       filter: normalizedType,
+      language: targetLang,
       following: [],
       unfollowing: [],
       drops: [],
@@ -2318,15 +2325,22 @@ export class UserService {
         },
       });
 
-      result.following = following.map(f => ({
-        activityType: 'following',
-        followingId: f.followingId,
-        followerId: f.followerId,
-        actorId: f.followerId,
-        actorName: f.follower.displayName || f.follower.userName || 'Someone',
-        actorImage: f.follower.image,
-        createdAt: f.createdAt,
-      }));
+      result.following = following.map(f => {
+        const actorName = f.follower.displayName || f.follower.userName || 'Someone';
+        const localized = translateActivity('following', undefined, actorName, targetLang);
+        return {
+          activityType: 'following',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
+          followingId: f.followingId,
+          followerId: f.followerId,
+          actorId: f.followerId,
+          actorName,
+          actorImage: f.follower.image,
+          createdAt: f.createdAt,
+        };
+      });
     }
 
     if (includeUnfollowing) {
@@ -2365,10 +2379,15 @@ export class UserService {
 
       result.unfollowing = unfollowData.map((n) => {
         const actor = n.followerId ? followerMap.get(n.followerId) : null;
+        const actorName = actor?.displayName || actor?.userName || 'Someone';
+        const localized = translateActivity('unfollowing', undefined, actorName, targetLang);
         return {
           activityType: 'unfollowing',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
           actorId: n.followerId,
-          actorName: actor?.displayName || actor?.userName || 'Someone',
+          actorName,
           actorImage: actor?.image,
           createdAt: n.createdAt,
         };
@@ -2399,15 +2418,22 @@ export class UserService {
         },
       });
 
-      result.drops = storyViews.map((s) => ({
-        activityType: 'drops',
-        storyId: s.storyId,
-        storyCaption: s.story?.caption,
-        actorId: s.viewerId,
-        actorName: s.viewer.displayName || s.viewer.userName || 'Someone',
-        actorImage: s.viewer.image,
-        createdAt: s.createdAt,
-      }));
+      result.drops = storyViews.map((s) => {
+        const actorName = s.viewer.displayName || s.viewer.userName || 'Someone';
+        const localized = translateActivity('drops', undefined, actorName, targetLang);
+        return {
+          activityType: 'drops',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
+          storyId: s.storyId,
+          storyCaption: s.story?.caption,
+          actorId: s.viewerId,
+          actorName,
+          actorImage: s.viewer.image,
+          createdAt: s.createdAt,
+        };
+      });
     }
 
     if (includeFlips) {
@@ -2541,40 +2567,59 @@ export class UserService {
       const reelPostMap = new Map(reelPosts.map((p) => [p.id, p]));
       const mentionerMap = new Map(mentioners.map((u) => [u.id, u]));
 
-      const likeActivities = reelLikes.map((like) => ({
-        activityType: 'flips',
-        interactionType: 'like',
-        postId: like.postId,
-        postCaption: like.post.caption || like.post.text,
-        actorId: like.userId,
-        actorName: like.user.displayName || like.user.userName || 'Someone',
-        actorImage: like.user.image,
-        createdAt: like.createdAt,
-      }));
+      const likeActivities = reelLikes.map((like) => {
+        const actorName = like.user.displayName || like.user.userName || 'Someone';
+        const localized = translateActivity('flips', 'like', actorName, targetLang);
+        return {
+          activityType: 'flips',
+          interactionType: 'like',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
+          postId: like.postId,
+          postCaption: like.post.caption || like.post.text,
+          actorId: like.userId,
+          actorName,
+          actorImage: like.user.image,
+          createdAt: like.createdAt,
+        };
+      });
 
-      const commentActivities = reelComments.map((comment) => ({
-        activityType: 'flips',
-        interactionType: 'comment',
-        postId: comment.postId,
-        postCaption: comment.post.caption || comment.post.text,
-        actorId: comment.userId,
-        actorName: comment.user.displayName || comment.user.userName || 'Someone',
-        actorImage: comment.user.image,
-        createdAt: comment.createdAt,
-      }));
+      const commentActivities = reelComments.map((comment) => {
+        const actorName = comment.user.displayName || comment.user.userName || 'Someone';
+        const localized = translateActivity('flips', 'comment', actorName, targetLang);
+        return {
+          activityType: 'flips',
+          interactionType: 'comment',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
+          postId: comment.postId,
+          postCaption: comment.post.caption || comment.post.text,
+          actorId: comment.userId,
+          actorName,
+          actorImage: comment.user.image,
+          createdAt: comment.createdAt,
+        };
+      });
 
       const mentionActivities = mentionEntries
-        .filter((entry) => !!entry.postId && reelPostMap.has(entry.postId))
+        .filter((entry): entry is typeof entry & { postId: string } => !!entry.postId && reelPostMap.has(entry.postId))
         .map((entry) => {
           const actor = entry.mentionerId ? mentionerMap.get(entry.mentionerId) : null;
           const reelPost = entry.postId ? reelPostMap.get(entry.postId) : null;
+          const actorName = actor?.displayName || actor?.userName || 'Someone';
+          const localized = translateActivity('flips', 'mention', actorName, targetLang);
           return {
             activityType: 'flips',
             interactionType: 'mention',
+            title: localized.title,
+            body: localized.body,
+            message: localized.message,
             postId: entry.postId,
             postCaption: reelPost?.caption || reelPost?.text,
             actorId: entry.mentionerId,
-            actorName: actor?.displayName || actor?.userName || 'Someone',
+            actorName,
             actorImage: actor?.image,
             createdAt: entry.createdAt,
           };
@@ -2595,6 +2640,7 @@ export class UserService {
     if (normalizedType === 'all') {
       return {
         filter: normalizedType,
+        language: targetLang,
         activities: mixedActivities,
       };
     }

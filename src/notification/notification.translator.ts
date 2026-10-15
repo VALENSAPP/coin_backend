@@ -3772,3 +3772,105 @@ export function localizeNotification<T extends { title: string; body: string; da
     body: translated.body,
   };
 }
+
+// ============================================================================
+// 11. RECENT ACTIVITIES TRANSLATOR
+// ============================================================================
+export interface TranslatedActivity {
+  title: string;
+  body: string;
+  message: string;
+}
+
+export function translateActivity(
+  activityType: 'following' | 'unfollowing' | 'drops' | 'flips' | string,
+  interactionType: 'like' | 'comment' | 'mention' | string | undefined,
+  actorName: string,
+  targetLang?: string | null,
+): TranslatedActivity {
+  const lang = normalizeLanguage(targetLang);
+  const name = actorName || 'Someone';
+
+  switch (activityType) {
+    case 'following': {
+      const translations: Record<string, { title: string; message: string }> = {
+        en: { title: 'New Follower', message: `${name} started following you.` },
+        es: { title: 'Nuevo Seguidor', message: `${name} comenzó a seguirte.` },
+        fr: { title: 'Nouveau Abonné', message: `${name} a commencé à vous suivre.` },
+        it: { title: 'Nuovo Follower', message: `${name} ha iniziato a seguirti.` },
+        pt: { title: 'Novo Seguidor', message: `${name} começou a seguir você.` },
+        hi: { title: 'नया फ़ॉलोअर', message: `${name} ने आपको फ़ॉलो करना शुरू किया।` },
+      };
+      const t = translations[lang] || translations.en;
+      return { title: t.title, body: t.message, message: t.message };
+    }
+    case 'unfollowing': {
+      const translations: Record<string, { title: string; message: string }> = {
+        en: { title: 'Follower Unfollowed', message: `${name} unfollowed you.` },
+        es: { title: 'Seguidor te dejó de seguir', message: `${name} dejó de seguirte.` },
+        fr: { title: 'Abonné désabonné', message: `${name} ne vous suit plus.` },
+        it: { title: 'Non ti segue più', message: `${name} ha smesso di seguirti.` },
+        pt: { title: 'Seguidor deixou de seguir', message: `${name} deixou de seguir você.` },
+        hi: { title: 'फ़ॉलोअर ने अनफ़ॉलो किया', message: `${name} ने आपको अनफ़ॉलो कर दिया।` },
+      };
+      const t = translations[lang] || translations.en;
+      return { title: t.title, body: t.message, message: t.message };
+    }
+    case 'drops': {
+      const translations: Record<string, { title: string; message: string }> = {
+        en: { title: 'Story Viewed', message: `${name} viewed your story.` },
+        es: { title: 'Historia vista', message: `${name} vio tu historia.` },
+        fr: { title: 'Story vue', message: `${name} a regardé votre story.` },
+        it: { title: 'Storia visualizzata', message: `${name} ha visualizzato la tua storia.` },
+        pt: { title: 'Story Visualizado', message: `${name} visualizou seu story.` },
+        hi: { title: 'स्टोरी देखी गई', message: `${name} ने आपकी स्टोरी देखी।` },
+      };
+      const t = translations[lang] || translations.en;
+      return { title: t.title, body: t.message, message: t.message };
+    }
+    case 'flips': {
+      if (interactionType === 'like') {
+        const translations: Record<string, { title: string; message: string }> = {
+          en: { title: 'Post Liked', message: `${name} liked your post.` },
+          es: { title: 'Publicación que te gusta', message: `A ${name} le gustó tu publicación.` },
+          fr: { title: 'Publication aimée', message: `${name} a aimé votre publication.` },
+          it: { title: 'Mi piace al post', message: `A ${name} piace il tuo post.` },
+          pt: { title: 'Publicação Curtida', message: `${name} curtiu sua publicação.` },
+          hi: { title: 'पोस्ट पसंद आई', message: `${name} ने आपकी पोस्ट को पसंद किया।` },
+        };
+        const t = translations[lang] || translations.en;
+        return { title: t.title, body: t.message, message: t.message };
+      }
+      if (interactionType === 'comment') {
+        const translations: Record<string, { title: string; message: string }> = {
+          en: { title: 'New Comment', message: `${name} commented on your post.` },
+          es: { title: 'Nuevo Comentario', message: `${name} comentó en tu publicación.` },
+          fr: { title: 'Nouveau Commentaire', message: `${name} a commenté votre publication.` },
+          it: { title: 'Nuovo Commento', message: `${name} ha commentato il tuo post.` },
+          pt: { title: 'Novo Comentário', message: `${name} comentou na sua publicação.` },
+          hi: { title: 'नया कमेंट', message: `${name} ने आपकी पोस्ट पर कमेंट किया।` },
+        };
+        const t = translations[lang] || translations.en;
+        return { title: t.title, body: t.message, message: t.message };
+      }
+      if (interactionType === 'mention') {
+        const translations: Record<string, { title: string; message: string }> = {
+          en: { title: 'You were mentioned!', message: `${name} mentioned you in a post.` },
+          es: { title: '¡Fuiste mencionado!', message: `${name} te mencionó en una publicación.` },
+          fr: { title: 'Vous avez été mentionné !', message: `${name} vous a mentionné dans une publication.` },
+          it: { title: 'Sei stato menzionato!', message: `${name} ti ha menzionato in un post.` },
+          pt: { title: 'Você foi mencionado!', message: `${name} mencionou você em uma publicação.` },
+          hi: { title: 'आपको मेंशन किया गया!', message: `${name} ने आपको एक पोस्ट में मेंशन किया।` },
+        };
+        const t = translations[lang] || translations.en;
+        return { title: t.title, body: t.message, message: t.message };
+      }
+      const defaultEn = { title: 'Activity', message: `${name} interacted with your post.` };
+      return { title: defaultEn.title, body: defaultEn.message, message: defaultEn.message };
+    }
+    default: {
+      const defaultEn = { title: 'Activity', message: `${name} performed an action.` };
+      return { title: defaultEn.title, body: defaultEn.message, message: defaultEn.message };
+    }
+  }
+}

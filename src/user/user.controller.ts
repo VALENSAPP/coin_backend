@@ -814,11 +814,15 @@ export class UserController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get recent activities for the authenticated user' })
   @ApiQuery({ name: 'type', type: String, required: false, description: 'Filter by activity type: all, following, unfollowing, drops, flips' })
+  @ApiQuery({ name: 'lang', required: false, type: String, enum: ['en', 'pt', 'it', 'es', 'fr', 'hi'], description: 'Override preferred language' })
+  @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
   async getRecentActivities(@Req() req: Request, @Query() query: RecentActivitiesDto) {
     const userId = (req.user as any).userId;
-    const activities = await this.userService.recentActivities(userId, query.type);
+    const deviceId = query.deviceId || (req?.headers as any)?.['x-device-id'] || undefined;
+    const activities = await this.userService.recentActivities(userId, query.type, query.lang, deviceId);
     return { activities };
   }
+
 
   @Get('suggested-users')
   @UseGuards(AuthGuard('jwt'))
