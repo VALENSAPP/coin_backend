@@ -289,17 +289,13 @@ export class PaymentService {
         }
 
         if (requiresShippingAddress && !address) {
-            throw new BadRequestException('Shipping address is required for ship_items products');
-        }
-
-        if (!address) {
             address = await this.prisma.userAddrees.findFirst({
                 where: { userId },
                 orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
                 select: { id: true },
             });
             if (!address) {
-                throw new BadRequestException('No saved address found. Add an address to continue checkout');
+                throw new BadRequestException('Shipping address is required for ship_items products. Please add an address to continue checkout');
             }
         }
 
@@ -345,7 +341,7 @@ export class PaymentService {
                     sellerId: cart.sellerId,
                     sellerStripeAccountId: seller.stripeAccountId,
                     closetId: cart.closetId,
-                    addressId: address.id,
+                    addressId: address?.id ?? null,
                     subtotalMinor,
                     shippingMinor,
                     platformFeeMinor,
@@ -426,7 +422,7 @@ export class PaymentService {
                     sellerId: cart.sellerId,
                     sellerProfile: seller.profile || 'user',
                     closetId: cart.closetId,
-                    addressId: address.id,
+                    ...(address?.id ? { addressId: address.id } : {}),
                 },
                 payment_intent_data: {
                     transfer_group: payment.id,
@@ -439,7 +435,7 @@ export class PaymentService {
                         sellerStripeAccountId: seller.stripeAccountId,
                         sellerProfile: seller.profile || 'user',
                         closetId: cart.closetId,
-                        addressId: address.id,
+                        ...(address?.id ? { addressId: address.id } : {}),
                         platformFeeMinor: String(platformFeeMinor),
                         sellerAmountMinor: String(sellerAmountMinor),
                         escrowMode: 'separate_charges_and_transfers',

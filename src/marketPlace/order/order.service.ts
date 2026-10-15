@@ -77,9 +77,11 @@ export class OrderService {
 
         const metadata = (paymentRecord.metadata as Prisma.JsonObject | null) || null;
         const itemsRaw = (metadata?.items as Prisma.JsonArray | undefined) || [];
-        const addressId = typeof metadata?.addressId === 'string' ? metadata.addressId : '';
+        const addressId = typeof metadata?.addressId === 'string' && metadata.addressId.trim().length > 0
+            ? metadata.addressId.trim()
+            : null;
 
-        if (!paymentRecord.userId || !paymentRecord.cartId || !itemsRaw.length || !addressId) {
+        if (!paymentRecord.userId || !paymentRecord.cartId || !itemsRaw.length) {
             throw new BadRequestException('Payment metadata is incomplete for order creation');
         }
 
@@ -118,14 +120,6 @@ export class OrderService {
             }
             createdNewOrders = true;
 
-            const address = await tx.userAddrees.findFirst({
-                where: { id: addressId, userId: buyerId },
-                select: { id: true },
-            });
-            if (!address) {
-                throw new BadRequestException('Selected address is invalid for this user');
-            }
-
             const parsedItems = itemsRaw.map((entry) => {
                 const item = entry as Prisma.JsonObject;
                 const shippingMinor = Number(item.shippingMinor ?? 0);
@@ -146,6 +140,25 @@ export class OrderService {
                     selectedShippingChoice,
                 };
             });
+
+            const requiresShippingAddress = parsedItems.some(
+                (item) => item.selectedShippingChoice === CartItemShippingChoice.ship_items,
+            );
+
+            if (requiresShippingAddress && !addressId) {
+                throw new BadRequestException('Payment metadata is incomplete: shipping address required for shipped items');
+            }
+
+            let address: { id: string } | null = null;
+            if (addressId) {
+                address = await tx.userAddrees.findFirst({
+                    where: { id: addressId, userId: buyerId },
+                    select: { id: true },
+                });
+                if (!address && requiresShippingAddress) {
+                    throw new BadRequestException('Selected address is invalid for this user');
+                }
+            }
 
             // Create one order per cart item line, while preserving the single payment.
             const orderLines: Array<{
@@ -240,13 +253,13 @@ export class OrderService {
                         buyerId,
                         sellerId: item.sellerId,
                         closetId: item.closetId,
-                        addressId,
+                        addressId: address?.id ?? null,
                         paymentId: paymentRecord.id,
                         subtotal: subtotalMajor,
                         shippingCost: this.toMajor(shippingMinor),
                         serviceFee: this.toMajor(platformFeeMinor),
                         total: this.toMajor(totalMinor),
-                        paymentMethod: 'STRIPE',
+                        paymentMethod: paymentRecord.provider || 'STRIPE',
                         paymentStatus: PaymentStatus.PAID,
                         orderStatus: OrderStatus.PENDING,
                         platformFeeMinor,
