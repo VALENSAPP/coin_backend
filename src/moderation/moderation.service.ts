@@ -1,12 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
+import { PolicyEngineService } from './policy-engine.service';
 import {
   AIModerationResponse,
   CommentModerationInput,
+  ModerationCheckInput,
+  ModerationCheckResult,
+  ModerationDecisionType,
   ModerationResult,
   PostModerationInput,
   ProductModerationInput,
+  SeverityLevel,
 } from './moderation.types';
+import { ModerationCategory, ModerationDecision, ModerationCaseStatus, AccountViolationAction, AccountStanding } from '@prisma/client';
 
 @Injectable()
 export class ModerationService {
@@ -15,7 +22,11 @@ export class ModerationService {
   private readonly openaiApiKey?: string;
   private readonly provider: 'gemini' | 'openai' | 'auto';
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly policyEngine: PolicyEngineService,
+  ) {
     this.geminiApiKey =
       this.configService.get<string>('GEMINI_API_KEY') ||
       process.env.GEMINI_API_KEY;
@@ -34,6 +45,234 @@ export class ModerationService {
     } else {
       this.provider = 'auto';
     }
+  }
+
+  /**
+   * Central Moderation Check API (Spec Section 2)
+   * Universal endpoint for Posts, Comments, Battles, Marketplace, DMs, etc.
+   */
+  async checkContent(input: ModerationCheckInput): Promise<ModerationCheckResult> {
+    const {
+      user_id,
+      content_id,
+      content_type,
+      feature,
+      text,
+      media_refs = [],
+      language = 'en',
+      reply_to_content_id,
+      context_ids = [],
+    } = input;
+
+    // 1. Fetch user standing context
+    const user = await (this.prisma as any).user.findUnique({
+      where: { id: user_id },
+      select: {
+        id: true,
+        accountStanding: true,
+        standingStrikeCount: true,
+        standingWarningCount: true,
+      },
+    });
+
+    const userStanding = user?.accountStanding || 'GOOD';
+
+    // 2. Bilingual system prompt (English and Portuguese aware)
+    const systemPrompt = `You are the Central Trust & Safety Policy Classifier for Valens (a platform where reputation is earned, not bought).
+Your task is to analyze user-generated content across features (Posts, Comments, Battles, DMs, Marketplace).
+Support both English and Portuguese content seamlessly.
+
+Classify content across 2 dimensions:
+1. isRelevant:
+   - Reject keyboard mash, gibberish (e.g. "asdfghjkl", "111111"), scam advertisements, fraudulent crypto links, or spam bot dumps.
+2. isSafe:
+   - Identify: hate speech/discrimination, targeted insults/harassment, credible violence/threats, sexual/NSFW exploitation, child safety risks, scams/doxxing.
+
+Categories to detect in "flags":
+- "child_safety", "child_exploitation" (Critical)
+- "credible_violence", "terrorism", "self_harm" (Critical)
+- "hate_speech", "doxxing", "harassment_severe" (Severe)
+- "harassment", "targeted_insult", "bullying", "scam", "nsfw" (Targeted)
+- "profanity", "mild_toxicity", "spam_caption", "gibberish", "off_topic" (Mild)
+
+Respond strictly in valid JSON format:
+{
+  "isRelevant": boolean,
+  "isSafe": boolean,
+  "confidence": number (0.0 to 1.0),
+  "flags": string[],
+  "reason": string
+}`;
+
+    const userPrompt = `Content Type: ${content_type}
+Feature Context: ${feature}
+Language: ${language}
+Parent Reply ID: ${reply_to_content_id || 'none'}
+Context IDs: ${context_ids.join(', ') || 'none'}
+User Text: "${text || ''}"
+Media URLs: ${media_refs.slice(0, 3).join(', ') || 'none'}`;
+
+    let aiRes: AIModerationResponse;
+    try {
+      if (this.provider === 'openai' && this.openaiApiKey) {
+        aiRes = await this.runOpenAIModeration(systemPrompt, userPrompt, media_refs);
+      } else if (this.provider === 'gemini' && this.geminiApiKey) {
+        aiRes = await this.runGeminiModeration(systemPrompt, userPrompt, media_refs);
+      } else if (this.openaiApiKey) {
+        aiRes = await this.runOpenAIModeration(systemPrompt, userPrompt, media_refs);
+      } else if (this.geminiApiKey) {
+        aiRes = await this.runGeminiModeration(systemPrompt, userPrompt, media_refs);
+      } else {
+        const local = this.runLocalRules(text || '');
+        aiRes = {
+          isSafe: local.status === 'APPROVED',
+          isRelevant: true,
+          confidence: 0.8,
+          flags: local.flaggedLabels || [],
+          reason: local.reason || 'Local check',
+        };
+      }
+    } catch (err: any) {
+      this.logger.error(`AI moderation check failed: ${err.message}`, err.stack);
+      const local = this.runLocalRules(text || '');
+      aiRes = {
+        isSafe: local.status === 'APPROVED',
+        isRelevant: true,
+        confidence: 0.7,
+        flags: local.flaggedLabels || [],
+        reason: 'Automated fallback evaluation',
+      };
+    }
+
+    // 3. Evaluate via Policy Engine (Spec Section 3)
+    const policyResult = this.policyEngine.evaluate(aiRes, {
+      feature,
+      userStanding,
+      priorViolationsCount: user?.standingStrikeCount || 0,
+    });
+
+    let caseId: string | undefined = undefined;
+
+    // Map categories to Prisma enum
+    let mappedCategory: ModerationCategory = ModerationCategory.OTHER;
+    if (policyResult.categories.includes('child_safety')) mappedCategory = ModerationCategory.CHILD_SAFETY;
+    else if (policyResult.categories.includes('hate_speech')) mappedCategory = ModerationCategory.HATE_SPEECH;
+    else if (policyResult.categories.includes('credible_violence')) mappedCategory = ModerationCategory.VIOLENCE;
+    else if (policyResult.categories.includes('harassment') || policyResult.categories.includes('targeted_insult')) mappedCategory = ModerationCategory.HARASSMENT;
+    else if (policyResult.categories.includes('scam') || policyResult.categories.includes('crypto_scam')) mappedCategory = ModerationCategory.SCAM_FRAUD;
+    else if (policyResult.categories.includes('nsfw')) mappedCategory = ModerationCategory.SEXUAL_CONTENT;
+    else if (policyResult.categories.includes('spam_caption') || policyResult.categories.includes('gibberish')) mappedCategory = ModerationCategory.SPAM;
+
+    // 4. Create ModerationCase if severity >= 1 or non-ALLOW decision
+    if (policyResult.severity >= 1 || policyResult.decision !== 'ALLOW') {
+      try {
+        const modCase = await (this.prisma as any).moderationCase.create({
+          data: {
+            subjectUserId: user_id,
+            contentId: content_id,
+            contentType: content_type.toUpperCase(),
+            feature: feature.toLowerCase(),
+            source: 'AUTOMATED',
+            category: mappedCategory,
+            severity: policyResult.severity,
+            providerScores: {
+              confidence: aiRes.confidence,
+              flags: aiRes.flags,
+              rawReason: aiRes.reason,
+            },
+            reasonCode: policyResult.reasonCode,
+            automatedDecision: policyResult.decision as ModerationDecision,
+            finalDecision: policyResult.decision as ModerationDecision,
+            humanReviewRequired: policyResult.humanReviewRequired,
+            status: policyResult.humanReviewRequired
+              ? ModerationCaseStatus.IN_REVIEW
+              : ModerationCaseStatus.OPEN,
+          },
+        });
+        caseId = modCase.id;
+
+        // Apply account standing consequences for high severity violations
+        if (policyResult.decision === 'BLOCK' && policyResult.severity >= 3) {
+          const action =
+            policyResult.severity === 4
+              ? AccountViolationAction.SUSPENSION_24H
+              : AccountViolationAction.STRIKE;
+
+          await (this.prisma as any).accountViolation.create({
+            data: {
+              userId: user_id,
+              caseId: modCase.id,
+              category: mappedCategory,
+              severity: policyResult.severity,
+              reasonCode: policyResult.reasonCode,
+              action,
+              restrictionScope: policyResult.severity === 4 ? 'ALL' : 'POSTING',
+              restrictionStart: new Date(),
+              restrictionEnd:
+                policyResult.severity === 4
+                  ? new Date(Date.now() + 24 * 60 * 60 * 1000)
+                  : null,
+            },
+          });
+
+          await (this.prisma as any).user.update({
+            where: { id: user_id },
+            data: {
+              accountStanding:
+                policyResult.severity === 4 ? AccountStanding.SUSPENDED : AccountStanding.RESTRICTED,
+              standingStrikeCount: { increment: 1 },
+              standingUntil:
+                policyResult.severity === 4
+                  ? new Date(Date.now() + 24 * 60 * 60 * 1000)
+                  : null,
+              standingReason: policyResult.reasonCode,
+            },
+          });
+        } else if (policyResult.decision === 'WARN') {
+          await (this.prisma as any).user.update({
+            where: { id: user_id },
+            data: {
+              standingWarningCount: { increment: 1 },
+            },
+          });
+        }
+
+        // Audit Log
+        await (this.prisma as any).moderationAuditLog.create({
+          data: {
+            contentType: ['POST', 'COMMENT', 'PRODUCT', 'EBOOK'].includes(content_type.toUpperCase())
+              ? content_type.toUpperCase()
+              : 'POST',
+            contentId: content_id,
+            authorId: user_id,
+            aiVerdict: policyResult.decision === 'ALLOW' ? 'APPROVED' : 'PENDING_APPROVAL',
+            aiReason: policyResult.explanation,
+            aiConfidence: aiRes.confidence,
+            flaggedLabels: aiRes.flags || [],
+            caseId: modCase.id,
+            actorType: 'SYSTEM',
+            action: policyResult.decision,
+            metadata: {
+              severity: policyResult.severity,
+              reasonCode: policyResult.reasonCode,
+              feature,
+            },
+          },
+        });
+      } catch (err: any) {
+        this.logger.error(`Failed to record moderation case: ${err.message}`);
+      }
+    }
+
+    return {
+      decision: policyResult.decision,
+      risk_level: policyResult.severity as SeverityLevel,
+      categories: policyResult.categories,
+      confidence: Math.round((aiRes.confidence || 0.8) * 100) / 100,
+      reason_code: policyResult.reasonCode,
+      human_review_required: policyResult.humanReviewRequired,
+      case_id: caseId,
+    };
   }
 
   /**
@@ -125,146 +364,115 @@ Respond strictly in valid JSON format:
 }`;
 
     const userPrompt = `Comment to evaluate: "${input.comment}"
-${input.postText ? `Original Post Context: "${input.postText.slice(0, 200)}"` : ''}`;
+${input.postText ? `Context (Post being commented on): "${input.postText}"` : ''}`;
 
     return this.runAIModeration(systemPrompt, userPrompt, []);
   }
 
   /**
-   * Evaluate a product/closet item for valid marketplace listing (including Name & Category)
+   * Evaluate a marketplace product (Closet item or Ebook)
    */
   async evaluateProduct(input: ProductModerationInput): Promise<ModerationResult> {
-    const productInfo = [
-      `Product Name / Caption: "${input.name}"`,
-      `Category: "${input.category}"`,
-      input.brand ? `Brand: "${input.brand}"` : '',
-      input.description ? `Description: "${input.description}"` : '',
-      input.price !== null && input.price !== undefined ? `Price: $${input.price}` : '',
-    ].filter(Boolean).join('\n');
-
     const images = (input.images || []).filter((img) => typeof img === 'string' && img.startsWith('http'));
 
-    const systemPrompt = `You are an AI Marketplace Moderator for a fashion & lifestyle closet/shop platform.
-Evaluate this product listing, paying special attention to the PRODUCT NAME / CAPTION, CATEGORY, and IMAGES.
+    const systemPrompt = `You are an AI Content Moderator for a digital and physical marketplace.
+Evaluate this listing (product or ebook) for relevance, integrity, and safety.
 
 Criteria:
-1. isRelevant:
-   - PRODUCT NAME / CAPTION CHECK: Must be a legitimate product title (e.g. "Vintage Leather Jacket", "Nike Air Max Shoes", "Harry Potter Book", "Silk Dress").
-   - Reject/flag: Gibberish/test names (e.g. "asdfgh", "111111", "test test test"), offensive/joke names, off-platform scam solicitations, spam link names.
-2. isSafe:
-   - Reject/flag: Illegal goods, weapons, prescription drugs, counterfeit promotion, adult/NSFW items, fraudulent items.
+1. isRelevant: Is the item name and description coherent? (Reject gibberish titles like "aaaaa", random letters, or spam promotional links).
+2. isSafe: Reject prohibited goods (weapons, drugs, counterfeit items, explicit adult products/pornography, scams).
 
 Respond strictly in valid JSON format:
 {
   "isRelevant": boolean,
   "isSafe": boolean,
   "confidence": number (0.0 to 1.0),
-  "flags": string[] (e.g. ["invalid_product_name", "spam_name", "prohibited_item", "gibberish_name"]),
+  "flags": string[],
   "reason": string
 }`;
 
-    const userPrompt = `Product Details:\n${productInfo}`;
+    const userPrompt = `Product Details:
+Name: "${input.name}"
+Category: "${input.category}"
+Description: "${input.description || ''}"
+Brand: "${input.brand || ''}"
+Price: ${input.price ?? 'N/A'}
+${images.length > 0 ? `Image URLs: ${images.slice(0, 3).join(', ')}` : ''}`;
 
     return this.runAIModeration(systemPrompt, userPrompt, images);
   }
 
   /**
-   * Run AI moderation using available provider (Gemini or OpenAI) with fallback
+   * Internal dispatcher for AI evaluation
    */
   private async runAIModeration(
     systemPrompt: string,
     userPrompt: string,
     imageUrls: string[] = [],
   ): Promise<ModerationResult> {
-    const activeProvider = this.getActiveProvider();
-
-    if (activeProvider === 'gemini' && this.geminiApiKey) {
-      try {
-        const result = await this.callGeminiAPI(systemPrompt, userPrompt, imageUrls);
-        return this.formatVerdict(result, 'AI_GEMINI');
-      } catch (err) {
-        this.logger.error('Gemini Moderation API error:', err);
+    try {
+      if (this.provider === 'openai' && this.openaiApiKey) {
+        const res = await this.runOpenAIModeration(systemPrompt, userPrompt, imageUrls);
+        return this.formatVerdict(res, 'AI_OPENAI');
       }
-    }
 
-    if (activeProvider === 'openai' && this.openaiApiKey) {
-      try {
-        const result = await this.callOpenAIAPI(systemPrompt, userPrompt, imageUrls);
-        return this.formatVerdict(result, 'AI_OPENAI');
-      } catch (err) {
-        this.logger.error('OpenAI Moderation API error:', err);
+      if (this.provider === 'gemini' && this.geminiApiKey) {
+        const res = await this.runGeminiModeration(systemPrompt, userPrompt, imageUrls);
+        return this.formatVerdict(res, 'AI_GEMINI');
       }
-    }
 
-    // Try alternate if primary failed
-    if (this.geminiApiKey && activeProvider !== 'gemini') {
-      try {
-        const result = await this.callGeminiAPI(systemPrompt, userPrompt, imageUrls);
-        return this.formatVerdict(result, 'AI_GEMINI');
-      } catch (err) {
-        this.logger.error('Fallback Gemini Moderation API error:', err);
+      if (this.openaiApiKey) {
+        const res = await this.runOpenAIModeration(systemPrompt, userPrompt, imageUrls);
+        return this.formatVerdict(res, 'AI_OPENAI');
       }
-    }
 
-    if (this.openaiApiKey && activeProvider !== 'openai') {
-      try {
-        const result = await this.callOpenAIAPI(systemPrompt, userPrompt, imageUrls);
-        return this.formatVerdict(result, 'AI_OPENAI');
-      } catch (err) {
-        this.logger.error('Fallback OpenAI Moderation API error:', err);
+      if (this.geminiApiKey) {
+        const res = await this.runGeminiModeration(systemPrompt, userPrompt, imageUrls);
+        return this.formatVerdict(res, 'AI_GEMINI');
       }
+
+      this.logger.warn('No valid AI moderation API key configured. Using local rule-based safety.');
+      return this.runLocalRules(userPrompt);
+    } catch (err: any) {
+      this.logger.error(`AI Moderation request failed: ${err.message}`, err.stack);
+      return this.runLocalRules(userPrompt);
     }
-
-    // If no API keys configured or external services failed, run local rule heuristic
-    return this.runLocalRules(userPrompt);
-  }
-
-  private getActiveProvider(): 'gemini' | 'openai' | 'none' {
-    if (this.provider === 'gemini' && this.geminiApiKey) return 'gemini';
-    if (this.provider === 'openai' && this.openaiApiKey) return 'openai';
-    if (this.geminiApiKey) return 'gemini';
-    if (this.openaiApiKey) return 'openai';
-    return 'none';
   }
 
   /**
-   * Call Google Gemini API (REST) with Multimodal Vision + Text
+   * Call Gemini 1.5 Flash API
    */
-  private async callGeminiAPI(
+  private async runGeminiModeration(
     systemPrompt: string,
     userPrompt: string,
     imageUrls: string[] = [],
   ): Promise<AIModerationResponse> {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.geminiApiKey}`;
 
-    const parts: any[] = [
-      { text: `${systemPrompt}\n\n${userPrompt}\n\nRespond strictly in valid JSON format.` },
-    ];
+    const parts: any[] = [{ text: `${systemPrompt}\n\n${userPrompt}` }];
 
-    // Download images and attach as inlineData for Gemini Vision analysis
-    for (const url of imageUrls.slice(0, 3)) {
+    for (const url of imageUrls.slice(0, 2)) {
       try {
         const imgRes = await fetch(url);
         if (imgRes.ok) {
-          const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-          const arrayBuffer = await imgRes.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString('base64');
+          const buffer = await imgRes.arrayBuffer();
+          const mimeType = imgRes.headers.get('content-type') || 'image/jpeg';
           parts.push({
-            inlineData: {
-              mimeType: contentType.split(';')[0],
-              data: base64,
+            inline_data: {
+              mime_type: mimeType,
+              data: Buffer.from(buffer).toString('base64'),
             },
           });
         }
-      } catch (err) {
-        this.logger.warn(`Could not fetch image for Gemini vision analysis: ${url}`, err);
+      } catch (e: any) {
+        this.logger.warn(`Failed to fetch image for Gemini moderation: ${url}`);
       }
     }
 
     const body = {
       contents: [{ parts }],
       generationConfig: {
-        responseMimeType: 'application/json',
+        response_mime_type: 'application/json',
         temperature: 0.1,
       },
     };
@@ -281,18 +489,18 @@ Respond strictly in valid JSON format:
     }
 
     const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      throw new Error('Gemini API returned empty response');
+    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!candidateText) {
+      throw new Error('Gemini API returned empty response content');
     }
 
-    return JSON.parse(rawText) as AIModerationResponse;
+    return JSON.parse(candidateText) as AIModerationResponse;
   }
 
   /**
-   * Call OpenAI API (REST)
+   * Call OpenAI gpt-4o-mini API
    */
-  private async callOpenAIAPI(
+  private async runOpenAIModeration(
     systemPrompt: string,
     userPrompt: string,
     imageUrls: string[] = [],
@@ -346,8 +554,7 @@ Respond strictly in valid JSON format:
   private runLocalRules(userPrompt: string): ModerationResult {
     const text = userPrompt.toLowerCase();
 
-    // Basic heuristic spam/gibberish detection
-    const repeatedLetters = /(.)\1{9,}/.test(text); // e.g. aaaaaaaaaa
+    const repeatedLetters = /(.)\1{9,}/.test(text);
     const explicitBadWords = ['kill yourself', 'free money click here', 'telegram bot scam', 'crypto hack tool'];
     const hasBadPhrase = explicitBadWords.some((w) => text.includes(w));
 
