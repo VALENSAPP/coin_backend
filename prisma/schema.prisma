@@ -182,7 +182,21 @@ model User {
   shopRewardPointsAwards         ShopRewardPointsAward[] @relation("UserShopRewardPointsAwards")
   loyaltyAccounts                UserLoyaltyAccount[]
   pointsRedemptions              PointsRedemption[]
+
+  // Trust & Safety Architecture
+  accountStanding                AccountStanding         @default(GOOD)
+  standingReason                 String?
+  standingUntil                  DateTime?
+  standingWarningCount           Int                     @default(0)
+  standingStrikeCount            Int                     @default(0)
+  moderationCases                ModerationCase[]        @relation("SubjectUserCases")
+  accountViolations              AccountViolation[]      @relation("UserViolations")
+  filedReports                   UniversalReport[]       @relation("ReporterReports")
+  receivedReports                UniversalReport[]       @relation("ReportedUserReports")
+  muting                         UserMute[]              @relation("UserMuters")
+  mutedBy                        UserMute[]              @relation("UserMuted")
 }
+
 
 model Mycloset {
   id                 String              @id @default(uuid())
@@ -2511,6 +2525,12 @@ model ModerationAuditLog {
   adminAction   ModerationStatus?
   adminReason   String?               @db.Text
   adminId       String?
+  caseId        String?
+  actorType     String                @default("SYSTEM")
+  previousState String?
+  newState      String?
+  action        String?
+  metadata      Json?
   createdAt     DateTime              @default(now())
   updatedAt     DateTime              @updatedAt
 
@@ -2518,5 +2538,190 @@ model ModerationAuditLog {
   @@index([authorId])
   @@index([aiVerdict])
   @@index([createdAt])
+  @@index([caseId])
 }
+
+enum AccountStanding {
+  GOOD
+  WARNING
+  RESTRICTED
+  SUSPENDED
+  BANNED
+}
+
+enum ModerationDecision {
+  ALLOW
+  WARN
+  BLOCK
+  REVIEW
+}
+
+enum ModerationCaseStatus {
+  OPEN
+  IN_REVIEW
+  ACTIONED
+  RESOLVED
+  CLOSED
+  APPEALED
+}
+
+enum ModerationCategory {
+  HARASSMENT
+  HATE_SPEECH
+  VIOLENCE
+  SEXUAL_CONTENT
+  CHILD_SAFETY
+  SCAM_FRAUD
+  IMPERSONATION
+  PRIVACY
+  SPAM
+  ILLEGAL
+  OFF_TOPIC
+  OTHER
+}
+
+enum ReportReason {
+  HATE_DISCRIMINATION
+  HARASSMENT
+  THREATS_VIOLENCE
+  SEXUAL_EXPLOITATION
+  CHILD_SAFETY
+  SCAM_FRAUD
+  IMPERSONATION
+  PRIVACY
+  SPAM_MANIPULATION
+  ILLEGAL_ACTIVITY
+  OTHER
+}
+
+enum ReportStatus {
+  RECEIVED
+  TRIAGED
+  IN_REVIEW
+  ACTIONED
+  NO_VIOLATION
+  APPEALED
+  CLOSED
+}
+
+enum AccountViolationAction {
+  WARNING
+  STRIKE
+  FEATURE_RESTRICTION
+  SUSPENSION_24H
+  SUSPENSION_7D
+  SUSPENSION_30D
+  PERMANENT_BAN
+  OTHER
+}
+
+model ModerationCase {
+  id                   String               @id @default(uuid())
+  subjectUserId        String
+  contentId            String?
+  contentType          String
+  feature              String
+  source               String               @default("AUTOMATED")
+  category             ModerationCategory?
+  severity             Int                  @default(0)
+  providerScores       Json?
+  reasonCode           String?
+  automatedDecision    ModerationDecision   @default(ALLOW)
+  finalDecision        ModerationDecision?
+  moderatorId          String?
+  moderatorNotes       String?              @db.Text
+  humanReviewRequired  Boolean              @default(false)
+  status               ModerationCaseStatus @default(OPEN)
+  appealStatus         String?              @default("NONE")
+  appealReason         String?              @db.Text
+  appealedAt           DateTime?
+  resolvedAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  subjectUser          User                 @relation("SubjectUserCases", fields: [subjectUserId], references: [id], onDelete: Cascade)
+  reports              UniversalReport[]
+  violations           AccountViolation[]
+
+  @@index([subjectUserId])
+  @@index([contentId, contentType])
+  @@index([status])
+  @@index([severity])
+  @@index([feature])
+  @@index([createdAt])
+  @@map("moderationCases")
+}
+
+model AccountViolation {
+  id                String                 @id @default(uuid())
+  userId            String
+  caseId            String?
+  category          ModerationCategory
+  severity          Int                    @default(1)
+  reasonCode        String
+  action            AccountViolationAction @default(WARNING)
+  restrictionScope  String?
+  restrictionStart  DateTime?
+  restrictionEnd    DateTime?
+  appealed          Boolean                @default(false)
+  overturned        Boolean                @default(false)
+  overturnedReason  String?                @db.Text
+  overturnedAt      DateTime?
+  createdAt         DateTime               @default(now())
+
+  user              User                   @relation("UserViolations", fields: [userId], references: [id], onDelete: Cascade)
+  case              ModerationCase?        @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([caseId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("accountViolations")
+}
+
+model UniversalReport {
+  id               String           @id @default(uuid())
+  reporterUserId   String
+  reportedUserId   String?
+  contentId        String
+  contentType      String
+  feature          String
+  reasonCode       ReportReason
+  notes            String?          @db.Text
+  status           ReportStatus     @default(RECEIVED)
+  priority         String           @default("NORMAL")
+  moderationCaseId String?
+  moderatorNotes   String?          @db.Text
+  resolvedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  reporter         User             @relation("ReporterReports", fields: [reporterUserId], references: [id], onDelete: Cascade)
+  reportedUser     User?            @relation("ReportedUserReports", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  case             ModerationCase?  @relation(fields: [moderationCaseId], references: [id], onDelete: SetNull)
+
+  @@index([reporterUserId])
+  @@index([reportedUserId])
+  @@index([contentId, contentType])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("universalReports")
+}
+
+model UserMute {
+  id        String   @id @default(uuid())
+  muterId   String
+  mutedId   String
+  createdAt DateTime @default(now())
+
+  muter     User     @relation("UserMuters", fields: [muterId], references: [id], onDelete: Cascade)
+  muted     User     @relation("UserMuted", fields: [mutedId], references: [id], onDelete: Cascade)
+
+  @@unique([muterId, mutedId])
+  @@index([muterId])
+  @@index([mutedId])
+  @@map("userMutes")
+}
+
 
