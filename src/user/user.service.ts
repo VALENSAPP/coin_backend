@@ -465,7 +465,7 @@ export class UserService {
         }
 
         const referCode = await this.generateUniqueReferCode();
-        const initialReferPoints = 1000 + (referrer ? 500 : 0);
+        const initialReferPoints = referrer ? 500 : 0;
         const { country: resolvedCountry, paymentProvider: resolvedProvider } = resolvePaymentProviderFromOrigin({
           country: data.country,
           location: data.location,
@@ -637,7 +637,7 @@ export class UserService {
       }
 
       const referCode = await this.generateUniqueReferCode();
-      const initialReferPoints = 1000 + (referrer ? 500 : 0);
+      const initialReferPoints = referrer ? 500 : 0;
       const { country, paymentProvider } = resolvePaymentProviderFromOrigin({
         country: data.country,
         location: data.location,

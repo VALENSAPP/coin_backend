@@ -74,8 +74,8 @@ model User {
   blockedAt             DateTime?
   screenshotAttempts    Int                       @default(0)
   referCode             String?
-  referPoints           Float                     @default(1000)
-  totalPlatformPoints   Float                     @default(1000)
+  referPoints           Float                     @default(0)
+  totalPlatformPoints   Float                     @default(0)
   marketplaceBattlePoints Float                   @default(0)
   shopPlatformPoints    Float                     @default(0)
   blockedBy             BlockedUser[]             @relation("Blocked")

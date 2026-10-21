@@ -502,6 +502,8 @@ export class AuthService {
           verifyEmail: 1, // Firebase users are verified
           country: country || undefined,
           paymentProvider,
+          referPoints: 0,
+          totalPlatformPoints: 0,
         };
 
         // Create user
@@ -612,6 +614,8 @@ export class AuthService {
           verifyEmail: 1, // Firebase users are verified
           country: country || undefined,
           paymentProvider,
+          referPoints: 0,
+          totalPlatformPoints: 0,
         };
 
         // Create user
@@ -703,6 +707,8 @@ export class AuthService {
             verifyEmail: 1,
             country: country || undefined,
             paymentProvider,
+            referPoints: 0,
+            totalPlatformPoints: 0,
           },
         });
         existingUser = newUser;
