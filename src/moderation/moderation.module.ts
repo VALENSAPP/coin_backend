@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
+import { MailModule } from '../common/mail/mail.module';
 import { ModerationService } from './moderation.service';
 import { AdminModerationService } from './admin-moderation.service';
 import { PolicyEngineService } from './policy-engine.service';
@@ -13,7 +14,7 @@ import { ReportsController } from './reports.controller';
 import { AccountStandingController } from './account-standing.controller';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, NotificationModule],
+  imports: [ConfigModule, PrismaModule, NotificationModule, MailModule],
   controllers: [
     AdminModerationController,
     ModerationController,

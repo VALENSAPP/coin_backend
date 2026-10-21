@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { MailService } from '../common/mail/mail.service';
 import {
   AdminCaseActionEnum,
   AdminQueueTypeEnum,
@@ -27,6 +28,7 @@ export class AdminModerationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly mailService: MailService,
   ) {}
 
   /**
@@ -252,6 +254,22 @@ export class AdminModerationService {
       case AdminCaseActionEnum.REMOVE:
         finalDecision = ModerationDecision.BLOCK;
         await this.setContentStatus(modCase.contentType, modCase.contentId, 'REJECTED', adminUserId, finalReason);
+        // Send in-app notification to the user
+        try {
+          await this.notificationService.sendNotificationToUser(
+            modCase.subjectUserId,
+            'Content Removed',
+            `Your ${modCase.contentType.toLowerCase()} has been removed by administrators for violating our community guidelines. Reason: ${finalReason}`,
+            {
+              type: 'CONTENT_REMOVED',
+              contentId: modCase.contentId,
+              contentType: modCase.contentType,
+              reason: finalReason,
+            },
+          );
+        } catch (notifErr: any) {
+          console.error('[AdminModeration] Failed to send REMOVE notification:', notifErr.message);
+        }
         break;
 
       case AdminCaseActionEnum.WARNING:
@@ -267,6 +285,21 @@ export class AdminModerationService {
             standingReason: finalReason,
           },
         });
+        // Send warning notification to the user
+        try {
+          await this.notificationService.sendNotificationToUser(
+            modCase.subjectUserId,
+            'Community Guidelines Warning',
+            `You have received an official warning regarding your recent content. Reason: ${finalReason}. Please review our Community Guidelines.`,
+            {
+              type: 'ACCOUNT_WARNING',
+              caseId,
+              reason: finalReason,
+            },
+          );
+        } catch (notifErr: any) {
+          console.error('[AdminModeration] Failed to send WARNING notification:', notifErr.message);
+        }
         break;
 
       case AdminCaseActionEnum.STRIKE:
@@ -303,18 +336,33 @@ export class AdminModerationService {
       case AdminCaseActionEnum.SUSPENSION_24H:
         finalDecision = ModerationDecision.BLOCK;
         violationAction = AccountViolationAction.SUSPENSION_24H;
-        userStandingUpdate = AccountStanding.SUSPENDED;
+        userStandingUpdate = AccountStanding.RESTRICTED;
         standingUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await this.setContentStatus(modCase.contentType, modCase.contentId, 'REJECTED', adminUserId, finalReason);
+        // User CAN still login. Only standingUntil is set (posting restriction checked at post creation).
         await (this.prisma as any).user.update({
           where: { id: modCase.subjectUserId },
           data: {
-            accountStanding: AccountStanding.SUSPENDED,
+            accountStanding: AccountStanding.RESTRICTED,
             standingUntil,
-            bannedUntil: standingUntil,
-            standingReason: '24-hour account suspension',
+            standingReason: `24-hour posting ban: ${finalReason}`,
           },
         });
+        // Send notification to the user
+        try {
+          await this.notificationService.sendNotificationToUser(
+            modCase.subjectUserId,
+            'Posting Restricted for 24 Hours',
+            `Your ability to create posts has been temporarily suspended for 24 hours until ${standingUntil.toLocaleTimeString()} due to policy violations. Reason: ${finalReason}`,
+            {
+              type: 'POSTING_BAN_24H',
+              standingUntil: standingUntil.toISOString(),
+              reason: finalReason,
+            },
+          );
+        } catch (notifErr: any) {
+          console.error('[AdminModeration] Failed to send 24H ban notification:', notifErr.message);
+        }
         break;
 
       case AdminCaseActionEnum.SUSPENSION_7D:
@@ -356,15 +404,41 @@ export class AdminModerationService {
         violationAction = AccountViolationAction.PERMANENT_BAN;
         userStandingUpdate = AccountStanding.BANNED;
         await this.setContentStatus(modCase.contentType, modCase.contentId, 'REJECTED', adminUserId, finalReason);
-        await (this.prisma as any).user.update({
+        const bannedUser = await (this.prisma as any).user.update({
           where: { id: modCase.subjectUserId },
           data: {
             accountStanding: AccountStanding.BANNED,
             isBlocked: true,
             blockedReason: finalReason,
             blockedAt: now,
+            bannedUntil: new Date('9999-12-31T23:59:59.999Z'),
+            refreshToken: null,
+            refreshTokenExpiresAt: null,
           },
+          select: { id: true, email: true, userName: true, displayName: true },
         });
+
+        // Terminate all active sessions so user cannot continue browsing or log in
+        try {
+          await (this.prisma as any).userSession.deleteMany({
+            where: { userId: modCase.subjectUserId },
+          });
+        } catch (sessionErr: any) {
+          // Ignore if userSession table or record is absent
+        }
+
+        // Send permanent suspension email to the user
+        if (bannedUser?.email) {
+          try {
+            await this.mailService.sendAccountPermanentlyBannedEmail({
+              to: bannedUser.email,
+              userName: bannedUser.displayName || bannedUser.userName || 'User',
+              reason: finalReason,
+            });
+          } catch (mailErr: any) {
+            console.error('[AdminModeration] Failed to send permanent ban email:', mailErr.message);
+          }
+        }
         break;
 
       case AdminCaseActionEnum.ESCALATE:

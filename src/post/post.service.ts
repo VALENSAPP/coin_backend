@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { uploadBufferToS3, uploadFileToS3, uploadImageToS3 } from '../common/s3.util';
 import {
@@ -438,6 +438,22 @@ export class PostService {
   ) {
     try {
       if (!userId) throw new BadRequestException('User ID required');
+
+      // Check if user is blocked or has an active 24-hour posting ban
+      const author = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isBlocked: true, standingUntil: true, standingReason: true },
+      });
+      if (author?.isBlocked) {
+        throw new ForbiddenException('Your account has been banned from posting.');
+      }
+      if (author?.standingUntil && new Date(author.standingUntil) > new Date()) {
+        const remainingMs = new Date(author.standingUntil).getTime() - Date.now();
+        const remainingHours = Math.max(1, Math.ceil(remainingMs / (1000 * 60 * 60)));
+        throw new ForbiddenException(
+          `You are temporarily banned from adding posts for 24 hours (${remainingHours}h remaining). Reason: ${author.standingReason || 'Policy violation'}.`,
+        );
+      }
 
       const normalizedPostType = (type || '').trim().toLowerCase();
       const isMissionPost = ['mission-post', 'crowdfunding', 'support'].includes(normalizedPostType);
