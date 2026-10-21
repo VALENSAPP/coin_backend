@@ -2287,7 +2287,7 @@ export class UserService {
 
   async recentActivities(
     userId: string,
-    type?: 'all' | 'following' | 'unfollowing' | 'drops' | 'flips' | 'purchase' | 'sell',
+    type?: 'all' | 'following' | 'unfollowing' | 'drops' | 'flips' | 'posts' | 'purchase' | 'sell',
     lang?: string,
     deviceId?: string,
   ) {
@@ -2300,6 +2300,7 @@ export class UserService {
     const includeUnfollowing = normalizedType === 'all' || normalizedType === 'unfollowing';
     const includeDrops = normalizedType === 'all' || normalizedType === 'drops';
     const includeFlips = normalizedType === 'all' || normalizedType === 'flips';
+    const includePosts = normalizedType === 'all' || normalizedType === 'posts';
 
     const result: any = {
       filter: normalizedType,
@@ -2308,6 +2309,7 @@ export class UserService {
       unfollowing: [],
       drops: [],
       flips: [],
+      posts: [],
       activities: [],
     };
 
@@ -2447,6 +2449,7 @@ export class UserService {
       const [reelLikes, reelComments, reelMentions] = await Promise.all([
         this.prisma.postLike.findMany({
           where: {
+            userId: { not: userId },
             post: {
               userId,
               format: 'reel',
@@ -2637,11 +2640,207 @@ export class UserService {
       );
     }
 
+    if (includePosts) {
+      const [regularPostLikes, regularPostComments, postMentions] = await Promise.all([
+        this.prisma.postLike.findMany({
+          where: {
+            userId: { not: userId },
+            post: {
+              userId,
+              format: { not: 'reel' },
+              deletedAt: null,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            post: {
+              select: {
+                id: true,
+                caption: true,
+                text: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.postComment.findMany({
+          where: {
+            post: {
+              userId,
+              format: { not: 'reel' },
+              deletedAt: null,
+            },
+            NOT: {
+              userId,
+            },
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                displayName: true,
+                userName: true,
+                image: true,
+              },
+            },
+            post: {
+              select: {
+                id: true,
+                caption: true,
+                text: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+        this.prisma.notification.findMany({
+          where: {
+            userId,
+            AND: [
+              { data: { path: ['type'], equals: 'mention' } as any },
+              { data: { path: ['contextType'], equals: 'post' } as any },
+            ],
+          },
+          select: {
+            id: true,
+            data: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+      ]);
+
+      const mentionEntries = postMentions.map((n) => {
+        const data = (n.data && typeof n.data === 'object' && !Array.isArray(n.data))
+          ? (n.data as Record<string, any>)
+          : {};
+        const postId = typeof data.postId === 'string' ? data.postId : null;
+        const mentionerId = typeof data.mentionerId === 'string' ? data.mentionerId : null;
+        return {
+          id: n.id,
+          postId,
+          mentionerId,
+          createdAt: n.createdAt,
+        };
+      });
+
+      const mentionPostIds = Array.from(new Set(mentionEntries.map((m) => m.postId).filter(Boolean))) as string[];
+      const [regularPosts, mentioners] = await Promise.all([
+        mentionPostIds.length > 0
+          ? this.prisma.post.findMany({
+            where: {
+              id: { in: mentionPostIds },
+              userId,
+              format: { not: 'reel' },
+              deletedAt: null,
+            },
+            select: {
+              id: true,
+              caption: true,
+              text: true,
+            },
+          })
+          : Promise.resolve([]),
+        this.prisma.user.findMany({
+          where: {
+            id: {
+              in: Array.from(new Set(mentionEntries.map((m) => m.mentionerId).filter(Boolean))) as string[],
+            },
+          },
+          select: {
+            id: true,
+            displayName: true,
+            userName: true,
+            image: true,
+          },
+        }),
+      ]);
+
+      const regularPostMap = new Map(regularPosts.map((p) => [p.id, p]));
+      const mentionerMap = new Map(mentioners.map((u) => [u.id, u]));
+
+      const likeActivities = regularPostLikes.map((like) => {
+        const actorName = like.user.displayName || like.user.userName || 'Someone';
+        const localized = translateActivity('posts', 'like', actorName, targetLang);
+        return {
+          activityType: 'posts',
+          interactionType: 'like',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
+          postId: like.postId,
+          postCaption: like.post.caption || like.post.text,
+          actorId: like.userId,
+          actorName,
+          actorImage: like.user.image,
+          createdAt: like.createdAt,
+        };
+      });
+
+      const commentActivities = regularPostComments.map((comment) => {
+        const actorName = comment.user.displayName || comment.user.userName || 'Someone';
+        const localized = translateActivity('posts', 'comment', actorName, targetLang);
+        return {
+          activityType: 'posts',
+          interactionType: 'comment',
+          title: localized.title,
+          body: localized.body,
+          message: localized.message,
+          postId: comment.postId,
+          postCaption: comment.post.caption || comment.post.text,
+          actorId: comment.userId,
+          actorName,
+          actorImage: comment.user.image,
+          createdAt: comment.createdAt,
+        };
+      });
+
+      const mentionActivities = mentionEntries
+        .filter((entry): entry is typeof entry & { postId: string } => !!entry.postId && regularPostMap.has(entry.postId))
+        .map((entry) => {
+          const actor = entry.mentionerId ? mentionerMap.get(entry.mentionerId) : null;
+          const post = entry.postId ? regularPostMap.get(entry.postId) : null;
+          const actorName = actor?.displayName || actor?.userName || 'Someone';
+          const localized = translateActivity('posts', 'mention', actorName, targetLang);
+          return {
+            activityType: 'posts',
+            interactionType: 'mention',
+            title: localized.title,
+            body: localized.body,
+            message: localized.message,
+            postId: entry.postId,
+            postCaption: post?.caption || post?.text,
+            actorId: entry.mentionerId,
+            actorName,
+            actorImage: actor?.image,
+            createdAt: entry.createdAt,
+          };
+        });
+
+      result.posts = [...likeActivities, ...commentActivities, ...mentionActivities].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+    }
+
     const mixedActivities = [
       ...result.following,
       ...result.unfollowing,
       ...result.drops,
       ...result.flips,
+      ...result.posts,
     ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     if (normalizedType === 'all') {

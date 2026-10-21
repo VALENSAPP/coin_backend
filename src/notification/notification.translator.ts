@@ -3783,7 +3783,7 @@ export interface TranslatedActivity {
 }
 
 export function translateActivity(
-  activityType: 'following' | 'unfollowing' | 'drops' | 'flips' | string,
+  activityType: 'following' | 'unfollowing' | 'drops' | 'flips' | 'posts' | string,
   interactionType: 'like' | 'comment' | 'mention' | string | undefined,
   actorName: string,
   targetLang?: string | null,
@@ -3828,6 +3828,7 @@ export function translateActivity(
       const t = translations[lang] || translations.en;
       return { title: t.title, body: t.message, message: t.message };
     }
+    case 'posts':
     case 'flips': {
       if (interactionType === 'like') {
         const translations: Record<string, { title: string; message: string }> = {

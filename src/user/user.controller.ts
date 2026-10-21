@@ -813,7 +813,7 @@ export class UserController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get recent activities for the authenticated user' })
-  @ApiQuery({ name: 'type', type: String, required: false, description: 'Filter by activity type: all, following, unfollowing, drops, flips' })
+  @ApiQuery({ name: 'type', type: String, required: false, description: 'Filter by activity type: all, following, unfollowing, drops, flips, posts' })
   @ApiQuery({ name: 'lang', required: false, type: String, enum: ['en', 'pt', 'it', 'es', 'fr', 'hi'], description: 'Override preferred language' })
   @ApiQuery({ name: 'deviceId', required: false, type: String, description: 'Device ID for device-level language preference' })
   async getRecentActivities(@Req() req: Request, @Query() query: RecentActivitiesDto) {
