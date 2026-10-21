@@ -2034,6 +2034,105 @@ export class UserService {
     return suggestions.slice(0, 4);
   }
 
+  // Check username availability and provide suggestions
+  async checkUserNameAvailability(userName: string, excludeUserId?: string) {
+    if (!userName || userName.trim() === '') {
+      throw new BadRequestException('Username is required');
+    }
+
+    const trimmedUserName = userName.trim();
+
+    // Check if username already exists (case-insensitive, active users)
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        userName: { equals: trimmedUserName, mode: 'insensitive' },
+        deletedAt: null,
+        ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (!existingUser) {
+      return {
+        isAvailable: true,
+        status: 'approved',
+        message: 'Username is available',
+        userName: trimmedUserName,
+      };
+    }
+
+    // If username exists, generate suggestions
+    const suggestions = await this.generateUserNameSuggestions(trimmedUserName);
+
+    return {
+      isAvailable: false,
+      status: 'taken',
+      message: 'Username already taken',
+      userName: trimmedUserName,
+      suggestions: suggestions,
+    };
+  }
+
+  // Generate username suggestions
+  private async generateUserNameSuggestions(baseName: string): Promise<string[]> {
+    const suggestions: string[] = [];
+    const baseNameLower = baseName.toLowerCase();
+
+    // Get existing usernames to avoid duplicates
+    const existingUsers = await this.prisma.user.findMany({
+      where: { deletedAt: null },
+      select: { userName: true },
+    });
+    const existingNames = new Set(
+      existingUsers.map((u) => u.userName?.toLowerCase()).filter(Boolean),
+    );
+
+    // Generate suggestions with numbers
+    for (let i = 1; i <= 999; i++) {
+      const suggestion = `${baseName}${i}`;
+      if (!existingNames.has(suggestion.toLowerCase())) {
+        suggestions.push(suggestion);
+        if (suggestions.length >= 4) break;
+      }
+    }
+
+    // If we don't have 4 suggestions yet, try with underscores
+    if (suggestions.length < 4) {
+      for (let i = 1; i <= 999; i++) {
+        const suggestion = `${baseName}_${i}`;
+        if (!existingNames.has(suggestion.toLowerCase())) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 4) break;
+        }
+      }
+    }
+
+    // If we still don't have 4 suggestions, try with dots
+    if (suggestions.length < 4) {
+      for (let i = 1; i <= 999; i++) {
+        const suggestion = `${baseName}.${i}`;
+        if (!existingNames.has(suggestion.toLowerCase())) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 4) break;
+        }
+      }
+    }
+
+    // If we still don't have 4 suggestions, try with common suffixes
+    if (suggestions.length < 4) {
+      const suffixes = ['x', 'pro', 'official', 'real', 'new', 'live', 'now', 'here'];
+      for (const suffix of suffixes) {
+        const suggestion = `${baseName}${suffix}`;
+        if (!existingNames.has(suggestion.toLowerCase())) {
+          suggestions.push(suggestion);
+          if (suggestions.length >= 4) break;
+        }
+      }
+    }
+
+    return suggestions.slice(0, 4);
+  }
+
   async getUserDashboard(userId: string) {
     // Get total posts count
     const totalPosts = await this.prisma.post.count({

@@ -14,6 +14,7 @@ import { AddSearchHistoryDto, GetSearchHistoryDto } from './dto/search-history.d
 import { CreateUserSubscriptionDto, UpdateUserSubscriptionDto, UserSubscriptionStatus } from './dto/user-subscription.dto';
 import { SendPlatformPointsDto, GetPointTransfersDto } from './dto/send-points.dto';
 import { GetPriceUpdateSubscribersQueryDto } from './dto/get-price-update-subscribers.dto';
+import { CheckUserNameDto } from './dto/check-username.dto';
 
 export enum RegistrationType {
   NORMAL = 'NORMAL',
@@ -721,6 +722,58 @@ export class UserController {
   async checkDisplayName(@Body() dto: CheckDisplayNameDto) {
     const result = await this.userService.checkDisplayNameAvailability(dto.displayName);
     return result;
+  }
+
+  @Post('check-username')
+  @ApiOperation({
+    summary: 'Check username availability',
+    description: 'Check if a username is available. If taken, returns 4 similar suggestions.'
+  })
+  @ApiBody({ type: CheckUserNameDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Username check result',
+    schema: {
+      type: 'object',
+      properties: {
+        isAvailable: { type: 'boolean' },
+        status: { type: 'string', enum: ['approved', 'taken'] },
+        message: { type: 'string' },
+        userName: { type: 'string' },
+        suggestions: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of 4 suggested usernames (only if status is "taken")'
+        }
+      }
+    }
+  })
+  async checkUserName(@Body() dto: CheckUserNameDto) {
+    const targetUserName = dto.userName || dto.username;
+    if (!targetUserName) {
+      throw new BadRequestException('Username is required');
+    }
+    return this.userService.checkUserNameAvailability(targetUserName, dto.userId);
+  }
+
+  @Get('check-username')
+  @ApiOperation({
+    summary: 'Check username availability via GET',
+    description: 'Check if a username is available via query parameter. If taken, returns 4 similar suggestions.'
+  })
+  @ApiQuery({ name: 'userName', required: false, description: 'Username to check' })
+  @ApiQuery({ name: 'username', required: false, description: 'Username to check (alias)' })
+  @ApiQuery({ name: 'userId', required: false, description: 'Optional User ID to exclude' })
+  async checkUserNameGet(
+    @Query('userName') userName?: string,
+    @Query('username') username?: string,
+    @Query('userId') userId?: string,
+  ) {
+    const targetUserName = userName || username;
+    if (!targetUserName) {
+      throw new BadRequestException('Username is required');
+    }
+    return this.userService.checkUserNameAvailability(targetUserName, userId);
   }
 
   @Get('dashboard')
