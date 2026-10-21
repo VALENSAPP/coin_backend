@@ -60,7 +60,7 @@ export class AdminModerationController {
   @ApiOperation({
     summary: 'Apply an enforcement action to a moderation case',
     description:
-      'Actions: NO_VIOLATION | REMOVE | WARNING | STRIKE | FEATURE_RESTRICTION | SUSPENSION_24H | SUSPENSION_7D | SUSPENSION_30D | PERMANENT_BAN | ESCALATE.',
+      'Actions: NO_VIOLATION | REMOVE | WARNING | SUSPENSION_24H | PERMANENT_BAN',
   })
   @ApiParam({ name: 'caseId', description: 'ID of the moderation case' })
   async applyCaseAction(

@@ -233,7 +233,10 @@ export class AdminModerationService {
       throw new NotFoundException(`Moderation case ${caseId} not found`);
     }
 
-    const { action, notes, reasonCode, restrictionScope } = dto;
+    const { action } = dto;
+    const notes: string | null = (dto as any)?.notes || null;
+    const reasonCode: string | null = (dto as any)?.reasonCode || null;
+    const restrictionScope: string | null = (dto as any)?.restrictionScope || null;
     const now = new Date();
     const finalReason = reasonCode || modCase.reasonCode || 'Community guidelines violation';
 

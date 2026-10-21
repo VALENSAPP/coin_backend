@@ -108,24 +108,6 @@ export class ApplyCaseActionDto {
   @IsEnum(AdminCaseActionEnum)
   @IsNotEmpty()
   action!: AdminCaseActionEnum;
-
-  @ApiPropertyOptional({ example: 'Targeted hostility towards user' })
-  @IsOptional()
-  @IsString()
-  notes?: string;
-
-  @ApiPropertyOptional({ example: 'HARASSMENT_TARGETED_LOW' })
-  @IsOptional()
-  @IsString()
-  reasonCode?: string;
-
-  @ApiPropertyOptional({
-    example: 'POSTING',
-    description: 'Scope if action is FEATURE_RESTRICTION (POSTING, COMMENTS, BATTLES, DMS, ALL)',
-  })
-  @IsOptional()
-  @IsString()
-  restrictionScope?: string;
 }
 
 export class AppealVerdictDto {
