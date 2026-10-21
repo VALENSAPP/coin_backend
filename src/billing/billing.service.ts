@@ -695,6 +695,7 @@ export class BillingService {
           creatorId: sub.buyUserId,
           creatorName,
           creatorImage: sub.buyUser?.image || null,
+          priceAtSubscription: sub.priceAtSubscription,
           startDate: sub.startDate,
           endDate: sub.endDate,
           status: sub.status,
@@ -727,11 +728,33 @@ export class BillingService {
       }
     }
 
+    // Resolve old price for subscriber so priceAtSubscription does not keep the new price
+    let fallbackPrice = sub.priceAtSubscription;
+    const latestPayment = await this.prisma.payment.findFirst({
+      where: {
+        receiverId: sub.buyUserId,
+        userId: sub.fanUserId,
+        forPayment: 'following',
+        status: 'succeeded',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const creatorSub = await this.prisma.userSubscription.findFirst({
+      where: { userId: sub.buyUserId, isDelete: 0 },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (latestPayment?.totalAmount || latestPayment?.amount) {
+      fallbackPrice = Number(latestPayment.totalAmount || latestPayment.amount);
+    } else if (creatorSub?.previousAmount !== null && creatorSub?.previousAmount !== undefined) {
+      fallbackPrice = Number(creatorSub.previousAmount);
+    }
+
     const updated = await this.prisma.fansSubscriptionBuyData.update({
       where: { id: sub.id },
       data: {
         cancelAtPeriodEnd: true,
         autoRenew: false,
+        ...(fallbackPrice ? { priceAtSubscription: fallbackPrice } : {}),
       },
       include: {
         buyUser: {
@@ -798,6 +821,7 @@ export class BillingService {
         creatorId: updated.buyUserId,
         creatorName,
         creatorImage: updated.buyUser?.image || null,
+        priceAtSubscription: updated.priceAtSubscription ?? fallbackPrice,
         startDate: updated.startDate,
         endDate: updated.endDate,
         status: updated.status,
@@ -884,12 +908,44 @@ export class BillingService {
         });
         if (existingSub) {
           const creatorName = existingSub.buyUser?.displayName || existingSub.buyUser?.userName || 'creator';
+
+          // Resolve old paid price
+          let fallbackOldPrice = existingSub.priceAtSubscription;
+          const latestPayment = await this.prisma.payment.findFirst({
+            where: {
+              receiverId: existingSub.buyUserId,
+              userId: existingSub.fanUserId,
+              forPayment: 'following',
+              status: 'succeeded',
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          const creatorSub = await this.prisma.userSubscription.findFirst({
+            where: { userId: existingSub.buyUserId, isDelete: 0 },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (latestPayment?.totalAmount || latestPayment?.amount) {
+            fallbackOldPrice = Number(latestPayment.totalAmount || latestPayment.amount);
+          } else if (creatorSub?.previousAmount !== null && creatorSub?.previousAmount !== undefined) {
+            fallbackOldPrice = Number(creatorSub.previousAmount);
+          }
+
+          if (fallbackOldPrice && Number(existingSub.priceAtSubscription) !== Number(fallbackOldPrice)) {
+            await this.prisma.fansSubscriptionBuyData
+              .update({
+                where: { id: existingSub.id },
+                data: { priceAtSubscription: fallbackOldPrice },
+              })
+              .catch(() => null);
+          }
+
           cancelSub = {
             id: existingSub.id,
             fanUserId: existingSub.fanUserId,
             creatorId: existingSub.buyUserId,
             creatorName,
             creatorImage: existingSub.buyUser?.image || null,
+            priceAtSubscription: fallbackOldPrice ?? existingSub.priceAtSubscription,
             startDate: existingSub.startDate,
             endDate: existingSub.endDate,
             status: existingSub.status,
@@ -3139,19 +3195,42 @@ export class BillingService {
     ]);
 
     const fanUserIds = records.map((r) => r.fanUserId);
-    const paymentsAggregates = fanUserIds.length > 0
-      ? await this.prisma.payment.groupBy({
-        by: ['userId'],
-        where: {
-          receiverId: creatorId,
-          userId: { in: fanUserIds },
-          forPayment: 'following',
-          status: 'succeeded',
-        },
-        _sum: { amount: true, totalAmount: true },
-        _count: { id: true },
-      })
-      : [];
+    const [creatorSub, paymentsAggregates, latestPayments] = await Promise.all([
+      this.prisma.userSubscription.findFirst({
+        where: { userId: creatorId, isDelete: 0 },
+        orderBy: { createdAt: 'desc' },
+      }),
+      fanUserIds.length > 0
+        ? this.prisma.payment.groupBy({
+          by: ['userId'],
+          where: {
+            receiverId: creatorId,
+            userId: { in: fanUserIds },
+            forPayment: 'following',
+            status: 'succeeded',
+          },
+          _sum: { amount: true, totalAmount: true },
+          _count: { id: true },
+        })
+        : [],
+      fanUserIds.length > 0
+        ? this.prisma.payment.findMany({
+          where: {
+            receiverId: creatorId,
+            userId: { in: fanUserIds },
+            forPayment: 'following',
+            status: 'succeeded',
+          },
+          orderBy: { createdAt: 'desc' },
+        })
+        : [],
+    ]);
+
+    const currentTierPrice = creatorSub ? Number(creatorSub.subscriptionAmount) : null;
+    const previousTierPrice =
+      creatorSub && creatorSub.previousAmount !== null && creatorSub.previousAmount !== undefined
+        ? Number(creatorSub.previousAmount)
+        : null;
 
     const paymentMap = new Map<string, { totalPaidAmount: number; totalEarnedAmount: number; paymentsCount: number }>();
     for (const agg of paymentsAggregates) {
@@ -3162,6 +3241,16 @@ export class BillingService {
       });
     }
 
+    const latestPaymentMap = new Map<string, number>();
+    for (const p of latestPayments) {
+      if (!latestPaymentMap.has(p.userId)) {
+        const val = Number(p.totalAmount ?? p.amount ?? 0);
+        if (val > 0) {
+          latestPaymentMap.set(p.userId, val);
+        }
+      }
+    }
+
     const subscribers = records.map((item) => {
       const isCurrentlyActive = item.status === 'ACTIVE' && item.endDate > now;
       const paymentStats = paymentMap.get(item.fanUserId) || {
@@ -3170,10 +3259,50 @@ export class BillingService {
         paymentsCount: 0,
       };
 
+      const isCancelledOrDeclined = item.cancelAtPeriodEnd || !item.autoRenew || item.status === 'STOP';
+      const actualPaidPrice = latestPaymentMap.get(item.fanUserId);
+
+      let effectivePriceAtSubscription = item.priceAtSubscription;
+
+      // If user declined or cancelled, they must show the price they actually subscribed/paid at (old price)
+      if (isCancelledOrDeclined) {
+        if (actualPaidPrice !== undefined && actualPaidPrice > 0) {
+          effectivePriceAtSubscription = actualPaidPrice;
+        } else if (
+          previousTierPrice !== null &&
+          (effectivePriceAtSubscription === null ||
+            (currentTierPrice !== null && Number(effectivePriceAtSubscription) >= Number(currentTierPrice)))
+        ) {
+          effectivePriceAtSubscription = previousTierPrice;
+        }
+      } else if (effectivePriceAtSubscription === null || effectivePriceAtSubscription === undefined) {
+        effectivePriceAtSubscription =
+          actualPaidPrice !== undefined && actualPaidPrice > 0
+            ? actualPaidPrice
+            : (currentTierPrice ?? null);
+      }
+
+      // Sync database record if it stored the new price even though user declined
+      if (
+        isCancelledOrDeclined &&
+        effectivePriceAtSubscription !== null &&
+        item.priceAtSubscription !== null &&
+        Number(item.priceAtSubscription) !== Number(effectivePriceAtSubscription)
+      ) {
+        this.prisma.fansSubscriptionBuyData
+          .update({
+            where: { id: item.id },
+            data: { priceAtSubscription: effectivePriceAtSubscription },
+          })
+          .catch((err) =>
+            console.warn(`[BillingService] Failed to sync priceAtSubscription for ${item.id}:`, err?.message || err),
+          );
+      }
+
       return {
         subscriptionId: item.id,
         subscriber: item.fanUser,
-        priceAtSubscription: item.priceAtSubscription,
+        priceAtSubscription: effectivePriceAtSubscription,
         startDate: item.startDate,
         endDate: item.endDate,
         status: item.status,
@@ -3296,9 +3425,9 @@ export class BillingService {
         Number(sub.priceAtSubscription) >= currentAmount;
       const isUpdatedAfterPriceChange = new Date(sub.updatedAt) >= priceCreatedAt;
 
-      if (sub.status === 'STOP' || (sub.cancelAtPeriodEnd && isExpired)) {
+      if (sub.status === 'STOP' || sub.cancelAtPeriodEnd || !sub.autoRenew) {
         canceledCount++;
-      } else if (sub.status === 'ACTIVE' && (isPriceUpdatedSubscriber || isUpdatedAfterPriceChange)) {
+      } else if (sub.status === 'ACTIVE' && isPriceUpdatedSubscriber) {
         acceptedCount++;
       } else if (sub.status === 'ACTIVE' && !isExpired) {
         pendingCount++;
@@ -3445,9 +3574,9 @@ export class BillingService {
 
       if (subscription.pricingPolicy === 'GRANDFATHER_EXISTING') {
         responseStatus = 'ACCEPTED';
-      } else if (sub.status === 'STOP' || (sub.cancelAtPeriodEnd && isExpired)) {
+      } else if (sub.status === 'STOP' || sub.cancelAtPeriodEnd || !sub.autoRenew) {
         responseStatus = 'DECLINED';
-      } else if (sub.status === 'ACTIVE' && (isPriceUpdatedSubscriber || isUpdatedAfterPriceChange)) {
+      } else if (sub.status === 'ACTIVE' && isPriceUpdatedSubscriber) {
         responseStatus = 'ACCEPTED';
       } else if (sub.status === 'ACTIVE' && !isExpired) {
         responseStatus = 'PENDING';
@@ -3478,12 +3607,28 @@ export class BillingService {
 
       const isCurrentlyActive = sub.status === 'ACTIVE' && new Date(sub.endDate) > now;
 
+      const isDeclined = responseStatus === 'DECLINED';
+      const actualPaid = paymentStats.totalPaidAmount;
+      let effectiveSubPrice =
+        sub.priceAtSubscription !== null && sub.priceAtSubscription !== undefined
+          ? Number(sub.priceAtSubscription)
+          : null;
+      if (isDeclined) {
+        if (previousAmount) {
+          effectiveSubPrice = previousAmount;
+        } else if (actualPaid && actualPaid > 0) {
+          effectiveSubPrice = actualPaid;
+        }
+      } else if (effectiveSubPrice === null) {
+        effectiveSubPrice = currentAmount;
+      }
+
       const item = {
         subscriptionId: sub.id,
         fanUserId: sub.fanUserId,
         responseStatus,
         responseStatusFormatted: responseStatus === 'ACCEPTED' ? 'Accepted' : responseStatus === 'DECLINED' ? 'Declined' : 'Pending',
-        priceAtSubscription: sub.priceAtSubscription !== null && sub.priceAtSubscription !== undefined ? Number(sub.priceAtSubscription) : null,
+        priceAtSubscription: effectiveSubPrice,
         currentPrice: currentAmount,
         previousPrice: previousAmount,
         status: sub.status,

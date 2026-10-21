@@ -3798,9 +3798,9 @@ export class UserService {
         Number(sub.priceAtSubscription) >= currentAmount;
       const isUpdatedAfterPriceChange = new Date(sub.updatedAt) >= priceCreatedAt;
 
-      if (sub.status === 'STOP' || (sub.cancelAtPeriodEnd && isExpired)) {
+      if (sub.status === 'STOP' || sub.cancelAtPeriodEnd || !sub.autoRenew) {
         canceledCount++;
-      } else if (sub.status === 'ACTIVE' && (isPriceUpdatedSubscriber || isUpdatedAfterPriceChange)) {
+      } else if (sub.status === 'ACTIVE' && isPriceUpdatedSubscriber) {
         acceptedCount++;
       } else if (sub.status === 'ACTIVE' && !isExpired) {
         pendingCount++;
@@ -3947,9 +3947,9 @@ export class UserService {
 
       if (subscription.pricingPolicy === 'GRANDFATHER_EXISTING') {
         responseStatus = 'ACCEPTED';
-      } else if (sub.status === 'STOP' || (sub.cancelAtPeriodEnd && isExpired)) {
+      } else if (sub.status === 'STOP' || sub.cancelAtPeriodEnd || !sub.autoRenew) {
         responseStatus = 'DECLINED';
-      } else if (sub.status === 'ACTIVE' && (isPriceUpdatedSubscriber || isUpdatedAfterPriceChange)) {
+      } else if (sub.status === 'ACTIVE' && isPriceUpdatedSubscriber) {
         responseStatus = 'ACCEPTED';
       } else if (sub.status === 'ACTIVE' && !isExpired) {
         responseStatus = 'PENDING';
@@ -3980,12 +3980,28 @@ export class UserService {
 
       const isCurrentlyActive = sub.status === 'ACTIVE' && new Date(sub.endDate) > now;
 
+      const isDeclined = responseStatus === 'DECLINED';
+      const actualPaid = paymentStats.totalPaidAmount;
+      let effectiveSubPrice =
+        sub.priceAtSubscription !== null && sub.priceAtSubscription !== undefined
+          ? Number(sub.priceAtSubscription)
+          : null;
+      if (isDeclined) {
+        if (previousAmount) {
+          effectiveSubPrice = previousAmount;
+        } else if (actualPaid && actualPaid > 0) {
+          effectiveSubPrice = actualPaid;
+        }
+      } else if (effectiveSubPrice === null) {
+        effectiveSubPrice = currentAmount;
+      }
+
       const item = {
         subscriptionId: sub.id,
         fanUserId: sub.fanUserId,
         responseStatus,
         responseStatusFormatted: responseStatus === 'ACCEPTED' ? 'Accepted' : responseStatus === 'DECLINED' ? 'Declined' : 'Pending',
-        priceAtSubscription: sub.priceAtSubscription !== null && sub.priceAtSubscription !== undefined ? Number(sub.priceAtSubscription) : null,
+        priceAtSubscription: effectiveSubPrice,
         currentPrice: currentAmount,
         previousPrice: previousAmount,
         status: sub.status,
