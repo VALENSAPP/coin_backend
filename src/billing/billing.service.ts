@@ -384,7 +384,7 @@ export class BillingService {
         provider: 'STRIPE',
         country: user.country,
         canReceivePayments: false,
-        message: 'Complete Stripe onboarding to withdraw available balance.',
+        message: 'Please complete stripe onboarding',
       };
     }
     try {
@@ -854,7 +854,7 @@ export class BillingService {
       if (notif) {
         let notifData = notif.data as any;
         if (typeof notifData === 'string') {
-          try { notifData = JSON.parse(notifData); } catch {}
+          try { notifData = JSON.parse(notifData); } catch { }
         }
         if (notifData?.creatorId && !creatorId) creatorId = notifData.creatorId;
         if (notifData?.subscriptionId && !subscriptionId) subscriptionId = notifData.subscriptionId;
