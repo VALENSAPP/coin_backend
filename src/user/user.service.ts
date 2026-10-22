@@ -4331,10 +4331,13 @@ export class UserService {
 
     const logoUrl =
       process.env.APP_LOGO_URL ||
-      process.env.OG_IMAGE_URL ||
       (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/logo.png` : '') ||
       'https://api.valens.app/logo.png';
     const baseUrl = process.env.BASE_URL || process.env.FRONTEND_URL || 'https://api.valens.app';
+    const appRedirectUrl =
+      process.env.APP_REDIRECT_URL ||
+      (process.env.BASE_URL ? `${process.env.BASE_URL.replace(/\/$/, '')}/open-app` : '') ||
+      'https://api.valens.app/open-app';
     const renewUrl = `${baseUrl.replace(/\/$/, '')}/profile/${creatorId}?renew=true`;
 
     const processedFanIds = new Set<string>();
@@ -4442,6 +4445,9 @@ export class UserService {
               newPrice: newPrice.toFixed(2),
               periodEndDate: formattedPeriodEnd,
               logoUrl,
+              logo_url: logoUrl,
+              appUrl: appRedirectUrl,
+              app_url: appRedirectUrl,
               renewUrl,
             },
           });

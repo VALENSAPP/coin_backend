@@ -136,37 +136,59 @@ export class AppController {
   @Get('share-app')
   @Get('download')
   @Get('invite')
+  @Get('profile/:id')
+  @Get('u/:id')
   openApp(@Req() req: Request, @Res() res: Response) {
     const configuredBaseUrl = process.env.BASE_URL;
-    const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
     const host = req.get('host');
     const baseUrl = configuredBaseUrl || (host ? `${protocol}://${host}` : 'https://api.valens.app');
 
+    const configuredOgImageUrl = process.env.OG_IMAGE_URL;
     const ogImage =
       configuredOgImageUrl ||
       `${baseUrl}/share-assets/valens-share-og.png`;
 
     const appStoreUrl =
-      process.env.APP_STORE_URL || 'https://apps.apple.com/app/valens/id6740683058';
+      process.env.APP_STORE_URL || 'https://apps.apple.com/us/app/valens-app/id6752780902';
     const playStoreUrl =
-      process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.valens.app';
-    const webUrl = process.env.WEB_URL || process.env.APP_BASE_URL || 'https://valensapp.com';
+      process.env.PLAY_STORE_URL || 'https://play.google.com/store/apps/details?id=com.valens';
+    const webUrl =
+      process.env.WEB_URL || process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'https://www.valenscorp.com';
 
-    const rawPath = typeof req.query.path === 'string' ? req.query.path.replace(/^\/+/, '') : 'home';
+    const logoUrl =
+      process.env.APP_LOGO_URL ||
+      `${baseUrl}/logo.png`;
+
+    let rawPath = 'home';
+    if (typeof req.query.path === 'string' && req.query.path.trim()) {
+      rawPath = req.query.path.replace(/^\/+/, '');
+    } else if (req.params && (req.params as any).id) {
+      const isU = req.path.includes('/u/');
+      rawPath = `${isU ? 'u' : 'profile'}/${(req.params as any).id}`;
+      if (req.query && req.query.renew === 'true') {
+        rawPath += '?renew=true';
+      }
+    }
+
     const shareUrl = `${baseUrl}/app${rawPath && rawPath !== 'home' ? `?path=${encodeURIComponent(rawPath)}` : ''}`;
 
-    const title = 'Valens App';
+    const title = 'Valens';
     const description = 'Reputation Earned. Value Built';
 
     const safeTitle = this.escapeHtml(title);
     const safeDesc = this.escapeHtml(description);
     const safeOgImage = this.escapeHtml(ogImage);
+    const safeLogo = this.escapeHtml(logoUrl);
     const safeShareUrl = this.escapeHtml(shareUrl);
     const safeAppStore = this.escapeHtml(appStoreUrl);
     const safePlayStore = this.escapeHtml(playStoreUrl);
     const safeWebUrl = this.escapeHtml(webUrl);
     const safePath = this.escapeHtml(rawPath);
+
+    const packageMatch = playStoreUrl.match(/id=([a-zA-Z0-9._]+)/);
+    const packageId = packageMatch ? packageMatch[1] : 'com.valens';
+    const safePackageId = this.escapeHtml(packageId);
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.send(`<!DOCTYPE html>
@@ -205,7 +227,7 @@ export class AppController {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: radial-gradient(circle at 50% 20%, #200b3b 0%, #0d0618 100%);
+      background: #0d0618;
       color: #ffffff;
       min-height: 100vh;
       display: flex;
@@ -215,77 +237,60 @@ export class AppController {
       padding: 24px;
       text-align: center;
     }
-    .card {
-      background: rgba(255, 255, 255, 0.06);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 24px;
-      padding: 36px 28px;
-      max-width: 440px;
-      width: 100%;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    .redirect-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
     }
-    .logo-container { margin-bottom: 20px; }
-    .logo { max-width: 180px; width: 70%; height: auto; display: block; margin: 0 auto; border-radius: 16px; }
+    .logo {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 16px rgba(139, 92, 246, 0.4));
+      animation: pulse 1.6s ease-in-out infinite alternate;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.96); opacity: 0.85; }
+      100% { transform: scale(1.04); opacity: 1; }
+    }
     .spinner {
-      width: 36px; height: 36px;
+      width: 28px;
+      height: 28px;
       border: 3px solid rgba(255, 255, 255, 0.15);
-      border-top-color: #a855f7;
+      border-top-color: #8b5cf6;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      margin: 18px auto;
+      animation: spin 0.7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    h1 { font-size: 22px; font-weight: 700; color: #ffffff; margin-bottom: 6px; }
-    p.subtitle { font-size: 14px; color: rgba(255, 255, 255, 0.75); line-height: 1.5; margin-bottom: 24px; }
-    .btn-group { display: flex; flex-direction: column; gap: 12px; width: 100%; }
-    .btn {
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      padding: 14px 20px; border-radius: 12px; font-size: 15px; font-weight: 600;
-      text-decoration: none; transition: all 0.2s ease; border: none; cursor: pointer;
+    .status-text {
+      font-size: 15px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      letter-spacing: 0.2px;
     }
-    .btn-primary {
-      background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
-      color: #ffffff;
-      box-shadow: 0 4px 14px rgba(109, 40, 217, 0.4);
+    .fallback-link {
+      margin-top: 18px;
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.5);
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(109, 40, 217, 0.5); }
-    .btn-store { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); color: #ffffff; }
-    .btn-store:hover { background: rgba(255, 255, 255, 0.14); }
-    .footer-text { margin-top: 24px; font-size: 12px; color: rgba(255, 255, 255, 0.45); }
+    .fallback-link a {
+      color: #a78bfa;
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="logo-container">
-      <img src="${safeOgImage}" alt="Valens" class="logo" onerror="this.src='${baseUrl}/logo.png'">
-    </div>
-
-    <div id="loading-state">
-      <div class="spinner"></div>
-      <h1 id="status-title">Opening Valens...</h1>
-      <p class="subtitle" id="status-desc">If the app is installed, it will open automatically.</p>
-    </div>
-
-    <div class="btn-group">
-      <a id="btn-open-app" href="com.valens.app://${safePath}" class="btn btn-primary">
-        <span>🚀</span> Open in Valens App
-      </a>
-      <a id="btn-app-store" href="${safeAppStore}" class="btn btn-store" style="display:none;">
-        <span>🍎</span> Download on App Store
-      </a>
-      <a id="btn-play-store" href="${safePlayStore}" class="btn btn-store" style="display:none;">
-        <span>🤖</span> Get it on Google Play
-      </a>
-      <a id="btn-web" href="${safeWebUrl}" class="btn btn-store" style="display:none;">
-        <span>🌐</span> Visit Valens Web
-      </a>
-    </div>
-
-    <div class="footer-text">
-      &copy; 2026 Valens Technologies INC. All rights reserved.
-    </div>
+  <div class="redirect-box">
+    <img src="${safeLogo}" alt="Valens" class="logo">
+    <div class="spinner"></div>
+    <div class="status-text" id="status-text">Opening Valens...</div>
+    <p class="fallback-link" id="fallback-container">
+      Taking longer than expected? <a id="fallback-link" href="#">Click here</a>
+    </p>
   </div>
 
   <script>
@@ -294,31 +299,20 @@ export class AppController {
       var appStore = "${safeAppStore}";
       var playStore = "${safePlayStore}";
       var webUrl = "${safeWebUrl}";
+      var packageId = "${safePackageId}";
 
       var ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
       var isCrawler = /whatsapp|facebookexternalhit|twitterbot|telegrambot|applebot|discordbot|slackbot|linkedinbot/i.test(ua);
+      if (isCrawler) {
+        return;
+      }
+
       var isIOS = /ipad|iphone|ipod/.test(ua) && !window.MSStream;
       var isAndroid = /android/i.test(ua);
 
-      var btnAppStore = document.getElementById('btn-app-store');
-      var btnPlayStore = document.getElementById('btn-play-store');
-      var btnWeb = document.getElementById('btn-web');
-      var spinner = document.querySelector('.spinner');
-
-      if (isIOS) {
-        btnAppStore.style.display = 'flex';
-      } else if (isAndroid) {
-        btnPlayStore.style.display = 'flex';
-      } else {
-        btnWeb.style.display = 'flex';
-        btnAppStore.style.display = 'flex';
-        btnPlayStore.style.display = 'flex';
-      }
-
-      if (isCrawler) {
-        if (spinner) spinner.style.display = 'none';
-        return;
-      }
+      var statusText = document.getElementById('status-text');
+      var fallbackContainer = document.getElementById('fallback-container');
+      var fallbackLink = document.getElementById('fallback-link');
 
       var appOpened = false;
       function markOpened() { appOpened = true; }
@@ -328,26 +322,47 @@ export class AppController {
       window.addEventListener('pagehide', markOpened);
       window.addEventListener('blur', markOpened);
 
-      var startTime = Date.now();
+      setTimeout(function () {
+        if (!appOpened && fallbackContainer) {
+          fallbackContainer.style.opacity = '1';
+        }
+      }, 2500);
 
       if (isAndroid) {
+        if (statusText) statusText.textContent = 'Redirecting...';
+        if (fallbackLink) fallbackLink.href = playStore;
+
         var fallbackUrl = encodeURIComponent(playStore);
-        var androidIntent = "intent://" + path + "#Intent;scheme=com.valens;package=com.valens.app;S.browser_fallback_url=" + fallbackUrl + ";end";
+        var androidIntent = "intent://" + path + "#Intent;scheme=com.valens;package=" + packageId + ";S.browser_fallback_url=" + fallbackUrl + ";end";
+
+        var startTime = Date.now();
         window.location.href = androidIntent;
+
+        setTimeout(function () {
+          var elapsed = Date.now() - startTime;
+          if (!appOpened && elapsed < 2500) {
+            window.location.href = playStore;
+          }
+        }, 1200);
+
       } else if (isIOS) {
+        if (statusText) statusText.textContent = 'Redirecting...';
+        if (fallbackLink) fallbackLink.href = appStore;
+
+        var startTime = Date.now();
         window.location.href = "com.valens.app://" + path;
+
         setTimeout(function () {
           var elapsed = Date.now() - startTime;
           if (!appOpened && elapsed < 2500) {
             window.location.href = appStore;
           }
-        }, 1400);
+        }, 1200);
+
       } else {
-        if (spinner) spinner.style.display = 'none';
-        var statusTitle = document.getElementById('status-title');
-        var statusDesc = document.getElementById('status-desc');
-        if (statusTitle) statusTitle.textContent = 'Welcome to Valens';
-        if (statusDesc) statusDesc.textContent = 'Download the Valens mobile app on your phone:';
+        if (statusText) statusText.textContent = 'Redirecting to Valens...';
+        if (fallbackLink) fallbackLink.href = webUrl;
+        window.location.replace(webUrl);
       }
     })();
   </script>

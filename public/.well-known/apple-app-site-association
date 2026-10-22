@@ -13,7 +13,15 @@
           "/postshare/*",
           "/reelshare/*",
           "/storyshare/*",
-          "/closet/*"
+          "/closet/*",
+          "/open-app",
+          "/open-app/*",
+          "/app",
+          "/app/*",
+          "/open",
+          "/open/*",
+          "/download",
+          "/download/*"
         ]
       }
     ]
