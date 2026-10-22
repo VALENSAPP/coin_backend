@@ -1647,7 +1647,9 @@ export class UserService {
     }
 
     const isAlreadyBlocked = Boolean(
-      targetUser.isBlocked || (targetUser.bannedUntil && new Date(targetUser.bannedUntil) > new Date())
+      targetUser.isBlocked ||
+      (targetUser.bannedUntil && new Date(targetUser.bannedUntil) > new Date()) ||
+      targetUser.accountStanding === 'BANNED'
     );
 
     if (isAlreadyBlocked) {
@@ -1666,6 +1668,8 @@ export class UserService {
         blockedReason: blockReason,
         blockedAt: now,
         bannedUntil: permanentBanDate,
+        accountStanding: 'BANNED',
+        standingReason: blockReason,
         refreshToken: null,
         refreshTokenExpiresAt: null,
       },
@@ -1681,6 +1685,7 @@ export class UserService {
         blockedReason: true,
         blockedAt: true,
         bannedUntil: true,
+        accountStanding: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -1718,7 +1723,10 @@ export class UserService {
     }
 
     const isCurrentlyBlocked = Boolean(
-      targetUser.isBlocked || (targetUser.bannedUntil && new Date(targetUser.bannedUntil) > new Date())
+      targetUser.isBlocked ||
+      (targetUser.bannedUntil && new Date(targetUser.bannedUntil) > new Date()) ||
+      targetUser.accountStanding === 'BANNED' ||
+      targetUser.accountStanding === 'SUSPENDED'
     );
 
     if (!isCurrentlyBlocked) {
@@ -1732,6 +1740,9 @@ export class UserService {
         blockedReason: null,
         blockedAt: null,
         bannedUntil: null,
+        accountStanding: 'GOOD',
+        standingUntil: null,
+        standingReason: null,
       },
       select: {
         id: true,
@@ -1745,6 +1756,7 @@ export class UserService {
         blockedReason: true,
         blockedAt: true,
         bannedUntil: true,
+        accountStanding: true,
         createdAt: true,
         updatedAt: true,
       },
